@@ -417,7 +417,7 @@ export function DeepResearchPanel({
                   className="inline-flex items-center gap-1 rounded-md border border-border-default bg-background px-2 py-1 text-xs text-muted-foreground"
                 >
                   <span>{source.label}</span>
-                  <span className="text-xs text-muted-foreground/60">
+                  <span className="text-xs text-muted-foreground">
                     {source.provider ?? source.kind}
                   </span>
                 </span>

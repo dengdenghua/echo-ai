@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -100,6 +101,14 @@ def test_full_chain_smoke_uses_two_private_known_good_workspaces_and_cleans_them
         assert not call["workspace"].exists()
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "runs the real trusted controller, which scans workspaces with descriptor-relative "
+        "POSIX calls (os.open dir_fd, os.scandir(fd)) and whose local worker uses AF_UNIX "
+        "pass_fds; Windows supports neither"
+    ),
+)
 def test_evaluator_owned_candidates_pass_the_controller_with_local_worker(tmp_path: Path) -> None:
     path_case, cache_case = smoke._CASES
     path_workspace = tmp_path / path_case.case_id

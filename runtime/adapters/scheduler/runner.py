@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-import concurrent.futures.thread as _cf_thread
 import contextvars
 import logging
 import random
 import threading
 import time
-import weakref
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 
 from runtime.adapters.instrumentation import trace_stage
+from runtime.platform.process.daemon_executor import (
+    DaemonThreadPoolExecutor as _DaemonThreadPoolExecutor,
+)
 
 from .cron import CronExpression
 
@@ -56,59 +57,6 @@ class PeriodicTask:
     @property
     def is_cron(self) -> bool:
         return self.cron_expr is not None
-
-
-class _DaemonThreadPoolExecutor(ThreadPoolExecutor):
-    """ThreadPoolExecutor whose worker threads are daemon threads.
-
-    ``BackgroundRunner.stop`` gives up on a stuck callback after its
-    cooperative budget and then calls ``shutdown(wait=False)``.  A normal
-    executor keeps non-daemon worker threads alive, so a hung callback
-    would still block interpreter exit.  Daemon workers let the process
-    terminate cleanly while the stuck callback simply drops (audit P-09).
-    """
-
-    def _adjust_thread_count(self) -> None:
-        if self._idle_semaphore.acquire(timeout=0):
-            return
-
-        def weakref_cb(_, q=self._work_queue):
-            q.put(None)
-
-        num_threads = len(self._threads)
-        if num_threads < self._max_workers:
-            thread_name = f"{self._thread_name_prefix or self}_{num_threads}"
-            executor_reference = weakref.ref(self, weakref_cb)
-
-            # CPython 3.14 replaced the legacy ``initializer``/``initargs``
-            # worker protocol with a per-thread WorkerContext.  Capability
-            # detection keeps this compatible with both implementations (and
-            # with downstream backports) without assuming a Python version.
-            create_worker_context = getattr(self, "_create_worker_context", None)
-            worker_args: tuple[object, ...]
-            if callable(create_worker_context):
-                worker_args = (
-                    executor_reference,
-                    create_worker_context(),
-                    self._work_queue,
-                )
-            else:
-                worker_args = (
-                    executor_reference,
-                    self._work_queue,
-                    getattr(self, "_initializer", None),
-                    getattr(self, "_initargs", ()),
-                )
-
-            t = threading.Thread(
-                name=thread_name,
-                target=_cf_thread._worker,
-                args=worker_args,
-                daemon=True,
-            )
-            t.start()
-            self._threads.add(t)
-            _cf_thread._threads_queues[t] = self._work_queue
 
 
 class BackgroundRunner:

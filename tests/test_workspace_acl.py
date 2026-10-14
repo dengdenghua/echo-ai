@@ -35,7 +35,7 @@ from runtime.sensing.server.mount_backend import (
 )
 from runtime.workspace import WorkspaceStore
 from runtime.workspace import crypto as crypto_mod
-from runtime.workspace.cowork_bridge import (
+from runtime.workspace.group_binding import (
     broadcast_file_written,
     grant_for_workspace_role,
     link_workspace_to_group,

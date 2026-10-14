@@ -22,7 +22,9 @@ def test_initialize_and_error_result() -> None:
     assert "boom" in err["content"][0]["text"]
 
 
-def test_list_tools_and_skill_name_resolution() -> None:
+def test_list_tools_and_skill_name_resolution(enabled_device_plugin_manifests) -> None:
+    # Android tools come from the opt-in echo-android device plugin; resolve
+    # against its first-party manifests instead of the host's install state.
     s = _server()
     tools = s.list_tools()
     assert len(tools) >= 1

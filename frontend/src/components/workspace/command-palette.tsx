@@ -4,7 +4,6 @@ import {
   BoxesIcon,
   BrainCircuitIcon,
   CableIcon,
-  CpuIcon,
   DnaIcon,
   FolderIcon,
   GlobeIcon,
@@ -53,7 +52,7 @@ export function CommandPalette() {
   }, []);
 
   const handleNewChat = useCallback(() => {
-    navigate("/workspace/realtime/new");
+    void navigate("/workspace/realtime/new");
     setOpen(false);
   }, [navigate]);
 
@@ -100,13 +99,20 @@ export function CommandPalette() {
   // cmdk library filters both groups from the same input value.
   const handleNavigate = useCallback(
     (to: string) => {
-      navigate(to);
+      void navigate(to);
       setOpen(false);
     },
     [navigate],
   );
   const PAGE_ITEMS = useMemo(
     () => [
+      {
+        id: "devices",
+        to: "/workspace/devices",
+        label: "设备互联",
+        icon: CableIcon,
+        keywords: "devices phone mobile mirror transfer 手机 同屏 文件 电脑 虚拟",
+      },
       ...WORKBENCH_BUILTIN_APPS.map((app) => ({
         id: app.id,
         to: app.workspaceRoute,
@@ -138,7 +144,7 @@ export function CommandPalette() {
       },
       {
         id: "channels",
-        to: "/workspace/channels",
+        to: "/workspace/realtime/echo-assistant?agent=echo&assistantPanel=channels",
         label: t.channels.title,
         icon: CableIcon,
         keywords: "channel connector messaging",
@@ -167,7 +173,7 @@ export function CommandPalette() {
       },
       {
         id: "desktop-organizer",
-        to: "/workspace/desktop-organizer",
+        to: "/workspace/settings?section=desktopAutomation",
         label: t.sidebar.navDesktopOrganizer,
         icon: FolderIcon,
         keywords: "desktop organizer folder",
@@ -175,7 +181,7 @@ export function CommandPalette() {
 
       {
         id: "reflex",
-        to: "/workspace/reflex",
+        to: "/workspace/evolution?surface=chat&section=governance&detail=reflex",
         label: t.reflexPage.pageTitle,
         icon: RadarIcon,
         keywords: "reflex rule monitor",
@@ -186,13 +192,6 @@ export function CommandPalette() {
         label: t.sidebar.navBrowserSurface,
         icon: GlobeIcon,
         keywords: "browser ai tabs history bookmarks copilot",
-      },
-      {
-        id: "computer",
-        to: "/workspace/computer",
-        label: t.agentWorkbench.computerView,
-        icon: CpuIcon,
-        keywords: "computer desktop automation",
       },
     ],
     [t],
@@ -233,7 +232,7 @@ export function CommandPalette() {
               </CommandItem>
               <CommandItem
                 onSelect={() => {
-                  navigate("/workspace/evolution");
+                  void navigate("/workspace/evolution");
                   setOpen(false);
                 }}
               >

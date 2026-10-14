@@ -368,7 +368,8 @@ def register_cron_executor_task(
     try:
         from runtime.execution.cron_executor import recover_interrupted_cron_jobs
 
-        recovered = recover_interrupted_cron_jobs()
+        # Trusted global caller: owned jobs too, or a crashed one stays "running".
+        recovered = recover_interrupted_cron_jobs(allow_cross_tenant=True)
         if recovered.get("interrupted"):
             logging.getLogger(__name__).warning(
                 "cron recovery: %d job(s) interrupted at startup: %s",
@@ -444,10 +445,8 @@ def register_cron_executor_task(
 
         def _run() -> None:
             try:
-                run_due_cron_jobs(
-                    deliver=_deliver,
-                    stop_event=_stopping,
-                )
+                # Trusted global scheduler: without the flag owned jobs never fire.
+                run_due_cron_jobs(deliver=_deliver, stop_event=_stopping, allow_cross_tenant=True)
             except Exception:  # noqa: BLE001 — a tick fault must not kill the cron pool
                 logging.getLogger(__name__).exception("cron tick failed")
 
@@ -576,15 +575,19 @@ def run_serve(
 ) -> int:
     import sys
 
+    from runtime.adapters.integrations.local_auth import config as local_auth
+    from runtime.adapters.integrations.local_auth import owner as owner_account
     from runtime.adapters.scheduler import BackgroundRunner
     from runtime.cli_core import _Colors
+    from runtime.cli_serve_env import apply_tentacle_ws_port_override
     from runtime.kernel import AgentKernel
     from runtime.platform.config import ConfigLoadError, load_from_yaml
     from runtime.platform.i18n import _
 
+    desktop_owner_token = local_auth.take_desktop_owner_token()
     c = _Colors(color)
     try:
-        cfg = load_from_yaml(config_path)
+        cfg = apply_tentacle_ws_port_override(load_from_yaml(config_path))
     except ConfigLoadError as e:
         print(c.red(f"config error: {e}"), file=sys.stderr)
         return 2
@@ -598,10 +601,18 @@ def run_serve(
         .strip()
         .lower()
     )
+    # Development's sign-in by name hands anyone who can reach the port a
+    # JWT, so it never makes a network bind safe; OCT, password accounts and
+    # the self-hosted owner account (setup code, then password) do.
+    local_auth_cfg = getattr(cfg, "local_auth", None)
+    bind_auth = bool(
+        getattr(getattr(cfg, "oct", None), "enabled", False)
+        or local_auth.network_bind_authenticated(local_auth_cfg, deployment_mode)
+    )
     bind_error = _insecure_bind_error(
         host=host,
         uds=uds,
-        require_auth=require_ui_auth,
+        require_auth=bind_auth,
     )
     if bind_error is not None:
         print(c.red(f"security error: {bind_error}"), file=sys.stderr)
@@ -640,6 +651,8 @@ def run_serve(
         str(os.environ.get("ECHO_DEPLOYMENT_MODE") or deployment_mode).strip().lower()
     )
     allow_local_workspace_access = effective_deployment_mode == "local" and _is_loopback_host(host)
+    local_auth.install_desktop_owner_token(desktop_owner_token, allow_local_workspace_access)
+    cfg = owner_account.with_owner_jwt_secret(cfg)
 
     # Startup execution-health canary: probe whether a sandboxed command can
     # run in THIS process environment. When the backend cannot apply its
@@ -883,13 +896,12 @@ def run_serve(
     # The supervisor remains opt-in and best-effort: storage can still be
     # deployed independently, and a missing sibling must never block Echo.
     try:
-        from runtime.sensing.gateway.storage_supervisor import (
-            maybe_start_storage,
-            start_storage_heartbeat,
-        )
+        from runtime.sensing.gateway import storage_supervisor as storage
 
-        storage_start = maybe_start_storage()
-        start_storage_heartbeat()
+        storage_start = storage.maybe_start_storage()
+        storage.start_storage_heartbeat()
+        # Stop supervising (and reap our child) with the ASGI lifespan.
+        app.router.add_event_handler("shutdown", storage.shutdown_storage)
         if storage_start in {"started", "already_running"}:
             print(c.dim("  local knowledge storage: ready (managed with this session)"))
         elif storage_start == "not_found":

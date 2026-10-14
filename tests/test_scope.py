@@ -526,6 +526,7 @@ class TestExecutorEnforcement:
         self,
         data_dir: Path,
         mk_session,
+        monkeypatch,
     ):
         from runtime.execution.suckers._write_skills_exec import _ipython
         from runtime.execution.suckers.registry import Skill
@@ -533,6 +534,7 @@ class TestExecutorEnforcement:
         from runtime.platform.models import SkillId
         from runtime.platform.process.session import session_scope
 
+        monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
         thread_id = "thread-ipython-cwd"
         workspace = data_dir / "workspaces" / thread_id
         artifact_root = workspace / "output" / "final"

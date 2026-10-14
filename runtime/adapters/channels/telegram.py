@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ._webhook_auth import secrets_match
 from .base import Attachment, Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 try:
@@ -231,7 +232,7 @@ class TelegramChannel(Channel):
         if self._webhook_secret:
             lowered = {k.lower(): v for k, v in headers.items()}
             recv = lowered.get("x-telegram-bot-api-secret-token", "")
-            if recv != self._webhook_secret:
+            if not secrets_match(recv, self._webhook_secret):
                 raise TelegramSecretMismatch(
                     "X-Telegram-Bot-Api-Secret-Token mismatch",
                 )

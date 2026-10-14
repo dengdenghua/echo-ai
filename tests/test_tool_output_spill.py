@@ -88,7 +88,7 @@ def test_save_text_spill_writes_private_session_scoped_file(tmp_path) -> None:
     assert os.path.exists(path)
     assert Path(path).read_text(encoding="utf-8") == "hello world"
     # session-scoped dir: <root>/session-<sha256 prefix>
-    assert os.path.dirname(path).startswith(f"{tmp_path}/session-")
+    assert os.path.dirname(path).startswith(os.path.join(str(tmp_path), "session-"))
     assert str(session_spill_dir(tmp_path, SPILL_SESSION)) == os.path.dirname(path)
     # random prefix + safe name
     assert os.path.basename(path).endswith("-web_fetch.txt")

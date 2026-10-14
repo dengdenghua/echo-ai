@@ -14,6 +14,8 @@ interface SettingsUxCopy {
     healthTitle: string;
     healthDescription: string;
     openDashboard: string;
+    debugTitle: string;
+    debugDescription: string;
   };
   privacy: {
     identityTitle: string;
@@ -91,6 +93,9 @@ const COPY: Record<Locale, SettingsUxCopy> = {
       healthTitle: "运行健康",
       healthDescription: "定位失败、延迟与异常状态。",
       openDashboard: "打开可观测性工作台",
+      debugTitle: "流式调试面板",
+      debugDescription:
+        "开发者工具：在对话页右下角显示事件调试按钮，Ctrl+Shift+D 打开或收起面板。只影响当前浏览器。",
     },
     privacy: {
       identityTitle: "产品身份保护",
@@ -145,7 +150,7 @@ const COPY: Record<Locale, SettingsUxCopy> = {
       restoreFailed: "操作失败，请稍后重试。",
       removePathTitle: "删除保护路径",
       removePathDescription: (path) =>
-        `移除“${path}”后，Agent 将不再自动拒绝访问该路径。`,
+        `移除“${path}”后，智能体将不再自动拒绝访问该路径。`,
       removePathConfirm: "确认删除",
     },
     mcp: {
@@ -192,6 +197,9 @@ const COPY: Record<Locale, SettingsUxCopy> = {
       healthTitle: "Runtime health",
       healthDescription: "Find failures, latency, and abnormal states.",
       openDashboard: "Open observability workspace",
+      debugTitle: "Streaming debugger",
+      debugDescription:
+        "Developer tool: shows an event debugger button in the corner of the chat; Ctrl+Shift+D opens or closes the panel. This browser only.",
     },
     privacy: {
       identityTitle: "Product identity protection",
@@ -302,6 +310,9 @@ const COPY: Record<Locale, SettingsUxCopy> = {
       healthTitle: "実行状態",
       healthDescription: "失敗、遅延、異常な状態を特定します。",
       openDashboard: "オブザーバビリティを開く",
+      debugTitle: "ストリーミングデバッガー",
+      debugDescription:
+        "開発者向けツール：チャット画面の右下にイベントデバッガーのボタンを表示し、Ctrl+Shift+D でパネルを開閉します。このブラウザーのみ。",
     },
     privacy: {
       identityTitle: "製品アイデンティティ保護",
@@ -408,6 +419,9 @@ const COPY: Record<Locale, SettingsUxCopy> = {
       healthTitle: "실행 상태",
       healthDescription: "실패, 지연과 비정상 상태를 찾습니다.",
       openDashboard: "관측성 작업 공간 열기",
+      debugTitle: "스트리밍 디버거",
+      debugDescription:
+        "개발자 도구: 채팅 화면 오른쪽 아래에 이벤트 디버거 버튼을 표시하고, Ctrl+Shift+D로 패널을 열고 닫습니다. 이 브라우저에만 적용됩니다.",
     },
     privacy: {
       identityTitle: "제품 정체성 보호",

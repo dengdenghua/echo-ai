@@ -36,7 +36,8 @@ UNIFIED_ROOT = Path.home() / ".echo" / "assets"
 INDEX_FILE = UNIFIED_ROOT / "index.json"
 
 # 各来源根
-CODEX_PLUGIN_ROOT = Path.home() / ".echo" / "plugins" / "codex"
+# None: ~/.echo/plugins/codex, resolved per call so a changed HOME is honoured.
+CODEX_PLUGIN_ROOT: Path | None = None
 CONNECTOR_ROOT = REPO / "extensions" / "workbuddy-connectors" / "connectors"
 CONNECTOR_MANIFEST = REPO / "extensions" / "workbuddy-connectors" / "echo-manifest.json"
 LOCAL_SKILLS = Path.home() / ".echo" / "skills"
@@ -120,9 +121,10 @@ def _copy_light(src: Path, dest: Path) -> int:
 # ── 插件收集 ───────────────────────────────────────────────
 def _codex_plugins() -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    if not CODEX_PLUGIN_ROOT.is_dir():
+    plugin_root = CODEX_PLUGIN_ROOT or Path.home() / ".echo" / "plugins" / "codex"
+    if not plugin_root.is_dir():
         return out
-    for plugin_json in sorted(CODEX_PLUGIN_ROOT.glob("*/.codex-plugin/plugin.json")):
+    for plugin_json in sorted(plugin_root.glob("*/.codex-plugin/plugin.json")):
         meta = _read_json(plugin_json)
         if not meta or not meta.get("name"):
             continue

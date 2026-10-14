@@ -36,6 +36,7 @@ from runtime.protocol import (
     SubagentItem,
     Turn,
 )
+from runtime.sensing.gateway.group_reply_stream import FanoutReplyEmitter, stream_worker_replies
 from runtime.sensing.gateway.realtime_approval import GatewayApprovalProvider
 from runtime.sensing.gateway.realtime_gateway import EventEmitter
 
@@ -182,11 +183,11 @@ def _select_fanout_members(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Apply the server-owned addressing plan before any model is launched.
 
-    A natural-language group request or swarm turn intentionally includes the
-    active roster. Explicit ``@agent`` mentions are narrower: only the validated
-    responders may receive context or consume a model call.  The lifecycle
-    overwrites ``cowork_plan`` and ``cowork_responders`` from durable membership,
-    so this function never trusts a client-provided roster expansion.
+    Explicit ``@agent`` mentions and multi-responder (swarm) plans run exactly
+    the validated responders. A natural-language group request has none and
+    uses the active roster, already limited to members the AI may answer for.
+    The lifecycle rebuilds ``cowork_plan``/``cowork_responders`` from durable
+    membership, so this function never trusts a client-provided roster expansion.
     """
 
     available = [member for member in members if isinstance(member, dict)]
@@ -199,10 +200,10 @@ def _select_fanout_members(
         else []
     )
     has_explicit_targets = isinstance(addressed, list) and bool(addressed)
-    if has_explicit_targets:
+    if has_explicit_targets or (isinstance(plan, dict) and plan.get("is_multi") and responders):
         allowed = set(responders)
         selected = [member for member in available if str(member.get("name") or "") in allowed]
-        reason = "explicit_mentions"
+        reason = "explicit_mentions" if has_explicit_targets else "planned_responders"
     else:
         selected = [m for m in available if not str(m.get("name") or "").startswith("a2a_")]
         reason = "group_request_or_mode"
@@ -292,22 +293,21 @@ async def _drive_group_fanout(
         if isinstance(r, dict) and r.get("agent_id")
     ]
     members, fanout_routing = _select_fanout_members(ctx, members)
-    has_remote_members = any(m["name"].startswith("a2a_") for m in members)
+    has_remote_members = any(str(m.get("name") or "").startswith("a2a_") for m in members)
     if has_remote_members:
         # Remote accounts receive one explicit task per user message. Automatic
         # debate/review rounds must not repeat that task or spend extra credits.
         team_pattern["debate_rounds"] = 1
-    from runtime.execution.agents.team_patterns import pattern_member_role
+    from runtime.execution.agents.team_patterns import (
+        pattern_member_context_mode,
+        pattern_member_role,
+    )
 
     pattern_id = str(team_pattern.get("id") or "parallel_roundtable")
     for index, member in enumerate(members):
-        role = pattern_member_role(pattern_id, index)
-        # Independent candidate generation should not inherit conversational
-        # anchoring. Critics/verifiers remain selective so they can use prior
-        # decisions; the current debate transcript is still passed explicitly.
-        member["context_mode"] = (
-            "isolated" if role in {"explorer", "proposer", "alternative"} else "selective"
-        )
+        # Discussion members see the budgeted shared brief ("看看上面的…"); only
+        # adversarial review's independent candidates stay isolated.
+        member["context_mode"] = pattern_member_context_mode(pattern_member_role(pattern_id, index))
     context_engine_host = getattr(runtime, "_cowork_context_engine_host", None)
     context_engine_events: list[dict[str, Any]] = []
     context_engine_events_lock = threading.Lock()
@@ -417,6 +417,7 @@ async def _drive_group_fanout(
         item = AgentMessageItem(
             text=body,
             status=ItemStatus.COMPLETED,
+            agent_id=agent_id or None,
             agent_display_name=display_name,
             agent_avatar_url=avatar_url,
             agent_icon=icon,
@@ -1704,10 +1705,18 @@ async def _drive_group_fanout(
 
             debate_rounds = 1 if has_remote_members else _wants_debate()
             mentioned = _mentioned_names()
-            result = await asyncio.to_thread(
+            reply_emitter = FanoutReplyEmitter(
+                _emit,
+                mention_target=lambda body: _extract_mention_target(body, chat_members),
+                friendly_error=_friendly_member_error,
+                should_cancel=_group_fanout_cancelled,
+            )
+            result = await stream_worker_replies(
                 run_group_fanout,
                 text,
                 chat_members,
+                emit_reply=reply_emitter.reply,
+                max_pending=fanout_limit * 3,
                 agent_caller=_member_caller,
                 # Cover the whole roster (a small hard cap would silently drop
                 # members ordered last).
@@ -1760,39 +1769,9 @@ async def _drive_group_fanout(
                     turn.items.append(audit_item)
                     log.item_started(turn.thread_id, turn.id, audit_item)
                     log.item_completed(turn.thread_id, turn.id, audit_item)
-            last_round_emitted = 0
             for reply in result.get("replies", []):
-                body = str(reply.get("reply") or "").strip()
-                round_no = int(reply.get("round") or 1)
-                if round_no > 1 and round_no != last_round_emitted:
-                    last_round_emitted = round_no
-                    await _emit(
-                        "⚔️ 第 "
-                        + str(round_no)
-                        + " 轮 · 成员互见辩论 —— 大家看到彼此观点后点名回应：",
-                        display_name="主持人",
-                        agent_id="swarm-moderator",
-                        icon="⚔️",
-                    )
-                if reply.get("ok") and body:
-                    reply_to = _extract_mention_target(body, chat_members)
-                    await _emit(
-                        body,
-                        display_name=str(reply.get("display_name") or ""),
-                        agent_id=str(reply.get("agent_id") or ""),
-                        reply_to=reply_to,
-                    )
-                    spoke += 1
-                elif not reply.get("ok") and not reply.get("cancelled"):
-                    err = str(reply.get("error") or "no reply")
-                    await _emit(
-                        "⚠️ "
-                        + str(reply.get("display_name") or reply.get("agent_id") or "成员")
-                        + " 未能回应 · "
-                        + _friendly_member_error(err),
-                        display_name=str(reply.get("display_name") or ""),
-                        agent_id=str(reply.get("agent_id") or ""),
-                    )
+                await reply_emitter.reply(reply)
+            spoke = reply_emitter.spoke
             summary = None if fanout_cancelled else _group_summary(result)
             if summary:
                 await _emit(summary)

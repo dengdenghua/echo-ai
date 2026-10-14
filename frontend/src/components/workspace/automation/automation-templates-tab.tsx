@@ -212,7 +212,7 @@ export function AutomationTemplatesTab({
 
             <ChevronRightIcon
               aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground/55 transition-transform group-hover:translate-x-0.5 group-hover:text-primary sm:hidden"
+              className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary sm:hidden"
             />
 
             <span className="sr-only">

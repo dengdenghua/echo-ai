@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -58,6 +59,8 @@ class Procedure:
     current_step: int = 0
     attempts: dict[str, int] = field(default_factory=dict)
     receipt_ids: list[str] = field(default_factory=list)
+    in_flight_step: int | None = None
+    results: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
@@ -90,6 +93,8 @@ class Procedure:
             "current_step": self.current_step,
             "attempts": dict(self.attempts),
             "receipt_ids": list(self.receipt_ids),
+            "in_flight_step": self.in_flight_step,
+            "results": list(self.results),
             "error": self.error,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -115,6 +120,11 @@ class Procedure:
             current_step=int(payload.get("current_step", 0)),
             attempts={str(k): int(v) for k, v in dict(payload.get("attempts") or {}).items()},
             receipt_ids=[str(item) for item in payload.get("receipt_ids", [])],
+            in_flight_step=payload.get(
+                "in_flight_step",
+                payload.get("current_step", 0) if payload.get("status") == "running" else None,
+            ),
+            results=list(payload.get("results", [])),
             error=payload.get("error"),
             created_at=float(payload.get("created_at", time.time())),
             updated_at=float(payload.get("updated_at", time.time())),
@@ -228,6 +238,11 @@ class ProcedureExecutor:
             raise ValueError("procedure device_id does not match selected device")
         if procedure.complete or procedure.status == ProcedureStatus.PAUSED:
             return procedure
+        if procedure.in_flight_step is not None:
+            procedure.status = ProcedureStatus.PAUSED
+            procedure.error = "Previous action outcome is unknown; review before continuing"
+            self._checkpoint(procedure)
+            return procedure
         manifest = manifest_for(device)
         if (
             procedure.expected_contract_version is not None
@@ -294,12 +309,37 @@ class ProcedureExecutor:
                         args=dict(step.arguments),
                         trace_id=procedure.procedure_id,
                     )
+                    procedure.in_flight_step = procedure.current_step
+                    self._checkpoint(procedure)
                     result = await self.action_executor.execute(
                         device, call, envelope=envelope, lease_owner=owner
                     )
                     receipt_id = result.extra.get("execution_receipt_id")
                     if receipt_id:
                         procedure.receipt_ids.append(str(receipt_id))
+                    procedure.results.append(
+                        {
+                            "step": procedure.current_step,
+                            "action": step.action,
+                            "success": result.success,
+                            "error": result.error_message,
+                            "summary": json.dumps(result.data, ensure_ascii=False, default=str)[
+                                :4000
+                            ],
+                            "receipt_id": receipt_id,
+                        }
+                    )
+                    # Commit the result and next step together. A pause during the
+                    # await must not replay an action that has already succeeded.
+                    if not result.success and result.error_code in {-32011, -32012, -32013}:
+                        if not procedure.complete:
+                            procedure.status = ProcedureStatus.PAUSED
+                            procedure.error = "设备连接中断，当前步骤结果待核对"
+                        self._checkpoint(procedure)
+                        break
+                    procedure.in_flight_step = None
+                    if result.success:
+                        procedure.current_step += 1
                     self._checkpoint(procedure)
                     if result.success:
                         break
@@ -313,13 +353,18 @@ class ProcedureExecutor:
                     procedure.error = result.error_message if result else "step did not execute"
                     self._checkpoint(procedure)
                     break
-                procedure.current_step += 1
                 self._checkpoint(procedure)
 
             if procedure.status == ProcedureStatus.RUNNING:
                 procedure.status = ProcedureStatus.SUCCEEDED
                 self._checkpoint(procedure)
             return procedure
+        except BaseException:
+            if not procedure.complete:
+                procedure.status = ProcedureStatus.PAUSED
+                procedure.error = "Action interrupted; inspect its outcome before continuing"
+                self._checkpoint(procedure)
+            raise
         finally:
             await self.action_executor.pool.release_lock(device.tentacle_id, owner)
 

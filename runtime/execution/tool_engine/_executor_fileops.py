@@ -94,7 +94,11 @@ def _compute_unified_diff(
     )
     if not lines:
         return None
-    diff = "".join(lines)
+    # difflib does not emit EOF markers itself. Joining its unterminated
+    # payloads directly merges old/new lines and loses newline-only edits.
+    diff = "".join(
+        line if line.endswith("\n") else line + "\n\\ No newline at end of file\n" for line in lines
+    )
     if len(diff) > _FILE_DIFF_OUTPUT_LIMIT:
         head = diff[:_FILE_DIFF_OUTPUT_LIMIT]
         omitted = len(diff) - len(head)

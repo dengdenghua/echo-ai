@@ -63,7 +63,7 @@ export function ProjectTimeline({
   if (layout.bars.length === 0 && layout.unscheduled.length === 0) {
     return (
       <div className="rounded-lg border border-dashed px-3 py-4 text-xs text-muted-foreground">
-        还没有可排期的里程碑 —— 执行 Run 让引擎拆解计划后，这里会按计划开始 /
+        还没有可排期的里程碑 —— 点「运行」让引擎拆解计划后，这里会按计划开始 /
         截止日期铺出时间轴。
       </div>
     );
@@ -71,7 +71,7 @@ export function ProjectTimeline({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {LEGEND.map((item) => (
           <span key={item.health} className="inline-flex items-center gap-1">
             <span
@@ -81,7 +81,7 @@ export function ProjectTimeline({
           </span>
         ))}
         <span className="inline-flex items-center gap-1">
-          <span className="h-3 w-px bg-rose-500" />
+          <span className="h-3 w-px bg-core" />
           今日
         </span>
       </div>
@@ -90,7 +90,7 @@ export function ProjectTimeline({
         <div className="min-w-[22rem] overflow-hidden rounded-lg border">
           {/* 刻度表头 */}
           <div className="flex border-b bg-muted/30">
-            <div className="w-24 shrink-0 border-r px-2 py-1.5 text-[11px] text-muted-foreground sm:w-36 md:w-44">
+            <div className="w-24 shrink-0 border-r px-2 py-1.5 text-xs text-muted-foreground sm:w-36 md:w-44">
               里程碑
             </div>
             <div className="relative h-7 flex-1">
@@ -105,7 +105,7 @@ export function ProjectTimeline({
               ))}
               {layout.todayPct !== null && (
                 <span
-                  className="absolute top-0 h-full w-px bg-rose-500/70"
+                  className="absolute top-0 h-full w-px bg-core/70"
                   style={trackStyle(layout.todayPct)}
                 />
               )}
@@ -127,7 +127,7 @@ export function ProjectTimeline({
                     className={`size-2 shrink-0 rounded-full ${HEALTH_DOT[bar.health]}`}
                   />
                   <span
-                    className="truncate text-[11px] font-medium"
+                    className="truncate text-xs font-medium"
                     title={bar.name}
                   >
                     {bar.name}
@@ -144,7 +144,7 @@ export function ProjectTimeline({
                   ))}
                   {layout.todayPct !== null && (
                     <span
-                      className="absolute top-0 h-full w-px bg-rose-500/60"
+                      className="absolute top-0 h-full w-px bg-core/60"
                       style={trackStyle(layout.todayPct)}
                     />
                   )}
@@ -153,7 +153,10 @@ export function ProjectTimeline({
                     className={`absolute top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded ${HEALTH_BAR_TRACK[bar.health]} ${
                       onSelectMilestone ? "cursor-pointer" : "cursor-default"
                     }`}
-                    style={{ left: `${bar.leftPct}%`, width: `${bar.widthPct}%` }}
+                    style={{
+                      left: `${bar.leftPct}%`,
+                      width: `${bar.widthPct}%`,
+                    }}
                     title={label}
                     aria-label={`${label}，进度 ${Math.round(bar.progress * 100)}%`}
                     onClick={() => onSelectMilestone?.(bar.id)}
@@ -165,8 +168,10 @@ export function ProjectTimeline({
                   </button>
                   {bar.overdueCount > 0 && (
                     <span
-                      className="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded bg-orange-500/15 px-1 py-px text-[10px] tabular-nums text-orange-600"
-                      style={{ left: `calc(${bar.leftPct + bar.widthPct}% + 4px)` }}
+                      className="absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded bg-warning/15 px-1 py-px text-[10px] tabular-nums text-warning"
+                      style={{
+                        left: `calc(${bar.leftPct + bar.widthPct}% + 4px)`,
+                      }}
                     >
                       <TimerIcon className="size-2.5" />
                       {bar.overdueCount}
@@ -181,7 +186,7 @@ export function ProjectTimeline({
 
       {layout.unscheduled.length > 0 && (
         <div className="rounded-lg border border-dashed px-3 py-2.5">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <CalendarRangeIcon className="size-3" />
             未排期 · {layout.unscheduled.length}
           </div>
@@ -190,7 +195,7 @@ export function ProjectTimeline({
               <Badge
                 key={item.id}
                 variant="outline"
-                className="gap-1 text-[10px] font-normal"
+                className="gap-1 text-xs font-normal"
               >
                 <span
                   className={`size-1.5 rounded-full ${HEALTH_DOT[item.health]}`}
@@ -205,9 +210,10 @@ export function ProjectTimeline({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span>
-          跨度 {Math.max(1, Math.round(layout.spanMs / (24 * 60 * 60 * 1000)))} 天
+          跨度 {Math.max(1, Math.round(layout.spanMs / (24 * 60 * 60 * 1000)))}{" "}
+          天
         </span>
         {layout.bars.length > 0 && (
           <span className="inline-flex items-center gap-1">

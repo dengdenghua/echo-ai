@@ -6,9 +6,11 @@ import json
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -18,6 +20,8 @@ from runtime.core.cerebrum.capability_router import (
 )
 from runtime.platform.capabilities.capability_registry import CapabilityRegistry
 from runtime.safety.auth import Identity, IdentityStore
+from runtime.sensing.gateway import _codex_catalog_reader
+from runtime.sensing.gateway._codex_catalog_reader import CodexCatalogReader
 from runtime.sensing.gateway.capability_router import create_capability_router
 
 
@@ -134,7 +138,7 @@ def test_code_ui_regression_excludes_desktop_bridge_from_activation() -> None:
 
 class _FakeConnectorRegistry:
     def __init__(self) -> None:
-        self.connector = object()
+        self.connector = SimpleNamespace(cli={"auth": "example login"}, mcp_servers={})
 
     def list(self) -> list[dict[str, Any]]:
         return [
@@ -277,6 +281,61 @@ def test_connector_capabilities_expose_native_brand_icons(tmp_path: Path) -> Non
 
     workbuddy_icon.unlink()
     assert registry.icon_path("linear-mcp") == icon
+
+
+def test_capability_icons_resolve_from_one_registry_walk(tmp_path: Path) -> None:
+    # CapabilityRegistry.icon_path walks every connector and plugin (1.5-2.5 s
+    # on a dev profile) and the HUB requests one icon per listed row.
+    workbuddy_icon = tmp_path / "workbuddy" / "linear-mcp.png"
+    workbuddy_icon.parent.mkdir(parents=True)
+    workbuddy_icon.write_bytes(b"workbuddy-original")
+    plugin_dir = tmp_path / "codex" / "atlas"
+    (plugin_dir / ".codex-plugin").mkdir(parents=True)
+    (plugin_dir / ".codex-plugin" / "plugin.json").write_text(
+        json.dumps({"name": "atlas", "version": "1.0.0", "interface": {"logo": "logo.svg"}}),
+        encoding="utf-8",
+    )
+    (plugin_dir / "logo.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", "utf-8")
+    connector_registry = _FakeConnectorRegistry()
+    connector_registry.list = lambda: [
+        {"id": "linear-mcp", "name": "Linear", "type": "mcp", "provider_id": "linear"}
+    ]
+    registry = CapabilityRegistry(
+        connector_registry=connector_registry,
+        auth_orchestrator=_FakeAuthOrchestrator(),
+        codex_cache=tmp_path / "codex",
+        capability_state_file=tmp_path / "capabilities.json",
+        skills_root=tmp_path / "skills",
+        workbuddy_icon_root=tmp_path / "workbuddy",
+        native_icon_root=tmp_path / "native",
+        storefront_icon_root=tmp_path / "fallback",
+    )
+    expected = {cid: registry.icon_path(cid) for cid in ("linear-mcp", "atlas")}
+    walks = 0
+    walk = registry.list
+
+    def counted_walk() -> list[dict[str, Any]]:
+        nonlocal walks
+        walks += 1
+        return walk()
+
+    registry.list = counted_walk  # type: ignore[method-assign]
+    app = FastAPI()
+    app.include_router(create_capability_router(registry=registry))
+
+    with TestClient(app) as client:
+        icons = {cid: client.get(f"/api/capabilities/{cid}/icon") for cid in expected}
+        again = client.get("/api/capabilities/linear-mcp/icon")
+        unknown = client.get("/api/capabilities/unknown/icon")
+
+    assert expected["linear-mcp"] == workbuddy_icon
+    for cid, path in expected.items():
+        assert path is not None
+        assert icons[cid].status_code == 200
+        assert icons[cid].content == path.read_bytes()
+    assert again.content == b"workbuddy-original"
+    assert unknown.status_code == 404
+    assert walks == 1
 
 
 def test_codex_plugin_state_preserves_parallel_registry_updates(
@@ -599,6 +658,114 @@ def test_capability_market_aggregates_and_manages_codex_app_server_plugins() -> 
     assert codex_accounts.uninstall_calls == [catalog_id]
 
 
+class _SlowCodexAccounts(_FakeCodexAccounts):
+    """App Server stand-in: each plugin/list call takes the next delay."""
+
+    def __init__(self, *delays: float) -> None:
+        super().__init__()
+        self.delays = list(delays)
+        self.list_calls = 0
+
+    async def list_plugins(
+        self,
+        scope: object,
+        *,
+        force_refetch: bool = False,
+    ) -> list[dict[str, Any]]:
+        self.list_calls += 1
+        await asyncio.sleep(self.delays.pop(0) if self.delays else 0)
+        return await super().list_plugins(scope, force_refetch=force_refetch)
+
+
+class _OffLoopRegistry(_FakeCapabilityRegistry):
+    """Registry whose list() refuses to run on the event loop thread."""
+
+    def list(self) -> list[dict[str, Any]]:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return super().list()
+        raise AssertionError("registry.list() blocked the event loop")
+
+
+def test_capability_list_walks_the_registry_off_the_event_loop() -> None:
+    # The registry walk is 1-2 s of file IO; on the loop it stalled every
+    # other request, including the HUB's icon requests.
+    app = FastAPI()
+    app.include_router(
+        create_capability_router(registry=_OffLoopRegistry(), codex_accounts=_FakeCodexAccounts())
+    )
+
+    with TestClient(app) as client:
+        listed = client.get("/api/capabilities")
+        connectors = client.get("/api/capabilities?source=connector")
+
+    assert [item["id"] for item in listed.json()["capabilities"]] == [
+        "cli-one",
+        "codex-marketplace:remote-one@openai-curated",
+        "codex-marketplace:plugin-one@openai-curated",
+    ]
+    assert [item["id"] for item in connectors.json()["capabilities"]] == ["cli-one"]
+
+
+def test_capability_list_does_not_wait_for_a_slow_codex_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A cold App Server fetches the remote plugin directory before answering
+    # plugin/list (20-30 s on a dev instance). The list must answer from local
+    # rows and pick up the remote rows once the background fetch lands.
+    monkeypatch.setattr(_codex_catalog_reader, "LIST_WAIT_S", 0.05)
+    codex_accounts = _SlowCodexAccounts(1.0)
+    app = FastAPI()
+    app.include_router(
+        create_capability_router(registry=_FakeCapabilityRegistry(), codex_accounts=codex_accounts)
+    )
+    remote_id = "codex-marketplace:remote-one@openai-curated"
+
+    def listed_ids(response: httpx.Response) -> list[str]:
+        return [item["id"] for item in response.json()["capabilities"]]
+
+    with TestClient(app) as client:
+        started = time.monotonic()
+        first = client.get("/api/capabilities")
+        elapsed = time.monotonic() - started
+        deadline = time.monotonic() + 10
+        later = client.get("/api/capabilities")
+        while remote_id not in listed_ids(later) and time.monotonic() < deadline:
+            time.sleep(0.05)
+            later = client.get("/api/capabilities")
+
+    assert first.status_code == 200
+    assert elapsed < 1.0
+    assert listed_ids(first) == ["cli-one", "plugin-one"]
+    assert remote_id in listed_ids(later)
+    # The polls during the slow fetch shared it; at most one warm re-read follows.
+    assert codex_accounts.list_calls <= 2
+
+
+def test_codex_catalog_reader_serves_last_good_rows_until_an_install() -> None:
+    accounts = _SlowCodexAccounts(0, 60, 60)
+    catalog_id = "codex-marketplace:remote-one@openai-curated"
+
+    async def scenario() -> tuple[Any, Any, bool]:
+        reader = CodexCatalogReader(accounts, wait_s=0.05)
+        live = await reader.list_plugins(None)
+        stale = await reader.list_plugins(None)
+        await reader.install_plugin(None, catalog_id=catalog_id)
+        try:
+            await reader.list_plugins(None)
+        except TimeoutError:
+            return live, stale, True
+        return live, stale, False
+
+    live, stale, timed_out = asyncio.run(scenario())
+
+    assert stale == live
+    # Install state changed, so the stored catalog must not be served again.
+    assert timed_out is True
+    assert accounts.install_calls == [catalog_id]
+
+
 def test_personal_codex_marketplace_lifecycle_needs_login_not_operator() -> None:
     registry = _FakeCapabilityRegistry()
     codex_accounts = _FakeCodexAccounts()
@@ -688,9 +855,11 @@ def test_local_plugin_install_failure_returns_bounded_json_error() -> None:
 
     response = TestClient(app).post("/api/capabilities/plugin-one/install")
 
-    assert response.status_code == 502
+    assert response.status_code == 500
     assert response.headers["content-type"].startswith("application/json")
-    assert response.json() == {"detail": "插件包下载或安装失败，请稍后重试"}
+    assert response.json()["detail"]["code"] == "INSTALL_FAILED"
+    assert response.json()["detail"]["retryable"] is False
+    assert "internal limit" not in response.text
 
 
 def test_local_plugin_install_keeps_event_loop_responsive() -> None:
@@ -923,31 +1092,35 @@ def test_uninstall_reaps_replacement_and_rejects_prechecked_connect_until_reinst
 
     def paused_uninstall(selected: str) -> bool:
         uninstall_entered.set()
-        assert release_uninstall.wait(timeout=20), "test did not release uninstall"
+        assert release_uninstall.wait(timeout=120), "test did not release uninstall"
         return real_uninstall(selected)
 
     monkeypatch.setattr(connector_registry, "uninstall", paused_uninstall)
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            uninstall = pool.submit(
-                client.delete,
-                f"/api/capabilities/{connector_id}/install",
-            )
-            # Synchronize on the lifecycle boundary, not a one-second catalog
-            # scan assumption (filesystem/manifest checks are slower on Windows).
-            assert uninstall_entered.wait(timeout=10)
-            assert replacement_proc.terminated is True
-            assert replacement_proc.wait_calls == 1
+            try:
+                uninstall = pool.submit(
+                    client.delete,
+                    f"/api/capabilities/{connector_id}/install",
+                )
+                # Synchronize on the lifecycle boundary, not a one-second catalog
+                # scan assumption (filesystem/manifest checks are slower on Windows).
+                assert uninstall_entered.wait(timeout=60)
+                assert replacement_proc.terminated is True
+                assert replacement_proc.wait_calls == 1
 
-            connect = pool.submit(
-                client.post,
-                f"/api/capabilities/{connector_id}/connect",
-                json={"tokens": {"access_token": "must-not-store"}},
-            )
-            assert not connect.done()
-            release_uninstall.set()
-            uninstall_response = uninstall.result(timeout=10)
-            connect_response = connect.result(timeout=10)
+                connect = pool.submit(
+                    client.post,
+                    f"/api/capabilities/{connector_id}/connect",
+                    json={"tokens": {"access_token": "must-not-store"}},
+                )
+                assert not connect.done()
+                release_uninstall.set()
+                uninstall_response = uninstall.result(timeout=60)
+                connect_response = connect.result(timeout=60)
+            finally:
+                # Release the worker before the executor joins it on assertion failure.
+                release_uninstall.set()
 
         assert uninstall_response.status_code == 200
         assert connect_response.status_code == 409

@@ -65,8 +65,8 @@ def test_repeated_or_failed_trajectory_does_not_auto_extend() -> None:
     assert not _is_making_iteration_progress(state)
     assert _auto_extend_iteration_limit(state, 30) == 30
 
-    state.steps[-1].action_results = [{"tool_name": "web_search", "ok": False}]
-    state.consecutive_same_failed_actions = 2
+    state.convo.steps[-1].action_results = [{"tool_name": "web_search", "ok": False}]
+    state.iteration.consecutive_same_failed_actions = 2
     assert not _is_making_iteration_progress(state)
 
 

@@ -104,6 +104,25 @@ def test_manifest_rejects_identity_mismatch_missing_entry_and_symlink(tmp_path: 
         store.asset_path("narrative_studio", "dist/linked.js")
 
 
+def test_versioned_assets_are_cached_but_entries_and_unversioned_files_stay_fresh(tmp_path):
+    package = _package(tmp_path)
+    (package / "dist/assets/app-Abcd1234.js").write_text("console.log('v1')", encoding="utf-8")
+    (package / "dist/assets/app-Efgh5678.js").write_text("console.log('v2')", encoding="utf-8")
+    app = FastAPI()
+    app.include_router(create_workbench_packages_router(WorkbenchPackageStore(tmp_path)))
+    client = TestClient(app)
+    base = "/api/workbench-packages/narrative_studio"
+    for file in ["app-Abcd1234.js", "app-Efgh5678.js"]:
+        response = client.get(f"{base}/assets/dist/assets/{file}")
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "private, max-age=31536000, immutable"
+    assert "v2" in response.text
+    for path in ["dist/index.html", "dist/assets/app.js"]:
+        response = client.get(f"{base}/assets/{path}")
+        assert response.headers["cache-control"] == "private, no-cache"
+    assert client.get(f"{base}/manifest").headers["cache-control"] == "no-store"
+
+
 def test_router_serves_validated_manifest_and_static_assets(tmp_path: Path) -> None:
     _package(tmp_path)
     app = FastAPI()

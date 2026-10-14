@@ -6,6 +6,13 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ._webhook_auth import (
+    RemoteKeySet,
+    bearer_token,
+    host_allowed,
+    keys_from_jwks,
+    verify_rs256_jwt,
+)
 from .base import Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 try:
@@ -20,6 +27,25 @@ except ImportError:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 DEFAULT_API_BASE = "https://login.microsoftonline.com"
+
+# Bot Connector -> bot authentication (public Azure cloud).  Inbound activities
+# carry ``Authorization: Bearer <JWT>`` signed with keys published here; the
+# token audience is the bot's Microsoft App ID.
+DEFAULT_OPENID_METADATA_URL = "https://login.botframework.com/v1/.well-known/openidconfiguration"
+DEFAULT_TOKEN_ISSUERS: tuple[str, ...] = ("https://api.botframework.com",)
+
+# Hosts a Bot Framework ``serviceUrl`` may point at.  Replies carry the bot's
+# OAuth token, so any other host would receive (and could replay) it.  A
+# leading dot means "any subdomain of".  ``trafficmanager.net`` is a shared
+# Azure namespace, so only the exact Teams host is trusted there.
+DEFAULT_SERVICE_URL_HOSTS: tuple[str, ...] = (
+    "smba.trafficmanager.net",
+    ".botframework.com",
+    ".botframework.us",
+    ".botframework.azure.us",
+    ".teams.microsoft.com",
+    ".teams.microsoft.us",
+)
 
 
 class TeamsError(RuntimeError):
@@ -41,7 +67,14 @@ class TeamsChannel(Channel):
         channel_id: str = "teams",
         api_base_url: str = DEFAULT_API_BASE,
         http_client: Any = None,
+        openid_metadata_url: str = DEFAULT_OPENID_METADATA_URL,
+        token_issuers: tuple[str, ...] | list[str] = DEFAULT_TOKEN_ISSUERS,
+        allowed_service_url_hosts: tuple[str, ...] | list[str] | None = None,
+        jwks_provider: Any = None,
+        clock_skew_seconds: float = 300.0,
     ) -> None:
+        """``jwks_provider`` (tests/air-gapped installs) returns a JWKS dict
+        instead of fetching ``openid_metadata_url``."""
         if not app_id:
             raise ValueError("app_id required")
         if not app_password:
@@ -61,6 +94,78 @@ class TeamsChannel(Channel):
         self._token: str = ""
         self._token_expires: float = 0.0
         self._service_url: str = ""
+        self._openid_metadata_url = openid_metadata_url
+        self._token_issuers = tuple(token_issuers)
+        self._allowed_service_url_hosts = tuple(
+            allowed_service_url_hosts if allowed_service_url_hosts else DEFAULT_SERVICE_URL_HOSTS
+        )
+        self._jwks_provider = jwks_provider
+        self._clock_skew_seconds = float(clock_skew_seconds)
+        self._keys = RemoteKeySet(self._fetch_signing_keys)
+
+    # ── inbound authentication ────────────────────────────────────────
+
+    def _get_json(self, url: str) -> Any:
+        if self._http is not None and hasattr(self._http, "get"):
+            resp = self._http.get(url)
+        else:
+            resp = httpx.get(url, timeout=10.0)
+        status = getattr(resp, "status_code", 200)
+        if status >= 400:
+            raise TeamsError(f"GET {_sanitize_url(url)} failed: HTTP {status}")
+        return resp.json()
+
+    def _fetch_signing_keys(self) -> dict[str, tuple[Any, dict[str, Any]]]:
+        if self._jwks_provider is not None:
+            jwks = self._jwks_provider()
+        else:
+            metadata = self._get_json(self._openid_metadata_url)
+            jwks_uri = metadata.get("jwks_uri") if isinstance(metadata, dict) else None
+            if not isinstance(jwks_uri, str) or not jwks_uri.lower().startswith("https://"):
+                raise TeamsError("openid metadata missing https jwks_uri")
+            jwks = self._get_json(jwks_uri)
+        if not isinstance(jwks, dict):
+            raise TeamsError("jwks response not an object")
+        return keys_from_jwks(jwks)
+
+    def service_url_allowed(self, service_url: str) -> bool:
+        return host_allowed(service_url, self._allowed_service_url_hosts)
+
+    def _verify_inbound(self, payload: dict[str, Any], headers: dict[str, str]) -> None:
+        """Verify the Bot Connector JWT (signature, issuer, audience=app_id,
+        expiry, channel endorsement and serviceUrl claim)."""
+        token = bearer_token(headers)
+        if not token:
+            raise TeamsSignatureError("missing Bot Framework bearer token (signature required)")
+        claims, jwk = verify_rs256_jwt(
+            token,
+            resolve_key=self._keys.get,
+            issuers=self._token_issuers,
+            audiences=(self._app_id,),
+            leeway_seconds=self._clock_skew_seconds,
+            error_cls=TeamsSignatureError,
+        )
+        channel = payload.get("channelId")
+        endorsements = jwk.get("endorsements")
+        if (
+            isinstance(endorsements, list)
+            and isinstance(channel, str)
+            and channel
+            and channel not in endorsements
+        ):
+            raise TeamsSignatureError("signing key not endorsed for this channel (signature)")
+        claim_url = claims.get("serviceurl") or claims.get("serviceUrl")
+        activity_url = payload.get("serviceUrl")
+        if (
+            isinstance(claim_url, str)
+            and claim_url
+            and activity_url
+            and (
+                not isinstance(activity_url, str)
+                or claim_url.rstrip("/").lower() != activity_url.rstrip("/").lower()
+            )
+        ):
+            raise TeamsSignatureError("serviceUrl does not match token claim (signature)")
 
     def _ensure_token(self) -> str:
         now = time.time()
@@ -124,6 +229,12 @@ class TeamsChannel(Channel):
         service_url = msg.metadata.get("teams_service_url") or self._service_url
         if not service_url:
             raise TeamsError("missing service_url for send")
+        # Defense in depth: the bot token below must only ever go to Bot
+        # Framework hosts, whatever put this URL into the metadata.
+        if not self.service_url_allowed(service_url):
+            raise TeamsError(
+                f"refusing to send to untrusted serviceUrl {_sanitize_url(service_url)}"
+            )
         conversation_id = msg.metadata.get("teams_conversation_id")
         if not conversation_id:
             raise TeamsError("missing teams_conversation_id for send")
@@ -207,6 +318,9 @@ class TeamsChannel(Channel):
         if not isinstance(payload, dict):
             raise ValueError("payload not an object")
 
+        # Authenticate every activity (including pings) before trusting any field.
+        self._verify_inbound(payload, headers)
+
         activity_type = payload.get("type", "")
         if activity_type == "ping":
             return {"type": "ping"}
@@ -217,6 +331,12 @@ class TeamsChannel(Channel):
         service_url = payload.get("serviceUrl", "")
         if not isinstance(service_url, str) or not service_url:
             return None
+        if not self.service_url_allowed(service_url):
+            logger.warning(
+                "teams.inbound.untrusted_service_url",
+                extra={"channel": self.channel_id, "service_url": _sanitize_url(service_url)},
+            )
+            raise TeamsSignatureError("serviceUrl host not allowed (signature)")
 
         self._service_url = service_url
 

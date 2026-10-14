@@ -123,6 +123,36 @@ def test_risk_policy_defaults_critical_to_confirm() -> None:
     assert policy.critical == "confirm"
 
 
+def test_code_execution_tools_not_named_like_shells_are_high() -> None:
+    # ipython runs Python in-process; workflow runs a model-written script.
+    for tool in ("ipython", "workflow"):
+        risk, action, _policy = approval_action_for_tool(tool, policy=ApprovalRiskPolicy())
+        assert risk.level == "high", tool
+        assert "code_execution" in risk.categories
+        assert action == "ask", tool
+
+
+def test_meta_dispatch_tools_rate_as_worst_inner_target() -> None:
+    # The inner target is model-chosen and can't be trusted from a preview,
+    # even one that claims a read-only capability.
+    for tool in ("use_capability", "execute_skill"):
+        risk, action, _policy = approval_action_for_tool(
+            tool,
+            "{'capability': 'read_file', 'args': {'path': 'README.md'}}",
+            policy=ApprovalRiskPolicy(),
+        )
+        assert risk.level == "high", tool
+        assert "meta_dispatch" in risk.categories
+        assert action == "ask", tool
+
+
+def test_media_generation_tools_are_medium() -> None:
+    for tool in ("generate_image", "generate_video", "generate_speech", "generate_sound_effects"):
+        risk, action, _policy = approval_action_for_tool(tool, policy=ApprovalRiskPolicy())
+        assert risk.level == "medium", tool
+        assert action == "ask", tool
+
+
 class _CountingFallback(ApprovalProvider):
     def __init__(self, inner: ApprovalProvider) -> None:
         self.inner = inner

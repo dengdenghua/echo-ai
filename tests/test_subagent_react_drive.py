@@ -86,7 +86,9 @@ def test_build_subagent_intent_carries_role_and_allowlist() -> None:
     assert intent.user_context["conversation_messages"] == [
         {"role": "user", "content": "prior"},
     ]
-    assert intent.user_context["auto_approve"] is True
+    # No parent permission context: automatic review, never a blanket bypass.
+    assert intent.user_context["auto_approve"] is False
+    assert intent.user_context["permission_mode"] == "acceptEdits"
 
 
 def test_run_subagent_react_loop_streams_text_and_concludes() -> None:
@@ -625,3 +627,49 @@ class TestRestrictedDispatchGate:
         )
         assert runner(call) == "react answer"
         assert len(calls) == 1
+
+
+class TestChildApprovals:
+    """A child agent must not approve its own gated actions."""
+
+    def test_child_without_a_parent_approver_is_fail_closed(self, monkeypatch) -> None:
+        import runtime.execution.subagents.react_drive as react_drive
+        from runtime.core.cerebrum.react_loop import ReActResult
+        from runtime.safety.approval.approval_gate import AutoDenyProvider
+
+        seen: dict = {}
+
+        def _loop(stack, intent, agent, **kwargs):  # noqa: ARG001
+            seen["provider"] = kwargs.get("approval_provider")
+            yield {"type": "react_completed"}
+            return ReActResult(success=True, final_answer="done")
+
+        monkeypatch.setattr(react_drive, "stream_react_loop", _loop)
+        react_drive.run_subagent_react_loop(
+            _FakeStack(None),
+            prompt="x",
+            role_id="researcher",
+            model="test-model",
+            thread_id="child-a",
+        )
+
+        assert isinstance(seen["provider"], AutoDenyProvider)
+
+    def test_runner_hands_the_child_the_parents_approver(self, monkeypatch) -> None:
+        from runtime.platform.process.session import Session, session_scope
+        from runtime.safety.approval.approval_gate import ApprovalDecision, ApprovalProvider
+
+        class _ParentApprover(ApprovalProvider):
+            def request(self, req, *, timeout: float = 120.0):  # noqa: ARG002
+                return ApprovalDecision(approved=False, reason="asked the user")
+
+        parent = _ParentApprover()
+        gate = TestRestrictedDispatchGate()
+        calls = gate._spy_react_drive(monkeypatch)
+        runner, call = gate._make_runner_and_call(
+            {"react_loop_subagent": True, "react_stack": _FakeStack(_ScriptedRouter(["x"]))}
+        )
+        with session_scope(Session(thread_id="t-parent", metadata={"_approval_provider": parent})):
+            runner(call)
+
+        assert calls[0]["approval_provider"] is parent

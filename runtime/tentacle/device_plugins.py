@@ -1,11 +1,12 @@
 """Optional device tools are supplied by enabled marketplace packages."""
+
 from pathlib import Path
 
 
 def device_plugin_tools_root(platform: str) -> Path:
     if platform not in {"android", "ios"}:
         raise ValueError("unsupported device platform")
-    from runtime.platform.plugins.cloud_catalog import CloudCatalog, REPO
+    from runtime.platform.plugins.cloud_catalog import REPO, CloudCatalog
     from runtime.platform.plugins.marketplace_package import verify_marketplace_package_trust
 
     catalog = CloudCatalog("plugins", use_remote=False)
@@ -20,7 +21,9 @@ def device_plugin_tools_root(platform: str) -> Path:
         package = catalog.CODEX_CACHE_ROOT / plugin_id
     try:
         verify_marketplace_package_trust(
-            package, package_kind="codex", plugin_id=plugin_id,
+            package,
+            package_kind="codex",
+            plugin_id=plugin_id,
             require_trusted=not (REPO / ".git").exists(),
         )
     except (OSError, ValueError):

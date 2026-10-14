@@ -64,6 +64,7 @@ class Doctor:
         self._check_config(report)
         self._check_data_dir(report)
         self._check_sandbox(report)
+        self._check_kernel_bundle(report)
         return report
 
     def _check_sandbox(self, report: DoctorReport) -> None:
@@ -328,3 +329,82 @@ class Doctor:
                     fix_hint=f"Check permissions: {data_dir}",
                 )
             )
+
+    def _check_kernel_bundle(self, report: DoctorReport, manifest_path: Path | None = None) -> None:
+        """Report whether this kernel still matches its own supply contract.
+
+        ``runtime/bundle.json`` is what lets a *shipped* kernel state what it
+        contains, so drift here is the signal a provisioner exists to act on.
+        Read-only on purpose: ``doctor`` diagnoses, ``bundle provision`` fixes.
+        """
+        try:
+            from runtime.platform.provisioning import bundle
+        except Exception as exc:  # noqa: BLE001 — doctor must never crash
+            report.results.append(
+                CheckResult(
+                    name="Kernel bundle",
+                    status="warn",
+                    message=f"provisioner unavailable: {type(exc).__name__}: {exc}",
+                )
+            )
+            return
+
+        if manifest_path is None:
+            import runtime as runtime_package
+
+            manifest_path = Path(runtime_package.__file__).resolve().parent / bundle.BUNDLE_FILENAME
+        path = Path(manifest_path)
+
+        if not path.is_file():
+            report.results.append(
+                CheckResult(
+                    name="Kernel bundle",
+                    status="warn",
+                    message=f"{path} not found; the kernel cannot declare its own contents",
+                    fix_hint="Reinstall the runtime, or run: echo-ai bundle sync",
+                )
+            )
+            return
+
+        try:
+            manifest = bundle.load_manifest(path)
+            problems = bundle.verify_manifest(manifest)
+        except bundle.BundleError as exc:
+            report.results.append(
+                CheckResult(
+                    name="Kernel bundle",
+                    status="fail",
+                    message=str(exc),
+                    fix_hint="Restore runtime/bundle.json from the release, then: echo-ai bundle verify",
+                )
+            )
+            return
+
+        if problems:
+            report.results.append(
+                CheckResult(
+                    name="Kernel bundle",
+                    status="warn",
+                    message=(
+                        f"{len(problems)} resource(s) disagree with the contract "
+                        f"(first: {problems[0]})"
+                    ),
+                    fix_hint=(
+                        "Run: echo-ai bundle verify for the full list. "
+                        "echo-ai bundle provision <dir> restores missing files only "
+                        "and leaves edited files alone."
+                    ),
+                )
+            )
+            return
+
+        report.results.append(
+            CheckResult(
+                name="Kernel bundle",
+                status="ok",
+                message=(
+                    f"{manifest.bundle_id} {manifest.version} · "
+                    f"{len(manifest.resources)} resources intact"
+                ),
+            )
+        )

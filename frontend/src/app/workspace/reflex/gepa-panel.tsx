@@ -585,7 +585,7 @@ export function GepaPanel() {
   }, [applied, t]);
 
   return (
-    <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+    <Card className="workspace-panel border-border/50 shadow-none">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Sparkles className="size-4" />
@@ -1001,6 +1001,8 @@ function ConvergenceChart({
 
     if (points.length === 0) {
       ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
+      // The empty-state line is Chinese: keep it on the 12px floor.
+      ctx.font = "12px ui-sans-serif, system-ui";
       ctx.textBaseline = "middle";
       ctx.textAlign = "center";
       ctx.fillText(
@@ -1017,8 +1019,11 @@ function ConvergenceChart({
     const yFor = (s: number) =>
       pad.t + innerH - Math.max(0, Math.min(1, s)) * innerH;
 
-    // Best-so-far step line · monotone non-decreasing.
-    ctx.strokeStyle = "#34d399"; // emerald
+    // Best-so-far step line · monotone non-decreasing. ECHO has no
+    // green: an improvement is the core "stable sync" colour.
+    const core =
+      getComputedStyle(c).getPropertyValue("--echo-core").trim() || "#08788a";
+    ctx.strokeStyle = core;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     let bestSoFar = -Infinity;
@@ -1038,9 +1043,9 @@ function ConvergenceChart({
     });
     ctx.stroke();
 
-    // Per-iter dots · green = improved front, gray = dominated.
+    // Per-iter dots · core = improved front, gray = dominated.
     for (const p of points) {
-      ctx.fillStyle = p.improved ? "#34d399" : "rgba(148, 163, 184, 0.5)";
+      ctx.fillStyle = p.improved ? core : "rgba(148, 163, 184, 0.5)";
       ctx.beginPath();
       ctx.arc(xFor(p.iter), yFor(p.score), 3, 0, Math.PI * 2);
       ctx.fill();

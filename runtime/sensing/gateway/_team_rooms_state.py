@@ -11,7 +11,6 @@ from typing import Any
 from uuid import uuid4
 
 from .team_rooms_models import TeamRoomWire
-from .team_speaker_policy import _now
 
 
 def _slug_id(name: str) -> str:
@@ -51,10 +50,22 @@ def _room_storage_payload(team: TeamRoomWire) -> dict[str, Any]:
     payload = team.model_dump()
     for field in ("invite_token", "invite_role", "invite_created_at", "join_policy"):
         payload.pop(field, None)
+    for participant in payload["participants"]:
+        participant.pop("last_seen_at", None)
     return payload
 
 
-def _load_state(
+def legacy_room_tenant(owner_id: str | None, *, require_auth: bool, identity_store: Any) -> str:
+    """Freeze the original owner's tenant on import, retaining unknown-owner isolation."""
+    owner = str(owner_id or "").strip()
+    if not require_auth:
+        return "local"
+    identity = identity_store.get(owner) if identity_store is not None and owner else None
+    tenant = str((getattr(identity, "metadata", None) or {}).get("tenant_id") or "").strip()
+    return tenant or (f"legacy:{owner}" if owner else "local")
+
+
+def _read_legacy_state(
     path: Path,
     *,
     legacy_tenant_for_owner: Callable[[str | None], str] | None = None,
@@ -76,6 +87,8 @@ def _load_state(
     out: dict[str, TeamRoomWire] = {}
     for item in items:
         if not isinstance(item, dict):
+            if strict:
+                raise RuntimeError(f"invalid Team Room entry in {path}")
             continue
         clean = dict(item)
         # Pre-hardening snapshots embedded the raw bearer token in each room.
@@ -100,22 +113,42 @@ def _load_state(
             if strict:
                 raise RuntimeError(f"invalid Team Room entry in {path}") from exc
             continue
+        if strict and team.id in out:
+            raise RuntimeError(f"duplicate Team Room id in {path}: {team.id}")
         out[team.id] = team
     return out
 
 
+def _load_state(
+    path: Path,
+    *,
+    legacy_tenant_for_owner: Callable[[str | None], str] | None = None,
+    strict: bool = False,
+) -> dict[str, TeamRoomWire]:
+    """Read the SQLite authority, importing a legacy JSON snapshot once."""
+    from ._team_room_store import read_rooms, room_connection
+
+    with room_connection(path, legacy_tenant_for_owner, strict=strict) as conn:
+        return read_rooms(conn)
+
+
 def _save_state(path: Path, teams: dict[str, TeamRoomWire]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "teams": [_room_storage_payload(team) for team in teams.values()],
-        "updated_at": _now(),
-    }
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    tmp.replace(path)
+    """Compatibility snapshot writer; only changed SQLite rows are written.
+
+    Live routers use optimistic delta commits instead of this seeding helper.
+    """
+    from ._team_room_store import commit_room_delta, read_rooms, room_connection
+
+    with room_connection(path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        durable = read_rooms(conn)
+        upserts = {
+            key: team
+            for key, team in teams.items()
+            if key not in durable
+            or _room_storage_payload(team) != _room_storage_payload(durable[key])
+        }
+        commit_room_delta(conn, upserts, set(durable).difference(teams))
 
 
 def _refresh_project_room_bindings(

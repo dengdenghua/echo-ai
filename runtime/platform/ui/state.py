@@ -36,7 +36,9 @@ class AppState:
         else:
             self.registry = SkillRegistry()
             from runtime.execution.suckers.builtins import register_all
+            from runtime.platform.plugins.automation import prepare_automation_plugins
 
+            prepare_automation_plugins(self.registry, enable_web=True)
             register_all(self.registry)
         from runtime.platform.process.paths import app_paths
 

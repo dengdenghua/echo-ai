@@ -80,9 +80,7 @@ def _completed_by(task: dict[str, Any]) -> str:
     return ""
 
 
-def deliveries_for_member(
-    member: Member, tasks: Sequence[dict[str, Any]]
-) -> list[dict[str, Any]]:
+def deliveries_for_member(member: Member, tasks: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     """归到该成员名下的交付记录。
 
     - ``agent`` / ``role`` 成员：按派单归属（assigned_agent 优先，退回
@@ -167,10 +165,7 @@ def trust_report(
     ``events`` 为群成员时间线原始事件。"""
 
     takeovers = takeover_counts(events)
-    scores = [
-        member_trust(member, tasks, takeovers.get(member.id, 0))
-        for member in state.roster
-    ]
+    scores = [member_trust(member, tasks, takeovers.get(member.id, 0)) for member in state.roster]
     scores.sort(key=lambda item: (-item["score"], item["member_id"]))
     return {
         "scores": scores,

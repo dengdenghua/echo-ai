@@ -67,19 +67,24 @@ class LoopControllerSupervisorMixin:
         status: TaskRunStatus | None = None,
         *,
         checkpoint_id: str | int | None = None,
+        reason: str | None = None,
+        metadata_patch: dict[str, object] | None = None,
     ) -> bool:
         if self.task_supervisor is None:
             return True
+        transition_reason = reason if reason is not None else run.cancel_reason or run.last_error
+        patch = {
+            "attempt_count": len(run.attempts),
+            "last_loop_status": run.status.value,
+            **(metadata_patch or {}),
+        }
         try:
             self.task_supervisor.transition(
                 run.run_id,
                 status or self._supervisor_status(run.status),
-                reason=run.cancel_reason or run.last_error,
+                reason=transition_reason,
                 checkpoint_id=checkpoint_id,
-                metadata_patch={
-                    "attempt_count": len(run.attempts),
-                    "last_loop_status": run.status.value,
-                },
+                metadata_patch=patch,
             )
             return True
         except KeyError:
@@ -89,12 +94,9 @@ class LoopControllerSupervisorMixin:
                 self.task_supervisor.transition(
                     run.run_id,
                     status or self._supervisor_status(run.status),
-                    reason=run.cancel_reason or run.last_error,
+                    reason=transition_reason,
                     checkpoint_id=checkpoint_id,
-                    metadata_patch={
-                        "attempt_count": len(run.attempts),
-                        "last_loop_status": run.status.value,
-                    },
+                    metadata_patch=patch,
                 )
                 return True
             except (LostTaskLease, TaskLeaseConflict) as exc:
@@ -146,4 +148,5 @@ class LoopControllerSupervisorMixin:
             LoopRunStatus.FAILED: TaskRunStatus.FAILED,
             LoopRunStatus.CANCELLED: TaskRunStatus.CANCELLED,
             LoopRunStatus.INTERRUPTED: TaskRunStatus.DISCONNECTED,
+            LoopRunStatus.PAUSED: TaskRunStatus.PAUSED,
         }[status]

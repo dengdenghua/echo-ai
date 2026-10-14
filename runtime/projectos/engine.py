@@ -22,6 +22,16 @@ from contextlib import suppress
 from typing import Any
 from uuid import uuid4
 
+from runtime.execution.claim_guard import ExecutionClaimGuard
+from runtime.projectos._default_plan import (
+    stub_decompose_tasks as stub_decompose_tasks,
+)
+from runtime.projectos._default_plan import (
+    stub_generate_milestones as stub_generate_milestones,
+)
+from runtime.projectos._engine_interventions import ProjectInterventionMixin
+from runtime.projectos._engine_recovery import recover_project
+from runtime.projectos._engine_task_interruptions import handle_decomposition_failure
 from runtime.projectos.model import (
     ROLE_FOR_TASK,
     TEAM_MODES_AI,
@@ -31,7 +41,7 @@ from runtime.projectos.model import (
     Task,
     ready_tasks,
 )
-from runtime.projectos.store import ProjectClaimActiveError, ProjectStore
+from runtime.projectos.store import ProjectStore
 from runtime.safety.auth.scope import TenantScope
 
 MilestoneGenerator = Callable[[str], list[Milestone]]  # (project_goal) -> milestones
@@ -65,65 +75,6 @@ def _error_text(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"
 
 
-def stub_generate_milestones(goal: str) -> list[Milestone]:
-    """No-LLM fallback: a generic Plan → Build → Verify phasing that fits almost
-    any project, so the engine/CLI runs deterministically without a model router
-    (production injects LLM hooks for goal-specific milestones)."""
-    return [
-        Milestone(
-            id="MS1",
-            name="plan",
-            goal=f"Scope and plan: {goal}",
-            success_criteria=["plan approved"],
-        ),
-        Milestone(
-            id="MS2",
-            name="build",
-            goal=f"Build: {goal}",
-            success_criteria=["implementation complete"],
-            dependencies=["MS1"],
-        ),
-        Milestone(
-            id="MS3",
-            name="verify",
-            goal=f"Verify and deliver: {goal}",
-            success_criteria=["verified against goal"],
-            dependencies=["MS2"],
-        ),
-    ]
-
-
-def stub_decompose_tasks(ms: Milestone) -> list[Task]:
-    """No-LLM fallback: a research → execution pair (a 2-node DAG).
-
-    The research node defaults to ``team_mode="swarm"`` so a roster-aware
-    engine (cowork_bridge injects ``run_task_team``) brainstorms it across the
-    group; the execution node stays ``single`` unless a caller opts it into
-    cluster."""
-    return [
-        Task(
-            id=f"{ms.id}-T1",
-            milestone_id=ms.id,
-            type="research",
-            goal=f"{ms.goal} — assess",
-            team_mode="swarm",
-            priority="P1",
-            estimate=1.0,
-            due_at=ms.due_at or "",
-            acceptance_criteria=list(ms.success_criteria),
-        ),
-        Task(
-            id=f"{ms.id}-T2",
-            milestone_id=ms.id,
-            type="code",
-            goal=f"{ms.goal} — do",
-            priority="P2",
-            estimate=2.0,
-            depends_on=[f"{ms.id}-T1"],
-        ),
-    ]
-
-
 def _default_execute(task: Task, context: dict[str, Any]) -> str:
     return f"[{task.assigned_role}] output for «{task.goal}»"
 
@@ -140,7 +91,7 @@ def _default_gate(milestone: Milestone, tasks: list[Task]) -> dict[str, Any]:
 
 def _default_assign(task: Task) -> str:
     """Default routing: the fixed role for the task type. A custom group injects
-    an assigner that picks one of ITS actual members instead (see cowork_bridge)."""
+    an assigner that picks one of ITS actual members instead (see group_execution)."""
     return ROLE_FOR_TASK.get(task.type, "engineer")
 
 
@@ -157,7 +108,7 @@ TaskHumanRunner = Callable[[Task, dict[str, Any]], Any]
 ThreadContextResolver = Callable[[str], dict[str, Any]]
 
 
-class ProjectEngine:
+class ProjectEngine(ProjectInterventionMixin):
     def __init__(
         self,
         store: ProjectStore,
@@ -176,6 +127,7 @@ class ProjectEngine:
         resolve_thread_context: ThreadContextResolver | None = None,
         task_claim_timeout_seconds: float = DEFAULT_TASK_CLAIM_TIMEOUT_SECONDS,
         required_execution_thread_id: str = "",
+        require_initiation_approval: bool = False,
     ) -> None:
         if scope is None and owner_id and tenant_id:
             scope = TenantScope(tenant_id=tenant_id, actor_id=owner_id)
@@ -194,17 +146,35 @@ class ProjectEngine:
         self._resolve_thread_context = resolve_thread_context
         self._task_claim_timeout_seconds = max(1.0, float(task_claim_timeout_seconds))
         self._required_execution_thread_id = required_execution_thread_id
+        # Surfaces outside chat also hold legacy (pre-governance) projects for
+        # one owner approval; chat keeps running them as before.
+        self._require_initiation_approval = require_initiation_approval
 
     # ── planning ─────────────────────────────────────────────────────────────
-    def plan(self, name: str, goal: str, *, project_id: str | None = None) -> Project:
-        """Turn a one-line goal into a project with generated milestones."""
+    def plan(
+        self,
+        name: str,
+        goal: str,
+        *,
+        project_id: str | None = None,
+        origin: str = "",
+        milestone_spec: dict[str, Any] | None = None,
+        icon: str | None = None,
+        category: str | None = None,
+    ) -> Project:
+        """Turn a one-line goal into a project with generated milestones.
+
+        ``origin`` labels the planning surface (see ``PROJECT_ORIGINS``).
+        ``milestone_spec`` is laid over every generated phase's spec — the
+        governed surfaces use it to attach ``governed_milestone_spec``.
+        ``icon`` / ``category`` are display metadata (see ``appearance``).
+        """
         pid = project_id or f"P-{uuid4().hex[:8]}"
-        try:
-            milestones = self._generate(goal)
-        except Exception:  # noqa: BLE001 — planning hooks are external intelligence adapters
-            milestones = stub_generate_milestones(goal)
+        milestones = self._generate(goal)
         if not milestones:
-            milestones = stub_generate_milestones(goal)
+            raise ValueError("项目规划为空，未创建项目。")
+        for milestone in milestones if milestone_spec else ():
+            milestone.spec = {**milestone.spec, **milestone_spec}
         from datetime import UTC, datetime
 
         project = Project(
@@ -217,6 +187,9 @@ class ProjectEngine:
             tenant_id=self.tenant_id,
             owner=self.owner_id or "",
             created_at=datetime.now(UTC).isoformat(timespec="seconds"),
+            origin=origin,
+            icon=icon,
+            category=category,
         )
         project, _resolved_milestones = self.store.create_project_plan(project, milestones)
         return project
@@ -261,6 +234,19 @@ class ProjectEngine:
                 "current_ms": current.current_ms if current else None,
             }
 
+        from runtime.projectos.governance import INITIATION_REQUIRED_STATES, initiation_state
+
+        initiation = initiation_state(self.store, project)
+        if initiation == "pending" or (
+            initiation in INITIATION_REQUIRED_STATES and self._require_initiation_approval
+        ):
+            # Checked before the execution boundary so an unapproved project
+            # never records a start or becomes undeletable.
+            return {
+                "events": ["awaiting_initiation_approval"],
+                "project_status": project.status,
+                "current_ms": project.current_ms,
+            }
         if not self._confirm_execution_binding(project, events):
             current = self.store.get_project(project_id)
             return {
@@ -281,13 +267,23 @@ class ProjectEngine:
         from runtime.projectos.governance import budget_reached, phase_authorized
 
         if not phase_authorized(self.store, project.id, active):
-            return {"events": [f"awaiting_phase_authorization:{active.id}"],
-                    "project_status": project.status, "current_ms": active.id}
-        phase_tasks = self.store.tasks_for_milestone(active.id) if active.spec.get("ai_budget_usd") is not None else []
+            return {
+                "events": [f"awaiting_phase_authorization:{active.id}"],
+                "project_status": project.status,
+                "current_ms": active.id,
+            }
+        phase_tasks = (
+            self.store.tasks_for_milestone(active.id)
+            if active.spec.get("ai_budget_usd") is not None
+            else []
+        )
         needs_execution = not phase_tasks or any(task.status != "done" for task in phase_tasks)
         if needs_execution and budget_reached(self.store, project.id, active):
-            return {"events": [f"project_budget_paused:{active.id}"],
-                    "project_status": project.status, "current_ms": active.id}
+            return {
+                "events": [f"project_budget_paused:{active.id}"],
+                "project_status": project.status,
+                "current_ms": active.id,
+            }
         self._ensure_tasks(project_id, active, events)
         self._run_frontier(project, active, events)
         self._gate_milestone(project, active, events)
@@ -314,7 +310,11 @@ class ProjectEngine:
                 break  # blocked — nothing to advance
             if any(e.startswith("awaiting_owner_acceptance:") for e in r["events"]):
                 break
-            if any(e.startswith(("awaiting_phase_authorization:", "project_budget_paused:")) for e in r["events"]):
+            if any(
+                e == "awaiting_initiation_approval"
+                or e.startswith(("awaiting_phase_authorization:", "project_budget_paused:"))
+                for e in r["events"]
+            ):
                 break
         final = self.store.get_project(project_id)
         result = {
@@ -342,248 +342,14 @@ class ProjectEngine:
         reset_attempts: bool = True,
         clear_outputs: bool = True,
     ) -> dict[str, Any]:
-        """Reopen a blocked project so the loop can continue.
-
-        By default, only failed/rejected/blocked tasks in the current blocked
-        milestone are retried. When operators pass explicit task ids, those
-        tasks and their downstream dependants in the same milestone are reset
-        together so stale outputs do not survive a partial rework.
-        """
-        project = self.store.get_project(project_id)
-        if project is None:
-            return {"events": ["project_not_found"], "project_status": "failed"}
-        project = self.store.assert_no_active_claims(project.id)
-        if project.status != "blocked":
-            raise ValueError("only a blocked project can be recovered")
-
-        events: list[str] = []
-        selected = {str(task_id) for task_id in (task_ids or []) if str(task_id).strip()}
-        milestones = self.store.milestones_for(project.id)
-        target_ms_ids = {project.current_ms} if project.current_ms else set()
-        target_ms_ids.update(ms.id for ms in milestones if ms.status == "blocked")
-
-        changed = False
-        first_reopened: str | None = None
-        for ms in milestones:
-            tasks = self.store.tasks_for_milestone(ms.id)
-            explicit_here = {task.id for task in tasks if task.id in selected}
-            if any(
-                task.id in explicit_here and task.status not in {"failed", "rejected", "blocked"}
-                for task in tasks
-            ):
-                raise ValueError("recovery tasks must be failed, rejected, or blocked")
-            should_consider = (
-                bool(explicit_here)
-                or ms.id in target_ms_ids
-                or any(task.status in {"failed", "rejected", "blocked"} for task in tasks)
-            )
-            if not should_consider:
-                continue
-
-            reset_ids = explicit_here
-            if selected and explicit_here:
-                reset_ids = self._with_downstream_tasks(tasks, reset_ids)
-            elif not selected:
-                reset_ids = {
-                    task.id for task in tasks if task.status in {"failed", "rejected", "blocked"}
-                }
-
-            for task in tasks:
-                if task.id not in reset_ids:
-                    continue
-                self._reset_task_for_rerun(
-                    task,
-                    reset_attempts=reset_attempts,
-                    clear_outputs=clear_outputs and not (task.qa_verdict or {}).get("review_error"),
-                )
-                events.append(f"task_recovered:{task.id}")
-                changed = True
-
-            if ms.status == "blocked" or reset_ids:
-                ms.status = "in_progress"
-                self.store.save_milestone(project.id, ms, allow_terminal_rewrite=True)
-                events.append(f"milestone_reopened:{ms.id}")
-                first_reopened = first_reopened or ms.id
-                changed = True
-
-        if changed:
-            project.status = "running"
-            if first_reopened:
-                project.current_ms = first_reopened
-            self.store.save_project(project, allow_terminal_rewrite=True)
-            events.append("project_recovered")
-        else:
-            events.append("nothing_to_recover")
-
-        current = self.store.get_project(project_id)
-        result = {
-            "events": events,
-            "project_status": current.status if current else "failed",
-            "current_ms": current.current_ms if current else None,
-        }
-        self._audit(
+        """Explicitly reopen blocked work using the configured recovery policy."""
+        return recover_project(
+            self,
             project_id,
-            "project.recover",
-            {
-                "task_ids": list(selected),
-                "reset_attempts": reset_attempts,
-                "clear_outputs": clear_outputs,
-                **result,
-            },
+            task_ids=task_ids,
+            reset_attempts=reset_attempts,
+            clear_outputs=clear_outputs,
         )
-        return result
-
-    def intervene_task(
-        self,
-        project_id: str,
-        task_id: str,
-        *,
-        action: str,
-        assigned_agent: str | None = None,
-        assigned_role: str | None = None,
-        output: Any = None,
-        reason: str = "",
-        reset_attempts: bool = True,
-        cascade: bool = True,
-        actor: str = "",
-    ) -> dict[str, Any]:
-        """Apply an operator intervention to one task.
-
-        ``reassign`` and ``reset`` put work back on the DAG frontier. ``complete``
-        and ``skip`` mark a task as accepted by the operator so the milestone
-        gate can move on. ``actor`` is the operator identity stamped into the
-        task's review chain on complete/skip (empty falls back to "operator").
-        """
-        project = self.store.get_project(project_id)
-        if project is None:
-            return {"events": ["project_not_found"], "project_status": "failed"}
-        task = self.store.get_task(task_id)
-        if task is None:
-            result = {
-                "events": [f"task_not_found:{task_id}"],
-                "project_status": project.status,
-                "current_ms": project.current_ms,
-            }
-            self._audit(
-                project_id,
-                "task.intervention_rejected",
-                {"task_id": task_id, "action": action, **result},
-            )
-            return result
-        ms = self.store.get_milestone(task.milestone_id)
-        if ms is None:
-            result = {
-                "events": [f"milestone_not_found:{task.milestone_id}"],
-                "project_status": project.status,
-                "current_ms": project.current_ms,
-            }
-            self._audit(
-                project_id,
-                "task.intervention_rejected",
-                {"task_id": task_id, "action": action, **result},
-            )
-            return result
-
-        action = str(action or "").strip().lower()
-        events: list[str] = []
-        tasks = self.store.tasks_for_milestone(ms.id)
-        affected_ids = {task.id}
-        if action == "reset" and cascade:
-            affected_ids = self._with_downstream_tasks(tasks, affected_ids)
-        if action in {"reassign", "reset", "complete", "skip"}:
-            running_ids = tuple(
-                current.id
-                for current in tasks
-                if current.id in affected_ids and current.status == "running"
-            )
-            if running_ids:
-                raise ProjectClaimActiveError(project, task_ids=running_ids)
-            self.store.assert_no_active_claims(
-                project.id,
-                task_ids=tuple(sorted(affected_ids)),
-            )
-
-        if action == "reassign":
-            if assigned_agent is not None:
-                task.assigned_agent = str(assigned_agent)
-            if assigned_role is not None:
-                task.assigned_role = str(assigned_role)
-            self._reset_task_for_rerun(task, reset_attempts=reset_attempts, clear_outputs=True)
-            events.append(f"task_reassigned:{task.id}")
-        elif action == "reset":
-            reset_ids = affected_ids
-            for current_task in tasks:
-                if current_task.id not in reset_ids:
-                    continue
-                self._reset_task_for_rerun(
-                    current_task,
-                    reset_attempts=reset_attempts,
-                    clear_outputs=True,
-                )
-                events.append(f"task_reset:{current_task.id}")
-        elif action == "complete":
-            task.status = "done"
-            task.output = output
-            task.qa_verdict = {"approved": True, "reason": reason or "operator completed"}
-            task.review_mode = "operator"
-            task.reviewed_by = str(actor or "").strip() or "operator"
-            self.store.save_task(task, allow_terminal_rewrite=True)
-            events.append(f"task_completed_by_operator:{task.id}")
-        elif action == "skip":
-            task.status = "done"
-            task.output = {
-                "skipped": True,
-                "reason": reason or "operator skipped",
-                "previous_output": task.output,
-            }
-            task.qa_verdict = {"approved": True, "reason": reason or "operator skipped"}
-            task.review_mode = "operator"
-            task.reviewed_by = str(actor or "").strip() or "operator"
-            self.store.save_task(task, allow_terminal_rewrite=True)
-            events.append(f"task_skipped:{task.id}")
-        else:
-            result = {
-                "events": [f"unknown_task_action:{action or '<empty>'}"],
-                "project_status": project.status,
-                "current_ms": project.current_ms,
-            }
-            self._audit(
-                project_id,
-                "task.intervention_rejected",
-                {"task_id": task_id, "action": action, **result},
-            )
-            return result
-
-        if ms.status in {"blocked", "done"} or project.status == "blocked":
-            ms.status = "in_progress"
-            self.store.save_milestone(project.id, ms, allow_terminal_rewrite=True)
-            project.status = "running"
-            project.current_ms = ms.id
-            self.store.save_project(project, allow_terminal_rewrite=True)
-            events.append(f"milestone_reopened:{ms.id}")
-            events.append("project_recovered")
-
-        current = self.store.get_project(project_id)
-        result = {
-            "events": events,
-            "project_status": current.status if current else "failed",
-            "current_ms": current.current_ms if current else None,
-        }
-        self._audit(
-            project_id,
-            "task.intervention",
-            {
-                "task_id": task_id,
-                "action": action,
-                "assigned_agent": assigned_agent,
-                "assigned_role": assigned_role,
-                "reason": reason,
-                "reset_attempts": reset_attempts,
-                "cascade": cascade,
-                **result,
-            },
-        )
-        return result
 
     # ── steps ────────────────────────────────────────────────────────────────
     def _confirm_execution_binding(self, project: Project, events: list[str]) -> bool:
@@ -681,7 +447,9 @@ class ProjectEngine:
     def _ensure_tasks(self, project_id: str, ms: Milestone, events: list[str]) -> None:
         if self.store.tasks_for_milestone(ms.id):
             return
-        claim = self.store.claim_milestone_decomposition(ms.id)
+        claim = self.store.claim_milestone_decomposition(
+            ms.id, lease_seconds=self._task_claim_timeout_seconds
+        )
         if claim is None:
             canonical = self.store.get_milestone(ms.id)
             if canonical is not None:
@@ -695,26 +463,13 @@ class ProjectEngine:
         try:
             new_tasks = self._decompose(claimed_ms)
             limit = claimed_ms.spec.get("max_tasks")
-            if limit is not None and (type(limit) is not int or limit < 1 or len(new_tasks) > limit):
+            if limit is not None and (
+                type(limit) is not int or limit < 1 or len(new_tasks) > limit
+            ):
                 raise ValueError(f"任务拆解超过已审批数量上限：{limit}；未启动执行")
         except Exception as exc:  # noqa: BLE001 — decompose hook failure should block, not crash tick
-            events.append(f"tasks_decompose_failed:{ms.id}")
-            saved_ms, committed = self.store.finalize_milestone_decomposition(
-                project_id,
-                ms.id,
-                [],
-                claim_id,
-                blocked=True,
-            )
-            if committed and project is not None:
-                ms.status = saved_ms.status if saved_ms is not None else "blocked"
-                self._block_project(project, ms.id, events, reason="decompose_failed")
-            elif not committed:
-                events.append(f"milestone_stale_decompose_failure_ignored:{ms.id}")
-            self._audit(
-                project_id,
-                "project.decompose_failed",
-                {"milestone_id": ms.id, "error": _error_text(exc)},
+            handle_decomposition_failure(
+                self, project_id, project, ms, claim_id, events, _error_text(exc)
             )
             return
         if not new_tasks:
@@ -790,6 +545,7 @@ class ProjectEngine:
             claim = self.store.claim_task(
                 ready_task.id,
                 assigned_role=assigned_role,
+                lease_seconds=self._task_claim_timeout_seconds,
             )
             if claim is None:
                 # Another worker or an operator changed the row after this
@@ -800,140 +556,184 @@ class ProjectEngine:
                 continue
             task, claim_id = claim
 
-            # Operator reassignment wins; otherwise pick a concrete group member
-            # or fallback role for this execution. Assignment happens after the
-            # atomic claim so an injected assigner is also called only once.
-            #
-            # A human node is not an AI member, so the phase's agent allow-list
-            # does not govern it and the assigner must not touch it: filling in
-            # an agent id would both mislabel the node in the workbench and hand
-            # it to the executor it must never reach. Whoever claims it as a
-            # person (run_task_human) is the one that fills assigned_agent.
-            try:
-                allowed = ms.spec.get("phase_agents")
-                if task.team_mode not in TEAM_MODES_HUMAN:
-                    if allowed is not None and task.assigned_agent and task.assigned_agent not in allowed:
-                        raise ValueError("assigned agent is not authorized for this phase")
-                    task.assigned_agent = task.assigned_agent or self._assign(task)
-                    if allowed is not None and task.assigned_agent not in allowed:
-                        raise ValueError("selected agent is not authorized for this phase")
-            except Exception as exc:  # noqa: BLE001 — assignment is an injected hook
-                task.output = f"assignment error: {_error_text(exc)}"
-                if task.attempts >= MAX_TASK_ATTEMPTS:
-                    task.status = "failed"
-                    event = f"task_failed_assignment:{task.id}"
-                else:
-                    task.status = "pending"
-                    event = f"task_assignment_error_retry:{task.id}"
-                self._commit_task_claim(task, claim_id, event, events)
-                continue
-            context = {}
-            execution_started = False
-            try:
-                # A review outage does not invalidate an already produced
-                # deliverable. Retry QA without repeating task side effects.
-                if not (task.qa_verdict or {}).get("review_error"):
-                    context_tasks = [task if item.id == task.id else item for item in tasks]
-                    context = self._context(project, ms, context_tasks)
-                    context["task_id"] = task.id
-                    execution_started = True
-                    if task.team_mode in TEAM_MODES_HUMAN:
-                        runner = self._run_task_human
-                        if runner is None:
-                            # Fail closed. Nobody can claim human work yet, so the
-                            # node blocks and says so. Letting an agent run it
-                            # would pass QA and then be sealed into the delivery
-                            # fingerprint, i.e. an AI impersonating the human
-                            # whose signature the acceptance gate relies on.
-                            task.status = "blocked"
-                            task.output = HUMAN_NODE_UNCLAIMED
-                            self._commit_task_claim(
-                                task, claim_id, f"task_awaiting_human:{task.id}", events
-                            )
-                            continue
-                        task.output = runner(task, context)
-                        # A human run consumes no provider tokens, so this
-                        # context has no usage to report.
-                        context["_usage_seen"] = True
-                    elif task.team_mode in TEAM_MODES_AI and self._run_task_team is not None:
-                        task.output = self._run_task_team(task, context)
-                    else:
-                        task.output = self._execute(task, context)
-                    if ms.spec.get("ai_budget_usd") is not None and not context.get("_usage_seen"):
-                        context["record_project_usage"]({})
-            except Exception as exc:  # noqa: BLE001 — one task failing must not kill the loop
-                if execution_started and ms.spec.get("ai_budget_usd") is not None and not context.get("_usage_seen"):
-                    from runtime.projectos.governance import record_usage
+            def renew(task_id: str = task.id, claim_id: str = claim_id) -> bool:
+                return self.store.heartbeat_task_claim(
+                    task_id,
+                    claim_id,
+                    stale_before=time.time() - self._task_claim_timeout_seconds,
+                )
 
-                    record_usage(self.store, project.id, {}, task_id=task.id, milestone_id=ms.id)
-                task.output = f"error: {type(exc).__name__}: {exc}"
-                if current_cancellation_token().is_cancelled:
-                    task.status = "pending"
-                    self._commit_task_claim(task, claim_id, f"task_interrupted:{task.id}", events)
-                    current_cancellation_token().throw_if_cancelled()
-                if task.attempts >= MAX_TASK_ATTEMPTS:
-                    task.status = "failed"
-                    event = f"task_failed:{task.id}"
-                else:
-                    task.status = "pending"
-                    event = f"task_error_retry:{task.id}"
-                self._commit_task_claim(task, claim_id, event, events)
-                continue
-            if current_cancellation_token().is_cancelled:
-                task.status = "pending"
-                task.qa_verdict = {"approved": False, "review_error": True,
-                                   "reason": "执行已停止，原产物待质量检查"}
-                self._commit_task_claim(task, claim_id, f"task_interrupted:{task.id}", events)
-                current_cancellation_token().throw_if_cancelled()
-            try:
-                verdict = self._qa(task, ms)
-            except Exception as exc:  # noqa: BLE001 — QA is an injected hook
-                task.qa_verdict = {
-                    "approved": False,
-                    "review_error": True,
-                    "reason": f"qa error: {_error_text(exc)}",
-                }
-                if task.attempts >= MAX_TASK_ATTEMPTS:
-                    task.status = "failed"
-                    event = f"task_failed_qa_error:{task.id}"
-                else:
-                    task.status = "pending"
-                    event = f"task_qa_error_retry:{task.id}"
-                self._commit_task_claim(task, claim_id, event, events)
-                continue
-            if current_cancellation_token().is_cancelled:
-                task.status = "pending"
-                task.qa_verdict = {"approved": False, "review_error": True,
-                                   "reason": "质量检查期间已停止，待重新检查"}
-                self._commit_task_claim(task, claim_id, f"task_interrupted:{task.id}", events)
-                current_cancellation_token().throw_if_cancelled()
-            task.qa_verdict = verdict
-            if verdict.get("approved"):
-                task.status = "done"
-                # Review chain: only the human paths sign a delivery. The AI
-                # path is explicitly stamped "ai_auto" with an empty reviewer —
-                # an AI verdict can never be presented as a human approval.
-                if task.team_mode == "human":
-                    task.review_mode = "human_run"
-                    task.reviewed_by = (
-                        str(
-                            (task.output or {}).get("completed_by")
-                            if isinstance(task.output, dict)
-                            else ""
-                        ).strip()
-                        or "human"
-                    )
-                else:
-                    task.review_mode = "ai_auto"
-                    task.reviewed_by = ""
-                event = f"task_done:{task.id}"
-            elif task.attempts >= MAX_TASK_ATTEMPTS:
+            guard = ExecutionClaimGuard(
+                renew,
+                interval_s=min(5.0, self._task_claim_timeout_seconds / 3),
+            )
+            with guard.scope():
+                self._run_claimed_task(project, ms, tasks, task, claim_id, events, guard)
+
+    def _run_claimed_task(
+        self,
+        project: Project,
+        ms: Milestone,
+        tasks: list[Task],
+        task: Task,
+        claim_id: str,
+        events: list[str],
+        guard: ExecutionClaimGuard,
+    ) -> None:
+        from runtime.projectos._engine_task_interruptions import interrupt_claimed_task
+        from runtime.safety.approval.cancellation import current_cancellation_token
+
+        def commit(
+            task: Task, claim_id: str, event: str, events: list[str], *, interrupted: bool = False
+        ) -> bool:
+            if guard.claim_lost:
+                # Preserve durable state only; never publish the abandoned output.
+                current = self.store.get_task(task.id)
+                if current is not None:
+                    current.status = "blocked"
+                    current.qa_verdict = {
+                        "approved": False,
+                        "reason": "execution claim lost; recovery required",
+                    }
+                    self.store.finalize_task_claim(current, claim_id)
+                events.append(f"task_stale_result_ignored:{task.id}")
+                return False
+            return self._commit_task_claim(task, claim_id, event, events, interrupted=interrupted)
+
+        # Operator reassignment wins; otherwise pick a concrete group member
+        # or fallback role for this execution. Assignment happens after the
+        # atomic claim so an injected assigner is also called only once.
+        #
+        # A human node is not an AI member, so the phase's agent allow-list
+        # does not govern it and the assigner must not touch it: filling in
+        # an agent id would both mislabel the node in the workbench and hand
+        # it to the executor it must never reach. Whoever claims it as a
+        # person (run_task_human) is the one that fills assigned_agent.
+        try:
+            guard.checkpoint()
+            allowed = ms.spec.get("phase_agents")
+            if task.team_mode not in TEAM_MODES_HUMAN:
+                if (
+                    allowed is not None
+                    and task.assigned_agent
+                    and task.assigned_agent not in allowed
+                ):
+                    raise ValueError("assigned agent is not authorized for this phase")
+                task.assigned_agent = task.assigned_agent or self._assign(task)
+                if allowed is not None and task.assigned_agent not in allowed:
+                    raise ValueError("selected agent is not authorized for this phase")
+        except Exception as exc:  # noqa: BLE001 — assignment is an injected hook
+            interrupt_claimed_task(task, claim_id, events, commit)
+            task.output = f"assignment error: {_error_text(exc)}"
+            if task.attempts >= MAX_TASK_ATTEMPTS:
                 task.status = "failed"
-                event = f"task_failed_qa:{task.id}"
+                event = f"task_failed_assignment:{task.id}"
             else:
-                task.status = "pending"  # QA rejected → retry next tick
-                event = f"task_rejected:{task.id}"
-            self._commit_task_claim(task, claim_id, event, events)
+                task.status = "pending"
+                event = f"task_assignment_error_retry:{task.id}"
+            commit(task, claim_id, event, events)
+            current_cancellation_token().throw_if_cancelled()
+            return
+        context = {}
+        execution_started = False
+        try:
+            guard.checkpoint()
+            # A review outage does not invalidate an already produced
+            # deliverable. Retry QA without repeating task side effects.
+            if not (task.qa_verdict or {}).get("review_error"):
+                context_tasks = [task if item.id == task.id else item for item in tasks]
+                context = self._context(project, ms, context_tasks)
+                context["task_id"] = task.id
+                execution_started = True
+                if task.team_mode in TEAM_MODES_HUMAN:
+                    runner = self._run_task_human
+                    if runner is None:
+                        # Fail closed. Nobody can claim human work yet, so the
+                        # node blocks and says so. Letting an agent run it
+                        # would pass QA and then be sealed into the delivery
+                        # fingerprint, i.e. an AI impersonating the human
+                        # whose signature the acceptance gate relies on.
+                        task.status = "blocked"
+                        task.output = HUMAN_NODE_UNCLAIMED
+                        commit(task, claim_id, f"task_awaiting_human:{task.id}", events)
+                        return
+                    task.output = runner(task, context)
+                    # A human run consumes no provider tokens, so this
+                    # context has no usage to report.
+                    context["_usage_seen"] = True
+                elif task.team_mode in TEAM_MODES_AI and self._run_task_team is not None:
+                    task.output = self._run_task_team(task, context)
+                else:
+                    task.output = self._execute(task, context)
+                if ms.spec.get("ai_budget_usd") is not None and not context.get("_usage_seen"):
+                    context["record_project_usage"]({})
+        except Exception as exc:  # noqa: BLE001 — one task failing must not kill the loop
+            if (
+                execution_started
+                and ms.spec.get("ai_budget_usd") is not None
+                and not context.get("_usage_seen")
+            ):
+                from runtime.projectos.governance import record_usage
+
+                record_usage(self.store, project.id, {}, task_id=task.id, milestone_id=ms.id)
+            interrupt_claimed_task(task, claim_id, events, commit)
+            task.output = f"error: {type(exc).__name__}: {exc}"
+            if task.attempts >= MAX_TASK_ATTEMPTS:
+                task.status = "failed"
+                event = f"task_failed:{task.id}"
+            else:
+                task.status = "pending"
+                event = f"task_error_retry:{task.id}"
+            commit(task, claim_id, event, events)
+            return
+        interrupt_claimed_task(task, claim_id, events, commit, preserve_output=True)
+        try:
+            guard.checkpoint()
+            verdict = self._qa(task, ms)
+        except Exception as exc:  # noqa: BLE001 — QA is an injected hook
+            interrupt_claimed_task(task, claim_id, events, commit, preserve_output=True)
+            task.qa_verdict = {
+                "approved": False,
+                "review_error": True,
+                "reason": f"qa error: {_error_text(exc)}",
+            }
+            if task.attempts >= MAX_TASK_ATTEMPTS:
+                task.status = "failed"
+                event = f"task_failed_qa_error:{task.id}"
+            else:
+                task.status = "pending"
+                event = f"task_qa_error_retry:{task.id}"
+            commit(task, claim_id, event, events)
+            current_cancellation_token().throw_if_cancelled()
+            return
+        interrupt_claimed_task(task, claim_id, events, commit, preserve_output=True)
+        task.qa_verdict = verdict
+        if verdict.get("approved"):
+            task.status = "done"
+            # Review chain: only the human paths sign a delivery. The AI
+            # path is explicitly stamped "ai_auto" with an empty reviewer —
+            # an AI verdict can never be presented as a human approval.
+            if task.team_mode == "human":
+                task.review_mode = "human_run"
+                task.reviewed_by = (
+                    str(
+                        (task.output or {}).get("completed_by")
+                        if isinstance(task.output, dict)
+                        else ""
+                    ).strip()
+                    or "human"
+                )
+            else:
+                task.review_mode = "ai_auto"
+                task.reviewed_by = ""
+            event = f"task_done:{task.id}"
+        elif task.attempts >= MAX_TASK_ATTEMPTS:
+            task.status = "failed"
+            event = f"task_failed_qa:{task.id}"
+        else:
+            task.status = "pending"  # QA rejected → retry next tick
+            event = f"task_rejected:{task.id}"
+        commit(task, claim_id, event, events)
 
     def _commit_task_claim(
         self,
@@ -941,8 +741,15 @@ class ProjectEngine:
         claim_id: str,
         event: str,
         events: list[str],
+        *,
+        interrupted: bool = False,
     ) -> bool:
-        _current, committed = self.store.finalize_task_claim(task, claim_id)
+        _current, committed = self.store.finalize_task_claim(
+            task,
+            claim_id,
+            stale_before=time.time() - self._task_claim_timeout_seconds,
+            interrupted=interrupted,
+        )
         if committed:
             events.append(event)
         else:
@@ -973,11 +780,14 @@ class ProjectEngine:
                     events.append(f"milestone_stale_block_ignored:{ms.id}")
                     return
                 events.append(
-                    f"milestone_blocked_human:{ms.id}" if awaiting_human
+                    f"milestone_blocked_human:{ms.id}"
+                    if awaiting_human
                     else f"milestone_blocked_dag:{ms.id}"
                 )
                 self._block_project(
-                    project, ms.id, events,
+                    project,
+                    ms.id,
+                    events,
                     reason="awaiting_human" if awaiting_human else "task_dag_blocked",
                 )
             return
@@ -1082,7 +892,7 @@ class ProjectEngine:
             thread_id = self.store.thread_for_project(project.id) or ""
         except (AttributeError, TypeError, ValueError):
             thread_id = ""
-        context = {
+        context: dict[str, Any] = {
             "project_id": project.id,
             "project_goal": project.goal,
             "owner_id": project.owner_id,
@@ -1093,18 +903,29 @@ class ProjectEngine:
             "success_criteria": ms.success_criteria,
             "done_outputs": {t.id: t.output for t in tasks if t.status == "done"},
             "prerequisite_outputs": {
-                dependency: {t.id: t.output for t in self.store.tasks_for_milestone(dependency)
-                             if t.status == "done"}
+                dependency: {
+                    t.id: t.output
+                    for t in self.store.tasks_for_milestone(dependency)
+                    if t.status == "done"
+                }
                 for dependency in ms.dependencies
             },
         }
         from runtime.projectos.governance import record_usage
 
         context["_usage_seen"] = []
+
         def observe_usage(result):
-            context["_usage_seen"].append(record_usage(
-                self.store, project.id, result, task_id=context.get("task_id", ""), milestone_id=ms.id,
-            ))
+            context["_usage_seen"].append(
+                record_usage(
+                    self.store,
+                    project.id,
+                    result,
+                    task_id=context.get("task_id", ""),
+                    milestone_id=ms.id,
+                )
+            )
+
         context["record_project_usage"] = observe_usage
         if self._resolve_thread_context is not None:
             resolved = self._resolve_thread_context(thread_id)

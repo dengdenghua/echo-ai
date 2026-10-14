@@ -13,30 +13,13 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircleIcon,
-  BookOpenIcon,
   BotIcon,
-  CompassIcon,
-  FolderKanbanIcon,
-  type LayoutGridIcon,
   ChevronDownIcon,
-  CloudDownloadIcon,
-  DnaIcon,
-  CirclePauseIcon,
   Loader2Icon,
-  MoreHorizontalIcon,
-  PanelLeftIcon,
   PlusIcon,
   PuzzleIcon,
-  PaletteIcon,
-  RadioIcon,
   SearchIcon,
   StoreIcon,
-  TrendingUpIcon,
-  Trash2Icon,
-  PowerIcon,
-  ArrowRightIcon,
-  RefreshCwIcon,
-  RotateCcwIcon,
   SparklesIcon,
   XIcon,
 } from "lucide-react";
@@ -75,10 +58,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ACTIVE_AGENT_KEY, useActiveAgentId } from "@/core/agents/active";
 import { emitAgentChanged } from "@/core/events";
 import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
-import {
-  taskCollaboratorRouteForLeader,
-  writeTaskCollaboratorPreset,
-} from "@/core/collaboration/task-collaborator-preset";
 import { swallow } from "@/core/utils/log";
 import { serviceErrorMessage } from "@/core/utils/service-error";
 import { useI18n } from "@/core/i18n/hooks";
@@ -111,8 +90,12 @@ import {
 import {
   WORKBENCH_BUILTIN_APPS,
   type WorkbenchBuiltinApp,
-  type WorkbenchBuiltinIcon,
 } from "@/core/workbench/apps";
+import {
+  useCanManageWorkbenches,
+  workbenchActionErrorMessage,
+} from "@/core/workbench/workbench-permissions";
+import { WORKBENCH_APP_ICONS } from "@/components/workspace/module-icons";
 
 import { AgentCard } from "./agent-card";
 import { AgentWorldCard } from "./agent-world-card";
@@ -122,6 +105,12 @@ import { A2AAgentsPanel } from "@/components/workspace/a2a-agents-panel";
 import { CloudSkillsPanel } from "@/components/store/cloud-skills-panel";
 import { WorkBuddyCloudStorePanel } from "@/components/store/workbuddy-cloud-store-panel";
 import { SmartTeamDialog } from "./smart-team-dialog";
+import { EngineStoreSection } from "./engine-store-section";
+import {
+  WorkbenchInstallControl,
+  WorkbenchManageMenu,
+  WorkbenchStatusLine,
+} from "./workbench-app-actions";
 
 const AgentRoleProfileDialog = lazy(() =>
   import("./agent-role-profile-dialog").then((module) => ({
@@ -154,31 +143,6 @@ const ECHO_CHARACTER_DISPLAY_NAMES = new Set([
   "shion",
   "zero",
 ]);
-
-const BUILTIN_APP_ICONS = {
-  projects: FolderKanbanIcon,
-  trading: TrendingUpIcon,
-  design: PaletteIcon,
-  narrative: BookOpenIcon,
-  evolution: DnaIcon,
-  intelligence: RadioIcon,
-  community: CompassIcon,
-} satisfies Record<WorkbenchBuiltinIcon, typeof LayoutGridIcon>;
-
-const BUILTIN_APP_ICON_STYLES = {
-  projects: "bg-blue-500/10 text-blue-600 ring-blue-500/15 dark:text-blue-400",
-  trading:
-    "bg-emerald-500/10 text-emerald-600 ring-emerald-500/15 dark:text-emerald-400",
-  design:
-    "bg-violet-500/10 text-violet-600 ring-violet-500/15 dark:text-violet-400",
-  narrative:
-    "bg-fuchsia-500/10 text-fuchsia-600 ring-fuchsia-500/15 dark:text-fuchsia-400",
-  evolution:
-    "bg-violet-500/10 text-violet-600 ring-violet-500/15 dark:text-violet-400",
-  intelligence: "bg-sky-500/10 text-sky-600 ring-sky-500/15 dark:text-sky-400",
-  community:
-    "bg-amber-500/10 text-amber-600 ring-amber-500/15 dark:text-amber-400",
-} satisfies Record<WorkbenchBuiltinIcon, string>;
 
 function normalizeAgentNameKey(value: string): string {
   return value
@@ -299,7 +263,6 @@ export function AgentsTab({
   sceneOnly?: boolean;
 }) {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const [installingAll, setInstallingAll] = useState(false);
   const [confirmInstallAll, setConfirmInstallAll] = useState(false);
   const [smartTeamOpen, setSmartTeamOpen] = useState(false);
@@ -332,55 +295,42 @@ export function AgentsTab({
           id: "white-ghost",
           title: "白幽灵行动组",
           description: "完整主角团协同，适合复杂任务、跨工具执行与现场决策。",
-          memberIds: [
-            "general",
-            "coder",
-            "desktop_operator",
-            "vibe_selling",
-            "ecommerce_mind",
-            "market_researcher",
-            "aoi",
-          ],
-          domains: ["general", "automation"],
-          accent:
-            "from-violet-100/90 via-fuchsia-50/70 to-background dark:from-violet-950/55 dark:via-fuchsia-950/20",
+          memberIds: ["eve", "kane", "raven", "luna", "shion", "noah", "zero"],
+          domains: ["eve", "automation"],
+          accent: "from-muted to-background",
         },
         {
           id: "product-lab",
           title: "产品研发冲刺",
           description: "从需求拆解、架构实现到桌面验收，组成一支小型交付团队。",
-          memberIds: ["coder", "desktop_operator", "general"],
+          memberIds: ["kane", "raven", "eve"],
           domains: ["coding", "automation"],
-          accent:
-            "from-sky-100/90 via-cyan-50/70 to-background dark:from-sky-950/55 dark:via-cyan-950/20",
+          accent: "from-muted to-background",
         },
         {
           id: "investment-room",
           title: "投研决策室",
           description:
             "聚合市场研究、信息验证与商业判断，形成可执行的投资结论。",
-          memberIds: ["market_researcher", "general", "ecommerce_mind"],
+          memberIds: ["noah", "eve", "shion"],
           domains: ["research", "finance"],
-          accent:
-            "from-emerald-100/90 via-teal-50/70 to-background dark:from-emerald-950/55 dark:via-teal-950/20",
+          accent: "from-muted to-background",
         },
         {
           id: "growth-studio",
           title: "品牌增长工作室",
           description: "把用户洞察、内容创意与商业转化串成一条完整增长链路。",
-          memberIds: ["vibe_selling", "general", "ecommerce_mind"],
+          memberIds: ["luna", "eve", "shion"],
           domains: ["creative", "ecommerce"],
-          accent:
-            "from-amber-100/90 via-orange-50/70 to-background dark:from-amber-950/55 dark:via-orange-950/20",
+          accent: "from-muted to-background",
         },
         {
           id: "automation-cell",
           title: "自动化执行中枢",
           description: "代码、桌面和流程三线并行，适合批量操作与长链路任务。",
-          memberIds: ["desktop_operator", "coder", "aoi"],
+          memberIds: ["raven", "kane", "zero"],
           domains: ["automation", "coding"],
-          accent:
-            "from-slate-200/90 via-blue-50/60 to-background dark:from-slate-800/80 dark:via-blue-950/20",
+          accent: "from-muted to-background",
         },
       ]
         .filter(
@@ -399,19 +349,6 @@ export function AgentsTab({
         .filter((scenario) => scenario.members.length > 0),
     [activeCategory, agents],
   );
-
-  const launchScenario = (scenario: (typeof featuredScenarios)[number]) => {
-    const [leader, ...collaborators] = scenario.members;
-    if (!leader) return;
-    writeTaskCollaboratorPreset({
-      leaderId: leader.name,
-      collaboratorIds: collaborators.map((agent) => agent.name),
-      mode: "cluster",
-      label: scenario.title,
-      openPicker: false,
-    });
-    navigate(taskCollaboratorRouteForLeader(leader.name));
-  };
 
   useEffect(() => {
     setConfirmInstallAll(false);
@@ -684,19 +621,25 @@ export function AgentsTab({
         onInstallChange={onInstallChange}
       />
 
-      <DepartmentScenarios additional={featuredScenarios.map(scenario => ({
-        id: scenario.id,
-        title: scenario.title,
-        roles: scenario.members.map(member => [member.name, member.display_name]),
-        flow: scenario.description,
-        output: "",
-        onLaunch: () => launchScenario(scenario),
-      }))} />
+      <DepartmentScenarios
+        additional={featuredScenarios.map((scenario) => ({
+          id: scenario.id,
+          title: scenario.title,
+          roles: scenario.members.map((member) => [
+            member.name,
+            member.display_name,
+          ]),
+          flow: scenario.description,
+          output: "",
+        }))}
+      />
 
       {!sceneOnly ? (
         <>
           <div className="flex items-center justify-between pt-1">
-            <h3 className="text-sm font-semibold text-foreground">全部智能体</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              全部智能体
+            </h3>
             <span className="text-ui-caption text-muted-foreground">
               {visibleAgents.length} 位
             </span>
@@ -734,7 +677,7 @@ export function AgentsTab({
               className="flex flex-col items-center py-16"
               role="status"
             >
-              <StoreIcon className="text-muted-foreground/30 mb-3 h-10 w-10" />
+              <StoreIcon className="text-muted-foreground mb-3 h-10 w-10" />
               <p className="text-muted-foreground text-sm">
                 {t.agentWorld.noAgentsFound}
               </p>
@@ -1007,7 +950,7 @@ function PluginsTabContent({ searchQuery }: { searchQuery: string }) {
   }, []);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const pluginEntries = useMemo<PluginEntry[]>(() => {
@@ -1146,13 +1089,13 @@ function PluginsTabContent({ searchQuery }: { searchQuery: string }) {
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-border bg-muted/10 px-6 py-12 text-center">
-              <PuzzleIcon className="mx-auto mb-3 size-10 text-muted-foreground/30" />
+              <PuzzleIcon className="mx-auto mb-3 size-10 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 {pluginEntries.length === 0
                   ? t.plugins.emptyTitle
                   : t.plugins.noMatches}
               </p>
-              <p className="mt-1 text-ui text-muted-foreground/60">
+              <p className="mt-1 text-ui text-muted-foreground">
                 {pluginEntries.length === 0
                   ? t.plugins.emptyHint
                   : t.plugins.tryDifferentQuery}
@@ -1218,9 +1161,7 @@ export function resolveHubMarketRoute(search: string): {
     return {
       section: "applications",
       applicationView:
-        view === "installed" || view === "all"
-          ? view
-          : "featured",
+        view === "installed" || view === "all" ? view : "featured",
     };
   }
   if (tab === "codex-plugins") {
@@ -1318,6 +1259,7 @@ export function AgentWorldUnified() {
   const [uninstallDataPolicy, setUninstallDataPolicy] = useState<
     "keep" | "trash"
   >("keep");
+  const canManageWorkbenches = useCanManageWorkbenches();
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
@@ -1473,7 +1415,7 @@ export function AgentWorldUnified() {
         }
         await refreshWorkbenchPackages();
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : String(error));
+        toast.error(workbenchActionErrorMessage(error));
       } finally {
         setWorkbenchPackageMutating((current) => {
           const next = new Set(current);
@@ -1594,7 +1536,7 @@ export function AgentWorldUnified() {
       }
       if (section === "skills") params.set("tab", "skills");
       const query = params.toString();
-      navigate(`/workspace/agents${query ? `?${query}` : ""}`, {
+      void navigate(`/workspace/agents${query ? `?${query}` : ""}`, {
         replace: true,
       });
     },
@@ -1608,7 +1550,7 @@ export function AgentWorldUnified() {
       params.set("view", view);
       params.delete("connect");
       const query = params.toString();
-      navigate(`/workspace/agents${query ? `?${query}` : ""}`, {
+      void navigate(`/workspace/agents${query ? `?${query}` : ""}`, {
         replace: true,
       });
     },
@@ -1623,7 +1565,7 @@ export function AgentWorldUnified() {
         : "搜索应用与插件…";
 
   return (
-    <div className="relative flex size-full flex-col px-2 pb-2 pt-2 md:px-3">
+    <div className="relative flex size-full flex-col px-2 pb-2 pt-[calc(0.5rem+var(--window-titlebar-reserve,0px))] md:px-3">
       {!hudOnly ? (
         <div className="-mx-2 -mt-2 flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle bg-background/95 px-2 md:hidden">
           <SidebarTrigger
@@ -1672,12 +1614,20 @@ export function AgentWorldUnified() {
               <div className="relative w-full sm:max-w-[320px]">
                 <SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  // Autofill guard: a bare text input gets the saved account
+                  // auto-filled by the browser, which then filters by it.
+                  type="search"
+                  name="echo-agents-search"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   data-testid="agents-search-input"
                   aria-label={searchPlaceholder}
                   placeholder={searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-9 rounded-lg border-border-default bg-card pl-8 pr-9 text-ui shadow-none"
+                  className="h-9 rounded-lg border-border-default bg-card pl-8 pr-9 text-ui shadow-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                 />
                 {searchQuery && (
                   <button
@@ -1695,8 +1645,12 @@ export function AgentWorldUnified() {
             <TabsContent value="agents" className="mt-0">
               <h2 className="sr-only">智能体</h2>
               <div className="mb-2 flex flex-wrap justify-end gap-1.5">
-                <Button size="sm" variant="ghost" className="h-8 text-ui text-muted-foreground"
-                  onClick={() => setRemoteAgentsOpen(true)}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-ui text-muted-foreground"
+                  onClick={() => setRemoteAgentsOpen(true)}
+                >
                   连接外部智能体
                 </Button>
                 <Button
@@ -1747,11 +1701,17 @@ export function AgentWorldUnified() {
                 sceneOnly
               />
 
-              <Dialog open={remoteAgentsOpen} onOpenChange={setRemoteAgentsOpen}>
+              <Dialog
+                open={remoteAgentsOpen}
+                onOpenChange={setRemoteAgentsOpen}
+              >
                 <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
                   <DialogHeader>
                     <DialogTitle>外部智能体</DialogTitle>
-                    <DialogDescription>连接运行在其他平台的智能体，让它们参与智能体协作。支持 A2A 协议。</DialogDescription>
+                    <DialogDescription>
+                      连接运行在其他平台的智能体，让它们参与智能体协作。支持 A2A
+                      协议。
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="min-h-0 overflow-y-auto">
                     <A2AAgentsPanel className="rounded-xl border border-border-subtle" />
@@ -1795,7 +1755,7 @@ export function AgentWorldUnified() {
                   应用中心
                 </h2>
                 <div className="mb-6">
-                  <h3 className="mb-2 text-sm font-semibold">本机应用</h3>
+                  <h3 className="mb-2 text-sm font-semibold">应用</h3>
                   {workbenchPackageError ? (
                     <div
                       role="alert"
@@ -1826,7 +1786,7 @@ export function AgentWorldUnified() {
                   )}
                   <div className="grid gap-x-8 sm:grid-cols-2">
                     {matchingApps.map((app) => {
-                      const Icon = BUILTIN_APP_ICONS[app.icon];
+                      const Icon = WORKBENCH_APP_ICONS[app.icon];
                       const isInSidebar = enabledModuleIdSet.has(app.moduleId);
                       const isCore = app.delivery === "core";
                       const packageStatus = app.packageId
@@ -1880,10 +1840,15 @@ export function AgentWorldUnified() {
                             type="button"
                             disabled={isMutating}
                             onClick={() => {
-                              if (workbenchPackageError) {
-                                navigate(app.workspaceRoute);
+                              // Without the admin role the app's own page
+                              // explains its state; nothing to install here.
+                              if (
+                                workbenchPackageError ||
+                                !canManageWorkbenches
+                              ) {
+                                void navigate(app.workspaceRoute);
                               } else if (isInstalled && isRuntimeEnabled) {
-                                navigate(app.workspaceRoute);
+                                void navigate(app.workspaceRoute);
                               } else if (
                                 isInstalled &&
                                 !isBroken &&
@@ -1897,12 +1862,7 @@ export function AgentWorldUnified() {
                             className="flex min-h-16 w-full items-center gap-3 px-2 py-2 pr-20 text-left disabled:cursor-wait"
                             aria-label={`${app.name} · ${app.description}`}
                           >
-                            <span
-                              className={cn(
-                                "grid size-9 shrink-0 place-items-center rounded-xl ring-1 ring-inset transition-transform duration-200 group-hover:scale-[1.04]",
-                                BUILTIN_APP_ICON_STYLES[app.icon],
-                              )}
-                            >
+                            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-foreground ring-1 ring-inset ring-border transition-transform duration-200 group-hover:scale-[1.04]">
                               <Icon className="size-[18px] stroke-[1.8]" />
                             </span>
                             <span className="min-w-0">
@@ -1912,25 +1872,16 @@ export function AgentWorldUnified() {
                               <span className="mt-0.5 block truncate text-ui text-muted-foreground">
                                 {app.description}
                               </span>
-                              {isBroken || isIncompatible ? (
-                                <span className="mt-0.5 block text-micro text-destructive">
-                                  {isBroken
-                                    ? "安装损坏 · 点击修复"
-                                    : "版本不兼容 · 点击更新"}
-                                </span>
-                              ) : isUpdateAvailable ? (
-                                <span className="mt-0.5 block text-micro text-primary">
-                                  有可用更新
-                                </span>
-                              ) : isInstalled && !isRuntimeEnabled ? (
-                                <span className="mt-0.5 block text-micro text-amber-600 dark:text-amber-300">
-                                  已停用 · 点击重新启用
-                                </span>
-                              ) : !isInstalled && recoveries.length > 0 ? (
-                                <span className="mt-0.5 block text-micro text-emerald-600 dark:text-emerald-300">
-                                  有可恢复的作品
-                                </span>
-                              ) : null}
+                              <WorkbenchStatusLine
+                                canManage={canManageWorkbenches}
+                                isBroken={isBroken}
+                                isIncompatible={isIncompatible}
+                                isUpdateAvailable={isUpdateAvailable}
+                                isDisabled={isInstalled && !isRuntimeEnabled}
+                                hasRecoveries={
+                                  !isInstalled && recoveries.length > 0
+                                }
+                              />
                             </span>
                           </button>
                           {isCore ? (
@@ -1938,143 +1889,75 @@ export function AgentWorldUnified() {
                               内置
                             </span>
                           ) : isInstalled ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center text-muted-foreground opacity-70 transition-colors hover:text-foreground group-hover:opacity-100"
-                                  aria-label={`管理${app.name}`}
-                                  title={`管理${app.name}`}
-                                >
-                                  <MoreHorizontalIcon className="size-4" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-44">
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    setModuleEnabled(
-                                      app.moduleId,
-                                      !isInSidebar,
-                                      activeAgentId,
-                                    )
-                                  }
-                                >
-                                  <PanelLeftIcon className="size-4" />
-                                  {isInSidebar ? "从侧栏移除" : "固定到侧栏"}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    void mutateWorkbenchPackage(
-                                      app,
-                                      isRuntimeEnabled ? "disable" : "enable",
-                                    )
-                                  }
-                                >
-                                  {isRuntimeEnabled ? (
-                                    <CirclePauseIcon className="size-4" />
-                                  ) : (
-                                    <PowerIcon className="size-4" />
-                                  )}
-                                  {isRuntimeEnabled ? "停用应用" : "启用应用"}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    void mutateWorkbenchPackage(app, "install")
-                                  }
-                                >
-                                  <RefreshCwIcon className="size-4" />
-                                  {isUpdateAvailable
-                                    ? "安装可用更新"
-                                    : isBroken || isIncompatible
-                                      ? "重新安装修复"
-                                      : "重新安装"}
-                                </DropdownMenuItem>
-                                {packageStatus?.rollback_available ? (
-                                  <DropdownMenuItem
-                                    onSelect={() =>
-                                      void mutateWorkbenchPackage(
-                                        app,
-                                        "rollback",
-                                      )
-                                    }
-                                  >
-                                    <RotateCcwIcon className="size-4" />
-                                    {packageStatus.rollback_operation ===
-                                    "update"
-                                      ? "回退上个版本"
-                                      : "撤销最近安装"}
-                                  </DropdownMenuItem>
-                                ) : null}
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onSelect={() => {
-                                    setUninstallDataPolicy("keep");
-                                    setUninstallWorkbenchApp(app);
-                                  }}
-                                >
-                                  <Trash2Icon className="size-4" /> 卸载
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : (
-                            <button
-                              type="button"
-                              aria-label={
-                                isInSidebar
-                                  ? `从侧栏移除${app.name}`
-                                  : `将${app.name}添加到侧栏`
+                            <WorkbenchManageMenu
+                              appName={app.name}
+                              canManage={canManageWorkbenches}
+                              isInSidebar={isInSidebar}
+                              isRuntimeEnabled={isRuntimeEnabled}
+                              isUpdateAvailable={isUpdateAvailable}
+                              needsRepair={isBroken || isIncompatible}
+                              rollbackOperation={
+                                packageStatus?.rollback_available
+                                  ? (packageStatus.rollback_operation ??
+                                    "install")
+                                  : null
                               }
+                              onToggleSidebar={() =>
+                                setModuleEnabled(
+                                  app.moduleId,
+                                  !isInSidebar,
+                                  activeAgentId,
+                                )
+                              }
+                              onOperation={(operation) =>
+                                void mutateWorkbenchPackage(app, operation)
+                              }
+                              onUninstall={() => {
+                                setUninstallDataPolicy("keep");
+                                setUninstallWorkbenchApp(app);
+                              }}
+                            />
+                          ) : (
+                            <WorkbenchInstallControl
+                              appName={app.name}
+                              canManage={canManageWorkbenches}
+                              isInSidebar={isInSidebar}
+                              hasRecoveries={recoveries.length > 0}
+                              isMutating={isMutating}
                               disabled={
                                 isMutating ||
                                 workbenchPackageLoading ||
                                 Boolean(workbenchPackageError)
                               }
-                              onClick={() => {
-                                if (isInSidebar) {
-                                  setModuleEnabled(
-                                    app.moduleId,
-                                    false,
-                                    activeAgentId,
-                                  );
-                                  return;
-                                }
-                                requestInstall();
-                              }}
-                              className="absolute right-2 top-1/2 flex h-7 -translate-y-1/2 items-center gap-1 px-2 text-micro font-medium text-primary transition-colors hover:text-primary/75 disabled:text-muted-foreground"
-                            >
-                              {isMutating ? (
-                                <Loader2Icon className="size-3.5 animate-spin" />
-                              ) : (
-                                <CloudDownloadIcon className="size-3.5" />
-                              )}
-                              {workbenchPackageError
-                                ? "状态未读取"
-                                : isInSidebar
-                                  ? "移除"
-                                  : isMutating
-                                    ? "安装中"
-                                    : recoveries.length > 0
-                                      ? "恢复"
-                                      : "安装"}
-                            </button>
+                              statusUnread={Boolean(workbenchPackageError)}
+                              onRemoveFromSidebar={() =>
+                                setModuleEnabled(
+                                  app.moduleId,
+                                  false,
+                                  activeAgentId,
+                                )
+                              }
+                              onInstall={requestInstall}
+                            />
                           )}
                         </div>
                       );
                     })}
                   </div>
                 </div>
+                <EngineStoreSection />
                 <div>
                   <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                       <h3 className="text-sm font-semibold">
                         {pluginDirectoryView === "featured"
-                            ? "推荐插件"
-                            : "插件"}
+                          ? "推荐插件"
+                          : "插件"}
                       </h3>
                       <p className="mt-1 text-ui text-muted-foreground">
                         {pluginDirectoryView === "featured"
-                            ? "精选内置能力，安装后即可为对话、创作和工程任务补充工具。"
-                            : "插件、连接器与 MCP；安装状态直接显示在各项中。"}
+                          ? "精选内置能力，安装后即可为对话、创作和工程任务补充工具。"
+                          : "插件、连接器与 MCP；安装状态直接显示在各项中。"}
                       </p>
                     </div>
                     <div
@@ -2108,15 +1991,15 @@ export function AgentWorldUnified() {
                     </div>
                   </div>
                   <CapabilityMarketPanel
-                      searchQuery={searchQuery}
-                      view={pluginDirectoryView}
-                      featuredIds={DEFAULT_FEATURED_APP_IDS}
-                      maxItems={
-                        pluginDirectoryView === "featured" ? 7 : undefined
-                      }
-                      showToolbar={false}
-                      compact
-                    />
+                    searchQuery={searchQuery}
+                    view={pluginDirectoryView}
+                    featuredIds={DEFAULT_FEATURED_APP_IDS}
+                    maxItems={
+                      pluginDirectoryView === "featured" ? 7 : undefined
+                    }
+                    showToolbar={false}
+                    compact
+                  />
                 </div>
               </section>
             </TabsContent>
@@ -2155,11 +2038,13 @@ export function AgentWorldUnified() {
                   ? chatRouteForAgent(selectedAgent)
                   : "";
                 setSelectedAgent(null);
-                if (hudOnly) navigate(returnRoute);
+                if (hudOnly) void navigate(returnRoute);
               }
             }}
             onSelectAgent={handleSwitchAgent}
-            onCreateAgent={() => navigate(agentCreationRoute({ returnTo: "hud" }))}
+            onCreateAgent={() =>
+              navigate(agentCreationRoute({ returnTo: "hud" }))
+            }
           />
         </Suspense>
       ) : null}
@@ -2177,7 +2062,7 @@ export function AgentWorldUnified() {
               检测到此前卸载时保存的作品。应用代码会重新下载，作品是否恢复由你决定。
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 p-3 text-sm">
+          <div className="rounded-xl border border-core/30 bg-core/8 p-3 text-sm">
             <span className="font-medium text-foreground">
               可恢复内容已保留
             </span>
@@ -2223,7 +2108,7 @@ export function AgentWorldUnified() {
           <DialogHeader>
             <DialogTitle>卸载{uninstallWorkbenchApp?.name}</DialogTitle>
             <DialogDescription>
-              应用代码、MCP 与应用 Skills 会立即撤销。请选择作品数据的处理方式。
+              应用代码、MCP 与应用技能会立即撤销。请选择作品数据的处理方式。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
@@ -2250,7 +2135,7 @@ export function AgentWorldUnified() {
               className={cn(
                 "w-full rounded-xl border p-3 text-left transition",
                 uninstallDataPolicy === "trash"
-                  ? "border-amber-500 bg-amber-500/8"
+                  ? "border-warning bg-warning/8"
                   : "border-border hover:bg-muted/40",
               )}
             >

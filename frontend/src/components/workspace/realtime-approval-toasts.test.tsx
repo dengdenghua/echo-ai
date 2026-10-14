@@ -112,6 +112,35 @@ describe("<RealtimeApprovalPrompt />", () => {
     expect(screen.getByRole("button", { name: "拒绝" })).toBeInTheDocument();
   });
 
+  test.each([
+    ["fetch_url", '{"extract": false, "url": "https://example.com"}', "读取网页"],
+    ["platform_read", '{"url": "https://example.com"}', "读取网页"],
+    ["web_search", '{"query": "echo"}', "搜索网页"],
+    ["opencode.bash", '{"command": "pwd"}', "运行命令"],
+    ["send_email", '{"to": "team"}', "执行操作"],
+  ])(
+    "labels a %s approval by what it does, not by its channel",
+    (tool, argsPreview, label) => {
+      renderWithProviders(
+        <RealtimeApprovalPrompt
+          approvals={[
+            {
+              requestId: 11,
+              method: "item/commandExecution/requestApproval",
+              createdAt: "2026-05-09T00:00:00.000Z",
+              params: { tool, argsPreview },
+            },
+          ]}
+          resolveApproval={vi.fn()}
+        />,
+        { locale: "zh-CN" },
+      );
+      expect(
+        screen.getByRole("region", { name: `${label} · 需要审批` }),
+      ).toBeInTheDocument();
+    },
+  );
+
   test("extracts the command from a Python-style args preview", () => {
     renderWithProviders(
       <RealtimeApprovalPrompt

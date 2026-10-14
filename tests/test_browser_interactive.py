@@ -56,6 +56,8 @@ class _FakePage:
         # Implementation note.
         self.clicks: list[str] = []
         self.fills: list[tuple[str, str]] = []
+        self.typed: list[tuple[str, str]] = []
+        self.values: dict[str, str] = {}
         self.presses: list[tuple[str, str]] = []
         self.waits: list[tuple[str, str]] = []
         self.evaluations: list[str] = []
@@ -84,6 +86,14 @@ class _FakePage:
         if self._fill_raises is not None:
             raise self._fill_raises
         self.fills.append((selector, text))
+        self.values[selector] = text
+
+    def focus(self, selector: str, timeout: int = 0) -> None:
+        pass
+
+    def type(self, selector: str, text: str, timeout: int = 0) -> None:
+        self.typed.append((selector, text))
+        self.values[selector] = self.values.get(selector, "") + text
 
     def press(self, selector: str, key: str, timeout: int = 0) -> None:
         self.presses.append((selector, key))
@@ -205,14 +215,17 @@ class TestType:
 
     def test_clear_first_false_skips_clear(self):
         page = _FakePage()
-        _browser_type(
+        page.values["#user"] = "alice "
+        result = _browser_type(
             url="https://a/",
             selector="#user",
             text="bob",
             clear_first=False,
             page=page,
         )
-        assert page.fills == [("#user", "bob")]
+        assert "error" not in result
+        assert page.fills == []
+        assert page.values["#user"] == "alice bob"
 
     def test_press_enter(self):
         page = _FakePage()

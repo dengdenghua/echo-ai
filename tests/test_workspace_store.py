@@ -452,8 +452,10 @@ def test_encrypt_options_handles_nested_sensitive_fields(
     assert "tok-2" not in encrypted
     # Non-sensitive values stay plaintext.
     assert "us-east-1" in encrypted
-    assert "first" in encrypted
-    assert "second" in encrypted
+    # ``credentials`` is itself a sensitive key, so its whole value is
+    # encrypted — labels included.
+    assert "first" not in encrypted
+    assert "second" not in encrypted
 
     decrypted = decrypt_options(encrypted)
     assert decrypted == options

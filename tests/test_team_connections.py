@@ -234,16 +234,20 @@ def test_model_config_and_publication_read_together(tmp_path):
 
 def test_background_sync_starts_and_stops(tmp_path):
     async def scenario():
-        gateway, _, invite = published(tmp_path / 'gateway')
+        gateway, _, invite = published(tmp_path / "gateway")
         applied = asyncio.Event()
-        service = TeamConnections(tmp_path / 'connections.db', lambda c, m: applied.set(),
-                                  transport=httpx.ASGITransport(app=gateway))
-        service.start('http://localhost:8333/v1', invite['code'])
+        service = TeamConnections(
+            tmp_path / "connections.db",
+            lambda c, m: applied.set(),
+            transport=httpx.ASGITransport(app=gateway),
+        )
+        service.start("http://localhost:8333/v1", invite["code"])
         await service.start_worker()
         try:
             await asyncio.wait_for(applied.wait(), 3)
-            assert service.rows()[0]['connected']
+            assert service.rows()[0]["connected"]
         finally:
             await service.stop_worker()
         assert service.worker.done()
+
     asyncio.run(scenario())

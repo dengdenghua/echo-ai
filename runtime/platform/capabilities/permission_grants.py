@@ -16,7 +16,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from runtime.platform.io import JsonMutation, mutate_json_file, read_json_file
+from runtime.platform.io import (
+    JsonMutation,
+    forget_snapshot_read,
+    mutate_json_file,
+    read_json_file,
+    snapshot_read,
+)
 from runtime.platform.plugins.marketplace_package import MARKETPLACE_PERMISSIONS
 from runtime.platform.process.paths import app_paths
 from runtime.safety.auth.scope import tenant_scoped_path
@@ -103,6 +109,9 @@ def _validate_payload(payload: Any) -> None:
             raise RuntimeError("capability permission grant state is invalid")
 
 
+_SNAPSHOT_KEY = "capability-permission-grants"
+
+
 def _default_payload() -> dict[str, Any]:
     return {"schema": PERMISSION_GRANT_SCHEMA, "records": {}}
 
@@ -122,20 +131,27 @@ class CapabilityPermissionStore:
 
     @staticmethod
     def _read_path(path: Path) -> dict[str, Any]:
-        return read_json_file(
-            path,
-            default_factory=_default_payload,
-            validate=_validate_payload,
+        # Read-only callers; a registry listing asks once per capability.
+        return snapshot_read(
+            (_SNAPSHOT_KEY, path),
+            lambda: read_json_file(
+                path,
+                default_factory=_default_payload,
+                validate=_validate_payload,
+            ),
         )
 
     @staticmethod
     def _mutate_path(path: Path, operation: Any) -> Any:
-        return mutate_json_file(
-            path,
-            default_factory=_default_payload,
-            validate=_validate_payload,
-            mutate=operation,
-        )
+        try:
+            return mutate_json_file(
+                path,
+                default_factory=_default_payload,
+                validate=_validate_payload,
+                mutate=operation,
+            )
+        finally:
+            forget_snapshot_read((_SNAPSHOT_KEY, path))
 
     def _read(self) -> dict[str, Any]:
         return self._read_path(self._effective_path())

@@ -1489,6 +1489,257 @@ def test_entry_profile_still_applies_when_the_base_url_identifies_the_vendor() -
     assert router._profile_for_model("some-unreleased-id").id == "deepseek"
 
 
+def _patch_custom_models_catalog(monkeypatch, tmp_path, catalog: dict) -> None:
+    """Point ``custom_models.json`` at a fixture catalog for one test."""
+
+    import json as _json
+
+    from runtime.platform.process.paths import app_paths
+
+    custom_models_path = tmp_path / "custom_models.json"
+    custom_models_path.write_text(_json.dumps(catalog), encoding="utf-8")
+    original = app_paths()
+
+    class _Patched:
+        pass
+
+    _Patched.custom_models_path = custom_models_path
+
+    def _getattr(self, name: str) -> object:
+        return getattr(original, name)
+
+    _Patched.__getattr__ = _getattr
+    monkeypatch.setattr(
+        "runtime.platform.process.paths.app_paths",
+        lambda: _Patched(),
+    )
+
+
+# Two endpoints fronting the same upstream model id — the shape that made a
+# model-name-only reverse lookup cross vendor lines.
+_RELAY_CATALOG = {
+    "zen": {
+        "id": "zen",
+        "provider": "openai-compatible",
+        "base_url": "https://opencode.ai/zen/v1",
+        "models": ["deepseek-v4-flash"],
+        "compat_profile": "kimi_coding",
+    },
+    "go": {
+        "id": "go",
+        "provider": "openai-compatible",
+        "base_url": "https://opencode.ai/zen/go/v1",
+        "models": ["deepseek-v4-flash"],
+    },
+}
+
+
+def test_relay_does_not_borrow_a_sibling_entry_for_a_same_named_model(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """The reverse lookup is anchored on the endpoint actually being called.
+
+    Both entries advertise ``deepseek-v4-flash``. Only the one whose
+    ``base_url`` is really being called may contribute its compat profile;
+    otherwise a sibling entry's quirks cross vendor lines.
+    """
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _RELAY_CATALOG)
+
+    go = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/go/v1",
+        api_key="sk-test",
+        default_model="deepseek-v4-flash",
+    )
+    assert go._entry_for_model("deepseek-v4-flash")["id"] == "go"
+    # That entry declares no compat_profile, so the model's own profile stands.
+    assert go._profile_for_model("deepseek-v4-flash").id == "deepseek"
+
+    relay = _relay_router("deepseek-v4-flash")
+    # Neither entry is the endpoint being called: refuse to guess rather than
+    # hand the call a sibling entry's kimi_coding quirks.
+    assert relay._entry_for_model("deepseek-v4-flash") is None
+    profile = relay._profile_for_model("deepseek-v4-flash")
+    assert profile.id == "deepseek"
+    assert profile.omit_sampling_parameters is False
+
+
+def test_entry_without_base_url_still_matches_the_model_everywhere(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """A credential-backed row declares no ``base_url`` and must keep working.
+
+    An entry with no endpoint of its own is a statement about the model id
+    everywhere, so an unrelated relay still inherits its operator flags.
+    """
+    _patch_custom_models_catalog(
+        monkeypatch,
+        tmp_path,
+        {
+            "manual-kimi": {
+                "id": "manual-kimi",
+                "provider": "openai",
+                "models": ["manual-code-model"],
+                "compat_profile": "qwen",
+                "omit_sampling_parameters": True,
+            },
+        },
+    )
+
+    router = OpenAIModelRouter(
+        base_url="https://relay.example/v1",
+        api_key="sk-test",
+        default_model="manual-code-model",
+    )
+    assert router._entry_for_model("manual-code-model")["id"] == "manual-kimi"
+    assert router._profile_for_model("manual-code-model").id == "qwen"
+
+
+# The same two-endpoint shape, but here only one endpoint declares the
+# capability flags. ``strict-sibling`` comes first in catalog order, which is
+# exactly what made the old model-name-only flag lookup hand its declarations
+# to the endpoint actually being called.
+_FLAG_CATALOG = {
+    "strict-sibling": {
+        "id": "strict-sibling",
+        "provider": "openai",
+        "base_url": "https://strict.example/v1",
+        "models": ["mimo-2.6"],
+        "supports_tool_use": False,
+        "omit_sampling_parameters": True,
+        "supports_thinking": False,
+    },
+    "target": {
+        "id": "target",
+        "provider": "openai",
+        "base_url": "https://relay.example/v1",
+        "models": ["mimo-2.6"],
+        "supports_thinking": True,
+    },
+}
+
+
+def _tool_request(model: str):
+    return _req(model=model).model_copy(
+        update={
+            "max_tokens": 32,
+            "tools": [
+                ToolSpec(
+                    name="read_file",
+                    description="read",
+                    input_schema={"type": "object"},
+                ),
+            ],
+        },
+    )
+
+
+def test_capability_flags_do_not_leak_across_endpoints(monkeypatch, tmp_path) -> None:
+    """Tool / sampling / thinking flags follow the endpoint, not the model id.
+
+    A relay fronts many vendors behind one ``base_url`` and advertises the
+    same upstream model id on several entries. Reading ``supports_tool_use``,
+    ``omit_sampling_parameters`` and ``supports_thinking`` by model name alone
+    applied the first catalog match, so one vendor's declarations governed
+    another vendor's call.
+    """
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _FLAG_CATALOG)
+
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response()))
+    router = OpenAIModelRouter(
+        base_url="https://relay.example/v1",
+        api_key="sk-test",
+        default_model="mimo-2.6",
+        client=fake,
+    )
+    assert router._entry_for_model("mimo-2.6")["id"] == "target"
+    router.call(_tool_request("mimo-2.6"))
+
+    payload = fake.calls[0]["json"]
+    # The sibling declared tools off; this endpoint never did.
+    assert [tool["function"]["name"] for tool in payload["tools"]] == ["read_file"]
+    assert payload["tool_choice"] == "auto"
+    # ...and the sibling's ``omit_sampling_parameters`` is not ours either.
+    assert payload["temperature"] == 0.0
+    # Our own ``supports_thinking`` still lifts the tiny output budget.
+    assert payload["max_tokens"] == _MIN_THINKING_OUTPUT_TOKENS
+
+
+def test_capability_flags_stay_conservative_on_an_unlisted_endpoint(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """Neither endpoint is the one being called: refuse to guess.
+
+    Matching no entry must not fall back to "the first entry that names this
+    model" — the capability flags then stay at their documented defaults.
+    """
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _FLAG_CATALOG)
+
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response()))
+    router = OpenAIModelRouter(
+        base_url="https://unlisted.example/v1",
+        api_key="sk-test",
+        default_model="mimo-2.6",
+        client=fake,
+    )
+    assert router._entry_for_model("mimo-2.6") is None
+    router.call(_tool_request("mimo-2.6"))
+
+    payload = fake.calls[0]["json"]
+    assert "tools" in payload
+    assert "temperature" in payload
+    assert payload["max_tokens"] == 32
+
+
+def test_explicit_entry_flags_outrank_the_catalog(monkeypatch, tmp_path) -> None:
+    """A routed row already resolved one exact endpoint; never re-guess it."""
+
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _FLAG_CATALOG)
+
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response()))
+    router = OpenAIModelRouter(
+        base_url="https://relay.example/v1",
+        api_key="sk-test",
+        default_model="mimo-2.6",
+        client=fake,
+        custom_model_entry={
+            "id": "explicit",
+            "provider": "openai",
+            "models": ["mimo-2.6"],
+            "supports_tool_use": False,
+            "omit_sampling_parameters": True,
+        },
+    )
+    router.call(_tool_request("mimo-2.6"))
+
+    payload = fake.calls[0]["json"]
+    assert "tools" not in payload
+    assert "tool_choice" not in payload
+    assert "temperature" not in payload
+
+
+def test_explicit_entry_outranks_the_catalog_lookup(monkeypatch, tmp_path) -> None:
+    """A routed row already resolved one exact endpoint; never re-guess it."""
+
+    _patch_custom_models_catalog(monkeypatch, tmp_path, _RELAY_CATALOG)
+
+    router = OpenAIModelRouter(
+        base_url="https://relay.example/v1",
+        api_key="sk-test",
+        default_model="deepseek-v4-flash",
+        custom_model_entry={
+            "id": "explicit",
+            "provider": "openai-compatible",
+            "models": ["deepseek-v4-flash"],
+            "compat_profile": "glm",
+        },
+    )
+    assert router._entry_for_model("glm-5.2")["id"] == "explicit"
+    assert router._profile_for_model("deepseek-v4-flash").id == "glm"
+
+
 def test_non_streaming_response_splits_inline_reasoning() -> None:
     """The blocking ``call`` path needs the same split as the stream path."""
     router = OpenAIModelRouter(
@@ -1554,3 +1805,117 @@ class TestDeepSeekNativeEffortWire:
         # must not receive an unknown effort value or an enabled envelope.
         assert "reasoning_effort" not in payload
         assert "thinking" not in payload
+
+
+# ═══════════════════════════════════════════════════════════
+# OpenCode Zen / Go session identification
+# ═══════════════════════════════════════════════════════════
+
+
+def test_opencode_zen_sends_session_header() -> None:
+    """OpenCode Go answers 400 MissingSessionID without a session header.
+
+    The header has to be attached by the router itself: the planner, the
+    gateway and the fallback builder all construct routers, and only one of
+    them remembered to do it.
+    """
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response("ok")))
+    router = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/go/v1",
+        api_key="sk-test",
+        default_model="mimo-v2.6-flash",
+        client=fake,
+    )
+    router.call(_req(model="mimo-v2.6-flash"))
+
+    headers = fake.calls[0]["headers"]
+    assert headers["x-opencode-session"]
+    assert headers["Authorization"] == "Bearer sk-test"
+
+
+def test_opencode_zen_free_catalog_uses_the_same_session_header() -> None:
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response("ok")))
+    router = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/v1",
+        api_key="sk-test",
+        default_model="mimo-v2.6-flash-free",
+        client=fake,
+    )
+    router.call(_req(model="mimo-v2.6-flash-free"))
+
+    assert fake.calls[0]["headers"]["x-opencode-session"]
+
+
+def test_entry_headers_still_win_over_the_session_defaults() -> None:
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response("ok")))
+    router = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/go/v1",
+        api_key="sk-test",
+        default_model="mimo-v2.6-flash",
+        extra_headers={"x-opencode-session": "conversation-42"},
+        client=fake,
+    )
+    router.call(_req(model="mimo-v2.6-flash"))
+
+    assert fake.calls[0]["headers"]["x-opencode-session"] == "conversation-42"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://x/v1",
+        "https://api.deepseek.com/v1",
+        # A relay that merely mirrors the path must not be treated as OpenCode.
+        "https://relay.example/zen/go/v1",
+    ],
+)
+def test_other_providers_get_no_session_header(base_url: str) -> None:
+    fake = _FakeClient(response=_FakeResponse(200, _openai_response("ok")))
+    router = OpenAIModelRouter(
+        base_url=base_url,
+        api_key="sk-test",
+        default_model="some-model",
+        client=fake,
+    )
+    router.call(_req(model="some-model"))
+
+    assert "x-opencode-session" not in fake.calls[0]["headers"]
+
+
+def test_opencode_free_tier_403_explains_the_gate() -> None:
+    """The upstream gate is not a credential problem and must not read like one."""
+    fake = _FakeClient(
+        response=_FakeResponse(
+            403,
+            {
+                "type": "error",
+                "error": {
+                    "type": "FreeTierError",
+                    "message": "OpenCode's free tier can only be used from within OpenCode",
+                },
+            },
+        )
+    )
+    router = OpenAIModelRouter(
+        base_url="https://opencode.ai/zen/v1",
+        api_key="sk-test",
+        default_model="mimo-v2.6-flash-free",
+        client=fake,
+    )
+
+    with pytest.raises(OpenAIRouterError) as exc:
+        router.call(_req(model="mimo-v2.6-flash-free"))
+
+    message = str(exc.value)
+    assert "免费模型只能在 OpenCode 客户端内调用" in message
+    assert "API Key 无效" not in message
+
+
+def test_plain_403_still_reports_a_credential_problem() -> None:
+    fake = _FakeClient(response=_FakeResponse(403, text="Forbidden"))
+    router = OpenAIModelRouter(base_url="http://x/v1", client=fake)
+
+    with pytest.raises(OpenAIRouterError) as exc:
+        router.call(_req())
+
+    assert "模型 API Key 无效或没有权限" in str(exc.value)

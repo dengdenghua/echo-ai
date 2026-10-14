@@ -1,14 +1,44 @@
 /** Describe a failed capability without turning missing data into success. */
 export function serviceErrorMessage(error: unknown, chinese = true): string {
   const message = error instanceof Error ? error.message : String(error ?? "");
+  // API errors may be wrapped as `HTTP 409 {"detail": {...}}`.
+  // Parse the envelope before generic HTTP matching so a package failure is
+  // not misreported as an expired user login or a network outage.
+  const jsonStart = message.indexOf("{");
+  if (jsonStart >= 0) {
+    try {
+      const payload = JSON.parse(message.slice(jsonStart)) as {
+        detail?: string | { code?: string; message?: string };
+      };
+      if (typeof payload.detail === "string")
+        return serviceErrorMessage(payload.detail, chinese);
+      const detail = payload.detail;
+      if (
+        detail &&
+        /^(INSTALL_FAILED|INSTALL_PLAN_STALE|INSTALL_WRITE_DENIED|ECHO_ADAPTER_REQUIRED|PACKAGE_UNAVAILABLE|PACKAGE_ACCESS_DENIED|PACKAGE_SERVICE_UNAVAILABLE|PACKAGE_VERIFICATION_FAILED|PACKAGE_INCOMPATIBLE)$/.test(
+          detail.code ?? "",
+        ) &&
+        typeof detail.message === "string"
+      )
+        return detail.message;
+    } catch {
+      // Legacy non-JSON errors use the fallback below.
+    }
+  }
   if (/403|admin role|管理员|forbidden/i.test(message))
     return chinese
       ? "当前账号没有此功能的管理权限。请切换有权限的账号或联系管理员。"
       : "Your account cannot manage this feature. Use an authorized account or contact an administrator.";
-  if (/401|unauthori[sz]ed|credentials.*expired/i.test(message))
+  if (
+    /401|unauthori[sz]ed|credentials.*expired|missing authorization/i.test(
+      message,
+    )
+  )
     return chinese
       ? "登录或连接凭据已失效，请重新连接。"
       : "Your session or connection has expired. Please reconnect.";
+  const installDetail = message.match(/(插件包下载或安装失败[^\n\r"}]*)/);
+  if (installDetail?.[1]) return installDetail[1];
   if (/404|not found/i.test(message))
     return chinese
       ? "当前服务未提供此功能或内容已下架。请刷新目录并检查服务版本。"

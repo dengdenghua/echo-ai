@@ -2,9 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
 import { coderQueryKeys, getCoderModelProfile } from "@/core/coder/api";
-import { authHeaders } from "@/core/auth/api";
+import { apiGet } from "@/core/api/request";
 import type { EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
-import { getBackendBaseURL } from "@/core/config";
 import {
   executionEnginePreference,
   previewExecutionEngine,
@@ -59,6 +58,24 @@ export function useExecutionEngine({
       }
     }
   }, [storageKey, parentStorageKey]);
+  const opencode = useQuery({
+    queryKey: ["opencode-status", principal],
+    queryFn: async ({ signal }) =>
+      (await apiGet("/api/config/opencode/status", {
+        signal,
+        errorMessage: () => "OpenCode status unavailable",
+      })) as {
+        available: boolean;
+        reason: string | null;
+        reason_code?: string;
+        capability_checks?: EngineCapabilityChecks;
+      },
+    enabled,
+    staleTime: 30_000,
+  });
+  // The slim desktop installer has no OpenCode until the store installs it;
+  // Auto then runs on Echo's own models instead of failing the first message.
+  const opencodeMissing = opencode.data?.reason_code === "not_installed";
   const savedPreference =
     (selection.key === storageKey
       ? selection.value
@@ -68,7 +85,10 @@ export function useExecutionEngine({
   // controls availability, never the user's model/engine ownership.
   const preference =
     savedPreference ??
-    (enabled && !orchestrated && roleBackend !== "codex_app_server"
+    (enabled &&
+    !orchestrated &&
+    !opencodeMissing &&
+    roleBackend !== "codex_app_server"
       ? "opencode"
       : "auto");
   const rememberForThread = useCallback(
@@ -103,26 +123,6 @@ export function useExecutionEngine({
     staleTime: 30_000,
   });
   const codexAvailable = profile.data?.execution_available === true;
-  const opencode = useQuery({
-    queryKey: ["opencode-status", principal],
-    queryFn: async ({ signal }) => {
-      const response = await fetch(
-        `${getBackendBaseURL()}/api/config/opencode/status`,
-        {
-          headers: authHeaders(),
-          signal,
-        },
-      );
-      if (!response.ok) throw new Error("OpenCode status unavailable");
-      return (await response.json()) as {
-        available: boolean;
-        reason: string | null;
-        capability_checks?: EngineCapabilityChecks;
-      };
-    },
-    enabled,
-    staleTime: 30_000,
-  });
   return {
     preference,
     setPreference,
@@ -133,6 +133,7 @@ export function useExecutionEngine({
       codingTask,
       orchestrated,
       codexAvailable,
+      opencodeMissing,
     }),
     codexAvailable,
     codexCapabilityChecks: profile.data?.capability_checks,

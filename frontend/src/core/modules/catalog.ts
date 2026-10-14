@@ -7,6 +7,7 @@
 import type { ModuleDescriptor, ModuleGroup, ModuleSection } from "./types";
 
 export const MODULE_CATALOG: ModuleDescriptor[] = [
+  { id: "mail", to: "/workspace/mail", labelKey: "navMail", group: "workspace", section: "chatCapability", removable: true },
   // ─── 工作台核心 ────────────────────────────────────────────
   {
     id: "hr",
@@ -29,15 +30,6 @@ export const MODULE_CATALOG: ModuleDescriptor[] = [
     id: "intelligence",
     to: "/workspace/intelligence?surface=chat",
     labelKey: "navIntelligence",
-    group: "workspace",
-    section: "chatCapability",
-    removable: true,
-  },
-  {
-    // 模拟炒股插件页:内嵌平台原版网页(iframe),复刻版已拆到 paper_trading_replica(插件中心)
-    id: "paper.trading",
-    to: "/workspace/paper-trading",
-    labelKey: "navPaperTrading",
     group: "workspace",
     section: "chatCapability",
     removable: true,

@@ -40,3 +40,12 @@ it("distinguishes operator access from cross-tenant admin access", () => {
   expect(canAccessGlobalControlPlane(enabled, operator)).toBe(false);
   expect(canAccessGlobalControlPlane(enabled, admin)).toBe(true);
 });
+
+it("does not ask for cross-tenant views on behalf of an admin without the scope", () => {
+  const admin = { user_id: "local:me", username: "me", roles: ["admin"] };
+  expect(canAccessOperatorControlPlane(enabled, admin)).toBe(true);
+  expect(canAccessGlobalControlPlane(enabled, admin)).toBe(false);
+  expect(
+    canAccessGlobalControlPlane(enabled, { ...admin, permissions: [] }),
+  ).toBe(false);
+});

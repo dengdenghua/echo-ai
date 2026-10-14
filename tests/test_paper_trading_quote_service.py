@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +104,10 @@ def test_settings_reject_relative_or_permissive_secret_file(tmp_path: Path) -> N
     secret = tmp_path / "quote-hub.json"
     secret.write_text('{"phone":"1","password":"2"}', encoding="utf-8")
     secret.chmod(0o640)
+    if os.name == "nt":
+        # Windows has no group/other mode bits to inspect (chmod only toggles
+        # read-only), so the loader deliberately skips the mode check there.
+        return
     with pytest.raises(ValueError, match="group or others"):
         QuoteServiceSettings.from_env({"QUOTE_HUB_SECRET_FILE": str(secret)})
 

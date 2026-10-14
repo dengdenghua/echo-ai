@@ -231,8 +231,26 @@ describe("CoworkRoomTimeline", () => {
           metadata: { source_message_id: "project-action:1" },
         },
         { seq: 4, text: "无来源的房间消息" },
-      ]).map((message) => message.text),
+      ], ["human-1"]).map((message) => message.text),
     ).toEqual(["项目卡", "无来源的房间消息"]);
+  });
+
+  test.each(["thread:", "thread:agent:", "thread:error:"])("deduplicates loaded canonical items for %s mirrors only", (prefix) => {
+    const loaded = { seq: 1, text: "过程或错误", metadata: { source_message_id: `${prefix}item-1` } };
+    const remote = { seq: 2, text: "其他成员消息", metadata: { source_message_id: `${prefix}remote-2` } };
+    expect(dedupeCoworkRoomMessages([loaded, remote], ["item-1"])).toEqual([remote]);
+  });
+
+  test("does not show serialized null names as member identities", () => {
+    renderWithProviders(<CoworkRoomTimelineEntry message={{ seq: 1, display_name: "None", text: "系统记录" }} />);
+    expect(screen.queryByText("None")).not.toBeInTheDocument();
+    expect(screen.getByText("协作成员")).toBeInTheDocument();
+  });
+
+  test("keeps a remote thread mirror until this window actually has its original", () => {
+    const remote = { seq: 9, text: "Another member sent this", metadata: { source_message_id: "thread:remote-9" } };
+    expect(dedupeCoworkRoomMessages([remote, { ...remote, seq: 10 }], ["local-1"])).toEqual([remote]);
+    expect(dedupeCoworkRoomMessages([remote], ["remote-9"])).toEqual([]);
   });
 
   test("badges 数字员工 lines and their takeovers, not bare agents", () => {

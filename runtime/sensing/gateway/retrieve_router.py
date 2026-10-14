@@ -62,14 +62,18 @@ def create_retrieve_router(
 
     @router.post("/api/retrieve/rank")
     def rank(request: Request, body: RankRequest) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; caller-supplied ranking inputs or shared backend metadata
         from runtime.memory.hemolymph.semantic_rank import rank as _rank
 
         return _rank(body.query, body.candidates, top_k=body.top_k)
 
     @router.get("/api/retrieve/backend")
     def backend(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; caller-supplied ranking inputs or shared backend metadata
         from runtime.memory.hemolymph import embedding_backend
 
         return embedding_backend.backend_info()

@@ -22,6 +22,6 @@ export function useModuleRouteGuard(fallbackRoute: string): void {
   useEffect(() => {
     if (!isLocationBlocked(pathname, search, enabledIds)) return;
     // `replace` so Back doesn't bounce the user into the blocked route again.
-    navigate(fallbackRoute, { replace: true });
+    void navigate(fallbackRoute, { replace: true });
   }, [enabledIds, fallbackRoute, navigate, pathname, search]);
 }

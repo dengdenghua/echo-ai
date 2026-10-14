@@ -64,12 +64,22 @@ evolve:
 #   10–900，默认 120。超时仅由本 config 控制，无环境变量覆盖。
 # convergence_max_tokens: 普通模式强制收敛的 max_tokens 上限，默认 2000；
 #   research/swarm 模式收敛固定为 5000。
+# approval_timeout_s: 工具审批等待决策的墙钟上限（秒），10–3600，默认 600。
+#   超时未决按“审批人不可达”处理：转检查点暂停，而非拒绝。
+# parallel_batch_timeout_s: 单个并行工具批次的墙钟上限（秒），10–3600，
+#   默认 600（audit T-07）。到点后已完成 lane 保留结果。
 budget:
   max_tokens: 100000
   max_usd: 1.00
   max_latency_ms: 600000
   model_iteration_timeout_s: 120
   convergence_max_tokens: 2000
+  # 工具审批请求等待人工/自动审阅决策的墙钟上限（秒）。超时未决按
+  # “审批人不可达”处理：转检查点暂停等待授权，而非直接拒绝。
+  approval_timeout_s: 600
+  # 单个并行工具批次（audit T-07）的墙钟上限（秒）。到点后已完成
+  # lane 保留结果，仍在跑的 lane 标记超时。
+  parallel_batch_timeout_s: 600
   # 默认只把累计 token 作为用量统计；它不是当前上下文窗口占用。
   # 如需用累计 token 作为严格停机线，需同时开启下面两个开关。
   budget_auto_pause: false
@@ -212,10 +222,18 @@ oct:
   llm_timeout_seconds: 120
   mock_mode: false
   jwt_secret: null    # ⚠️ enabled=true 时必须设 32+ 字符强随机值
-  jwt_expire_seconds: 2592000
+  jwt_expire_seconds: 28800
   jwt_issuer: echo-ai
 # ─────────────── Local Auth 本地认证 ─────────────
 # 本地用户名登录 · 不依赖第三方服务
+#
+# 不配 users（无密码账户）时，enabled: true 按运行方式分三种：
+#   · 开发实例（ECHO_ENV=development，pnpm dev:full 自动设置）：输入任意用户名即可进入，仅限本机。
+#   · 桌面版（ECHO_DESKTOP=1）：由桌面外壳自动以本机账户登录。
+#   · 自托管（其余 local 部署）：首次运行时控制台打印设置码（也写入 <数据目录>/auth/owner-setup-code.txt），
+#     用设置码在登录页创建本机账户（管理员），之后用密码登录；只接受本机和局域网的请求。
+#     jwt_secret 留空时自动生成并保存在 <数据目录>/auth/。
+# 配了 users 时只接受这些密码账户。
 #
 # enabled:              是否启用
 # allow_any_username:   允许任意用户名（false 时需配合 allowed_usernames 白名单）
@@ -226,7 +244,7 @@ oct:
 # login_lockout_seconds: 达到阈值后的短期锁定（秒）
 # login_rate_limit_max_entries: 单进程限速状态内存上限
 # jwt_secret:           JWT 签名密钥 ⚠️ 32+ 字符强随机值
-# jwt_expire_seconds:   JWT 过期时间（秒），604800 = 7 天
+# jwt_expire_seconds:   JWT 过期时间（秒），28800 = 8 小时
 # jwt_issuer:           JWT 签发者标识
 # actor_prefix:         用户名前缀（用于命名空间隔离，如 "local:alice"）
 # default_roles:        新用户默认角色
@@ -240,7 +258,7 @@ local_auth:
   login_lockout_seconds: 60
   login_rate_limit_max_entries: 10000
   jwt_secret: null
-  jwt_expire_seconds: 604800
+  jwt_expire_seconds: 28800
   jwt_issuer: echo-ai
   actor_prefix: "local:"
   default_roles: [user, local]

@@ -1,43 +1,65 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  apiDelete,
+  apiFetch,
+  apiGet,
+  apiPost,
+  apiPut,
+  failureDetail,
+  type ApiFailure,
+} from "@/core/api/request";
 
-import type { MCPConfig, MCPConfigUpdateResponse } from "./types";
+import type { MCPConfig } from "./types";
+import { looseBody } from "@/core/api/response";
+import {
+  hasEntries,
+  hasTrustEntry,
+  hasServerName,
+  hasServer,
+  isMCPConfig,
+  isMCPConfigUpdateResponse,
+  isMCPOAuthAuthorizeResult,
+  isOAuthAppInfo,
+} from "./guards";
 
-async function assertOk(response: Response, label: string): Promise<void> {
-  if (!response.ok) {
-    const err = await response
-      .json()
-      .catch(() => ({ detail: response.statusText }));
-    throw new Error(
-      (err as { detail?: string }).detail ?? `${label}: ${response.statusText}`,
-    );
-  }
+/**
+ * Keep this module's historical error wording on ``EchoAPIError``: the JSON
+ * ``detail`` when present, else ``label: statusText``; a non-JSON error body
+ * yields the bare status text.
+ */
+function failed(label: string) {
+  return (failure: ApiFailure): string => {
+    if (failure.payload === undefined) return failure.statusText;
+    const detail = failureDetail(failure);
+    return detail === undefined || detail === null
+      ? `${label}: ${failure.statusText}`
+      : String(detail);
+  };
 }
 
 export async function loadMCPConfig() {
-  const response = await fetch(`${getBackendBaseURL()}/api/mcp/config`, {
-    headers: authHeaders(),
-  });
-  await assertOk(response, "Failed to load MCP config");
-  return response.json() as Promise<MCPConfig>;
+  return looseBody(
+    await apiGet("/api/mcp/config", {
+      errorMessage: failed("Failed to load MCP config"),
+    }),
+    isMCPConfig,
+  );
 }
 
 export async function updateMCPConfig(config: MCPConfig) {
-  const response = await fetch(`${getBackendBaseURL()}/api/mcp/config`, {
-    method: "PUT",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(config),
-  });
-  await assertOk(response, "Failed to update MCP config");
-  return response.json() as Promise<MCPConfigUpdateResponse>;
+  return looseBody(
+    await apiPut("/api/mcp/config", {
+      body: config,
+      errorMessage: failed("Failed to update MCP config"),
+    }),
+    isMCPConfigUpdateResponse,
+  );
 }
 
 export async function forgetMCPOAuth(serverName: string): Promise<void> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/mcp/oauth/${encodeURIComponent(serverName)}`,
-    { method: "DELETE", headers: authHeaders() },
-  );
-  await assertOk(response, "Failed to remove MCP OAuth credentials");
+  await apiFetch("delete", "/api/mcp/oauth/{server_name}", {
+    path: { server_name: serverName },
+    errorMessage: failed("Failed to remove MCP OAuth credentials"),
+  });
 }
 
 // ───────────────────────────── OAuth 网页授权 ─────────────────────────────
@@ -73,33 +95,23 @@ export async function oauthAuthorize(
   url: string,
   provider?: string,
 ): Promise<MCPOAuthAuthorizeResult> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/mcp/oauth/authorize`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ server, url, provider }),
-    },
+  return looseBody(
+    await apiPost("/api/mcp/oauth/authorize", {
+      body: { server, url, provider },
+      errorMessage: failed("OAuth authorize"),
+    }),
+    isMCPOAuthAuthorizeResult,
   );
-  if (!response.ok) {
-    const err = await response
-      .json()
-      .catch(() => ({ detail: response.statusText }));
-    throw new Error(
-      (err as { detail?: string }).detail ??
-        `OAuth authorize: ${response.statusText}`,
-    );
-  }
-  return response.json() as Promise<MCPOAuthAuthorizeResult>;
 }
 
 export async function getOAuthApp(provider: string): Promise<OAuthAppInfo> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/mcp/oauth/app/${encodeURIComponent(provider)}`,
-    { headers: authHeaders() },
+  return looseBody(
+    await apiGet("/api/mcp/oauth/app/{provider}", {
+      path: { provider },
+      errorMessage: failed("Failed to load OAuth app credentials"),
+    }),
+    isOAuthAppInfo,
   );
-  await assertOk(response, "Failed to load OAuth app credentials");
-  return response.json() as Promise<OAuthAppInfo>;
 }
 
 export async function saveOAuthApp(
@@ -107,38 +119,36 @@ export async function saveOAuthApp(
   clientId: string,
   clientSecret: string,
 ): Promise<OAuthAppInfo> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/mcp/oauth/app/${encodeURIComponent(provider)}`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({
+  return looseBody(
+    await apiPost("/api/mcp/oauth/app/{provider}", {
+      path: { provider },
+      body: {
         client_id: clientId,
         client_secret: clientSecret,
-      }),
-    },
+      },
+      errorMessage: failed("Failed to save OAuth app credentials"),
+    }),
+    isOAuthAppInfo,
   );
-  await assertOk(response, "Failed to save OAuth app credentials");
-  return response.json() as Promise<OAuthAppInfo>;
 }
 
 export async function deleteOAuthApp(provider: string): Promise<void> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/mcp/oauth/app/${encodeURIComponent(provider)}`,
-    { method: "DELETE", headers: authHeaders() },
-  );
-  await assertOk(response, "Failed to remove OAuth app credentials");
+  await apiFetch("delete", "/api/mcp/oauth/app/{provider}", {
+    path: { provider },
+    errorMessage: failed("Failed to remove OAuth app credentials"),
+  });
 }
 
 export async function oauthStatus(
   server: string,
 ): Promise<{ server: string; authorized: boolean }> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/mcp/oauth/status?server=${encodeURIComponent(server)}`,
-    { headers: authHeaders() },
+  return looseBody(
+    await apiGet("/api/mcp/oauth/status", {
+      query: { server },
+      errorMessage: failed("Failed to load MCP OAuth status"),
+    }),
+    hasServer,
   );
-  await assertOk(response, "Failed to load MCP OAuth status");
-  return response.json() as Promise<{ server: string; authorized: boolean }>;
 }
 
 // ───────────────────────────── Trust store ─────────────────────────────
@@ -157,11 +167,12 @@ export interface MCPTrustEntry {
 }
 
 export async function listMCPTrust(): Promise<{ entries: MCPTrustEntry[] }> {
-  const response = await fetch(`${getBackendBaseURL()}/api/mcp/trust`, {
-    headers: authHeaders(),
-  });
-  await assertOk(response, "Failed to list MCP trust entries");
-  return response.json();
+  return looseBody(
+    await apiGet("/api/mcp/trust", {
+      errorMessage: failed("Failed to list MCP trust entries"),
+    }),
+    hasEntries,
+  );
 }
 
 export async function approveMCPTrust(
@@ -169,22 +180,23 @@ export async function approveMCPTrust(
   tool_names: string[] = [],
   note = "",
 ): Promise<{ ok: boolean; entry: MCPTrustEntry }> {
-  const response = await fetch(`${getBackendBaseURL()}/api/mcp/trust`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({ server_name, tool_names, note }),
-  });
-  await assertOk(response, "Failed to approve MCP trust");
-  return response.json();
+  return looseBody(
+    await apiPost("/api/mcp/trust", {
+      body: { server_name, tool_names, note },
+      errorMessage: failed("Failed to approve MCP trust"),
+    }),
+    hasTrustEntry,
+  );
 }
 
 export async function revokeMCPTrust(
   server_name: string,
 ): Promise<{ ok: boolean; server_name: string }> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/mcp/trust/${encodeURIComponent(server_name)}`,
-    { method: "DELETE", headers: authHeaders() },
+  return looseBody(
+    await apiDelete("/api/mcp/trust/{server_name}", {
+      path: { server_name },
+      errorMessage: failed("Failed to revoke MCP trust"),
+    }),
+    hasServerName,
   );
-  await assertOk(response, "Failed to revoke MCP trust");
-  return response.json();
 }

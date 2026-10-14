@@ -32,25 +32,18 @@ from runtime.platform.process.task_supervisor import (
     task_lease_health,
 )
 from runtime.sensing._fastapi_guard import require_fastapi
+from runtime.sensing.gateway._task_approval_router import (
+    TaskApprovalDecisionRequest as TaskApprovalDecisionRequest,
+)
+from runtime.sensing.gateway._task_approval_router import (
+    register_task_approval_route,
+)
 
 _logger = logging.getLogger(__name__)
 _RESUME_START_TIMEOUT_SECONDS = 5.0
 _RESUME_QUEUE_STALE_SECONDS = 300.0
 _DEFAULT_RESUME_ITERATION_GRANT = 15
 _DEFAULT_RESUME_TOKEN_GRANT = 100_000
-
-
-class TaskApprovalDecisionRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    approved: bool
-    reason: str | None = None
-
-    @field_validator("reason", mode="before")
-    @classmethod
-    def _normalize_reason(cls, value: Any) -> str | None:
-        text = str(value or "").strip()
-        return text or None
 
 
 class TaskTakeoverRequest(BaseModel):
@@ -365,35 +358,13 @@ def create_task_runs_router(
             "lease_health": task_lease_health(task),
         }
 
-    @router.post("/api/task-runs/{task_id}/approval-decision")
-    def api_task_run_approval_decision(
-        task_id: str,
-        body: TaskApprovalDecisionRequest,
-        request: Request,
-    ) -> dict[str, Any]:
-        actor = _auth(request)
-        task = _store().get(task_id)
-        if task is None:
-            raise HTTPException(404, "task run not found")
-        _require_task_access(task, actor)
-        try:
-            updated = _supervisor().record_approval_decision(
-                task_id,
-                approved=body.approved,
-                decided_by=actor,
-                reason=body.reason or "",
-            )
-        except LostTaskLease as exc:
-            raise HTTPException(409, str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(409, str(exc)) from exc
-        except KeyError as exc:
-            raise HTTPException(404, "task run not found") from exc
-        return {
-            "schema": "echo.task_run_approval_decision.v1",
-            "task_run": updated.model_dump(mode="json"),
-            "lease_health": task_lease_health(updated),
-        }
+    register_task_approval_route(
+        router,
+        auth=_auth,
+        store=_store,
+        supervisor=_supervisor,
+        require_access=_require_task_access,
+    )
 
     @router.post("/api/task-runs/{task_id}/takeover")
     def api_task_run_takeover(

@@ -32,6 +32,7 @@ def _fake_app_paths(tmp_path: Path):
 
 def test_ensure_path_rejects_sensitive_home_dir(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows "~"
     (tmp_path / ".ssh").mkdir()
     p, err = _ensure_path(str(tmp_path / ".ssh"))
     assert p is not None
@@ -42,6 +43,7 @@ def test_deploy_website_rejects_ssh_source(monkeypatch, tmp_path: Path):
     """S-05 acceptance: a deploy request sourcing ~/.ssh is rejected and
     nothing lands in the deployments area."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows "~"
     (tmp_path / ".ssh").mkdir()
     (tmp_path / ".ssh" / "id_rsa").write_text("secret", encoding="utf-8")
     mp = _fake_app_paths(tmp_path)

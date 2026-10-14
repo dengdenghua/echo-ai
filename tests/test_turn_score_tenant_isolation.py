@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import multiprocessing
+import os
 import stat
 from pathlib import Path
 from types import SimpleNamespace
@@ -349,7 +350,10 @@ def test_score_append_fsyncs_file_and_parent_and_recovers_after_failure(
         turn_id="durable-turn",
     )
     assert False in fsync_targets  # file data
-    assert True in fsync_targets  # newly-created directory entry
+    if os.name == "posix":
+        # Windows exposes no directory-handle fsync; the product skips that
+        # barrier there (``turn_scoring._fsync_directory``).
+        assert True in fsync_targets  # newly-created directory entry
 
     failed = False
 
@@ -665,7 +669,9 @@ def test_score_hash_and_drift_use_configured_agents_root(
     agents_root = tmp_path / "configured-agent-assets"
     soul_path = agents_root / "coder" / "agent-core" / "SOUL.md"
     soul_path.parent.mkdir(parents=True)
-    soul_path.write_text("first soul\n", encoding="utf-8")
+    # Exact bytes: write_text would emit "\r\n" on Windows, and the soul
+    # hash is a byte fingerprint of the file.
+    soul_path.write_bytes(b"first soul\n")
     monkeypatch.setenv("ECHO_AGENTS_ROOT", str(agents_root))
     monkeypatch.setattr(turn_scoring, "_project_root", lambda: tmp_path / "runtime-data")
 

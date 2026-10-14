@@ -64,18 +64,18 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
         title="Computer workbench preview-confirm-execute loop",
         dimension="computer_automation",
         weight=12,
+        # The standalone /workspace/computer page (and its "Agent 循环预演"
+        # panel) was removed in favor of the desktop preview flow; the loop's
+        # evidence is now the router, its client API and the router tests.
         paths=(
             "runtime/sensing/gateway/computer_router.py",
             "frontend/src/core/computer/api.ts",
-            "frontend/src/app/workspace/computer/page.tsx",
             "tests/test_computer_router.py",
-            "frontend/src/app/workspace/computer/page.test.tsx",
         ),
         required_terms=(
             "control_session_id",
             "control_action_id",
             "preview_token",
-            "Agent 循环预演",
             "echo.control_session_replay.v1",
         ),
         next_action="Run the computer loop through a live human-confirmed scenario before promotion.",
@@ -346,7 +346,7 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
         weight=9,
         paths=(
             "runtime/projectos/engine.py",
-            "runtime/projectos/cowork_bridge.py",
+            "runtime/projectos/group_execution.py",
             "runtime/projectos/timeline.py",
             "runtime/sensing/gateway/projects_router.py",
             "tests/test_projectos.py",
@@ -354,7 +354,7 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
         ),
         required_terms=(
             "ProjectEngine",
-            "cowork_bridge",
+            "group_execution",
             "process_timeline",
             "run_project_from_group",
         ),
@@ -397,7 +397,6 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
             "frontend/src/components/browser/browser-home.tsx",
             "frontend/src/components/browser/url-bar.tsx",
             "frontend/src/components/workspace/settings/settings-dialog.tsx",
-            "frontend/src/app/workspace/computer/page.tsx",
         ),
         required_terms=(
             "useAppearance",

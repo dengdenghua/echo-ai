@@ -11,6 +11,12 @@ All endpoints are gated by the ``ui.remote_workspace`` feature flag.
 When the flag is off every endpoint returns ``403`` so the router
 can be deployed safely behind a gradual rollout.
 
+Workspace payloads go through ``Workspace.to_public_dict``: credentials in
+``mount_options`` are returned as ``None`` and listed in ``secrets_set``.
+Workspaces have no update route, so a stored credential can only change by
+recreating the workspace; an update route must treat a missing or ``None``
+credential as "keep the stored value".
+
 Note: this router is distinct from the per-thread
 ``runtime.sensing.gateway.workspaces_router`` (which exposes thread
 output directories). The two share the ``/api/workspaces`` prefix but
@@ -20,8 +26,13 @@ endpoints; the thread router continues to own ``GET /api/workspaces/{thread_id}/
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
+import ipaddress
+import os
+from collections.abc import Iterable
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -33,6 +44,7 @@ from runtime.platform.io.lease import (
 )
 from runtime.safety.auth.principal import CurrentPrincipal, resolve_principal
 from runtime.safety.auth.scope import scope_from_principal
+from runtime.safety.auth.url_guard import check_host
 from runtime.sensing.server.mount_backend import (
     MountBackendRegistry,
     default_registry,
@@ -42,6 +54,8 @@ from runtime.workspace import (
     VALID_MOUNT_TYPES,
     WorkspaceStore,
 )
+from runtime.workspace.access import authorized_workspace
+from runtime.workspace.paths import conflicting_workspace_lease, workspace_relative_path
 
 # ═══════════════════════════════════════════════════════════
 # Request bodies
@@ -91,6 +105,145 @@ def _require_flag() -> None:
         )
 
 
+# Mount types whose target is a path on the Echo runtime host itself, and
+# options that map a workspace onto (or widen it within) the runtime's local
+# filesystem.  Only admins/operators may choose these in authenticated mode.
+_SERVER_LOCAL_MOUNT_TYPES = frozenset({"local", "nfs"})
+_SERVER_MANAGED_MOUNT_OPTIONS = frozenset(
+    {
+        "filesystem_path",
+        "mount_point",
+        "allowed_read_roots",
+        "allowed_write_roots",
+        "identity_file",
+        "known_hosts_file",
+    }
+)
+
+
+def _requires_server_operator(mount_type: str, mount_options: dict[str, Any]) -> bool:
+    return (
+        mount_type in _SERVER_LOCAL_MOUNT_TYPES
+        or bool(_SERVER_MANAGED_MOUNT_OPTIONS.intersection(mount_options or {}))
+        or bool(_host_key_trust_fields(mount_options))
+    )
+
+
+_FALSE_STRINGS = frozenset({"", "0", "false", "no", "off"})
+
+
+def _host_key_trust_fields(mount_options: dict[str, Any] | None) -> list[str]:
+    """SSH options that relax host-key verification (TOFU keys are shared runtime state)."""
+    opts = mount_options or {}
+    fields: list[str] = []
+    tofu = opts.get("trust_on_first_use")
+    if tofu is not None and str(tofu).strip().lower() not in _FALSE_STRINGS:
+        fields.append("trust_on_first_use")
+    if "strict_host_key_checking" in opts and (
+        str(opts["strict_host_key_checking"]).strip().lower() in _FALSE_STRINGS
+    ):
+        fields.append("strict_host_key_checking")
+    return fields
+
+
+# Remote mount types whose probe/connection reaches a network host chosen by
+# the caller. Ordinary users must not aim these at the runtime's own network
+# (loopback, link-local/cloud metadata, RFC1918/ULA, multicast, unspecified).
+_REMOTE_MOUNT_TYPES = frozenset({"webdav", "sftp", "smb", "s3"})
+_MOUNT_HOST_OPTION_KEYS = ("host", "hostname", "server")
+_MOUNT_URL_OPTION_KEYS = ("base_url", "endpoint_url", "url")
+MOUNT_HOST_ALLOWLIST_ENV = "ECHO_WORKSPACE_MOUNT_HOST_ALLOWLIST"
+_HostAllowlist = tuple[frozenset[str], tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]]
+
+
+def _remote_mount_hosts(
+    mount_type: str, mount_target: str, mount_options: dict[str, Any] | None
+) -> list[str]:
+    """Every network host the backend could connect to for this mount."""
+    if mount_type not in _REMOTE_MOUNT_TYPES:
+        return []
+    opts = mount_options or {}
+    hosts: list[str] = []
+    for key in _MOUNT_HOST_OPTION_KEYS:
+        value = opts.get(key)
+        if isinstance(value, str) and value.strip():
+            hosts.append(value.strip())
+    urls = [opts.get(key) for key in _MOUNT_URL_OPTION_KEYS]
+    target = str(mount_target or "").strip()
+    if "://" in target or target.startswith("//"):
+        urls.append(target)
+    for raw in urls:
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        parts = urlsplit(raw.strip())
+        if parts.scheme.lower() == "s3":
+            continue  # bucket name, not a host: the SDK uses the AWS endpoint
+        if not parts.hostname:
+            raise ValueError(f"cannot determine the host of mount URL {raw!r}")
+        hosts.append(parts.hostname)
+    return list(dict.fromkeys(hosts))
+
+
+def _parse_host_allowlist(entries: Iterable[str] | None) -> _HostAllowlist:
+    names: set[str] = set()
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for entry in entries or ():
+        text = str(entry).strip().strip("[]").lower()
+        if not text:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(text, strict=False))
+        except ValueError:
+            names.add(text.rstrip("."))
+    return frozenset(names), tuple(networks)
+
+
+def _host_allowlisted(host: str, allowlist: _HostAllowlist) -> bool:
+    names, networks = allowlist
+    text = host.strip().strip("[]").lower().rstrip(".")
+    if text in names:
+        return True
+    try:
+        ip = ipaddress.ip_address(text)
+    except ValueError:
+        return False
+    return any(ip.version == net.version and ip in net for net in networks)
+
+
+def _blocked_mount_host(
+    mount_type: str,
+    mount_target: str,
+    mount_options: dict[str, Any] | None,
+    allowlist: _HostAllowlist,
+) -> dict[str, Any] | None:
+    """Return a 403 detail when any mount host is internal/non-public.
+
+    Hostnames are resolved and *every* returned address is checked, so a
+    name with one public and one internal record is rejected.
+    """
+    try:
+        hosts = _remote_mount_hosts(mount_type, mount_target, mount_options)
+    except ValueError as exc:
+        return {"error": "mount_host_invalid", "detail": str(exc)}
+    for host in hosts:
+        if _host_allowlisted(host, allowlist):
+            continue
+        verdict = check_host(host)
+        if not verdict.allow:
+            return {
+                "error": "mount_host_blocked",
+                "mount_type": mount_type,
+                "host": host,
+                "reason": verdict.reason,
+                "hint": (
+                    "remote mounts must point at a public host; ask an admin/operator "
+                    "to create this mount or to add the host to "
+                    f"{MOUNT_HOST_ALLOWLIST_ENV}"
+                ),
+            }
+    return None
+
+
 def create_workspace_api_router(
     *,
     workspace_store: WorkspaceStore | None = None,
@@ -101,6 +254,7 @@ def create_workspace_api_router(
     jwt_secret: str | None = None,
     jwt_issuer: str | None = None,
     jwt_audience: str | None = None,
+    mount_host_allowlist: Iterable[str] | None = None,
 ) -> APIRouter:
     """Create the ``/api/workspaces/*`` router for the Workspace entity.
 
@@ -108,7 +262,13 @@ def create_workspace_api_router(
     on-disk locations; tests pass a ``tmp_path``-backed pair.
     ``registry`` defaults to the shared ``default_registry`` so backend
     instances are cached across requests.
+    ``mount_host_allowlist`` (default: comma-separated
+    ``ECHO_WORKSPACE_MOUNT_HOST_ALLOWLIST``) lists hostnames or IP/CIDR
+    literals that ordinary users may mount even though they are internal.
     """
+    if mount_host_allowlist is None:
+        mount_host_allowlist = os.environ.get(MOUNT_HOST_ALLOWLIST_ENV, "").split(",")
+    host_allowlist = _parse_host_allowlist(mount_host_allowlist)
     store = workspace_store or WorkspaceStore()
     leases = lease_store or LeaseStore()
     backend_registry = registry or default_registry
@@ -130,7 +290,9 @@ def create_workspace_api_router(
         _principal(request)
 
     def _auth_dep(request: Request) -> None:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth caches the principal consumed by _scoped_store
 
     def _scoped_store(request: Request) -> WorkspaceStore:
         principal = _principal(request)
@@ -168,40 +330,7 @@ def create_workspace_api_router(
     ) -> tuple[Any, CurrentPrincipal | None]:
         """Load a workspace, then authorize against its persisted ACL."""
         principal = _principal(request)
-        scoped_store = _scoped_store(request)
-        ws = scoped_store.get_workspace(workspace_id)
-        if ws is None:
-            raise HTTPException(404, f"workspace {workspace_id!r} not found")
-        if principal is None:
-            return ws, None
-
-        global_operator = bool(principal.roles.intersection({"admin", "operator"}))
-        explicit_workspace_tenant = bool(ws.tenant_id and not ws.tenant_id.startswith("legacy:"))
-        explicit_principal_tenant = bool(
-            principal.tenant_id and not principal.tenant_id.startswith("legacy:")
-        )
-        if (
-            (explicit_workspace_tenant or explicit_principal_tenant)
-            and ws.tenant_id != principal.tenant_id
-            and not global_operator
-        ):
-            # Legacy and other-tenant workspaces are indistinguishable
-            # from missing resources to ordinary principals.
-            raise HTTPException(404, f"workspace {workspace_id!r} not found")
-
-        role = scoped_store.get_member_role(workspace_id, principal.actor_id)
-        if role is None:
-            # Hide workspace existence from non-members.
-            raise HTTPException(404, f"workspace {workspace_id!r} not found")
-        if action == "admin" and role != "owner" and not global_operator:
-            raise HTTPException(403, "workspace owner or operator role required")
-        if (
-            action == "write"
-            and role not in {"owner", "editor", "reviewer"}
-            and not global_operator
-        ):
-            raise HTTPException(403, "workspace write membership required")
-        return ws, principal
+        return authorized_workspace(store, workspace_id, principal, action=action), principal
 
     def _lease_or_404(request: Request, lease_id: str):
         for lease in _scoped_leases(request).list_active():
@@ -223,6 +352,20 @@ def create_workspace_api_router(
 
     def _bad_request(exc: ValueError) -> HTTPException:
         return HTTPException(400, str(exc))
+
+    def _network_restricted(principal: CurrentPrincipal | None) -> bool:
+        return require_auth and (
+            principal is None or not principal.roles.intersection({"admin", "operator"})
+        )
+
+    async def _require_public_mount_host(
+        mount_type: str, mount_target: str, mount_options: dict[str, Any]
+    ) -> None:
+        detail = await asyncio.to_thread(
+            _blocked_mount_host, mount_type, mount_target, mount_options, host_allowlist
+        )
+        if detail is not None:
+            raise HTTPException(403, detail)
 
     async def _test_connection(
         mount_type: str,
@@ -267,6 +410,17 @@ def create_workspace_api_router(
                 f"invalid mount_type {body.mount_type!r}; "
                 f"expected one of {sorted(VALID_MOUNT_TYPES)}",
             )
+        if (
+            require_auth
+            and _requires_server_operator(body.mount_type, body.mount_options)
+            and (principal is None or not principal.roles.intersection({"admin", "operator"}))
+        ):
+            # Reject before probing or persisting: an ordinary user must not
+            # map arbitrary runtime-host directories into a workspace.
+            raise HTTPException(403, "admin or operator role required for server-local mounts")
+        if _network_restricted(principal):
+            # SSRF guard: resolve and validate right before the probe connects.
+            await _require_public_mount_host(body.mount_type, body.mount_target, body.mount_options)
         ok, detail = await _test_connection(body.mount_type, body.mount_target, body.mount_options)
         if not ok:
             raise HTTPException(
@@ -293,7 +447,7 @@ def create_workspace_api_router(
         # doesn't pay the connection cost.
         with contextlib.suppress(Exception):  # noqa: BLE001 — pre-warm is best-effort
             backend_registry.get_or_create(ws.id, ws.mount_type, ws.mount_target, ws.mount_options)
-        return {"workspace": ws.to_dict()}
+        return {"workspace": ws.to_public_dict()}
 
     @router.get("/api/workspaces", dependencies=[Depends(_auth_dep)])
     def list_workspaces(
@@ -316,7 +470,7 @@ def create_workspace_api_router(
             workspaces = (
                 store.list_workspaces_for_user(user_id) if user_id else store.list_workspaces()
             )
-        return {"workspaces": [ws.to_dict() for ws in workspaces]}
+        return {"workspaces": [ws.to_public_dict() for ws in workspaces]}
 
     @router.get(
         "/api/workspaces/{workspace_id}",
@@ -326,7 +480,7 @@ def create_workspace_api_router(
         """Get a single workspace by id."""
         _require_flag()
         ws, _ = _workspace_access(request, workspace_id)
-        return {"workspace": ws.to_dict()}
+        return {"workspace": ws.to_public_dict()}
 
     @router.delete(
         "/api/workspaces/{workspace_id}",
@@ -402,9 +556,13 @@ def create_workspace_api_router(
                 raise HTTPException(403, "holder_id must match the authenticated actor")
             holder_id = principal.actor_id
         try:
+            file_path = workspace_relative_path(body.file_path)
+            conflict = conflicting_workspace_lease(leases, workspace_id, file_path, holder_id)
+            if conflict is not None:
+                raise LeaseConflictError(conflict)
             lease = _scoped_leases(request).acquire(
                 workspace_id=workspace_id,
-                file_path=body.file_path,
+                file_path=file_path,
                 holder_id=holder_id,
                 ttl_seconds=body.ttl_seconds,
                 kind=body.kind,
@@ -478,6 +636,20 @@ def create_workspace_api_router(
 
     # ─── Health ────────────────────────────────────────────────────────────
 
+    @router.get(
+        "/api/workspaces/{workspace_id}/execution-directory",
+        dependencies=[Depends(_auth_dep)],
+    )
+    async def get_execution_directory(request: Request, workspace_id: str) -> dict[str, Any]:
+        """Resolve the directory on this backend, subject to existing workspace ACLs."""
+        import asyncio
+
+        from runtime.workspace.execution_directory import execution_directory
+
+        _require_flag()
+        ws, _ = _workspace_access(request, workspace_id, action="write")
+        return await asyncio.to_thread(execution_directory, ws)
+
     @router.post(
         "/api/workspaces/{workspace_id}/health",
         dependencies=[Depends(_auth_dep)],
@@ -485,7 +657,11 @@ def create_workspace_api_router(
     async def health(request: Request, workspace_id: str) -> dict[str, Any]:
         """Re-probe the workspace's mount connection."""
         _require_flag()
-        ws, _ = _workspace_access(request, workspace_id)
+        ws, principal = _workspace_access(request, workspace_id)
+        if _network_restricted(principal):
+            # Re-resolve on every probe so a host that later rebinds to an
+            # internal address is not probed on an ordinary user's behalf.
+            await _require_public_mount_host(ws.mount_type, ws.mount_target, ws.mount_options)
         try:
             backend = backend_registry.get_or_create(
                 ws.id, ws.mount_type, ws.mount_target, ws.mount_options

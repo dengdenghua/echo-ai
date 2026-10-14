@@ -1,0 +1,2 @@
+- Name: Policy Test Member
+- Role: promoted subagent (policy-test-member)

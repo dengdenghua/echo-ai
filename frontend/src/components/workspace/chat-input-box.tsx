@@ -23,13 +23,31 @@ import {
   type AgentModeName,
   type DetectResponse,
 } from "./mode-selector";
+import type { WorkLocationBinding } from "./work-location-picker";
 import { WorkDirSelector } from "./workdir-selector";
 
 import { ChatComposer } from "./chat-input-box/ChatComposer";
 import { ModeIntentSuggestion } from "./chat-input-box/mode-intent-suggestion";
+import {
+  ContextWindowBar,
+  type ContextWindowSegment,
+} from "./chat-input-box/ContextWindowBar";
 import type { GroupTaskStrategy } from "./group-task-strategy";
 import type { MentionMemberInput } from "./mention-autocomplete";
 import type { AutomationTarget } from "@/core/computer/api";
+import { UsersIcon } from "lucide-react";
+import { toast } from "sonner";
+import { eventBus } from "@/core/events/event-bus";
+import { useLocation } from "react-router-dom";
+import { emitAgentWorkbenchFocus } from "@/components/workspace/agent-workbench-events";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { SandboxMergeBanner } from "./realtime/sandbox-merge-banner";
 
 /**
  * Simplified chat composer for the /workspace/realtime route. Same visual
@@ -58,6 +76,9 @@ export interface ChatInputBoxProps {
   responseModeControl?: ReactNode;
   /** Optional compact content appended to the workspace/mode status row. */
   statusTrailing?: ReactNode;
+  /** Where the conversation runs; rendered first in the status row. */
+  /** Where turns run; merged into the folder control (icon = location). */
+  workLocation?: WorkLocationBinding;
   /** Stable browser tab / desktop window bound to this conversation. */
   automationTarget?: AutomationTarget | null;
   onAutomationTargetChange?: (target: AutomationTarget | null) => void;
@@ -99,6 +120,8 @@ export interface ChatInputBoxProps {
   isCompressingContext?: boolean;
   /** 压缩回调 */
   onCompressContext?: () => void | Promise<void>;
+  /** Optional source categories shown in the Claude-style context popover. */
+  contextSegments?: ContextWindowSegment[];
   allowAgentModes?: boolean;
   showInspirationToggle?: boolean;
   permissionMode?: PermissionMode;
@@ -149,7 +172,11 @@ export interface ChatInputBoxProps {
     /** Server-side info for attachments already uploaded on attach. */
     uploaded?: UploadedFileInfo[];
   }) => void | boolean;
+  /** Observe draft edits/restoration without owning or clearing the draft. */
+  onDraftChange?: (text: string) => void;
   onStop?: () => void | Promise<void>;
+  /** Continue an interrupted/failed task without replacing the user's draft. */
+  onResume?: () => void;
   /** Prevent repeated stop requests while the server acknowledges one. */
   isStopping?: boolean;
   /** True while attachments are being uploaded to the backend. Surfaces
@@ -166,6 +193,174 @@ export interface DeepResearchComposerOptions {
   roles?: ResearchRole[];
   maxSubagents?: number;
   maxSearches: number;
+}
+
+export interface GroupMemberAvatarStackProps {
+  members: MentionMemberInput[];
+  className?: string;
+}
+
+export function GroupMemberAvatarStack({
+  members,
+  className,
+}: GroupMemberAvatarStackProps) {
+  if (!members || members.length === 0) return null;
+
+  const shouldCompress = members.length > 10;
+  const maxVisible = 10;
+  const visibleMembers = shouldCompress ? members.slice(0, maxVisible) : members;
+  const overflowMembers = shouldCompress ? members.slice(maxVisible) : [];
+  const overflowCount = overflowMembers.length;
+
+  const overflowTitle =
+    overflowCount > 0
+      ? `更多群成员 (${overflowCount}): ${overflowMembers
+          .map((m) => m.display_name?.trim() || m.name)
+          .join(", ")}`
+      : undefined;
+
+  return (
+    <div
+      data-testid="group-member-avatar-stack"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground",
+        className,
+      )}
+      title="群聊成员 · 点击 AI 查看进程，点击真人或右键头像提及"
+    >
+      <UsersIcon
+        className="size-3 shrink-0 text-muted-foreground"
+        aria-hidden="true"
+      />
+      <div
+        className={cn(
+          "flex items-center",
+          shouldCompress ? "-space-x-1" : "gap-1",
+        )}
+      >
+        {visibleMembers.map((member, idx) => {
+          const name = member.display_name?.trim() || member.name;
+          const initial = name.charAt(0).toUpperCase() || "M";
+          const rawAvatar = member.avatar_url;
+          const avatarUrl = rawAvatar
+            ? rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://")
+              ? withAgentAvatarVersion(rawAvatar)
+              : withAgentAvatarVersion(`${getBackendBaseURL()}${rawAvatar}`)
+            : null;
+          const mentionText = `@${member.mention_value?.trim() || member.display_name?.trim() || member.name}`;
+
+          return (
+            <button
+              key={`${member.name}-${idx}`}
+              type="button"
+              className="relative inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-background bg-muted text-xs font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 hover:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary"
+              title={member.kind === "human" ? `提及 ${name}` : `${name} · 点击查看并行进程，右键 @ 成员`}
+              aria-label={member.kind === "human" ? `提及 ${name}` : `查看 ${name} 并行进程（右键 @ 提及）`}
+              onClick={(e) => {
+                e.preventDefault();
+                if (member.kind === "human") {
+                  eventBus.emit("composer:insert-mention", { text: mentionText });
+                  return;
+                }
+                emitAgentWorkbenchFocus({
+                  agentId: member.name,
+                  agent: {
+                    id: member.name,
+                    name,
+                    role: member.name,
+                    avatar: avatarUrl || undefined,
+                    status: "waiting",
+                    task: "",
+                  },
+                  tab: "agent",
+                  view: "screen",
+                });
+                toast.info(`正在打开【${name}】的并行进程执行画面`);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                eventBus.emit("composer:insert-mention", { text: mentionText });
+                toast.success(`已在输入框 @ ${name}`);
+              }}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={name}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <span>{initial}</span>
+              )}
+            </button>
+          );
+        })}
+        {overflowCount > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-background bg-muted text-micro font-semibold text-muted-foreground transition-transform hover:z-10 hover:scale-125 focus:outline-none focus:ring-1 focus:ring-primary"
+                title={overflowTitle}
+                aria-label={`更多 ${overflowCount} 位群成员（点击查看，右键 @ 提及）`}
+              >
+                +{overflowCount}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 p-1 text-xs">
+              <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                更多群成员（左键查看进程，右键 @ 提及）
+              </div>
+              {overflowMembers.map((member, idx) => {
+                const name = member.display_name?.trim() || member.name;
+                const rawAvatar = member.avatar_url;
+                const avatarUrl = rawAvatar
+                  ? rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://")
+                    ? withAgentAvatarVersion(rawAvatar)
+                    : withAgentAvatarVersion(`${getBackendBaseURL()}${rawAvatar}`)
+                  : null;
+                const mentionText = `@${member.mention_value?.trim() || member.display_name?.trim() || member.name}`;
+                return (
+                  <DropdownMenuItem
+                    key={`${member.name}-${idx}`}
+                    className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5"
+                    onClick={() => {
+                      if (member.kind === "human") {
+                        eventBus.emit("composer:insert-mention", { text: mentionText });
+                        return;
+                      }
+                      emitAgentWorkbenchFocus({
+                        agentId: member.name,
+                        agent: {
+                          id: member.name,
+                          name,
+                          role: member.name,
+                          avatar: avatarUrl || undefined,
+                          status: "waiting",
+                          task: "",
+                        },
+                        tab: "agent",
+                        view: "screen",
+                      });
+                      toast.info(`正在打开【${name}】的并行进程执行画面`);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      eventBus.emit("composer:insert-mention", { text: mentionText });
+                      toast.success(`已在输入框 @ ${name}`);
+                    }}
+                  >
+                    <span className="truncate font-medium">{name}</span>
+                    <span className="text-xs text-muted-foreground">{member.kind === "human" ? "提及成员" : "查看进程"}</span>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ChatInputBoxImpl(props: ChatInputBoxProps) {
@@ -192,11 +387,20 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     groupTaskStrategy = "auto",
     onGroupTaskStrategyChange,
     statusTrailing,
+    workLocation,
     workspaceControl,
     contextActions,
   } = props;
 
   const { t } = useI18n();
+  const location = useLocation();
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search],
+  );
+  const isSandbox = searchParams.get("sandbox") === "true";
+  const parentThreadId = searchParams.get("parent_thread_id") || undefined;
+  const agentParam = searchParams.get("agent") || undefined;
 
   // ── Status strip derived values ──────────────────────────────
   const resolvedPermissionMode = normalizePermissionMode(permissionMode);
@@ -227,7 +431,8 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   // directory before the picker appeared, so there was no inline way to choose
   // one. When the parent opts into the picker (``showWorkDirSelector``), show it
   // so picking a folder is the entry point into a project/code workflow.
-  const showWorkDirSegment = Boolean(workspaceControl) || isProjectMode || hasWorkDir || showWorkDirSelector;
+  const showWorkDirSegment =
+    Boolean(workspaceControl) || isProjectMode || hasWorkDir || showWorkDirSelector || Boolean(workLocation);
   // Personal and project workspaces share the same two work modes. A folder
   // changes scope only; it must not replace the mode selector with another
   // vocabulary or another backend contract.
@@ -256,16 +461,35 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     },
     [isGroupConversation, onGroupTaskStrategyChange, onProjectAgentModeChange],
   );
+  const showGroupMembers =
+    Boolean(isGroupConversation) &&
+    Boolean(props.mentionMembers && props.mentionMembers.length > 0);
   const showAgentSegment = false;
+  const showContextWindow =
+    (props.maxContextTokens ?? 0) > 0 &&
+    ((props.contextTokens ?? 0) > 0 ||
+      Boolean(props.isCompressingContext) ||
+      Boolean(props.contextSegments?.length));
   const statusSegmentCount =
+    (showGroupMembers ? 1 : 0) +
     (showAgentSegment ? 1 : 0) +
     (showWorkDirSegment ? 1 : 0) +
     (showModeSegment ? 1 : 0) +
     (statusTrailing ? 1 : 0);
-  const showStatusStrip = statusSegmentCount > 0;
+  // Keep the under-composer strip whenever the context ring is present so it
+  // can sit on the same row as the workspace control, right-aligned.
+  const showStatusStrip = statusSegmentCount > 0 || showContextWindow;
 
   return (
     <>
+      {isSandbox && (
+        <div className="mb-2 overflow-hidden rounded-lg border border-border shadow-xs">
+          <SandboxMergeBanner
+            parentThreadId={parentThreadId}
+            agentName={agentParam}
+          />
+        </div>
+      )}
       {modeIntentSuggestion ? (
         <ModeIntentSuggestion
           mode={modeIntentSuggestion.mode}
@@ -303,7 +527,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                   </span>
                   <span className="truncate">{displayAgentLabel}</span>
                 </div>
-                {(showWorkDirSegment || showModeSegment) && (
+                {(showWorkDirSegment || showModeSegment || showGroupMembers) && (
                   <span
                     className="h-3 w-px shrink-0 bg-border/35"
                     aria-hidden="true"
@@ -315,6 +539,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
               <>
                 <div className="composer-workspace-control">
                 {workspaceControl ?? <WorkDirSelector
+                  threadId={threadId}
                   designSpace={visibleProjectMode === "uxui"}
                   workDir={workDir ?? ""}
                   onWorkDirChange={onWorkDirChange}
@@ -322,6 +547,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                   onOpenWorkDirInNewTask={onOpenWorkDirInNewTask}
                   variant="muted"
                   chromeless
+                  location={workLocation}
                 />}
                 </div>
               </>
@@ -350,7 +576,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                 />
               </>
             ) : null}
-            {statusTrailing ? (
+            {showGroupMembers ? (
               <>
                 {(showAgentSegment ||
                   showWorkDirSegment ||
@@ -360,11 +586,36 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
                     aria-hidden="true"
                   />
                 )}
+                <GroupMemberAvatarStack members={props.mentionMembers!} />
+              </>
+            ) : null}
+            {statusTrailing ? (
+              <>
+                {(showAgentSegment ||
+                  showWorkDirSegment ||
+                  showModeSegment ||
+                  showGroupMembers) && (
+                  <span
+                    className="h-3 w-px shrink-0 bg-border/35"
+                    aria-hidden="true"
+                  />
+                )}
                 {statusTrailing}
               </>
             ) : null}
           </div>
-          {contextActions ? <div className="ml-auto flex items-center gap-1">{contextActions}</div> : null}
+          <div className="ml-auto flex items-center gap-1">
+            {contextActions}
+            {showContextWindow ? (
+              <ContextWindowBar
+                contextTokens={props.contextTokens}
+                maxContextTokens={props.maxContextTokens}
+                isCompressingContext={props.isCompressingContext}
+                onCompressContext={props.onCompressContext}
+                segments={props.contextSegments}
+              />
+            ) : null}
+          </div>
         </div>
       )}
     </>

@@ -91,6 +91,39 @@ def _make_stack() -> SimpleNamespace:
 
 
 class TestSandboxOverride:
+    def test_shell_escalation_has_its_own_deduplicated_effect(self) -> None:
+        from runtime.platform.process.session import current_session
+        from tests.test_auto_review_turn_breaker import _network_probe_stack, _SequenceReviewer
+        from tests.test_background_task_permissions import _ScriptedRouter
+
+        seen: list[bool] = []
+        stack = _network_probe_stack(
+            _SequenceReviewer([]), _ScriptedRouter([]), seen, tool_name="exec_shell"
+        )
+        original = {"type": "workspaceWrite", "networkAccess": False}
+        relaxed = {"type": "dangerFullAccess", "networkAccess": True}
+        intent = ParsedIntent(
+            raw="run the approved command",
+            intent_type="task",
+            normalized_goal="run the approved command",
+            user_context={"auto_approve": True},
+        )
+        kwargs = {"react_task_id": str(uuid.uuid4()), "react_step_counter": 1, "intent": intent}
+        with session_scope(Session(thread_id="shell-retry", metadata={"sandbox_policy": original})):
+            first, _ = _execute_action_via_beak(stack, 'exec_shell({"command":"lint a"})', **kwargs)
+            assert "sandbox_violation" in first
+            approved, _ = _execute_action_via_beak(
+                stack, 'exec_shell({"command":"lint a"})', sandbox_override=relaxed, **kwargs
+            )
+            assert "clean" in approved
+            assert current_session().metadata["sandbox_policy"] == original
+            duplicate, _ = _execute_action_via_beak(
+                stack, 'exec_shell({"command":"lint a"})', sandbox_override=relaxed, **kwargs
+            )
+            assert "clean" in duplicate
+            assert seen == [False, True]
+            assert current_session().metadata["sandbox_policy"] == original
+
     def test_override_applied_during_rerun_and_restored(self) -> None:
         original = {"type": "workspaceWrite", "networkAccess": False}
         relaxed = {"type": "dangerFullAccess", "networkAccess": True}

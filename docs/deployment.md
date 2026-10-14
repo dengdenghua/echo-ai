@@ -35,7 +35,7 @@ pip install -e ".[serve,anthropic,mcp,web,tracing]"
 ```bash
 docker build -t echo-ai .
 
-docker run --rm -p 127.0.0.1:8000:8000 \
+docker run --rm -p 127.0.0.1:8310:8000 \
     -v $(pwd)/data:/data \
     -v echo-resources:/app/resources \
     -v $(pwd)/config.yaml:/etc/echo/config.yaml:ro \
@@ -79,7 +79,7 @@ make up                     # 复核后再次运行才启动容器
 
 ```bash
 make up-full
-# →  Agent    http://localhost:8000/
+# →  Agent    http://localhost:8310/
 # →  Jaeger   http://localhost:16686/
 # →  Grafana  http://localhost:3000/   (admin / configured GRAFANA_PASSWORD)
 ```
@@ -98,6 +98,8 @@ Agent 容器自动读带密码的 `ECHO_HEARTS_REDIS_URL`。跨机或多副本�
 # PyPI 发行名是 echo-ai-runtime；安装后的命令仍是 echo-ai。
 # 不要安装同名的 echo-ai 发行包，它属于无关的第三方项目。
 sudo useradd -r -s /usr/sbin/nologin echo
+# Debian/Ubuntu；workflow 的隔离执行还要求内核允许用户命名空间
+sudo apt-get install bubblewrap
 sudo mkdir -p /opt/echo-ai /var/lib/echo /etc/echo
 sudo chown -R echo:echo /opt/echo-ai /var/lib/echo /etc/echo
 sudo -u echo python -m venv /opt/echo-ai/.venv
@@ -129,6 +131,13 @@ sudo journalctl -u echo-ai -f
 内置安全加固：`NoNewPrivileges` / `ProtectSystem=strict` / `MemoryDenyWriteExecute` /
 `CapabilityBoundingSet=`（全砍）/ `MemoryMax=2G`。
 
+workflow 编排另有专用隔离：Linux 使用 bubblewrap 隐藏宿主项目、用户目录及认证文件，
+禁止 worker 直接联网，仅通过宿主授权派发子任务。production/shared/server/commercial
+和显式 strict 模式中，缺少 bubblewrap、用户命名空间被禁或容器禁止创建命名空间时，
+workflow 返回失败，不会回退为直接执行。普通工具的 Landlock 后端不替代这项隔离。
+本地 Windows/macOS 暂保留受限 DSL 和独立进程，不声称具备同等 OS 隔离；需要隔离的
+编排应交给具备上述条件的 Linux 执行设备。这里不需要同步整个用户主目录。
+
 ### 6. Kubernetes（跨机生产）
 
 ```bash
@@ -152,7 +161,8 @@ AOF，以及跨节点 Multi-Attach。扩到多副本前，必须先把 Redis 换
 `/data`、模型缓存配置 RWX 或外部状态后端；之后才可用 `RedisCoordinator` 做 leader
 选举。详见 `deploy/k8s/README.md`。
 
-访问：
+Python/systemd 默认使用下面的 8000 端口；Docker/Compose 的宿主端口默认是 8310，
+访问时替换端口即可：
 - `http://localhost:8000/`           · Web dashboard
 - `http://localhost:8000/api/stream` · Server-Sent Events · journal 事件实时推送
 - `http://localhost:8000/v1/chat/completions` · OpenAI-compat API

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 export interface FileReferenceChipProps {
   /** Display path; just the filename or repo-relative path. */
   path: string;
+  label?: string;
   /** Optional line range, e.g. "16-23" or "42". Renders in parens. */
   lines?: string;
   /** Click handler — typically to open the file in the editor pane. */
@@ -38,6 +39,7 @@ function inferIcon(path: string): LucideIcon {
 
 export function FileReferenceChip({
   path,
+  label,
   lines,
   onClick,
   href,
@@ -52,7 +54,7 @@ export function FileReferenceChip({
       // Treat LucideIcon (function component) uniformly.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (() => {
-        const Ic = icon as LucideIcon;
+        const Ic = icon;
         return <Ic className="size-3 shrink-0 opacity-60" />;
       })()
     ) : (
@@ -66,7 +68,7 @@ export function FileReferenceChip({
     <>
       {iconNode}
       <span className="font-mono text-mini leading-none">
-        {displayName}
+        {label || displayName}
       </span>
       {lines && (
         <span className="text-muted-foreground/80 text-micro leading-none">

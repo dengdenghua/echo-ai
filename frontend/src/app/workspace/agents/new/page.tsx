@@ -653,7 +653,7 @@ export default function NewAgentPage() {
                 >
                   <ArrowLeftIcon className="size-4" />
                 </Button>
-                <div className="flex items-center gap-2 rounded-sm border border-border bg-muted/[0.025] px-2 py-1 font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
+                <div className="flex items-center gap-2 rounded-sm border border-border bg-muted/[0.025] px-2 py-1 text-xs font-medium text-muted-foreground">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                   智能体配置
                 </div>
@@ -661,7 +661,7 @@ export default function NewAgentPage() {
 
               <div className="min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.22)_transparent]">
                 <div className="max-w-[560px] pb-6">
-                  <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.24em] text-primary">
+                  <div className="flex items-center gap-2 text-xs font-medium text-primary">
                     <span className="h-px w-6 bg-primary/70" />
                     新建智能体
                   </div>
@@ -681,10 +681,13 @@ export default function NewAgentPage() {
 
                   <div className="mt-6 rounded-sm border border-border bg-muted/16 p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
+                      <span className="text-xs font-medium text-muted-foreground">
                         任务目标
                       </span>
-                      <span className="font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
+                      <span
+                        lang="en"
+                        className="font-mono text-xs uppercase tracking-eyebrow text-muted-foreground"
+                      >
                         Ctrl/⌘ + Enter
                       </span>
                     </div>
@@ -715,11 +718,11 @@ export default function NewAgentPage() {
                   </div>
 
                   <div className="mt-4 grid grid-cols-[82px_1fr] items-center gap-3 rounded-sm border border-border bg-muted/[0.035] px-3 py-2">
-                    <span className="font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
-                      Agent ID
+                    <span className="text-xs font-medium text-muted-foreground">
+                      智能体 ID
                     </span>
                     <Input
-                      aria-label="Agent ID"
+                      aria-label="智能体 ID"
                       aria-invalid={Boolean(nameError)}
                       placeholder={t.agents.nameStepPlaceholder}
                       value={nameInput}
@@ -771,7 +774,7 @@ export default function NewAgentPage() {
               <div className="relative flex h-full min-h-0 flex-col px-5 py-7">
                 <div className="flex shrink-0 items-center justify-between gap-3">
                   <div>
-                    <div className="font-mono text-xs uppercase tracking-[0.2em] text-primary/82">
+                    <div className="text-xs font-medium text-primary/82">
                       能力配置
                     </div>
                     <h2 className="mt-2 text-lg font-semibold text-foreground">
@@ -787,7 +790,7 @@ export default function NewAgentPage() {
 
                 <div className="mt-5 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
                   <div className="rounded-sm border border-border bg-muted/10 p-3">
-                    <div className="mb-2 font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
+                    <div className="mb-2 text-xs font-medium text-muted-foreground">
                       角色定位
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -813,7 +816,7 @@ export default function NewAgentPage() {
                   </div>
 
                   <div className="rounded-sm border border-border bg-muted/10 p-3">
-                    <div className="mb-2 font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
+                    <div className="mb-2 text-xs font-medium text-muted-foreground">
                       使用场景
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -841,7 +844,7 @@ export default function NewAgentPage() {
                   </div>
 
                   <div className="rounded-sm border border-border bg-muted/10 p-3">
-                    <div className="mb-2 font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
+                    <div className="mb-2 text-xs font-medium text-muted-foreground">
                       能力组合
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -902,7 +905,7 @@ export default function NewAgentPage() {
                   </Button>
 
                   <div className="mt-1 rounded-sm border border-border bg-muted/[0.018] p-3">
-                    <div className="mb-2 font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
+                    <div className="mb-2 text-xs font-medium text-muted-foreground">
                       参考模板
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -986,7 +989,7 @@ export default function NewAgentPage() {
                             label: agent.display_name || agent.name,
                             openPicker: true,
                           });
-                          navigate(taskCollaboratorRouteForLeader(leaderId));
+                          void navigate(taskCollaboratorRouteForLeader(leaderId));
                         }}
                       >
                         {t.agentCard.addOnDemand}

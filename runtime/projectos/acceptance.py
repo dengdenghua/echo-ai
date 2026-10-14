@@ -24,9 +24,15 @@ def delivery_fingerprint(milestone, tasks):
         "approved_brief": milestone.spec.get("approved_brief"),
         "criteria": milestone.success_criteria,
         "tasks": [
-            {"id": t.id, "status": t.status, "goal": t.goal,
-             "criteria": t.acceptance_criteria, "output": t.output,
-             "review_mode": t.review_mode, "reviewed_by": t.reviewed_by}
+            {
+                "id": t.id,
+                "status": t.status,
+                "goal": t.goal,
+                "criteria": t.acceptance_criteria,
+                "output": t.output,
+                "review_mode": t.review_mode,
+                "reviewed_by": t.reviewed_by,
+            }
             for t in sorted(tasks, key=lambda t: t.id)
         ],
     }

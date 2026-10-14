@@ -26,6 +26,7 @@ DESKTOP_PROTOCOL = ROOT / "frontend/electron/desktop-protocol.cjs"
 BACKEND_RUNTIME = ROOT / "frontend/electron/backend-runtime.cjs"
 OPENCODE_LOCK = ROOT / "frontend/electron/opencode-runtime-lock.json"
 BUILD_CONFIG = ROOT / "packaging/desktop/build.yml"
+OFFLINE_BUILD_CONFIG = ROOT / "packaging/desktop/build-offline.yml"
 WINDOWS_WORKFLOW = ROOT / ".github/workflows/build-win.yml"
 LINUX_WORKFLOW = ROOT / ".github/workflows/build-linux.yml"
 RELEASE_WORKFLOW = ROOT / ".github/workflows/release.yml"
@@ -49,25 +50,25 @@ CODEX_BUNDLE_EXECUTABLES = (
     "codex-path/rg.exe",
 )
 CODEX_BUNDLE_LICENSE_SOURCES = {
-    "LICENSE": ROOT / "extras/desktop/licenses/codex-0.149.0/LICENSE",
-    "NOTICE": ROOT / "extras/desktop/licenses/codex-0.149.0/NOTICE",
+    "LICENSE": ROOT / "extras/desktop/licenses/codex-0.162.0/LICENSE",
+    "NOTICE": ROOT / "extras/desktop/licenses/codex-0.162.0/NOTICE",
     "third-party/codex-rust/THIRD_PARTY_LICENSES-codex-cli.html": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-codex-cli.html"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-codex-cli.html"
     ),
     "third-party/codex-rust/THIRD_PARTY_LICENSES-code-mode-host.html": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-code-mode-host.html"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-code-mode-host.html"
     ),
     "third-party/codex-rust/THIRD_PARTY_LICENSES-windows-sandbox.html": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES-windows-sandbox.html"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES-windows-sandbox.html"
     ),
     "third-party/codex-rust/THIRD_PARTY_LICENSES.md": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/THIRD_PARTY_LICENSES.md"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/THIRD_PARTY_LICENSES.md"
     ),
     "third-party/codex-native/NATIVE_PROVENANCE.json": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/NATIVE_PROVENANCE.json"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/NATIVE_PROVENANCE.json"
     ),
     "third-party/codex-native/NATIVE_THIRD_PARTY_NOTICES.md": (
-        ROOT / "extras/desktop/licenses/codex-0.149.0/NATIVE_THIRD_PARTY_NOTICES.md"
+        ROOT / "extras/desktop/licenses/codex-0.162.0/NATIVE_THIRD_PARTY_NOTICES.md"
     ),
     "third-party/ratatui/LICENSE": (ROOT / "extras/desktop/licenses/ratatui-0.30.2/LICENSE"),
     "third-party/ripgrep/COPYING": (ROOT / "extras/desktop/licenses/ripgrep-15.2.0/COPYING"),
@@ -103,31 +104,30 @@ def _materialize_packaged_codex_bundle(resources: Path) -> Path:
     manifest = {
         "schema": "echo.codex_bundle.v1",
         "package": "@openai/codex",
-        "version": "0.149.0",
+        "version": "0.162.0",
         "platformPackage": "@openai/codex-win32-x64",
         "platformPackageIntegrity": (
-            "sha512-qKbwSOOO/fdhQ5MlXE2fts6taPxRPZ/zqeC+eqHD72hLRymV9rFCUbUxOCquogn"
-            "UPRPvS/2/kRCV0UVhoDd3yQ=="
+            "sha512-W8kqHaqpW0qPz71E0rRT5dq+socGz1BbJyYN7o3SP1TWQt8Zl6ML74R9Hvt/xn1NNLVlDTRfXqNmaMkte6yEMQ=="
         ),
         "target": "x86_64-pc-windows-msvc",
         "fileHashPhase": "pre-authenticode",
         "licenses": {
             "codex": {
-                "version": "0.149.0",
-                "sourceTag": "rust-v0.149.0",
-                "sourceCommit": "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0",
+                "version": "0.162.0",
+                "sourceTag": "rust-v0.162.0",
+                "sourceCommit": "c1382380de69521303b416720a52f42d51af6248",
                 "cargoLockSha256": (
-                    "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad"
+                    "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117"
                 ),
                 "cargoAboutVersion": "0.9.2",
             },
             "native": {
                 "schemaVersion": "codex-native-notices.v1",
                 "provenanceSha256": (
-                    "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a"
+                    "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564"
                 ),
                 "noticeSha256": (
-                    "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5"
+                    "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd"
                 ),
                 "componentCount": 12,
                 "licenseInputCount": 80,
@@ -374,22 +374,30 @@ def test_desktop_backend_routes_mutable_state_to_user_data() -> None:
     assert build["electronLanguages"] == ["en-US", "zh-CN", "ja", "ko"]
     assert "!node_modules/**/*" in build["files"]
     assert build["win"]["signExts"] == [".exe"]
+    # The standard installer ships no engines; HUB 应用 installs them.
     assert build["win"]["extraResources"] == [
         {
             "from": "../extras/desktop/build/backend/echo-backend.exe",
             "to": "backend/echo-backend.exe",
         },
-        {
-            "from": "../extras/desktop/build/codex",
-            "to": "codex",
-            "filter": ["**/*"],
-        },
-        {
-            "from": "../extras/desktop/build/opencode",
-            "to": "opencode",
-            "filter": ["**/*"],
-        },
     ]
+    for platform in ("mac", "linux"):
+        assert [item["to"] for item in build[platform]["extraResources"]] == [
+            "backend/echo-backend"
+        ]
+    # The full offline installer is build.yml plus the pinned engines
+    # (electron-builder appends a child's extraResources to the parent's).
+    offline = yaml.safe_load(OFFLINE_BUILD_CONFIG.read_text(encoding="utf-8"))
+    assert offline["extends"] == "../packaging/desktop/build.yml"
+    assert set(offline) == {"extends", "mac", "win", "linux"}
+    for platform in ("mac", "win", "linux"):
+        assert offline[platform]["extraResources"] == [
+            {"from": "../extras/desktop/build/codex", "to": "codex", "filter": ["**/*"]},
+            {"from": "../extras/desktop/build/opencode", "to": "opencode", "filter": ["**/*"]},
+        ]
+        assert "Offline" in offline[platform]["artifactName"]
+    assert offline["win"]["artifactName"].startswith("${productName}-Setup-Offline-")
+    assert "${env.GITHUB_SHA}" in offline["win"]["artifactName"]
     agents = next(item for item in build["extraResources"] if item["to"] == "agents")
     for excluded in (
         "!**/sessions/**",
@@ -443,12 +451,19 @@ def test_packaged_desktop_backend_has_no_uv_python_or_network_fallback() -> None
         for relative in (*CODEX_BUNDLE_EXECUTABLES, *CODEX_BUNDLE_LICENSE_SOURCES):
             assert f'"{relative}"' in source
     assert 'relative: "codex-package.json"' in source
-    assert "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771" in source
+    assert "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d" in source
     assert '"echo-codex-bundle.json"' in source
     assert "required.expectedSha256 || sourceHash" in source
     assert "refusing PATH/network fallback" in source
-    assert "env.ECHO_CODEX_EXECUTABLE = requirePackagedCodexExecutable();" in spawn
-    assert "env.ECHO_OPENCODE_BIN = requirePackagedOpenCode(resourcesPath());" in spawn
+    engines = source[
+        source.index("function packagedEngineEnv") : source.index("function developmentUvCmd")
+    ]
+    assert "if (packaged) packagedEngineEnv(env);" in spawn
+    assert "delete env.ECHO_CODEX_EXECUTABLE;" in engines
+    assert "delete env.ECHO_OPENCODE_BIN;" in engines
+    assert 'env.ECHO_ENGINES_STRICT = "1";' in engines
+    assert "env.ECHO_CODEX_EXECUTABLE = requirePackagedCodexExecutable();" in engines
+    assert "env.ECHO_OPENCODE_BIN = requirePackagedOpenCode(resourcesPath());" in engines
 
 
 def test_packaged_runtime_rejects_missing_backend_before_any_spawn(
@@ -504,10 +519,14 @@ const runtime = require(process.argv[1]);
     assert "refusing system/runtime fallback" in payload["message"]
 
 
-def test_packaged_runtime_rejects_missing_codex_before_any_spawn(tmp_path: Path) -> None:
+def test_standard_installer_starts_without_engines_and_ignores_host_ones(
+    tmp_path: Path,
+) -> None:
+    """No bundled engines: the store installs them into userData/engines later."""
+
     node = shutil.which("node")
     if node is None:
-        pytest.skip("Node.js is required for the packaged Codex contract")
+        pytest.skip("Node.js is required for the packaged engine contract")
     resources = tmp_path / "packaged-resources"
     user_data = tmp_path / "user-data"
     backend_name = "echo-backend.exe" if os.name == "nt" else "echo-backend"
@@ -517,25 +536,34 @@ def test_packaged_runtime_rejects_missing_codex_before_any_spawn(tmp_path: Path)
     script = r"""
 const Module = require("module");
 const originalLoad = Module._load;
-let spawnCalls = 0;
+let captured = null;
 Module._load = function(request, parent, isMain) {
   if (request === "electron") {
     return { app: { isPackaged: true, getPath: () => process.argv[3] } };
   }
   if (request === "child_process") {
-    return { spawn: () => { spawnCalls += 1; throw new Error("unexpected spawn"); } };
+    return { spawn: (command, args, options) => {
+      const env = options.env;
+      captured = {
+        codex: env.ECHO_CODEX_EXECUTABLE ?? null,
+        opencode: env.ECHO_OPENCODE_BIN ?? null,
+        enginesDir: env.ECHO_ENGINES_DIR,
+        strict: env.ECHO_ENGINES_STRICT,
+        bundled: env.ECHO_ENGINES_BUNDLED,
+      };
+      return { on: () => {} };
+    } };
   }
   return originalLoad.call(this, request, parent, isMain);
 };
 Object.defineProperty(process, "resourcesPath", { value: process.argv[2] });
+process.env.ECHO_CODEX_EXECUTABLE = "host-path-codex";
+process.env.ECHO_OPENCODE_BIN = "host-path-opencode";
+process.env.ECHO_ENGINES_STRICT = "0";
 const runtime = require(process.argv[1]);
 (async () => {
-  try {
-    await runtime.spawnBackend("ignored-config.yaml");
-    process.exitCode = 2;
-  } catch (error) {
-    process.stdout.write(JSON.stringify({ message: error.message, spawnCalls }));
-  }
+  await runtime.spawnBackend("ignored-config.yaml");
+  process.stdout.write(JSON.stringify(captured));
 })();
 """
     result = subprocess.run(
@@ -546,9 +574,11 @@ const runtime = require(process.argv[1]);
     )
     payload = json.loads(result.stdout)
 
-    assert payload["spawnCalls"] == 0
-    assert "packaged Codex executable is missing" in payload["message"]
-    assert "refusing PATH/network fallback" in payload["message"]
+    assert payload["codex"] is None
+    assert payload["opencode"] is None
+    assert Path(payload["enginesDir"]) == user_data / "engines"
+    assert payload["strict"] == "1"
+    assert payload["bundled"] == ""
 
 
 @pytest.mark.parametrize(
@@ -698,7 +728,8 @@ Module._load = function(request, parent, isMain) {
   if (request === "child_process") {
     return { spawn: (command, args, options) => {
       captured = { command, args, codex: options.env.ECHO_CODEX_EXECUTABLE,
-        opencode: options.env.ECHO_OPENCODE_BIN };
+        opencode: options.env.ECHO_OPENCODE_BIN,
+        bundled: options.env.ECHO_ENGINES_BUNDLED };
       return { on: () => {} };
     } };
   }
@@ -732,6 +763,8 @@ const runtime = require(process.argv[1]);
     assert payload["opencode"] == str(bundled_opencode)
     assert Path(payload["opencode"]).is_absolute()
     assert payload["opencode"] != "host-path-opencode"
+    # The full offline installer: the store shows both as bundled.
+    assert payload["bundled"] == "codex,opencode"
 
 
 def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
@@ -774,7 +807,7 @@ def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
     assert 'Join-Path $codexRoot "bin/codex.exe"' in codex_preflight
     assert "echo.codex_bundle.v1" in codex_preflight
     assert "codex-native-notices.v1" in codex_preflight
-    assert 'version -ne "0.149.0"' in codex_preflight
+    assert 'version -ne "0.162.0"' in codex_preflight
     for relative in CODEX_BUNDLE_EXECUTABLES:
         assert f'"{relative}"' in codex_preflight
     for relative in CODEX_BUNDLE_LICENSE_SOURCES:
@@ -790,7 +823,17 @@ def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
     assert "tests/test_desktop_config_packaging.py" in contracts
     electron = steps["Build canonical Electron EXE"]
     assert electron["working-directory"] == "frontend"
-    assert electron["run"] == "pnpm electron:build:win"
+    assert electron["run"] == "pnpm electron:build:win:offline"
+    assert electron["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
+    # Without the certificate the build still runs, unsigned, instead of
+    # failing on forceCodeSigning; it never sees the signing secrets.
+    unsigned = steps["Build unsigned Electron EXE (not releasable)"]
+    assert unsigned["if"] == "env.HAS_WINDOWS_SIGNING != 'true'"
+    assert unsigned["working-directory"] == "frontend"
+    assert unsigned["run"] == "pnpm electron:build:win:offline -c.win.forceCodeSigning=false"
+    assert "CSC_LINK" not in unsigned.get("env", {})
+    assert "CSC_KEY_PASSWORD" not in unsigned.get("env", {})
+    assert "-UNSIGNED" in steps["Upload EXE installer"]["with"]["name"]
     smoke = steps["Verify packaged backend and engines are present and runnable"]["run"]
     assert "frontend/release/win-unpacked/resources/backend/echo-backend.exe" in smoke
     assert '"frontend/release/win-unpacked/resources/codex"' in smoke
@@ -847,15 +890,73 @@ def test_windows_workflow_builds_and_smokes_canonical_offline_shell() -> None:
         "Verify packaged backend and engines are present and runnable"
     ) < step_names.index("Upload EXE installer")
 
+    # The standard installer: same app and backend, no engines, own output dir.
+    standard = steps["Build standard Electron EXE"]
+    assert standard["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
+    assert "--config ../packaging/desktop/build.yml --win --x64" in standard["run"]
+    assert "-c.directories.output=release-standard" in standard["run"]
+    unsigned_standard = steps["Build unsigned standard Electron EXE (not releasable)"]
+    assert unsigned_standard["if"] == "env.HAS_WINDOWS_SIGNING != 'true'"
+    assert "-c.win.forceCodeSigning=false" in unsigned_standard["run"]
+    assert "CSC_LINK" not in unsigned_standard.get("env", {})
+    standard_smoke = steps["Verify the standard installer ships no engines and starts"]["run"]
+    assert "frontend/release-standard/win-unpacked/resources" in standard_smoke
+    assert 'foreach ($engine in @("codex", "opencode"))' in standard_smoke
+    assert "Remove-Item Env:ECHO_CODEX_EXECUTABLE" in standard_smoke
+    assert '$env:ECHO_ENGINES_STRICT = "1"' in standard_smoke
+    assert "/readyz" in standard_smoke
+    standard_proof = steps["Verify standard installer Authenticode and create its checksums"]
+    assert standard_proof["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
+    assert '"win-unpacked/resources/backend/echo-backend.exe"' in standard_proof["run"]
+    assert "resources/codex" not in standard_proof["run"]
+    assert "ECHO_WINDOWS_SIGNER_THUMBPRINT" in standard_proof["run"]
+    standard_upload = steps["Upload standard EXE installer"]["with"]
+    assert standard_upload["name"].startswith("Echo-Setup-Standard-Windows-${{ github.sha }}")
+    assert "-UNSIGNED" in standard_upload["name"]
+    assert "frontend/release-standard/Echo-Setup-*.exe" in standard_upload["path"]
+    assert (
+        steps["Upload standard portable (unpacked)"]["with"]["path"]
+        == "frontend/release-standard/win-unpacked/**"
+    )
+    assert step_names.index(
+        "Verify Authenticode signatures and create commit-bound checksums"
+    ) < step_names.index("Build standard Electron EXE")
+    assert step_names.index(
+        "Verify the standard installer ships no engines and starts"
+    ) < step_names.index("Upload standard EXE installer")
+
 
 def test_release_reverifies_every_packaged_codex_executable_identity() -> None:
     source = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
-    assert "$proofFiles.Count -ne 8" in source
+    # build-win signs and proves nine files: installer, Echo.exe, backend,
+    # five Codex executables and OpenCode. The release re-verifies all nine.
+    assert "$proofFiles.Count -ne 9" in source
     for relative in CODEX_BUNDLE_EXECUTABLES:
         assert f'"win-unpacked/resources/codex/{relative}"' in source
+    assert '"win-unpacked/resources/opencode/opencode.exe"' in source
     assert "$proofEntry[0].publisher -ne $publisher" in source
     assert "$proofEntry[0].timestampSubject" in source
+
+    # The standard installer (no engines) is re-verified too: three files,
+    # the same signer as the offline one, and one shared SHA256SUMS.
+    workflow = yaml.safe_load(source)
+    steps = {
+        step.get("name"): step
+        for step in workflow["jobs"]["windows-release-proof"]["steps"]
+        if step.get("name")
+    }
+    assert (
+        steps["Download same-SHA signed standard installer"]["with"]["name"]
+        == "Echo-Setup-Standard-Windows-${{ github.sha }}"
+    )
+    standard = steps["Verify the standard installer's checksum, Authenticode and contents"]["run"]
+    assert "$proofFiles.Count -ne 3" in standard
+    assert "The standard installer must not bundle $engine" in standard
+    assert (
+        "$expectedSignerThumbprint = @($offlineVerification.files)[0].signerThumbprint" in standard
+    )
+    assert 'Add-Content -LiteralPath (Join-Path $releaseAssets "SHA256SUMS")' in standard
 
 
 def test_windows_backend_builder_uses_only_the_locked_uv_interpreter() -> None:
@@ -881,23 +982,23 @@ def test_windows_desktop_build_toolchain_is_declared_and_locked() -> None:
     assert root_package["optional-dependencies"]["desktop-build"] == [{"name": "pyinstaller"}]
 
     frontend = json.loads(FRONTEND_PACKAGE.read_text(encoding="utf-8"))
-    assert frontend["devDependencies"]["@openai/codex"] == "0.149.0"
+    assert frontend["devDependencies"]["@openai/codex"] == "0.162.0"
     lock = FRONTEND_LOCK.read_text(encoding="utf-8")
-    assert "'@openai/codex@0.149.0-win32-x64':" in lock
-    assert "'@openai/codex-win32-x64': '@openai/codex@0.149.0-win32-x64'" in lock
+    assert "'@openai/codex@0.162.0-win32-x64':" in lock
+    assert "'@openai/codex-win32-x64': '@openai/codex@0.162.0-win32-x64'" in lock
 
 
 def test_windows_codex_preparer_copies_only_the_locked_official_platform_package() -> None:
     source = CODEX_PREPARE.read_text(encoding="utf-8")
 
-    assert 'const CODEX_VERSION = "0.149.0";' in source
+    assert 'const CODEX_VERSION = "0.162.0";' in source
     assert 'const PLATFORM_PACKAGE = "@openai/codex-win32-x64";' in source
     assert "PLATFORM_PACKAGE_INTEGRITY" in source
     assert 'const TARGET_TRIPLE = "x86_64-pc-windows-msvc";' in source
-    assert 'const CODEX_SOURCE_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0";' in source
+    assert 'const CODEX_SOURCE_COMMIT = "c1382380de69521303b416720a52f42d51af6248";' in source
     assert 'const CARGO_ABOUT_VERSION = "0.9.2";' in source
-    assert "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a" in source
-    assert "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5" in source
+    assert "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564" in source
+    assert "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd" in source
     assert 'const RATATUI_VERSION = "0.30.2";' in source
     assert "3274ba0a2c5e1bcad2a2005d20f4dc59dad26b2eb0940fb094500dba4099d57d" in source
     assert 'const RIPGREP_VERSION = "15.2.0";' in source
@@ -911,14 +1012,18 @@ def test_windows_codex_preparer_copies_only_the_locked_official_platform_package
     for relative in CODEX_BUNDLE_LICENSE_SOURCES:
         assert f'"{relative}"' in source
     for report_hash in (
-        "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771",
-        "6b562200ef39938051e8eca39ce61a4d032752e04e1d21ba0fe216bd0ad91434",
-        "8858ef427eb901498d06d12d14ce6c3ef53fdeb352251006276dac8ec53ac5e4",
+        "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d",
+        "3d0d447d99ebd115a11d1c21cba0c647ed31cdde805e34b6048ac339c744b74e",
+        "5a54dbd5ce12664d4b3a7b841bca95fea8e99cd37a97f6e21138faf0e8ba76eb",
     ):
         assert report_hash in source
     assert "bundled license text failed its source hash" in source
     assert "fs.copyFileSync(license.source, destination)" in source
     assert "fs.cpSync(sourceRoot, outputRoot" in source
+    # The unreviewed voice host would break build-win's five-executable
+    # inventory check and the reviewed native-notice closure.
+    assert 'const UNPACKAGED_VENDOR_DIRS = [path.join("codex-resources", "voice")];' in source
+    assert "filter: (source) =>" in source
     assert "https:" not in source
     assert "fetch(" not in source
     assert "npm install" not in source
@@ -926,34 +1031,36 @@ def test_windows_codex_preparer_copies_only_the_locked_official_platform_package
 
 def test_windows_codex_third_party_reports_are_reproducibly_pinned() -> None:
     generator = CODEX_LICENSE_GENERATOR.read_text(encoding="utf-8")
+    # Same digests prepare-codex-*.cjs verify before bundling the reports.
     reports = {
         "THIRD_PARTY_LICENSES-codex-cli.html": (
-            "085bfd0627d8011777788beb1c74a7399c5acba157bac3eb766e0562f58a432b"
+            "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d"
         ),
         "THIRD_PARTY_LICENSES-code-mode-host.html": (
-            "df6e9546efb4f6a30f06cc7417bb81beeee81bc2e9ea5c670cdfd04a2e9a1503"
+            "3d0d447d99ebd115a11d1c21cba0c647ed31cdde805e34b6048ac339c744b74e"
         ),
         "THIRD_PARTY_LICENSES-windows-sandbox.html": (
-            "df32d1e635d49d3b86caa4b56e0015dcf116025792ef3c0957dec342a1909721"
+            "5a54dbd5ce12664d4b3a7b841bca95fea8e99cd37a97f6e21138faf0e8ba76eb"
         ),
     }
 
-    assert 'CODEX_VERSION = "0.149.0"' in generator
-    assert 'CODEX_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0"' in generator
+    assert 'CODEX_VERSION = "0.162.0"' in generator
+    assert 'CODEX_COMMIT = "c1382380de69521303b416720a52f42d51af6248"' in generator
     assert 'RIPGREP_COMMIT = "e89fff89ac9af12e8d4ce9d5fd07beb408ca730f"' in generator
     assert 'CARGO_ABOUT_VERSION = "0.9.2"' in generator
     assert 'TARGET = "x86_64-pc-windows-msvc"' in generator
     assert '"--locked"' in generator
     assert '"--fail"' in generator
-    assert 'git", "archive"' in generator
+    assert '"archive"' in generator and '"--format=tar"' in generator
+    assert '"core.autocrlf=false"' in generator
     assert 'version = "0.0.0"' in generator
 
-    license_root = ROOT / "extras/desktop/licenses/codex-0.149.0"
+    license_root = ROOT / "extras/desktop/licenses/codex-0.162.0"
     for filename, expected_hash in reports.items():
         report = license_root / filename
         payload = report.read_bytes()
         assert _sha256(payload) == expected_hash
-        assert b"OpenAI Codex 0.149.0 Third-Party Licenses" in payload
+        assert b"OpenAI Codex 0.162.0 Third-Party Licenses" in payload
 
     config = (license_root / "cargo-about.toml").read_text(encoding="utf-8")
     assert 'targets = ["x86_64-pc-windows-msvc"]' in config
@@ -970,7 +1077,7 @@ def test_windows_codex_third_party_reports_are_reproducibly_pinned() -> None:
     assert "ignore-transitive-dependencies = false" in ripgrep_config
 
     native_generator = CODEX_NATIVE_LICENSE_GENERATOR.read_text(encoding="utf-8")
-    assert 'CODEX_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0"' in native_generator
+    assert 'CODEX_COMMIT = "c1382380de69521303b416720a52f42d51af6248"' in native_generator
     assert 'RUSTY_V8_COMMIT = "5c15a6995c9bb4bacd3e341b59fff32c909c80bf"' in native_generator
     assert 'V8_COMMIT = "ac1e23989121713ca642f6650b34deff7b686896"' in native_generator
     assert 'ICU_COMMIT = "ee5f27adc28bd3f15b2c293f726d14d2e336cbd5"' in native_generator
@@ -1000,22 +1107,37 @@ def test_legacy_desktop_package_delegates_and_cannot_publish_old_shell() -> None
 
     frontend_scripts = json.loads(FRONTEND_PACKAGE.read_text(encoding="utf-8"))["scripts"]
     assert frontend_scripts["codex:prepare:win"] == ("node ../extras/desktop/prepare-codex-win.cjs")
-    assert frontend_scripts["electron:build:win"].startswith(
+    assert frontend_scripts["electron:build:win"] == (
+        "pnpm build && electron-builder --config ../packaging/desktop/build.yml"
+        " --win --x64 --publish never"
+    )
+    assert frontend_scripts["electron:build:win:offline"].startswith(
         "pnpm build && pnpm codex:prepare:win && pnpm opencode:prepare:win && electron-builder"
     )
-    assert "--win --x64 --publish never" in frontend_scripts["electron:build:win"]
-    assert "electron-builder" in frontend_scripts["electron:build:win"]
-    assert "opencode:prepare:win" in frontend_scripts["electron:build:win"]
+    assert (
+        "build-offline.yml --win --x64 --publish never"
+        in (frontend_scripts["electron:build:win:offline"])
+    )
+    for name, script in frontend_scripts.items():
+        if name.startswith("electron:build:"):
+            offline = name.endswith(":offline")
+            assert ("prepare" in script) is offline, name
+            assert ("build-offline.yml" in script) is offline, name
+    # pnpm runs Windows scripts through cmd.exe, which reads "../x" as the
+    # command ".." with a "/x" switch. The Windows interpreter path must use
+    # backslashes or the packaging step dies before PyInstaller ever runs.
+    assert frontend_scripts["opencode:prepare:win"].startswith(r"..\.venv\Scripts\python.exe ")
+    assert scripts["opencode:prepare:win"].startswith(r"..\..\.venv\Scripts\python.exe ")
     assert frontend_scripts["codex:prepare:mac"] == ("node ../extras/desktop/prepare-codex-mac.cjs")
-    assert "codex:prepare:mac" in frontend_scripts["electron:build:mac"]
-    assert "opencode:prepare:mac" in frontend_scripts["electron:build:mac"]
+    assert "codex:prepare:mac" in frontend_scripts["electron:build:mac:offline"]
+    assert "opencode:prepare:mac" in frontend_scripts["electron:build:mac:offline"]
     assert "--mac --arm64 --publish never" in frontend_scripts["electron:build:mac"]
     assert "electron-builder" in frontend_scripts["electron:build:mac"]
     assert frontend_scripts["codex:prepare:linux"] == (
         "node ../extras/desktop/prepare-codex-linux.cjs"
     )
-    assert "codex:prepare:linux" in frontend_scripts["electron:build:linux"]
-    assert "opencode:prepare:linux" in frontend_scripts["electron:build:linux"]
+    assert "codex:prepare:linux" in frontend_scripts["electron:build:linux:offline"]
+    assert "opencode:prepare:linux" in frontend_scripts["electron:build:linux:offline"]
     assert "--linux --x64 --publish never" in frontend_scripts["electron:build:linux"]
     assert "electron-builder" in frontend_scripts["electron:build:linux"]
 
@@ -1084,10 +1206,26 @@ def test_linux_workflow_builds_and_smokes_canonical_linux_shell() -> None:
 
     electron = steps["Build canonical Electron AppImage"]
     assert electron["working-directory"] == "frontend"
-    assert electron["run"] == "pnpm electron:build:linux"
+    assert electron["run"] == "pnpm electron:build:linux:offline"
+    standard = steps["Build standard Electron AppImage"]["run"]
+    assert "--config ../packaging/desktop/build.yml --linux --x64" in standard
+    assert "-c.directories.output=release-standard" in standard
+    standard_smoke = steps["Verify the standard AppImage ships no engines and starts"]["run"]
+    assert "for engine in codex opencode; do" in standard_smoke
+    assert "env -u ECHO_CODEX_EXECUTABLE -u ECHO_OPENCODE_BIN" in standard_smoke
+    assert "ECHO_ENGINES_STRICT=1" in standard_smoke
+    assert "/readyz" in standard_smoke
+    assert steps["Upload standard AppImage"]["with"]["name"] == (
+        "Echo-Setup-Standard-Linux-${{ github.sha }}"
+    )
 
     smoke = steps["Verify packaged backend and engines are present and runnable"]["run"]
-    assert "EchoAI-Setup-Linux-*.AppImage" in smoke
+    # electron-builder names the AppImage after build.yml's productName; a
+    # glob for any other prefix never matches and fails the packaged smoke.
+    build_config = yaml.safe_load(BUILD_CONFIG.read_text(encoding="utf-8"))
+    assert build_config["linux"]["artifactName"].startswith("${productName}-Setup-Linux-")
+    assert f"{build_config['productName']}-Setup-Linux-*.AppImage" in smoke
+    assert "Echo-Setup-Linux-*.AppImage" in smoke
     assert "frontend/release" in smoke
     assert "app-server --help" in smoke
     assert "echo-codex-bundle.json" in smoke
@@ -1105,7 +1243,7 @@ def test_linux_workflow_builds_and_smokes_canonical_linux_shell() -> None:
 
     setup_upload = steps["Upload AppImage"]["with"]["path"]
     assert "frontend/release/" in setup_upload
-    assert "EchoAI-Setup-Linux-*.AppImage" in setup_upload
+    assert "Echo-Setup-Linux-*.AppImage" in setup_upload
     portable_upload = steps["Upload portable (unpacked)"]["with"]["path"]
     assert portable_upload == "frontend/release/linux-unpacked/**"
 
@@ -1153,24 +1291,24 @@ def test_linux_backend_spec_mirrors_darwin_entry() -> None:
 def test_linux_codex_preparer_pins_only_the_locked_linux_packages() -> None:
     source = (ROOT / "extras/desktop/prepare-codex-linux.cjs").read_text(encoding="utf-8")
 
-    assert 'const CODEX_VERSION = "0.149.0";' in source
+    assert 'const CODEX_VERSION = "0.162.0";' in source
     assert 'platformPackage: "@openai/codex-linux-x64"' in source
     assert 'platformPackage: "@openai/codex-linux-arm64"' in source
     assert 'targetTriple: "x86_64-unknown-linux-musl"' in source
     assert 'targetTriple: "aarch64-unknown-linux-musl"' in source
     assert (
-        "sha512-uZXaN9JPxu0/jjnqqJeTd4kRYPnjVZK3MiVndfG1mHhEaoDKL7ScWHfPqvAEOjwsSDEmQSlMfUkmvYp/CHciYw=="
+        "sha512-qHWp6oKpf456PqjberGN8avs8zChv2oS+UuDiqVFYAuDOhq6vBc1drh8jEsnR7dBX+zcw03PN5VLtePGlMcC3w=="
         in source
     )
     assert (
-        "sha512-fAXPpvIob+11RNZJS9CVVTsKb+V4Hw3woGFPj42D7fU2wBJUKI2jfAc4fLJNtrpwRecLeW601mtkMHOSIbWuuA=="
+        "sha512-6NYWwy09FsZ+/0Dz/bvV/yz3aFhkNzj86fSiux9Ax9VMBOID5nPdwd51OySm7fy8TMRud4fgJFELSi3Enc1s7Q=="
         in source
     )
     assert '"codex-resources/bwrap"' in source
     assert 'EXECUTABLE_MAGIC = "7f454c46"' in source
     assert 'schema: "echo.codex_bundle.v1"' in source
     assert 'fileHashPhase: "pre-package"' in source
-    assert "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771" in source
+    assert "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d" in source
     # Linux binary is filtered from node_modules on every non-Linux host, so the
     # preparer must be able to fetch the registry tarball pinned by the lock's
     # integrity (verified byte-for-byte before extraction). Offline never applies
@@ -1182,7 +1320,7 @@ def test_linux_codex_preparer_pins_only_the_locked_linux_packages() -> None:
 
 
 def test_all_codex_preparers_pin_the_current_shared_license_report() -> None:
-    expected = "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771"
+    expected = "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d"
 
     for script_name in (
         "prepare-codex-win.cjs",
@@ -1214,6 +1352,8 @@ def test_linux_resources_are_declared_in_build_config() -> None:
 
     assert "AppImage" in segment
     assert "extras/desktop/build/backend/echo-backend" in segment
-    assert "extras/desktop/build/codex" in segment
-    assert "to: codex" in segment
+    assert "extras/desktop/build/codex" not in segment
+    offline = OFFLINE_BUILD_CONFIG.read_text(encoding="utf-8").split("linux:", 1)[1]
+    assert "extras/desktop/build/codex" in offline
+    assert "to: codex" in offline
     assert "GITHUB_SHA" in segment

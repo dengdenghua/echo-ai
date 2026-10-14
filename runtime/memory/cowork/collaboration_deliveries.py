@@ -175,10 +175,9 @@ class CollaborationDeliveryStoreMixin:
         timestamp = _iso(now)
         deadline = _iso(now + timedelta(seconds=deadline_seconds))
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_DELIVERY_SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
             if row:
@@ -222,7 +221,7 @@ class CollaborationDeliveryStoreMixin:
                 payload={"run_id": run_id, "channel": channel},
             )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
         return _from_row(row)
@@ -231,7 +230,7 @@ class CollaborationDeliveryStoreMixin:
         delivery_id = require_cowork_id(delivery_id, label="delivery_id")
         with self._lock, self._connect() as conn:
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
         return _from_row(row) if row else None
@@ -319,7 +318,7 @@ class CollaborationDeliveryStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
             if not row:
@@ -355,7 +354,7 @@ class CollaborationDeliveryStoreMixin:
                     payload={"worker_id": worker_id},
                 )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
         current = _from_row(row)
@@ -399,7 +398,7 @@ class CollaborationDeliveryStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
             if not row:
@@ -423,7 +422,7 @@ class CollaborationDeliveryStoreMixin:
                 created_at=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
         return _from_row(row)
@@ -443,7 +442,7 @@ class CollaborationDeliveryStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
             if not row:
@@ -477,7 +476,7 @@ class CollaborationDeliveryStoreMixin:
                     payload={"error": message, "next_attempt_at": next_attempt},
                 )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
         return _from_row(row)
@@ -490,7 +489,7 @@ class CollaborationDeliveryStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
             if not row:
@@ -517,7 +516,7 @@ class CollaborationDeliveryStoreMixin:
                 created_at=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
         return _from_row(row)
@@ -528,7 +527,7 @@ class CollaborationDeliveryStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
             if not row:
@@ -550,7 +549,7 @@ class CollaborationDeliveryStoreMixin:
                     created_at=timestamp,
                 )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE delivery_id=?",  # nosec B608 # literal column list; query values are bound
                 (delivery_id,),
             ).fetchone()
         return _from_row(row)
@@ -564,7 +563,7 @@ class CollaborationDeliveryStoreMixin:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE "
+                f"SELECT {_COLUMNS} FROM collaboration_deliveries WHERE "  # nosec B608 # literal column list; query values are bound
                 "(status='delivering' AND COALESCE(lease_expires_at,'')<=?) OR "
                 "(status IN ('pending','retry_wait','delivering') AND deadline_at<=?) "
                 "ORDER BY updated_at LIMIT ?",

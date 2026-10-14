@@ -135,7 +135,7 @@ function HistoryItem({
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>{formatRelativeTime(report.created_at)}</span>
-              <span className="text-muted-foreground/40">·</span>
+              <span className="text-muted-foreground">·</span>
               <span>
                 {t.intelligence.historyItemsAnalyzed(report.items_analyzed)}
               </span>
@@ -281,7 +281,7 @@ export function AutomationHistoryTab({
   if (reports.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border-default bg-card/50 p-12 text-center">
-        <HistoryIcon className="mx-auto size-10 text-muted-foreground/60" />
+        <HistoryIcon className="mx-auto size-10 text-muted-foreground" />
         <p className="mt-3 text-sm font-medium">{t.intelligence.historyEmptyTitle}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {t.intelligence.historyEmptyDescription}

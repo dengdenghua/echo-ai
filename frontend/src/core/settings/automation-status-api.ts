@@ -1,6 +1,7 @@
+import { apiGet } from "@/core/api/request";
 import { authHeaders } from "@/core/auth/api";
 import { openAuthenticatedWebSocket } from "@/core/auth/websocket";
-import { getBackendBaseURL, getBackendWebSocketBaseURL } from "@/core/config";
+import { getBackendWebSocketBaseURL } from "@/core/config";
 
 export interface BrowserRelayStatus {
   connected: boolean;
@@ -34,14 +35,9 @@ export interface DesktopAutomationPermissions {
 }
 
 export async function getBrowserRelayStatus(): Promise<BrowserRelayStatus> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/browser/relay/status`,
-    { headers: authHeaders() },
-  );
-  if (!response.ok) {
-    throw new Error(`relay status unavailable: ${response.status}`);
-  }
-  return (await response.json()) as BrowserRelayStatus;
+  return (await apiGet("/api/browser/relay/status", {
+    errorMessage: (failure) => `relay status unavailable: ${failure.status}`,
+  })) as BrowserRelayStatus;
 }
 
 export function subscribeBrowserRelayStatus(

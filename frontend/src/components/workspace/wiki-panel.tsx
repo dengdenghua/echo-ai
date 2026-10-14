@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { canAccessOperatorControlPlane } from "@/core/auth/control-plane-access";
 import {
   useGenerateWiki,
   useUpdateWiki,
@@ -26,6 +27,8 @@ import {
   useActiveProjectRoot,
 } from "@/core/workspace/use-active-project-root";
 import { cn } from "@/lib/utils";
+import { useOptionalAuth } from "@/providers/AuthProvider";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 const LazyStreamdown = lazy(
   () => import("@/components/ai-elements/streamdown-host"),
@@ -39,8 +42,15 @@ function formatSize(size: number) {
 export function WikiPanel() {
   const plugins = useStreamdownPlugins();
   const projectRoot = useActiveProjectRoot();
-  const status = useWikiStatus(projectRoot);
-  const docs = useWikiDocs(projectRoot);
+  const auth = useOptionalAuth();
+  // The project Wiki is generated and served by this computer's operator;
+  // the server answers anyone else with 403, so don't ask on their behalf.
+  const canUseWiki = canAccessOperatorControlPlane(
+    auth?.authStatus ?? null,
+    auth?.user ?? null,
+  );
+  const status = useWikiStatus(projectRoot, canUseWiki);
+  const docs = useWikiDocs(projectRoot, canUseWiki);
   const [query, setQuery] = useState("");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const selectedDoc = useWikiDocument(selectedPath, projectRoot);
@@ -96,6 +106,22 @@ export function WikiPanel() {
     }
   };
 
+  if (!canUseWiki) {
+    return (
+      <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/15 px-6 text-center">
+        <div className="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
+          <BookOpenIcon className="size-5" />
+        </div>
+        <div>
+          <div className="text-sm font-semibold">Wiki 由管理员维护</div>
+          <div className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
+            项目 Wiki 由这台电脑的管理员生成和更新。你的图谱和记忆不受影响。
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!projectRoot) {
     return (
       <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/15 px-6 text-center">
@@ -117,9 +143,11 @@ export function WikiPanel() {
 
   if (loading) {
     return (
-      <div className="flex min-h-64 items-center justify-center text-muted-foreground">
-        <Loader2Icon className="size-5 animate-spin" />
-      </div>
+      <BrandLoadingPanel
+        label="正在读取知识库…"
+        hideLabel
+        className="min-h-64"
+      />
     );
   }
 
@@ -177,7 +205,7 @@ export function WikiPanel() {
               个文件
             </div>
             {projectRoot && (
-              <div className="max-w-80 truncate text-micro text-muted-foreground/75">
+              <div className="max-w-80 truncate text-micro text-muted-foreground">
                 {projectRoot}
               </div>
             )}
@@ -291,9 +319,11 @@ export function WikiPanel() {
               选择知识页查看
             </div>
           ) : selectedDoc.isLoading ? (
-            <div className="flex min-h-64 items-center justify-center text-muted-foreground">
-              <Loader2Icon className="size-5 animate-spin" />
-            </div>
+            <BrandLoadingPanel
+              label="正在读取知识页…"
+              hideLabel
+              className="min-h-64"
+            />
           ) : selectedDoc.isError ? (
             <div className="flex min-h-64 flex-col items-center justify-center gap-2">
               <div className="text-sm font-medium">知识页读取失败</div>

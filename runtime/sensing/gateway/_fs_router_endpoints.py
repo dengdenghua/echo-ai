@@ -18,10 +18,17 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from fastapi import File, Form, HTTPException, Query, Request, UploadFile
+from starlette.responses import FileResponse
+
+from runtime.platform.io.file_coordination import (
+    FileCoordinationConflict,
+    coordinate_file_mutations,
+)
 
 from ._fs_router_diff import (
     _DiffApplyConflict,
@@ -34,11 +41,9 @@ from ._fs_router_helpers import (
     _broadcast_file_written,
     _check_acl,
     _check_lease_conflict_or_acquire,
-    _dir_entry_to_tree,
     _extract_user_id,
     _filesystem_roots,
     _FsContext,
-    _is_ignored_remote_dir,
     _parse_workspace_path,
     _pick_directory_macos,
     _pick_directory_tk,
@@ -46,15 +51,12 @@ from ._fs_router_helpers import (
     _remote_backend_for,
     _require_local_thread_scope,
     _resolve_remote_workspace,
-    _tree_depth_of,
-    _walk_tree,
+    _workspace_relative_path,
 )
 from ._fs_router_models import (
     FsImportDirectoryResponse,
     FsPickDirectoryResponse,
-    FsReadResponse,
     FsRootsResponse,
-    FsTreeResponse,
     FsWriteResponse,
 )
 from ._fs_router_paths import _assert_within_allowed_roots, _safe_relative_parts
@@ -84,7 +86,112 @@ def _assert_expected_content(current: bytes, expected_sha256: object) -> None:
         )
 
 
+async def _write_if_unchanged(
+    backend: Any, rel_path: str, payload: bytes, expected_sha256: object, lock_path: Path
+) -> None:
+    """Read, check and write the remote file as one step against other writers.
+
+    The coordination lock is a non-blocking cross-process try-lock (timeout 0)
+    owned per task: a concurrent writer gets ``FileCoordinationConflict`` (409)
+    instead of blocking the event loop, so awaiting under it is safe.
+    """
+    with coordinate_file_mutations([lock_path]):
+        try:
+            current = await backend.read_file(rel_path)
+        except FileNotFoundError:
+            current = b""
+        current_bytes = (
+            bytes(current)
+            if isinstance(current, (bytes, bytearray))
+            else str(current).encode("utf-8")
+        )
+        _assert_expected_content(current_bytes, expected_sha256)
+        await backend.write_file(rel_path, payload)
+
+
+def _empty_git_summary(error: str) -> dict[str, Any]:
+    """Zeroed summary used when git itself is unavailable or timed out."""
+    return {
+        "branch": "",
+        "upstream": None,
+        "ahead": 0,
+        "behind": 0,
+        "detached": False,
+        "worktree": False,
+        "changed_files": 0,
+        "untracked_files": 0,
+        "added": 0,
+        "removed": 0,
+        "error": error,
+        "diff_error": None,
+    }
+
+
+def _is_linked_worktree(
+    root: Path, run_git: Callable[[list[str], float], subprocess.CompletedProcess[str]]
+) -> bool:
+    """True when ``root`` is a linked ``git worktree``, not the main checkout.
+
+    A linked worktree's git dir lives at ``<common dir>/worktrees/<name>``;
+    comparing the two ``git rev-parse`` answers distinguishes it from the
+    main checkout (where both print ``.git``) without parsing paths loosely
+    enough to misread a submodule (whose git dir lives under ``modules/``).
+    """
+    git_dir = run_git(["rev-parse", "--git-dir"], 5.0)
+    common_dir = run_git(["rev-parse", "--git-common-dir"], 5.0)
+    if git_dir.returncode != 0 or common_dir.returncode != 0:
+        return False
+
+    def _abs(value: str) -> str:
+        candidate = Path(value.strip())
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        return os.path.normcase(str(candidate))
+
+    rel = os.path.relpath(_abs(git_dir.stdout), _abs(common_dir.stdout))
+    return rel == "worktrees" or rel.startswith(f"worktrees{os.sep}")
+
+
+def _parse_git_branch_line(raw: str) -> tuple[str, str | None, int, int, bool]:
+    """Parse the ``## ...`` header of ``git status --porcelain=v1 --branch``.
+
+    Returns ``(branch, upstream, ahead, behind, detached)``. A detached HEAD
+    has no branch name — git prints ``HEAD (no branch)`` — so that case is
+    reported as an empty ``branch`` plus ``detached=True``, letting callers
+    render their own wording instead of echoing git's English back at a user
+    who is reading the UI in another language.
+
+    Shapes seen in the wild::
+
+        main...origin/main [ahead 9, behind 2]
+        main...origin/main
+        feature/x                   (no upstream configured)
+        No commits yet on main
+        HEAD (no branch)            (detached)
+    """
+    head, _, tracking = raw.partition(" [")
+    for prefix in ("No commits yet on ", "Initial commit on "):
+        if head.startswith(prefix):
+            return head[len(prefix) :].strip(), None, 0, 0, False
+    branch_part, separator, upstream_part = head.partition("...")
+    branch = branch_part.strip()
+    detached = branch == "HEAD (no branch)"
+    ahead_match = re.search(r"ahead (\d+)", tracking)
+    behind_match = re.search(r"behind (\d+)", tracking)
+    return (
+        "" if detached else branch,
+        upstream_part.strip() if separator else None,
+        int(ahead_match.group(1)) if ahead_match else 0,
+        int(behind_match.group(1)) if behind_match else 0,
+        detached,
+    )
+
+
 def register_endpoints(router: Any, ctx: _FsContext) -> None:
+    from ._fs_file_reads import register_file_read_endpoints
+
+    register_file_read_endpoints(router, ctx)
+
     @router.get("/api/fs/roots", response_model=FsRootsResponse)
     def api_fs_roots(
         request: Request,
@@ -259,141 +366,38 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             "files": saved,
         }
 
-    @router.get("/api/fs/tree", response_model=FsTreeResponse)
-    async def api_fs_tree(
+    @router.get("/api/fs/preview")
+    async def api_fs_preview(
         request: Request,
         path: str,
-        depth: int = Query(default=2, ge=0, le=6),
         thread_id: str | None = None,
-        workspace_path: str | None = None,
-        include_ignored: bool = Query(default=False),
-    ) -> dict[str, Any]:
-        # Remote-workspace routing: if ``path`` carries a ``workspace_id:``
-        # prefix and the workspace exists, list_dir via the MountBackend.
-        workspace_id, rel_path = _parse_workspace_path(path)
-        ws = _resolve_remote_workspace(ctx, workspace_id)
-        if ws is not None:
-            _check_acl(ctx, request, ws.id, write=False)
-            backend = _remote_backend_for(ctx, ws)
-            if backend is None:
-                raise HTTPException(
-                    500,
-                    {
-                        "error": "mount_backend_unavailable",
-                        "workspace_id": ws.id,
-                        "mount_type": ws.mount_type,
-                    },
-                )
-            try:
-                entries = await backend.list_dir(rel_path, depth)
-            except FileNotFoundError as exc:
-                raise HTTPException(404, str(exc)) from exc
-            except NotADirectoryError as exc:
-                raise HTTPException(404, str(exc)) from exc
-            except Exception as exc:  # noqa: BLE001 — backend error
-                raise HTTPException(500, f"backend list_dir failed: {exc}") from exc
-            tree = [
-                _dir_entry_to_tree(e, depth=_tree_depth_of(e.path, rel_path))
-                for e in entries
-                if not _is_ignored_remote_dir(e)
-            ]
-            return {"entries": tree}
-        # Local-path fallback (existing behaviour).
-        _assert_local_request_scope(
-            ctx,
-            request,
-            thread_id=thread_id,
-            workspace_path=workspace_path,
-        )
-        root = _assert_in_scope(
-            ctx,
-            Path(path),
-            thread_id=thread_id,
-            workspace_path=workspace_path,
-        )
-        return {
-            "entries": await asyncio.to_thread(
-                _walk_tree,
-                root,
-                max_depth=depth,
-                include_ignored=include_ignored,
-            ),
+    ) -> FileResponse:
+        _assert_local_request_scope(ctx, request, thread_id=thread_id, workspace_path=None)
+        file_path = _assert_in_scope(ctx, Path(path), thread_id=thread_id)
+        if not file_path.is_file():
+            raise HTTPException(404, "file not found")
+        if file_path.stat().st_size > 24 * 1024 * 1024:
+            raise HTTPException(413, "file exceeds the 24 MB preview limit")
+        # Never execute HTML/SVG/scripts from tool results. Known passive media
+        # may be viewed; every other type is an explicit user download.
+        media_types = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".pdf": "application/pdf",
         }
-
-    @router.get("/api/fs/read", response_model=FsReadResponse)
-    async def api_fs_read(
-        request: Request,
-        path: str,
-        max_lines: int = Query(default=500, ge=1, le=5000),
-        thread_id: str | None = None,
-        workspace_path: str | None = None,
-    ) -> dict[str, Any]:
-        # Remote-workspace routing: if ``path`` carries a ``workspace_id:``
-        # prefix and the workspace exists, read_file via the MountBackend.
-        workspace_id, rel_path = _parse_workspace_path(path)
-        ws = _resolve_remote_workspace(ctx, workspace_id)
-        if ws is not None:
-            _check_acl(ctx, request, ws.id, write=False)
-            backend = _remote_backend_for(ctx, ws)
-            if backend is None:
-                raise HTTPException(
-                    500,
-                    {
-                        "error": "mount_backend_unavailable",
-                        "workspace_id": ws.id,
-                        "mount_type": ws.mount_type,
-                    },
-                )
-            try:
-                raw = await backend.read_file(rel_path)
-            except FileNotFoundError as exc:
-                raise HTTPException(404, str(exc)) from exc
-            except Exception as exc:  # noqa: BLE001 — backend error
-                raise HTTPException(500, f"backend read_file failed: {exc}") from exc
-            if isinstance(raw, (bytes, bytearray)):
-                content = raw.decode("utf-8", errors="replace")
-            else:
-                content = str(raw)
-            lines = content.splitlines()
-            return {
-                "path": f"{ws.id}:{rel_path}",
-                "content": "\n".join(lines[:max_lines]),
-                "lines": lines[:max_lines],
-                "truncated": len(lines) > max_lines,
-            }
-        # Local-path fallback (existing behaviour).
-        _assert_local_request_scope(
-            ctx,
-            request,
-            thread_id=thread_id,
-            workspace_path=workspace_path,
+        media_type = media_types.get(file_path.suffix.lower(), "application/octet-stream")
+        return FileResponse(
+            file_path,
+            media_type=media_type,
+            filename=file_path.name,
+            content_disposition_type="inline"
+            if media_type != "application/octet-stream"
+            else "attachment",
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
-        file_path = _assert_in_scope(
-            ctx,
-            Path(path),
-            thread_id=thread_id,
-            workspace_path=workspace_path,
-        )
-        if not file_path.exists() or not file_path.is_file():
-            raise HTTPException(404, f"file not found: {file_path}")
-        try:
-            content = await asyncio.to_thread(
-                file_path.read_text,
-                encoding="utf-8",
-                errors="replace",
-            )
-        except OSError as exc:
-            raise HTTPException(
-                500,
-                f"failed to read file: {exc}",
-            ) from exc
-        lines = content.splitlines()
-        return {
-            "path": str(file_path),
-            "content": "\n".join(lines[:max_lines]),
-            "lines": lines[:max_lines],
-            "truncated": len(lines) > max_lines,
-        }
 
     @router.post("/api/fs/write", response_model=FsWriteResponse)
     async def api_fs_write(
@@ -412,6 +416,7 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
         workspace_id, rel_path = _parse_workspace_path(path_value)
         ws = _resolve_remote_workspace(ctx, workspace_id)
         if ws is not None:
+            rel_path = _workspace_relative_path(rel_path)
             _check_acl(
                 ctx,
                 request,
@@ -441,17 +446,18 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
                 )
             payload = content.encode("utf-8")
             try:
-                try:
-                    current = await backend.read_file(rel_path)
-                except FileNotFoundError:
-                    current = b""
-                current_bytes = (
-                    bytes(current)
-                    if isinstance(current, (bytes, bytearray))
-                    else str(current).encode("utf-8")
+                from runtime.platform.process.paths import app_paths
+                from runtime.workspace.execution_directory import execution_directory
+
+                probe = execution_directory(ws)
+                lock_path = (
+                    Path(probe["filesystem_path"]) / rel_path.lstrip("/\\")
+                    if probe["ready"]
+                    else app_paths().data_dir / "remote-files" / ws.id / rel_path.lstrip("/\\")
                 )
-                _assert_expected_content(current_bytes, expected_sha256)
-                await backend.write_file(rel_path, payload)
+                await _write_if_unchanged(backend, rel_path, payload, expected_sha256, lock_path)
+            except FileCoordinationConflict as exc:
+                raise HTTPException(409, str(exc)) from exc
             except HTTPException:
                 raise
             except Exception as exc:  # noqa: BLE001 — backend error
@@ -487,10 +493,17 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             else None,
         )
         try:
-            await asyncio.to_thread(file_path.parent.mkdir, parents=True, exist_ok=True)
-            current = await asyncio.to_thread(file_path.read_bytes) if file_path.exists() else b""
-            _assert_expected_content(current, expected_sha256)
-            await asyncio.to_thread(file_path.write_text, content, encoding="utf-8")
+
+            def write_local():
+                with coordinate_file_mutations([file_path]):
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    current = file_path.read_bytes() if file_path.exists() else b""
+                    _assert_expected_content(current, expected_sha256)
+                    file_path.write_text(content, encoding="utf-8")
+
+            await asyncio.to_thread(write_local)
+        except FileCoordinationConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
         except OSError as exc:
             raise HTTPException(
                 500,
@@ -532,42 +545,35 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             raise HTTPException(404, f"file not found: {file_path}")
 
         try:
-            current = (
-                file_path.read_text(encoding="utf-8", errors="replace")
-                if file_path.exists()
-                else ""
-            )
-            reverted = _reverse_unified_diff(current, diff_text)
+            with coordinate_file_mutations([file_path]):
+                current = (
+                    file_path.read_text(encoding="utf-8", errors="replace")
+                    if file_path.exists()
+                    else ""
+                )
+                reverted = _reverse_unified_diff(current, diff_text)
+                deleted = body.get("delete_empty") is True and reverted == ""
+                if deleted:
+                    if file_path.exists():
+                        file_path.unlink()
+                else:
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(reverted, encoding="utf-8")
+        except FileCoordinationConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
         except _DiffFormatError as exc:
             raise HTTPException(400, str(exc)) from exc
         except _DiffApplyConflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except OSError as exc:
-            raise HTTPException(500, f"failed to read file: {exc}") from exc
-
-        delete_empty = body.get("delete_empty") is True
-        try:
-            if delete_empty and reverted == "":
-                if file_path.exists():
-                    file_path.unlink()
-                return {
-                    "success": True,
-                    "reverted": True,
-                    "path": str(file_path),
-                    "bytes": 0,
-                    "deleted": True,
-                }
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(reverted, encoding="utf-8")
-        except OSError as exc:
-            raise HTTPException(500, f"failed to write file: {exc}") from exc
+            raise HTTPException(500, f"failed to revert file: {exc}") from exc
 
         return {
             "success": True,
             "reverted": True,
             "path": str(file_path),
             "bytes": len(reverted.encode("utf-8")),
-            "deleted": False,
+            "deleted": deleted,
         }
 
     @router.post("/api/fs/revert")
@@ -629,17 +635,20 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
                 f"path {file_path} is not inside workspace {cwd_path}",
             ) from None
         try:
-            proc = subprocess.run(
-                ["git", "checkout", "--", str(file_path)],
-                capture_output=True,
-                text=True,
-                cwd=str(cwd_path),
-                timeout=10.0,
-                shell=False,
-            )
+            with coordinate_file_mutations([file_path]):
+                proc = subprocess.run(
+                    ["git", "checkout", "--", str(file_path)],
+                    capture_output=True,
+                    text=True,
+                    cwd=str(cwd_path),
+                    timeout=10.0,
+                    shell=False,
+                )
             if proc.returncode != 0:
                 raise HTTPException(500, f"git checkout failed: {proc.stderr.strip()}")
             return {"reverted": True, "path": str(file_path)}
+        except FileCoordinationConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
         except FileNotFoundError:
             raise HTTPException(503, "git not found") from None
         except subprocess.TimeoutExpired:
@@ -709,3 +718,135 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
                 status = "R"
             files.append({"path": file_path, "status": status})
         return {"branch": branch, "files": files}
+
+    @router.get("/api/git/summary")
+    def api_git_summary(
+        request: Request,
+        path: str = Query(default="."),
+        thread_id: str | None = Query(default=None),
+        workspace_path: str | None = Query(default=None),
+    ) -> dict[str, Any]:
+        """Aggregate the numbers an always-visible workspace note needs.
+
+        ``/api/git/status`` answers "which files moved?"; this answers "how
+        much moved, and where does the branch stand?" in one round-trip, so a
+        badge that polls it stays cheap: branch, dirty-file count, ahead /
+        behind against upstream, and added / removed line totals versus HEAD.
+
+        Untracked files are counted in ``changed_files`` but can never
+        contribute line totals — ``git diff`` does not see them. They are
+        therefore reported separately as ``untracked_files``, which is what
+        lets a caller tell "nothing changed" apart from "nothing *tracked*
+        changed, but N new files appeared" instead of reading a bare zero.
+        ``diff_error`` is reserved for ``git diff`` failing outright.
+        """
+        candidate = (
+            Path(workspace_path).expanduser()
+            if path in {"", "."} and workspace_path
+            else Path(path).expanduser()
+        )
+        if ctx.require_auth:
+            _assert_local_request_scope(
+                ctx,
+                request,
+                thread_id=thread_id,
+                workspace_path=workspace_path,
+            )
+            root = _assert_in_scope(
+                ctx,
+                candidate,
+                thread_id=thread_id,
+                workspace_path=workspace_path,
+            )
+        else:
+            root = _assert_within_allowed_roots(candidate)
+        if not root.is_dir():
+            raise HTTPException(404, f"directory not found: {root}")
+
+        def run_git(
+            args: list[str],
+            timeout: float,
+        ) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["git", *args],
+                capture_output=True,
+                text=True,
+                cwd=str(root),
+                timeout=timeout,
+                check=False,
+                shell=False,
+            )
+
+        try:
+            status_proc = run_git(["status", "--porcelain=v1", "--branch"], 10.0)
+        except FileNotFoundError:
+            return _empty_git_summary("git not found")
+        except subprocess.TimeoutExpired:
+            return _empty_git_summary("git status timed out")
+        if status_proc.returncode != 0:
+            return _empty_git_summary(status_proc.stderr.strip() or "git status failed")
+
+        branch = ""
+        upstream: str | None = None
+        ahead = 0
+        behind = 0
+        detached = False
+        changed_files = 0
+        untracked_files = 0
+        for line in status_proc.stdout.splitlines():
+            if line.startswith("## "):
+                branch, upstream, ahead, behind, detached = _parse_git_branch_line(line[3:])
+                continue
+            if len(line) < 4:
+                continue
+            changed_files += 1
+            if line.startswith("??"):
+                untracked_files += 1
+
+        try:
+            worktree = _is_linked_worktree(root, run_git)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            worktree = False
+
+        added = 0
+        removed = 0
+        diff_error: str | None = None
+        for diff_args in (["diff", "--numstat", "HEAD"], ["diff", "--numstat"]):
+            try:
+                diff_proc = run_git(diff_args, 15.0)
+            except FileNotFoundError:
+                diff_error = "git not found"
+                break
+            except subprocess.TimeoutExpired:
+                diff_error = "git diff timed out"
+                break
+            if diff_proc.returncode != 0:
+                # Unborn HEAD (no commits yet) — retry against the index.
+                diff_error = diff_proc.stderr.strip() or "git diff failed"
+                continue
+            diff_error = None
+            for line in diff_proc.stdout.splitlines():
+                columns = line.split("\t")
+                if len(columns) < 3:
+                    continue
+                # Binary files report ``-`` where a line count would go.
+                if columns[0].isdigit():
+                    added += int(columns[0])
+                if columns[1].isdigit():
+                    removed += int(columns[1])
+            break
+
+        return {
+            "branch": branch,
+            "upstream": upstream,
+            "ahead": ahead,
+            "behind": behind,
+            "detached": detached,
+            "worktree": worktree,
+            "changed_files": changed_files,
+            "untracked_files": untracked_files,
+            "added": added,
+            "removed": removed,
+            "error": None,
+            "diff_error": diff_error,
+        }

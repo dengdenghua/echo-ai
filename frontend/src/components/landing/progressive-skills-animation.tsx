@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect, useRef } from "react";
 
 import { Tooltip } from "@/components/workspace/tooltip";
+import { useI18n } from "@/core/i18n/hooks";
 
 type AnimationPhase =
   | "idle"
@@ -60,6 +61,8 @@ const ANIMATION_DELAYS = {
 } as const;
 
 export default function ProgressiveSkillsAnimation() {
+  const { t } = useI18n();
+  const copy = t.aboutPage.skills;
   const [phase, setPhase] = useState<AnimationPhase>("idle");
   const [searchIndex, setSearchIndex] = useState(0);
   const [buildIndex, setBuildIndex] = useState(0);
@@ -356,7 +359,7 @@ export default function ProgressiveSkillsAnimation() {
                 />
               </div>
               <span className="text-lg font-medium text-white">
-                Click to play
+                {copy.clickToPlay}
               </span>
             </motion.button>
           </motion.div>
@@ -364,7 +367,7 @@ export default function ProgressiveSkillsAnimation() {
       </AnimatePresence>
 
       {/* Bottom Left Play/Pause Button */}
-      <Tooltip content="Play / Pause">
+      <Tooltip content={copy.playPause}>
         <div className="absolute bottom-12 left-12 z-40 flex items-center gap-2">
           <motion.button
             initial={{ opacity: 0, scale: 0.8 }}
@@ -379,7 +382,7 @@ export default function ProgressiveSkillsAnimation() {
             )}
           </motion.button>
           <span className="text-lg font-medium">
-            Click to {isPlaying ? "pause" : "play"}
+            {isPlaying ? copy.clickToPause : copy.clickToPlay}
           </span>
         </div>
       </Tooltip>
@@ -477,10 +480,7 @@ export default function ProgressiveSkillsAnimation() {
                   className="flex justify-end"
                 >
                   <div className="max-w-[90%] rounded-lg rounded-tr-sm bg-info px-5 py-3">
-                    <p className="text-base">
-                      Research mRNA delivery, build a landing page, deploy to
-                      Vercel
-                    </p>
+                    <p className="text-base">{copy.userRequest}</p>
                   </div>
                 </motion.div>
               )}
@@ -507,7 +507,8 @@ export default function ProgressiveSkillsAnimation() {
                     "done",
                   ].includes(phase) && (
                     <div className="text-base text-zinc-300">
-                      <span className="text-purple-400">✨</span> Found 3 skills
+                      <span className="text-purple-400">✨</span>{" "}
+                      {copy.foundSkills}
                     </div>
                   )}
 
@@ -525,7 +526,7 @@ export default function ProgressiveSkillsAnimation() {
                     <div className="mt-4">
                       <hr className="mb-3 border-zinc-700" />
                       <div className="mb-3 text-zinc-300">
-                        🔬 Researching...
+                        🔬 {copy.researching}
                       </div>
                       <div className="mb-3 space-y-2">
                         {/* Loading SKILL.md */}
@@ -541,7 +542,7 @@ export default function ProgressiveSkillsAnimation() {
                         ].includes(phase) && (
                           <div className="flex items-center gap-2 pl-4 text-zinc-400">
                             <FileText size={16} />
-                            <span>Loading deep-search/SKILL.md...</span>
+                            <span>{copy.loading("deep-search/SKILL.md")}</span>
                           </div>
                         )}
                         {/* Loading biotech.md */}
@@ -557,8 +558,7 @@ export default function ProgressiveSkillsAnimation() {
                           <div className="flex items-center gap-2 pl-4 text-zinc-400">
                             <FileText size={16} />
                             <span>
-                              Found biotech related topic, loading
-                              deep-search/biotech.md...
+                              {copy.foundTopic("deep-search/biotech.md")}
                             </span>
                           </div>
                         )}
@@ -621,10 +621,12 @@ export default function ProgressiveSkillsAnimation() {
                       className="mt-4"
                     >
                       <hr className="mb-3 border-zinc-700" />
-                      <div className="mb-3 text-zinc-300">🔨 Building...</div>
+                      <div className="mb-3 text-zinc-300">
+                        🔨 {copy.building}
+                      </div>
                       <div className="mb-3 flex items-center gap-2 pl-4 text-zinc-400">
                         <FileText size={16} />
-                        <span>Loading frontend-design/SKILL.md...</span>
+                        <span>{copy.loading("frontend-design/SKILL.md")}</span>
                       </div>
                       <div className="space-y-2 pl-4">
                         {workspaceFiles.slice(0, buildIndex).map((file) => (
@@ -635,7 +637,7 @@ export default function ProgressiveSkillsAnimation() {
                             className="flex items-center gap-2 text-sm text-success"
                           >
                             <FileText size={14} />
-                            <span>Generating {file}...</span>
+                            <span>{copy.generating(file)}</span>
                             <Check size={14} />
                           </motion.div>
                         ))}
@@ -651,11 +653,13 @@ export default function ProgressiveSkillsAnimation() {
                       className="mt-4"
                     >
                       <hr className="mb-3 border-zinc-700" />
-                      <div className="mb-3 text-zinc-300">🚀 Deploying...</div>
+                      <div className="mb-3 text-zinc-300">
+                        🚀 {copy.deploying}
+                      </div>
                       <div className="mb-3 space-y-2">
                         <div className="flex items-center gap-2 pl-4 text-zinc-400">
                           <FileText size={16} />
-                          <span>Loading deploy/SKILL.md...</span>
+                          <span>{copy.loading("deploy/SKILL.md")}</span>
                         </div>
                         {["deploying", "done"].includes(phase) && (
                           <motion.div
@@ -664,7 +668,7 @@ export default function ProgressiveSkillsAnimation() {
                             className="flex items-center gap-2 pl-4 text-zinc-400"
                           >
                             <Terminal size={16} />
-                            <span>Executing scripts/deploy.sh</span>
+                            <span>{copy.executing("scripts/deploy.sh")}</span>
                           </motion.div>
                         )}
                       </div>
@@ -675,7 +679,7 @@ export default function ProgressiveSkillsAnimation() {
                           className="mt-4 rounded-lg border border-success/30 bg-success/10 p-4"
                         >
                           <div className="text-lg font-medium text-success">
-                            ✅ Live at biotech-startup.vercel.app
+                            ✅ {copy.liveAt("biotech-startup.vercel.app")}
                           </div>
                         </motion.div>
                       )}
@@ -689,7 +693,7 @@ export default function ProgressiveSkillsAnimation() {
           {/* Chat Input (decorative) */}
           <div className="border-t border-zinc-800 p-4">
             <div className="rounded-lg bg-zinc-800 px-4 py-3 text-sm text-zinc-500">
-              Ask Echo anything...
+              {copy.askAnything}
             </div>
           </div>
         </div>

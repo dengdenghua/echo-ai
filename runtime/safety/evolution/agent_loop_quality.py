@@ -22,6 +22,7 @@ CHECKS: tuple[AgentLoopCheck, ...] = (
         title="Realtime turn routing priority",
         paths=(
             "runtime/sensing/gateway/realtime_turn_lifecycle.py",
+            "runtime/sensing/gateway/_realtime_turn_dispatch.py",
             "runtime/sensing/gateway/realtime_cerebrum.py",
             "tests/realtime_cerebrum/test_tool_lifecycle.py",
         ),

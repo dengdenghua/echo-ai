@@ -31,6 +31,21 @@ from runtime.sensing.gateway.observability_router import create_observability_ro
 from runtime.sensing.gateway.streaming_journal import StreamingJournal
 
 
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [("old", "new"), ("old", "old\n"), ("old\n", "new"), ("", "new"), ("old", "")],
+)
+def test_executor_diff_preserves_eof_through_protocol(before: str, after: str) -> None:
+    from runtime.execution.tool_engine._executor_fileops import _compute_unified_diff
+    from runtime.protocol.diff_parser import parse_unified_diff, reverse_unified_diff
+
+    diff = _compute_unified_diff(before, after, "file.txt")
+    assert diff is not None
+    changes = parse_unified_diff(diff)
+    assert len(changes) == 1
+    assert reverse_unified_diff(after, changes[0].diff) == before
+
+
 @pytest.fixture
 def isolated_cwd(
     tmp_path: Path,

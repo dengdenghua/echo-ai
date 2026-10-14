@@ -75,9 +75,7 @@ class ThreadShareRelayClient:
             origin,
             api_key=os.environ.get("ECHO_PUBLIC_SHARE_RELAY_API_KEY"),
             bearer_token=os.environ.get("ECHO_PUBLIC_SHARE_RELAY_BEARER_TOKEN"),
-            timeout_seconds=float(
-                os.environ.get("ECHO_PUBLIC_SHARE_RELAY_TIMEOUT_SECONDS") or 10
-            ),
+            timeout_seconds=float(os.environ.get("ECHO_PUBLIC_SHARE_RELAY_TIMEOUT_SECONDS") or 10),
         )
 
     def _request(

@@ -2,6 +2,8 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { QueryClient } from "@tanstack/react-query";
+
 import { renderWithProviders } from "@/test/harness";
 
 import { AgentWorkbenchPanel } from "../agent-workbench-panel";
@@ -189,10 +191,17 @@ describe("ProjectOsTab", () => {
   it("routes project execution through conversation approval instead of REST", () => {
     const command = vi.fn();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const state = { ...projectState, action_specs: projectState.action_specs.map(spec => ({
-      ...spec, realtime_command: spec.action === "run" ? "/project run" : "/project tick",
-    })) };
-    renderWithProviders(<ProjectOsTab state={state} onProjectCommand={command} />);
+    const state = {
+      ...projectState,
+      action_specs: projectState.action_specs.map((spec) => ({
+        ...spec,
+        realtime_command:
+          spec.action === "run" ? "/project run" : "/project tick",
+      })),
+    };
+    renderWithProviders(
+      <ProjectOsTab state={state} onProjectCommand={command} />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "开始推进" }));
     fireEvent.click(screen.getByRole("button", { name: "推进一步" }));
     expect(command.mock.calls).toEqual([["/project run"], ["/project tick"]]);
@@ -201,22 +210,54 @@ describe("ProjectOsTab", () => {
   });
   it("opens owner acceptance for the selected phase without running the project", () => {
     const command = vi.fn();
-    const state = { ...projectState, pm: { ...projectState.pm!, next_actions: [{
-      type: "owner_acceptance", milestone_id: "MS2", milestone: "方案设计",
-      task_id: "", task: "等待用户验收", priority: "P1", estimate: 0, due_at: "",
-    }] } };
-    renderWithProviders(<ProjectOsTab state={state} onProjectCommand={command} />);
+    const state = {
+      ...projectState,
+      pm: {
+        ...projectState.pm!,
+        next_actions: [
+          {
+            type: "owner_acceptance",
+            milestone_id: "MS2",
+            milestone: "方案设计",
+            task_id: "",
+            task: "等待用户验收",
+            priority: "P1",
+            estimate: 0,
+            due_at: "",
+          },
+        ],
+      },
+    };
+    renderWithProviders(
+      <ProjectOsTab state={state} onProjectCommand={command} />,
+    );
     fireEvent.click(screen.getByRole("button", { name: /审阅交付物并验收/ }));
     expect(command).toHaveBeenCalledWith("/project accept MS2");
     expect(command).toHaveBeenCalledTimes(1);
   });
   it("prevents a competing acceptance command while the conversation is busy", () => {
     const command = vi.fn();
-    const state = { ...projectState, pm: { ...projectState.pm!, next_actions: [{
-      type: "owner_acceptance", milestone_id: "MS2", milestone: "方案设计",
-      task_id: "", task: "等待用户验收", priority: "P1", estimate: 0, due_at: "",
-    }] } };
-    renderWithProviders(<ProjectOsTab state={state} onProjectCommand={command} commandBusy />);
+    const state = {
+      ...projectState,
+      pm: {
+        ...projectState.pm!,
+        next_actions: [
+          {
+            type: "owner_acceptance",
+            milestone_id: "MS2",
+            milestone: "方案设计",
+            task_id: "",
+            task: "等待用户验收",
+            priority: "P1",
+            estimate: 0,
+            due_at: "",
+          },
+        ],
+      },
+    };
+    renderWithProviders(
+      <ProjectOsTab state={state} onProjectCommand={command} commandBusy />,
+    );
     const button = screen.getByRole("button", { name: /审阅交付物并验收/ });
     expect(button).toBeDisabled();
     fireEvent.click(button);
@@ -618,14 +659,18 @@ describe("ProjectOsTab", () => {
 
 describe("AgentWorkbenchPanel project tab", () => {
   const fetchMock = vi.fn();
+  let threadMap: Record<string, string> = {};
+  let byThread: { ok: boolean; status: number; json?: () => Promise<unknown> };
 
   beforeEach(() => {
+    threadMap = { "thread-1": "pm-demo" };
+    byThread = { ok: true, status: 200, json: async () => projectState };
     fetchMock.mockReset();
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => projectState,
-    });
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes("/api/projects/thread-map")
+        ? { ok: true, status: 200, json: async () => threadMap }
+        : byThread,
+    );
     vi.stubGlobal("fetch", fetchMock);
   });
 
@@ -664,9 +709,16 @@ describe("AgentWorkbenchPanel project tab", () => {
       { locale: "zh-CN" },
     );
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "标签页列表" }), { button: 0, ctrlKey: false });
-    expect(await screen.findByRole("menuitem", { name: "项目" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "设计" })).not.toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByRole("button", { name: "标签页列表" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(
+      await screen.findByRole("menuitem", { name: "项目" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "设计" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("embedded-project-design"),
     ).not.toBeInTheDocument();
@@ -695,11 +747,7 @@ describe("AgentWorkbenchPanel project tab", () => {
   });
 
   it("falls back to the agent surface when no project is bound", async () => {
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: async () => ({}),
-    });
+    byThread = { ok: false, status: 404, json: async () => ({}) };
 
     renderWithProviders(
       <AgentWorkbenchPanel
@@ -716,8 +764,60 @@ describe("AgentWorkbenchPanel project tab", () => {
     });
   });
 
+  it("does not ask for the project of a thread the map does not list", async () => {
+    threadMap = {};
+
+    renderWithProviders(
+      <AgentWorkbenchPanel
+        activeTab="project"
+        events={[]}
+        threadId="thread-1"
+      />,
+      { locale: "zh-CN" },
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("project-workbench-loading")).toBeNull();
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/projects/by-thread/"),
+      expect.anything(),
+    );
+  });
+
+  it("keeps asking the map, not the server, when an ordinary chat refetches", async () => {
+    // Regression: after a turn the panel refetched an ordinary chat's
+    // project and logged GET /api/projects/by-thread/<id> 404.
+    threadMap = {};
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+
+    renderWithProviders(
+      <AgentWorkbenchPanel
+        activeTab="project"
+        events={[]}
+        threadId="thread-1"
+      />,
+      { locale: "zh-CN", queryClient },
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId("project-workbench-loading")).toBeNull();
+    });
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: ["project", "by-thread", "thread-1"],
+      });
+    });
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/projects/by-thread/"),
+      expect.anything(),
+    );
+  });
+
   it("keeps the requested project surface visible when loading fails", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 503 });
+    byThread = { ok: false, status: 503 };
 
     renderWithProviders(
       <AgentWorkbenchPanel

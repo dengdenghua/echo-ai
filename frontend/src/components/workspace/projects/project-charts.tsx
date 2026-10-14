@@ -33,7 +33,10 @@ export function HealthDonut({
   size = 104,
   thickness = 12,
 }: HealthDonutProps) {
-  const total = DONUT_ORDER.reduce((sum, health) => sum + (counts[health] ?? 0), 0);
+  const total = DONUT_ORDER.reduce(
+    (sum, health) => sum + (counts[health] ?? 0),
+    0,
+  );
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
@@ -68,7 +71,7 @@ export function HealthDonut({
             cy={center}
             r={radius}
             fill="none"
-            stroke="#e5e7eb"
+            className="stroke-muted"
             strokeWidth={thickness}
           />
           {segments.map((segment) => (
@@ -92,7 +95,7 @@ export function HealthDonut({
             dominantBaseline="middle"
             fontSize={size * 0.24}
             fontWeight={600}
-            fill="#111827"
+            className="fill-foreground"
           >
             {total}
           </text>
@@ -101,8 +104,8 @@ export function HealthDonut({
             y={center + size * 0.16}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={size * 0.11}
-            fill="#6b7280"
+            fontSize={Math.max(12, size * 0.11)}
+            className="fill-muted-foreground"
           >
             {caption}
           </text>
@@ -193,7 +196,7 @@ export function ProjectProgressBars({
                   />
                   <span className="truncate font-medium">{row.name}</span>
                   {row.overdue > 0 && (
-                    <span className="shrink-0 rounded bg-orange-500/15 px-1 py-px text-[10px] tabular-nums text-orange-600">
+                    <span className="shrink-0 rounded bg-warning/15 px-1 py-px text-xs tabular-nums text-warning">
                       逾期 {row.overdue}
                     </span>
                   )}
@@ -216,7 +219,7 @@ export function ProjectProgressBars({
                     style={{ width: `${value}%` }}
                   />
                 </div>
-                <span className="w-16 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+                <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                   {row.doneTasks}/{row.totalTasks} 任务
                 </span>
               </div>
@@ -230,11 +233,7 @@ export function ProjectProgressBars({
 
 // ─── 里程碑估时堆叠条 ────────────────────────────────────────────────
 
-export function EstimateStack({
-  rows,
-}: {
-  rows: readonly EstimateRow[];
-}) {
+export function EstimateStack({ rows }: { rows: readonly EstimateRow[] }) {
   if (rows.length === 0) {
     return <div className="text-xs text-muted-foreground">暂无估算数据。</div>;
   }
@@ -264,17 +263,17 @@ export function EstimateStack({
             </div>
             <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full bg-emerald-500/80"
+                className="h-full bg-core/80"
                 style={{ width: scale(row.doneEstimate) }}
                 title={`已完成估时 ${row.doneEstimate}d`}
               />
               <div
-                className={`h-full ${flagged ? "bg-orange-500/70" : "bg-slate-400/70"}`}
+                className={`h-full ${flagged ? "bg-warning/70" : "bg-slate-400/70"}`}
                 style={{ width: scale(row.remainingEstimate) }}
                 title={`剩余估时 ${row.remainingEstimate}d`}
               />
             </div>
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>共 {row.totalEstimate}d</span>
               <span className="tabular-nums">{pct(row.progress)}%</span>
             </div>

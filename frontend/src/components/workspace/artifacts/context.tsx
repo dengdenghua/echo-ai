@@ -36,11 +36,14 @@ const ArtifactsContext = createContext<ArtifactsContextType | undefined>(
 interface ArtifactsProviderProps {
   children: ReactNode;
   threadId?: string | null;
+  /** False while the id is still pending: the server has no outputs yet. */
+  threadExists?: boolean;
 }
 
 export function ArtifactsProvider({
   children,
   threadId,
+  threadExists = true,
 }: ArtifactsProviderProps) {
   const [artifacts, setArtifacts] = useState<string[]>([]);
   const [selectedArtifact, setSelectedArtifact] = useState<string | null>(null);
@@ -71,7 +74,8 @@ export function ArtifactsProvider({
   // chat-box, so React Query deduplicates requests. This fallback only runs
   // when the shared query hasn't populated the list yet.
   const { data: fallbackArtifacts } = useWorkspaceArtifacts(threadId, {
-    enabled: !env.STATIC_WEBSITE_ONLY && artifacts.length === 0,
+    enabled:
+      threadExists && !env.STATIC_WEBSITE_ONLY && artifacts.length === 0,
   });
 
   useEffect(() => {
@@ -139,4 +143,9 @@ export function useArtifacts() {
     throw new Error("useArtifacts must be used within an ArtifactsProvider");
   }
   return context;
+}
+
+/** Receipt cards also render outside the full workspace in previews/tests. */
+export function useOptionalArtifacts() {
+  return useContext(ArtifactsContext);
 }

@@ -1,6 +1,5 @@
 import { swallow } from "@/core/utils/log";
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import { apiGet, apiPut } from "@/core/api/request";
 
 export interface Capabilities {
   browser_automation: boolean;
@@ -24,29 +23,22 @@ export interface RestartBackendResponse {
 }
 
 export async function getCapabilities(): Promise<Capabilities> {
-  const res = await fetch(`${getBackendBaseURL()}/api/settings/capabilities`, {
-    headers: authHeaders(),
+  return apiGet("/api/settings/capabilities", {
+    errorMessage: (failure) =>
+      `Failed to load capabilities: ${failure.statusText}`,
   });
-  if (!res.ok)
-    throw new Error(`Failed to load capabilities: ${res.statusText}`);
-  return (await res.json()) as Capabilities;
 }
 
 export async function saveCapabilities(
   body: Capabilities,
 ): Promise<SaveCapabilitiesResponse> {
-  const res = await fetch(`${getBackendBaseURL()}/api/settings/capabilities`, {
-    method: "PUT",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(
-      `Failed to save capabilities: ${res.status} ${detail || res.statusText}`,
-    );
-  }
-  return (await res.json()) as SaveCapabilitiesResponse;
+  return (await apiPut("/api/settings/capabilities", {
+    body,
+    errorMessage: (failure) =>
+      `Failed to save capabilities: ${failure.status} ${
+        failure.text || failure.statusText
+      }`,
+  })) as SaveCapabilitiesResponse;
 }
 
 /* Implementation note. */

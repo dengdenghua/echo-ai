@@ -16,6 +16,11 @@ from runtime.execution.suckers import computer_macos, computer_uia_skills
 from .computer_control_session import _record_control_evidence
 from .computer_lease import _lease_from_body
 from .computer_router_state import ComputerRouterState
+from .computer_window_preview import (
+    capture_window_preview,
+    foreground_window_target,
+    list_window_targets,
+)
 
 _ScreenshotHandler = Callable[[dict[str, Any] | None], dict[str, Any]]
 _PreviewActionHandler = Callable[[dict[str, Any], str | None], dict[str, Any]]
@@ -174,6 +179,8 @@ def register_computer_appshot_routes(
             "app_id": str((semantic.get("app") or {}).get("id") or ""),
             "app_name": str((semantic.get("app") or {}).get("displayName") or ""),
         }
+        if not computer_macos.MACOS_NATIVE_AVAILABLE:
+            target = foreground_window_target() or target
         snapshot_basis = json.dumps(
             {
                 "created_at": created_at,
@@ -287,12 +294,14 @@ def register_computer_appshot_routes(
                 "backend": native.get("backend", "macos-native"),
                 **({"error": native["error"]} if native.get("error") else {}),
             }
-        return {
-            "schema": "echo.automation_targets.v1",
-            "targets": [],
-            "count": 0,
-            "backend": "unavailable",
-        }
+        return list_window_targets()
+
+    @router.post("/preview")
+    def window_preview(body: dict[str, Any]) -> dict[str, Any]:
+        target = body.get("target")
+        if not isinstance(target, dict) or target.get("kind") != "desktop_window":
+            raise HTTPException(400, "a desktop window target is required")
+        return capture_window_preview(target)
 
     @router.post("/appshots/{snapshot_id}/elements/{element_index}/preview")
     def preview_appshot_element(

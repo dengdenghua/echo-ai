@@ -45,7 +45,7 @@ const packages = {
     data: [],
   },
   intelligence: {
-    name: "订阅",
+    name: "自动化",
     description: "持续跟踪主题与情报",
     route: "/workspace/intelligence",
     module: "intelligence",
@@ -60,14 +60,14 @@ const packages = {
 const packageId = process.argv[2] || "self_evolution";
 if (!Object.hasOwn(packages, packageId))
   throw new Error(`Unsupported workbench: ${packageId}`);
-const descriptor = packages[packageId];
 const output = path.resolve(
   frontend,
   "../extensions/workbench-apps",
   packageId,
 );
 // Package metadata is source-controlled; rebuilding assets must not reset
-// upstream permissions, release notes or data ownership declarations.
+// upstream permissions, release notes or data ownership declarations. The
+// page title follows the manifest name too (intelligence is 自动化, not 订阅).
 const manifest = JSON.parse(
   await readFile(path.join(output, "app.json"), "utf8"),
 );
@@ -82,7 +82,7 @@ const temporary = await mkdtemp(path.join(frontend, ".workbench-build-"));
 try {
   await writeFile(
     path.join(temporary, "index.html"),
-    `<!doctype html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${descriptor.name}</title></head><body><div id="root"></div><script type="module" src="../src/workbenches/entries/${packageId}.tsx"></script></body></html>`,
+    `<!doctype html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${manifest.name}</title></head><body><div id="root"></div><script type="module" src="../src/workbenches/entries/${packageId}.tsx"></script></body></html>`,
   );
   await build({
     configFile: false,

@@ -21,6 +21,7 @@ transaction so partial state never leaks.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import threading
@@ -30,8 +31,9 @@ from typing import Any
 from uuid import uuid4
 
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, add_column, configure, migrate
 from runtime.safety.auth.scope import TenantScope
-from runtime.workspace.crypto import decrypt_options, encrypt_options
+from runtime.workspace.crypto import decrypt_options, encrypt_options, has_plaintext_secrets
 from runtime.workspace.model import (
     VALID_MEMBER_ROLES,
     VALID_MOUNT_TYPES,
@@ -63,12 +65,34 @@ CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_members_member ON workspace_members(member_id);
 """
 
+_MIGRATIONS = (
+    Migration(1, _SCHEMA),
+    # Databases from before tenant scoping lack the column.
+    Migration(
+        2, lambda conn: add_column(conn, "workspaces", "tenant_id", "TEXT NOT NULL DEFAULT ''")
+    ),
+)
+
 
 def _default_db_path() -> Path:
     """``<data>/workspaces.db`` — same ``app_paths`` data dir other stores use."""
     from runtime.platform.process.paths import app_paths
 
     return app_paths().data_dir / "workspaces.db"
+
+
+def _encrypt_legacy_mount_options(conn: sqlite3.Connection) -> None:
+    """Upgrade newly recognized credential keys without decrypting old values."""
+    updates = []
+    for identity, encoded in conn.execute("SELECT id, mount_options_json FROM workspaces"):
+        options = json.loads(encoded)
+        if not isinstance(options, dict):
+            raise ValueError("workspace mount options must be an object")
+        if has_plaintext_secrets(options):
+            updates.append((encrypt_options(options), identity))
+    # Build every replacement before updating: unavailable encryption or
+    # malformed rows leave the whole original dataset intact.
+    conn.executemany("UPDATE workspaces SET mount_options_json=? WHERE id=?", updates)
 
 
 def _workspace_from_row(row: tuple[Any, ...]) -> Workspace:
@@ -158,18 +182,12 @@ class WorkspaceStore:
         return row if self._workspace_allowed(ws, self._effective_scope(scope)) else None
 
     def _connect(self) -> sqlite3.Connection:
-        conn = connect_closing(str(self._db), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+        return configure(connect_closing(str(self._db), timeout=10.0))
 
     def _ensure_schema(self) -> None:
         with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
-            columns = {
-                str(row[1]) for row in conn.execute("PRAGMA table_info(workspaces)").fetchall()
-            }
-            if "tenant_id" not in columns:
-                conn.execute("ALTER TABLE workspaces ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''")
+            migrate(conn, _MIGRATIONS, name="workspaces")
+            _encrypt_legacy_mount_options(conn)
 
     # ── workspaces ────────────────────────────────────────────────────────
 

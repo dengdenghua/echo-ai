@@ -111,12 +111,8 @@ export function useDailyClaimInfo(enabled = true) {
     queryFn: async () => {
       try {
         const m = await octApi.membership();
-        const remaining = Number(
-          (m as Record<string, unknown>).dailyFreeRemaining ?? 0,
-        );
-        const total = Number(
-          (m as Record<string, unknown>).dailyFreeCredits ?? 0,
-        );
+        const remaining = Number(m.dailyFreeRemaining ?? 0);
+        const total = Number(m.dailyFreeCredits ?? 0);
         return {
           data: {
             claimedToday: remaining <= 0,
@@ -147,8 +143,8 @@ export function useClaimDailyCredits() {
   return useMutation<Record<string, unknown>, Error, boolean>({
     mutationFn: () => octApi.dailyClaim(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: dailyClaimKey });
-      qc.invalidateQueries({ queryKey: octKey });
+      void qc.invalidateQueries({ queryKey: dailyClaimKey });
+      void qc.invalidateQueries({ queryKey: octKey });
     },
   });
 }
@@ -198,7 +194,7 @@ export function useFindOrder(orderNo: string | null) {
     queryFn: async () => {
       const o = await octApi.orders.findByOrderNo(orderNo as string);
       if (o?.status === "PAID") {
-        qc.invalidateQueries({ queryKey: octKey });
+        void qc.invalidateQueries({ queryKey: octKey });
       }
       return o;
     },

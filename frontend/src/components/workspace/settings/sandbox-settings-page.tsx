@@ -63,14 +63,7 @@ export default function SandboxSettingsPage() {
   const [settings, setSettings] = useLocalSettings();
   const copy = t.sandboxSettings;
 
-  const context = settings.context as typeof settings.context & {
-    sandbox_mode?: string;
-    approval_policy?: string;
-    approvals_reviewer?: string;
-    network_access?: unknown;
-    guardian_review_enabled?: boolean;
-    guardian_review_model?: string;
-  };
+  const context = settings.context;
   const permission = normalizePermissionMode(context.permission_mode);
   const isFullAccess = permission === "bypassPermissions";
   const environment: ExecutionEnvironment = isFullAccess
@@ -97,13 +90,13 @@ export default function SandboxSettingsPage() {
           ...context,
           execution_environment: next,
           sandbox_mode: next === "local" ? "full" : "sandbox",
-        } as Partial<typeof settings.context>);
+        });
         toast.success(copy.toastEnvSwitched(label));
       } catch {
         toast.error(copy.toastFailed(label));
       }
     },
-    [context, copy, setSettings, settings],
+    [context, copy, setSettings],
   );
 
   const applyPermission = useCallback(
@@ -126,13 +119,13 @@ export default function SandboxSettingsPage() {
                 execution_environment: "sandbox" as const,
                 sandbox_mode: "sandbox" as const,
               }),
-        } as Partial<typeof settings.context>);
+        });
         toast.success(copy.toastPermissionSwitched(label));
       } catch {
         toast.error(copy.toastFailed(label));
       }
     },
-    [context, copy, setSettings, settings],
+    [context, copy, setSettings],
   );
 
   const applyNetwork = useCallback(
@@ -142,13 +135,13 @@ export default function SandboxSettingsPage() {
         setSettings("context", {
           ...context,
           network_access: next,
-        } as Partial<typeof settings.context>);
+        });
         toast.success(copy.toastNetworkSwitched(label));
       } catch {
         toast.error(copy.toastFailed(label));
       }
     },
-    [context, copy, setSettings, settings],
+    [context, copy, setSettings],
   );
 
   return (
@@ -270,7 +263,7 @@ export default function SandboxSettingsPage() {
                   setSettings("context", {
                     ...context,
                     guardian_review_enabled: next,
-                  } as Partial<typeof settings.context>);
+                  });
                   toast.success(
                     next ? copy.toastGuardianOn : copy.toastGuardianOff,
                   );
@@ -297,7 +290,7 @@ export default function SandboxSettingsPage() {
                   setSettings("context", {
                     ...context,
                     guardian_review_model: next || undefined,
-                  } as Partial<typeof settings.context>);
+                  });
                 }}
                 placeholder="留空使用对话模型"
                 className="mt-1 w-full max-w-xs rounded-md border border-border-default bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary/60"
@@ -360,7 +353,7 @@ export default function SandboxSettingsPage() {
                 {PRESET_EGRESS_DOMAINS.map((domain) => (
                   <span
                     key={domain}
-                    className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+                    className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
                   >
                     {domain}
                   </span>

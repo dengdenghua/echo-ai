@@ -354,9 +354,9 @@ def create_a2a_router(
     def _auth_dep(request: Request) -> None:
         if require_auth and identity_store is None:
             raise HTTPException(401, "identity store required for a2a auth")
-        from runtime.adapters.web_auth import _resolve_actor
+        from runtime.safety.auth.principal import require_operator
 
-        _resolve_actor(
+        require_operator(
             request,
             identity_store,
             require_auth,

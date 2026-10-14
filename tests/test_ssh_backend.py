@@ -183,11 +183,20 @@ class TestBuildSshArgv:
         assert "id_rsa" in joined  # Implementation note.
         assert "IdentitiesOnly=yes" in joined
 
-    def test_strict_host_key_off_uses_dev_null(self):
-        box = self._box(host="h", strict_host_key_checking=False)
+    def test_strict_host_key_default_is_yes(self):
+        joined = " ".join(self._box(host="h")._build_ssh_argv(["echo"], cwd=None))
+        assert "StrictHostKeyChecking=yes" in joined
+        assert "StrictHostKeyChecking=no" not in joined
+
+    def test_strict_host_key_off_means_trust_on_first_use(self, tmp_path):
+        managed = tmp_path / "ssh" / "known_hosts"
+        box = self._box(host="h", strict_host_key_checking=False, managed_known_hosts_file=managed)
         joined = " ".join(box._build_ssh_argv(["echo"], cwd=None))
-        assert "StrictHostKeyChecking=no" in joined
-        assert "UserKnownHostsFile=/dev/null" in joined
+        # Never accept-any: the first key is pinned in the managed file.
+        assert "StrictHostKeyChecking=accept-new" in joined
+        assert f"UserKnownHostsFile={managed}" in joined
+        assert "StrictHostKeyChecking=no" not in joined
+        assert "/dev/null" not in joined
 
     def test_known_hosts_file_passed(self):
         box = self._box(host="h", known_hosts_file="/tmp/kh")

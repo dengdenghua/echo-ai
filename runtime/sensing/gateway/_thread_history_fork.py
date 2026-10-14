@@ -45,7 +45,7 @@ def seed_history(logs_root: Path | str | None, parent_id: str, child: dict[str, 
     events = [
         LoggedEvent(
             event="thread_started",
-            threadId=child_id,
+            thread_id=child_id,
             payload={
                 "streamId": f"stream_{uuid4().hex}",
                 "forkedTurnIds": [turn.id for turn in selected],
@@ -60,7 +60,7 @@ def seed_history(logs_root: Path | str | None, parent_id: str, child: dict[str, 
 
         def event(kind, payload, ts=turn.started_at, turn_id=turn.id):
             return LoggedEvent(
-                event=kind, threadId=child_id, turnId=turn_id, payload=payload, ts=ts
+                event=kind, thread_id=child_id, turn_id=turn_id, payload=payload, ts=ts
             )
 
         events.append(event("turn_started", {"params": params}))
@@ -98,11 +98,11 @@ def seed_history(logs_root: Path | str | None, parent_id: str, child: dict[str, 
     temporary = destination.with_name(destination.name + f".{uuid4().hex}.tmp")
     try:
         with temporary.open("x", encoding="utf-8") as stream:
-            for item in events:
+            for logged_event in events:
                 stream.write(
-                    item.model_copy(update={"event_id": f"evt_{uuid4().hex}"}).model_dump_json(
-                        by_alias=True
-                    )
+                    logged_event.model_copy(
+                        update={"event_id": f"evt_{uuid4().hex}"}
+                    ).model_dump_json(by_alias=True)
                     + "\n"
                 )
             stream.flush()

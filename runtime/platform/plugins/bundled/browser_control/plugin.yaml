@@ -1,0 +1,8 @@
+name: browser_control
+display_name: 浏览器控制
+version: 0.1.0
+activation: startup
+description: Playwright、内置浏览器和扩展 Relay 自动化。保留 browser_*、live_browser_* 工具；停用后撤销工具和 HTTP 控制入口。
+author: Echo
+tags: [automation, browser, playwright]
+config: {}

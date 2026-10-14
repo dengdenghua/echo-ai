@@ -22,7 +22,7 @@ export function FinalArtifactCompletionNotice({
     <button
       type="button"
       onClick={onOpen}
-      className="my-2 ml-11 flex max-w-full items-center gap-2 rounded-md border border-success/25 bg-success/10 px-3 py-2 text-left text-xs text-success transition-colors hover:bg-success/15"
+      className="mx-auto my-3 flex w-full max-w-3xl items-center gap-2 rounded-md border border-success/25 bg-success/10 px-3 py-2 text-left text-xs text-success transition-colors hover:bg-success/15"
     >
       <FileTextIcon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1">

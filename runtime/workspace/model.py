@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from runtime.workspace.crypto import redact_options
+
 MountType = Literal["local", "smb", "nfs", "webdav", "sftp", "s3"]
 MemberRole = Literal["owner", "editor", "reviewer", "viewer"]
 
@@ -38,6 +40,15 @@ class Workspace:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def to_public_dict(self) -> dict[str, Any]:
+        """``to_dict`` for HTTP responses: credential values in
+        ``mount_options`` are ``None`` and their dotted paths are listed in
+        ``secrets_set``, so clients see that a password is set, never what it is.
+        """
+        out = self.to_dict()
+        out["mount_options"], out["secrets_set"] = redact_options(self.mount_options)
+        return out
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> Workspace:

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_compose_services_bind_control_plane_to_loopback_by_default() -> None:
-    expected = "${ECHO_BIND_IP:-127.0.0.1}:${PORT:-8000}:8000"
+    expected = "${ECHO_BIND_IP:-127.0.0.1}:${PORT:-8310}:8000"
     for filename in ("docker-compose.yml", "docker-compose.full.yml"):
         compose = yaml.safe_load((ROOT / filename).read_text(encoding="utf-8"))
         assert expected in compose["services"]["echo-ai"]["ports"]
@@ -22,8 +22,8 @@ def test_documented_docker_command_does_not_publish_on_all_interfaces() -> None:
     deployment = (ROOT / "docs" / "deployment.md").read_text(encoding="utf-8")
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "docker run --rm -p 127.0.0.1:8000:8000" in deployment
-    assert "docker run --rm -p 127.0.0.1:8000:8000" in dockerfile
+    assert "docker run --rm -p 127.0.0.1:8310:8000" in deployment
+    assert "docker run --rm -p 127.0.0.1:8310:8000" in dockerfile
     assert "docker run --rm -p 8000:8000" not in deployment
 
 
@@ -78,6 +78,7 @@ def test_systemd_unit_uses_dedicated_baseline_and_persistent_data_root() -> None
     assert "--config /etc/echo/config.yaml" in service
     assert "--host 0.0.0.0" in service
     assert "Environment=ECHO_DATA_DIR=/var/lib/echo" in service
+    assert "Environment=ECHO_RESOURCES_DIR=/var/lib/echo/resources" in service
     assert "deploy/systemd-config.yaml" in service
     assert "deploy/systemd-config.yaml" in deployment
     assert "echo-ai-runtime[serve,local-auth,anthropic]" in deployment
@@ -172,6 +173,8 @@ def test_k8s_admin_login_can_reach_real_admin_control_plane(
     config_path = tmp_path / "config.yaml"
     config_path.write_text(configmap["data"]["config.yaml"], encoding="utf-8")
     password = "K8s-admin-password!9"
+    monkeypatch.setenv("ECHO_ENV", "production")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "production")
     password_hash = hashlib.sha256(password.encode()).hexdigest()
     monkeypatch.setenv(
         "ECHO_LOCAL_AUTH_JWT_SECRET",
@@ -188,6 +191,10 @@ def test_k8s_admin_login_can_reach_real_admin_control_plane(
             local_auth_config=config.local_auth,
         )
     ) as client:
+        providers = client.get("/api/auth/providers").json()["providers"]
+        local = next(provider for provider in providers if provider["id"] == "local")
+        assert local["label"] == "账号密码登录"
+        assert local["password_required"] is True
         login = client.post(
             "/api/auth/local/login",
             json={"username": "admin", "password": password},
@@ -214,6 +221,19 @@ def test_k8s_mutable_resource_contract_supports_real_market_install(
     from runtime.platform.process.paths import resources_root
     from runtime.sensing.gateway import agent_world_router
 
+    # This checks the writable PVC contract, not a retired cloud catalog's
+    # vendored payload. Supply a complete package just as the registry does.
+    template = dict(agent_world_router._template_by_id("financial_pitch_agent"))
+    template["private_skills"] = ["pitch-deck", "dcf-model"]
+    template["available_skills"] = ["pitch-deck", "dcf-model"]
+    template["skill_source_root"] = "skills"
+    source = tmp_path / "package"
+    for name in template["private_skills"]:
+        skill = source / "skills" / name
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(f"---\nname: {name}\n---\nVerified package fixture.")
+    monkeypatch.setattr(agent_world_router, "_template_by_id", lambda _: template)
+    monkeypatch.setattr(agent_world_router, "_template_source_root", lambda _: source)
     mutable_resources = tmp_path / "data/resources"
     monkeypatch.setenv("ECHO_RESOURCES_DIR", str(mutable_resources))
     monkeypatch.setattr(
@@ -234,6 +254,26 @@ def test_k8s_mutable_resource_contract_supports_real_market_install(
     assert (installed / "profile.jsonc").is_file()
     assert (skills_root / "pitch-deck/SKILL.md").is_file()
     assert (skills_root / "dcf-model/SKILL.md").is_file()
+
+
+def test_incomplete_market_template_cannot_claim_success(monkeypatch, tmp_path):
+    from runtime.sensing.gateway import agent_world_router
+
+    template = dict(agent_world_router._template_by_id("financial_pitch_agent"))
+    template.update(private_skills=["pitch-deck", "dcf-model"], skill_source_root="skills")
+    source = tmp_path / "package"
+    present = source / "skills/pitch-deck"
+    present.mkdir(parents=True)
+    (present / "SKILL.md").write_text("# Fixture")
+    monkeypatch.setattr(agent_world_router, "_template_by_id", lambda _: template)
+    monkeypatch.setattr(agent_world_router, "_template_source_root", lambda _: source)
+    agents_root, skills_root = tmp_path / "agents", tmp_path / "skills"
+    with pytest.raises(ValueError, match="dcf-model"):
+        agent_world_router._install_template_agent(
+            "financial_pitch_agent", agents_root, skills_root=skills_root
+        )
+    assert not (agents_root / "financial_pitch_agent").exists()
+    assert not (skills_root / "pitch-deck").exists()
 
 
 def test_k8s_network_policy_is_explicit_and_fail_closed() -> None:

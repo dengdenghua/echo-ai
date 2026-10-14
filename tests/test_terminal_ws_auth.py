@@ -2,8 +2,9 @@
 
 /api/terminal/ws opens a real shell, and used to ``accept()`` and spawn
 it for anyone. These tests lock the security guarantee: when require_auth
-is set, an unauthenticated (or wrong-token) client is closed with 4401
-BEFORE a process is ever created.
+is set, an unauthenticated (or wrong-token) client is closed with 1008
+(the shared pre-accept policy-violation code) BEFORE a process is ever
+created.
 
 (The accepted-token path spawns a real subprocess whose lifetime spans
 the TestClient's event loop, which makes deterministic cleanup flaky in
@@ -69,7 +70,8 @@ def test_ws_rejects_missing_token_when_required():
         client.websocket_connect("/api/terminal/ws/s1") as ws,
     ):
         ws.receive_text()
-    assert ei.value.code == 4401  # closed before any shell spawned
+    assert ei.value.code == 1008  # closed before any shell spawned
+    assert ei.value.reason == "authentication required"
 
 
 def test_ws_rejects_wrong_token_when_required():
@@ -82,7 +84,8 @@ def test_ws_rejects_wrong_token_when_required():
         ) as ws,
     ):
         ws.receive_text()
-    assert ei.value.code == 4401
+    assert ei.value.code == 1008
+    assert ei.value.reason == "invalid or expired credentials"
 
 
 def test_ws_require_auth_without_identity_store_rejects():
@@ -96,7 +99,8 @@ def test_ws_require_auth_without_identity_store_rejects():
         ) as ws,
     ):
         ws.receive_text()
-    assert ei.value.code == 4401
+    assert ei.value.code == 1008
+    assert ei.value.reason == "authentication unavailable"
 
 
 def test_terminal_kill_requires_auth_when_required():
@@ -131,6 +135,28 @@ def test_ws_rejects_foreign_owner_before_spawn():
     assert ei.value.code == 4403
     # bob never took ownership; the shell is still alice's.
     assert terminal_router._sessions["agent-workbench-thread-alice"].owner_actor == "alice"
+
+
+def test_ws_accepts_browser_subprotocol_token_and_echoes_marker():
+    # The browser client (openAuthenticatedWebSocket) sends the token as
+    # ``bearer.b64, <base64url>``; the server must decode it and select only
+    # the non-secret marker, or the browser aborts the handshake. A foreign
+    # owner is used so the resolved actor (bob) is proven without spawning.
+    import base64
+
+    client = _client(require_auth=True, store=_store())
+    _seed_owned_session("agent-workbench-thread-alice", owner="alice")
+    encoded = base64.urlsafe_b64encode(b"sk-bob").decode().rstrip("=")
+    with (
+        pytest.raises(WebSocketDisconnect) as ei,
+        client.websocket_connect(
+            "/api/terminal/ws/agent-workbench-thread-alice",
+            subprotocols=["bearer.b64", encoded],
+        ) as ws,
+    ):
+        assert ws.accepted_subprotocol == "bearer.b64"
+        ws.receive_text()
+    assert ei.value.code == 4403
 
 
 def test_bind_or_check_owner_semantics():

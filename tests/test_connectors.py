@@ -192,13 +192,20 @@ class TestCredentialStore:
         store.set_secret("x", "token", "secret")
         key_file = tmp_path / "master.key"
         credential_file = tmp_path / "credentials.v1.json"
-        key_file.chmod(0o666)
-        credential_file.chmod(0o666)
+        # Windows has no group/other mode bits: os.chmod only toggles the
+        # read-only attribute and the profile ACL governs access. There the
+        # observable effect of the 0600 chmod is a writable owner file.
+        loosened = 0o666 if os.name == "posix" else stat.S_IREAD
+        key_file.chmod(loosened)
+        credential_file.chmod(loosened)
 
-        CredentialStore(root=tmp_path)
+        reopened = CredentialStore(root=tmp_path)
 
-        assert stat.S_IMODE(key_file.stat().st_mode) == 0o600
-        assert stat.S_IMODE(credential_file.stat().st_mode) == 0o600
+        expected = 0o600 if os.name == "posix" else 0o666
+        assert stat.S_IMODE(key_file.stat().st_mode) == expected
+        assert stat.S_IMODE(credential_file.stat().st_mode) == expected
+        reopened.set_secret("x", "token", "rotated")
+        assert reopened.get_secret("x", "token") == "rotated"
 
     @pytest.mark.parametrize(
         "encoded_key",
@@ -381,12 +388,32 @@ class TestConnectorRegistry:
         assert catalog_item["type"] == "plugin"
         assert catalog_item["mcp_servers"] == []
         assert catalog_item["model_provider"]["base_url"] == "https://opencode.ai/zen/v1"
-        assert "big-pickle" in catalog_item["model_provider"]["free_models"]
+        # Free status is derived from upstream prices (models.dev
+        # ``cost.input == 0``) via model_capabilities, never from a reviewed id
+        # list: the list went stale every time Zen published or retired a model,
+        # and it had marked ``union-alpha`` free although upstream never priced
+        # it at zero. The descriptor keeps the field only for compatibility.
+        assert catalog_item["model_provider"]["free_models"] == []
 
         result = reg.install("opencode-zen")
         assert result["installed"] is True
         assert result["cli_lifecycle"] == {"has_cli": False}
         assert reg.installed_ids() == {"opencode-zen"}
+
+    def test_bundled_model_provider_bypasses_cloud_package(self, tmp_path):
+        from runtime.platform.capabilities.capability_registry import CapabilityRegistry
+
+        connector_registry = ConnectorRegistry(
+            marketplace_root=FORK,
+            skills_root=tmp_path / "skills",
+            state_file=tmp_path / "state.json",
+        )
+        registry = CapabilityRegistry(connector_registry=connector_registry)
+        registry._use_cloud_connector_installer = True
+
+        item = next(item for item in registry._list_connectors() if item["id"] == "opencode-zen")
+        assert item["_bundled_model_provider"] is True
+        assert "_cloud_id" not in item
 
     def test_freebuff2api_is_an_explicit_community_model_adapter(self, tmp_path):
         reg = ConnectorRegistry(
@@ -1709,7 +1736,9 @@ class TestNextAction:
         conn = _device_flow_connector()  # cnb-api,有 auth 命令
         result = orch.connect(conn)  # 不带 run_cli / tokens
         assert result["next_action"] == "cli_command"
-        assert "cnb login" in result["command"]
+        # cli.json maps win32 to the npm shim ("cnb.cmd login").
+        expected = "cnb.cmd login" if sys.platform == "win32" else "cnb login"
+        assert result["command"] == expected
 
     def test_no_cli_no_token_action_is_form(self, tmp_path: Path):
         conn = ConnectorDefinition(id="pure-token", auth_mode="token", cli={})

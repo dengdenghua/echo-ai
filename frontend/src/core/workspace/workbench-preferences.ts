@@ -1,9 +1,20 @@
+import { canonicalAgentId } from "@/core/agents/aliases";
 import {
   type PersonaWorkbenchTab,
   workspacePresetForAgent,
 } from "./workspace-presets";
 
 const STORAGE_KEY = "echo.workbench.persona-tabs.v1";
+
+/**
+ * Preferences are keyed by canonical persona so the same person resolves to one
+ * slot regardless of which id the caller happens to hold. `workspacePresetForAgent`
+ * already normalizes; without doing the same here, arriving as `coder` and as
+ * `kane` would read and write two unrelated entries.
+ */
+function preferenceKey(agentId: string | null | undefined): string {
+  return canonicalAgentId(agentId?.trim() || "general");
+}
 
 const VALID_TABS = new Set<PersonaWorkbenchTab>([
   "agent",
@@ -33,8 +44,7 @@ function readOverrides(): Record<string, PersonaWorkbenchTab> {
 export function rememberedWorkbenchTab(
   agentId: string | null | undefined,
 ): PersonaWorkbenchTab | null {
-  const key = agentId?.trim() || "general";
-  return readOverrides()[key] ?? null;
+  return readOverrides()[preferenceKey(agentId)] ?? null;
 }
 
 export function rememberWorkbenchTab(
@@ -47,7 +57,7 @@ export function rememberWorkbenchTab(
   ) {
     return;
   }
-  const key = agentId?.trim() || "general";
+  const key = preferenceKey(agentId);
   try {
     window.localStorage.setItem(
       STORAGE_KEY,

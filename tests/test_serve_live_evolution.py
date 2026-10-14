@@ -25,20 +25,26 @@ from runtime.sensing.gateway import create_openai_router  # noqa: E402
 # ═══════════════════════════════════════════════════════════
 
 
-def _write_cfg(tmp_path: Path, planner: str = "llm") -> Path:
+# Prompt evolution is an unattended model job. The local default member
+# engine (OpenCode) does not authorize those, so these configs opt in.
+_BACKGROUND_CALLS = "execution:\n  background_model_calls: true\n"
+
+
+def _write_cfg(tmp_path: Path, planner: str = "llm", *, background: bool = True) -> Path:
     path = tmp_path / "cfg.yaml"
+    opt_in = _BACKGROUND_CALLS if background else ""
     if planner == "llm":
         path.write_text(
             "planner:\n"
             "  type: llm\n"
             "  model: mock/srv\n"
             '  mock_response: \'{"reasoning":"r","nodes":[{"skill":"list_cwd","args":{"path":"."}}]}\'\n'
-            "budget:\n  max_tokens: 5000\n  max_usd: 0.05\n",
+            "budget:\n  max_tokens: 5000\n  max_usd: 0.05\n" + opt_in,
             encoding="utf-8",
         )
     else:
         path.write_text(
-            "planner:\n  type: static\nbudget:\n  max_tokens: 5000\n  max_usd: 0.05\n",
+            "planner:\n  type: static\nbudget:\n  max_tokens: 5000\n  max_usd: 0.05\n" + opt_in,
             encoding="utf-8",
         )
     return path
@@ -249,6 +255,36 @@ class TestServePromptEvolution:
             color=False,
         )
         assert "prompt_evolve" in captured["r"].task_names()
+
+    def test_default_config_does_not_schedule_evolution(self, tmp_path, monkeypatch):
+        """Without an explicit opt-in, serve must not start unattended model jobs."""
+        import uvicorn
+
+        from runtime import scheduler
+        from runtime.cli import run_serve
+
+        captured = {}
+        real_cls = scheduler.BackgroundRunner
+
+        def capture(*a, **kw):
+            inst = real_cls(*a, **kw)
+            captured["r"] = inst
+            return inst
+
+        monkeypatch.setattr(scheduler, "BackgroundRunner", capture)
+        monkeypatch.setattr(uvicorn, "run", lambda *a, **kw: None)
+
+        run_serve(
+            config_path=_write_cfg(tmp_path, background=False),
+            host="127.0.0.1",
+            port=8000,
+            learn_interval_s=0,
+            prompt_variants_path=_write_variants(tmp_path),
+            evolve_interval_s=3600,
+            mutator_model="mock/m",
+            color=False,
+        )
+        assert "prompt_evolve" not in captured["r"].task_names()
 
     def test_variants_only_no_evolver_skipped(self, tmp_path, monkeypatch):
         """Implementation note."""

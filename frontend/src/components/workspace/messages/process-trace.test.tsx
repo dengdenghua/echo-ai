@@ -49,7 +49,7 @@ describe("ProcessTrace agent cluster", () => {
       { locale: "zh-CN" },
     );
 
-    expect(screen.getByText("2 个子 Agent · 1 已完成 · 1 异常")).toBeInTheDocument();
+    expect(screen.getByText("2 个子智能体 · 1 已完成 · 1 异常")).toBeInTheDocument();
     expect(screen.queryByText(/并行任务/)).not.toBeInTheDocument();
     expect(screen.getAllByText("profile")).toHaveLength(1);
     expect(screen.getAllByText("market")).toHaveLength(1);

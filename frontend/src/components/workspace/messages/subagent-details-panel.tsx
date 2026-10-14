@@ -13,6 +13,7 @@ import {
   RefreshCwIcon,
   XCircleIcon,
 } from "lucide-react";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { useI18n } from "@/core/i18n/hooks";
 import type { Subtask } from "@/core/tasks/types";
 
@@ -72,15 +73,8 @@ export function SubagentDetailsPanel({
         <SheetHeader>
           <div className="flex items-center gap-3">
             {task.avatarEmoji && (
-              <div
-                className="flex size-12 shrink-0 items-center justify-center rounded-lg text-2xl"
-                style={
-                  task.hue != null
-                    ? { background: `hsl(${task.hue} 70% 92%)` }
-                    : undefined
-                }
-              >
-                {task.avatarEmoji}
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted text-lg">
+                <PersonaGlyph name={task.name ?? task.description} />
               </div>
             )}
             <div className="min-w-0 flex-1">

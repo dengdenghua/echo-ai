@@ -54,7 +54,7 @@ describe("team task api", () => {
 
     expect(tasks).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/team-tasks?room_id=room%2Fa%20b",
+      "/api/team-tasks?room_id=room%2Fa+b",
       { headers: {} },
     );
   });

@@ -69,6 +69,7 @@ _EXPORTS = {
     "run_serve": ("runtime.cli_serve", "run_serve"),
     "run_backup": ("runtime._cli_commands", "run_backup"),
     "run_bb": ("runtime._cli_commands", "run_bb"),
+    "run_bundle": ("runtime._cli_commands", "run_bundle"),
     "run_doctor": ("runtime._cli_commands", "run_doctor"),
     "run_export": ("runtime._cli_commands", "run_export"),
     "run_kg": ("runtime._cli_commands", "run_kg"),
@@ -409,6 +410,9 @@ def _main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
             color=color,
         )
+
+    if args.command == "bundle":
+        return _cli_handler("run_bundle")(args, color=color)
 
     if args.command == "guard-health":
         from runtime.cli_guard_health import run_guard_health

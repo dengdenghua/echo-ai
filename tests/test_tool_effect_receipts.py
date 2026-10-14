@@ -70,6 +70,41 @@ def _run(executor: ToolExecutor, task_id: TaskId, *, args=None):
     )
 
 
+def test_host_tool_contract_cannot_be_widened_by_session(tmp_path):
+    from dataclasses import replace
+
+    from runtime.execution.host_boundary import create_host_execution_boundary
+    from runtime.execution.request import execution_request_scope
+    from runtime.platform.process.session import session_scope
+
+    called = []
+    executor = _executor(InMemoryJournal(), lambda **kwargs: called.append(True), affinity=["file"])
+    boundary = create_host_execution_boundary(
+        task_id="restricted",
+        thread_id="thread",
+        goal="read",
+        timeout_s=30,
+        metadata={
+            "mode": "code",
+            "workspace_path": str(tmp_path),
+            "permission_mode": "bypassPermissions",
+            "tool_allowlist": ["durable_tool"],
+        },
+    )
+    request = replace(
+        boundary.request,
+        task=replace(boundary.request.task, allowed_tools=frozenset({"read_file"})),
+    )
+    with session_scope(boundary.session), execution_request_scope(request):
+        from runtime.execution.tool_spec_builder import build_anthropic_tool_specs
+
+        assert build_anthropic_tool_specs(executor.registry) == []
+        step = _run(executor, TaskId(uuid4()))
+    assert not called
+    assert step.result.status == "failed"
+    assert "host execution contract" in str(step.result.model_dump())
+
+
 def test_successful_file_tool_emits_structured_evidence() -> None:
     call = ToolCall(caller="test", sucker_id=SkillId("grep_text"), args={"pattern": "x"})
     step = Step(
@@ -407,3 +442,104 @@ def test_unknown_affinity_fails_closed_as_side_effecting():
     assert is_side_effecting(["custom"]) is True
     assert is_side_effecting(["read"]) is False
     assert is_side_effecting(["read", "write"]) is True
+
+
+# ── handler-reported file changes (P1-9 format ownership) ────────────
+
+
+def test_write_handler_reports_file_changes_through_the_executor(tmp_path):
+    """A native write states the fact itself: no diff re-parsing, no prose.
+
+    ``_tool_event_extras_from_beak_step`` lifts that onto the ``tool_end``
+    event, which is what the realtime bridge promotes to a FileChangeItem.
+    """
+    from runtime.execution.suckers.write_skills import _write_text_file
+
+    target = tmp_path / "note.md"
+    task_id = TaskId(uuid4())
+    executed = _run(
+        _executor(InMemoryJournal(), _write_text_file, affinity=["write"]),
+        task_id,
+        args={"path": str(target), "content": "hello\n"},
+    )
+
+    assert executed.success is True
+    changes = executed.result.output["file_changes"]
+    assert len(changes) == 1
+    assert changes[0]["path"] == str(target)
+    assert changes[0]["op"] == "create"
+
+    extras = _tool_event_extras_from_beak_step(executed, "write_text_file")
+    assert extras["file_changes"] == changes
+    assert target.read_text(encoding="utf-8") == "hello\n"
+
+
+def test_file_tool_cannot_write_through_active_sync_lock(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from runtime.platform.io.file_coordination import coordinate_file_mutations
+
+    target = tmp_path / "report.txt"
+    target.write_text("original")
+    called = []
+
+    def handler(path):
+        called.append(path)
+        target.write_text("overwritten")
+        return "done"
+
+    executor = _executor(InMemoryJournal(), handler, affinity=["file", "write"])
+    with coordinate_file_mutations([target]), ThreadPoolExecutor() as pool:
+        result = pool.submit(_run, executor, TaskId(uuid4()), args={"path": str(target)}).result(
+            timeout=5
+        )
+    assert not result.success
+    assert "File is busy or cannot be locked" in result.result.output["error"]
+    assert not called
+    assert target.read_text() == "original"
+
+
+def test_tool_end_drops_malformed_file_change_entries() -> None:
+    call = ToolCall(caller="test", sucker_id=SkillId("write_text_file"), args={})
+    step = Step(
+        step_id=1,
+        node_id="write",
+        action=call,
+        result=ExecutionResult(
+            call_id=call.call_id,
+            status="success",
+            output={
+                "file_changes": [
+                    {"path": "D:/echo-ai/ok.md", "op": "update", "diff": "@@ -1 +1 @@"},
+                    {"path": "D:/echo-ai/nope.md", "op": "rename"},
+                    {"path": "", "op": "create"},
+                    "not-a-dict",
+                    {"op": "create"},
+                ]
+            },
+            cost=CostEntry(),
+        ),
+    )
+
+    extras = _tool_event_extras_from_beak_step(step, "write_text_file")
+
+    assert extras["file_changes"] == [
+        {"path": "D:/echo-ai/ok.md", "op": "update", "diff": "@@ -1 +1 @@"}
+    ]
+
+
+def test_tool_end_without_file_changes_omits_the_key() -> None:
+    call = ToolCall(caller="test", sucker_id=SkillId("write_text_file"), args={})
+    step = Step(
+        step_id=1,
+        node_id="write",
+        action=call,
+        result=ExecutionResult(
+            call_id=call.call_id,
+            status="success",
+            output={"path": "D:/echo-ai/ok.md"},
+            cost=CostEntry(),
+        ),
+    )
+
+    assert "file_changes" not in _tool_event_extras_from_beak_step(step, "write_text_file")

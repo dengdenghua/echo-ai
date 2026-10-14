@@ -55,6 +55,7 @@ from ._agent_world_helpers import (
     _template_by_id,
     _template_private_skills,
     _template_source_root,
+    template_to_agent_dict,
 )
 
 _INSTALL_STATE = app_paths().data_dir / "agents-installed.json"
@@ -107,16 +108,34 @@ def _copy_template_private_skills(
     template: dict[str, Any],
     skills_root: Path,
 ) -> dict[str, list[str]]:
-    _template_private_skills(template)
-    available_skills = _template_skill_catalog(template)
+    available_skills = list(
+        dict.fromkeys(
+            [
+                *_template_private_skills(template),
+                *_template_skill_catalog(template),
+            ]
+        )
+    )
     source_rel = template.get("skill_source_root")
     result: dict[str, list[str]] = {"copied": [], "skipped": [], "missing": []}
     if not available_skills or not source_rel:
         return result
     source_root = _template_source_root(template) / str(source_rel)
     skills_root.mkdir(parents=True, exist_ok=True)
+    pending: list[tuple[Path, Path]] = []
     for skill_name in available_skills:
         skill_name = _require_safe_skill_name(skill_name)
+        target = skills_root / skill_name
+        if target.exists() or target.is_symlink():
+            if (
+                target.is_symlink()
+                or not (target / "SKILL.md").is_file()
+                or any(child.is_symlink() for child in target.rglob("*"))
+            ):
+                result["missing"].append(skill_name)
+            else:
+                result["skipped"].append(skill_name)
+            continue
         source = source_root / skill_name
         if (
             source.is_symlink()
@@ -126,12 +145,15 @@ def _copy_template_private_skills(
         ):
             result["missing"].append(skill_name)
             continue
-        target = skills_root / skill_name
-        if target.exists() or target.is_symlink():
-            result["skipped"].append(skill_name)
-            continue
+        pending.append((source, target))
+    if result["missing"]:
+        raise ValueError(
+            "模板缺少技能文件，尚未安装角色；请安装包含技能的完整角色包："
+            + ", ".join(result["missing"])
+        )
+    for source, target in pending:
         shutil.copytree(source, target)
-        result["copied"].append(skill_name)
+        result["copied"].append(target.name)
     return result
 
 
@@ -285,37 +307,13 @@ def _install_template_agent(
 
 
 def _template_to_agent_dict(template: dict[str, Any], *, installed: set[str]) -> dict[str, Any]:
-    """模板 → 与 ``_list_local_agents`` 同形状的 dict(供按 id 直查 / 安装用,
-    不进入列表)。"""
-    agent_id = template["id"]
-    return {
-        "id": agent_id,
-        "name": agent_id,
-        "display_name": template["display_name"],
-        "description": template["description"],
-        "author": template["author"],
-        "category": template["category"],
-        "tags": template["tags"],
-        "icon": template["icon"],
-        "avatar_url": None,
-        "model": None,
-        "tool_groups": ["fs_writer", "git", "shell"],
-        "extra_affinity": list(template["tags"]),
-        "private_skills": _template_private_skills(template),
-        "capabilities": {},
-        "version": "1.0.0",
-        "downloads": 0,
-        "rating": 4.5,
-        "rating_count": 0,
-        "is_featured": bool(template.get("featured")),
-        "is_official": template["author"] == "echo",
-        "is_installed": agent_id in installed,
-        "source_kind": _MARKET_INSTALL_SOURCE,
-        "created_at": "0",
-        "source_url": template.get("source_url"),
-        "key_skills": _template_private_skills(template),
-        "available_skills": _template_skill_catalog(template),
-    }
+    return template_to_agent_dict(
+        template,
+        installed=installed,
+        private_skills=_template_private_skills(template),
+        available_skills=_template_skill_catalog(template),
+        source_kind=_MARKET_INSTALL_SOURCE,
+    )
 
 
 def create_agent_world_router(
@@ -345,17 +343,12 @@ def create_agent_world_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; shared catalog; mutations require _admin_dep
 
     def _admin_dep(request: Request) -> None:
-        """Protect shared mutations while allowing the trusted local desktop.
+        """Agent and skill installs: admin-only, but open to any account on the local desktop.
 
-        The desktop server already computes this posture from the explicit
-        ``execution.deployment_mode=local`` + loopback bind contract.  Reuse
-        it here so the legacy cloud catalog has the same local lifecycle
-        semantics as ``/api/capabilities``.  The default remains admin-only,
-        which preserves the shared/server security boundary for direct router
-        users and deployments that do not opt into the local posture.
+        Workbenches and cloud plugins are machine-wide and use ``_plugin_admin_dep`` instead.
         """
         if allow_local_user_plugin_lifecycle:
             return
@@ -371,6 +364,11 @@ def create_agent_world_router(
             jwt_audience=jwt_audience,
         )
 
+    from ._workbench_admin import workbench_admin_dependency
+
+    _plugin_admin_dep = workbench_admin_dependency(
+        identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience
+    )
     router = APIRouter(tags=["agent-market"], dependencies=[Depends(_auth_dep)])
 
     @router.get("/api/agent-market/store")
@@ -414,7 +412,7 @@ def create_agent_world_router(
         agents.sort(key=lambda a: (a["is_official"], a["display_name"].lower()), reverse=True)
         return {"agents": agents[:limit], "total": len(agents), "page": 1, "page_size": limit}
 
-    @router.post("/api/agent-market/from-subagent")
+    @router.post("/api/agent-market/from-subagent", dependencies=[Depends(_admin_dep)])
     def api_agent_market_from_subagent(body: dict[str, Any]) -> dict[str, Any]:
         """把子 agent 定义晋升为角色市场岗位（进"我的安装"）。
 
@@ -485,6 +483,22 @@ def create_agent_world_router(
         if template:
             return _template_to_agent_dict(template, installed=_read_install_state())
         raise HTTPException(404, f"agent not found: {agent_id}")
+
+    @router.get("/api/agent-market/store/{agent_id}/readiness")
+    def api_agent_market_readiness(agent_id: str) -> dict[str, Any]:
+        from runtime.execution.agents.readiness import inspect_role_registration
+
+        try:
+            agent_id = _require_safe_agent_id(agent_id)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if registry is None:
+            raise HTTPException(503, "role registry is unavailable")
+        try:
+            agent = registry.get(agent_id)
+        except KeyError as exc:
+            raise HTTPException(404, "role is not loaded") from exc
+        return inspect_role_registration(agent, skill_registry)
 
     @router.post(
         "/api/agent-market/store/{agent_id}/install",
@@ -651,6 +665,33 @@ def create_agent_world_router(
             category=category, search=search, sort=sort, offset=offset, limit=limit
         )
 
+    @router.get("/api/agent-market/echo/catalog")
+    def api_echo_catalog() -> dict[str, Any]:
+        """Read-only Echo catalog roster; catalog roles are not enabled locally."""
+        catalog_root = (
+            Path(__file__).resolve().parents[3] / "extensions" / "echo-agent-catalog" / "agents"
+        )
+        items: list[dict[str, Any]] = []
+        from runtime.platform.process.utils import parse_jsonc
+
+        if catalog_root.is_dir():
+            for profile in sorted(catalog_root.glob("*/profile.jsonc")):
+                try:
+                    data = parse_jsonc(profile.read_text(encoding="utf-8"))
+                except (OSError, ValueError, UnicodeError):
+                    continue
+                items.append(
+                    {
+                        "id": str(data.get("id") or profile.parent.name),
+                        "name": str(data.get("name") or data.get("id") or profile.parent.name),
+                        "description": str(data.get("description") or ""),
+                        "category": str(data.get("category") or ""),
+                        "expert_type": str(data.get("expertType") or "agent"),
+                        "source": "echo-catalog",
+                    }
+                )
+        return {"agents": items, "total": len(items)}
+
     @router.get("/api/agent-market/cloud/store/categories")
     def api_agent_market_cloud_categories() -> dict[str, Any]:
         store = _cloud_store()
@@ -696,7 +737,9 @@ def create_agent_world_router(
             if registry is not None and runtime is not None:
                 from runtime.execution.agents.loader import load_agent
 
-                _register_public_prompt_skills(skill_registry, resources_root() / "skills" / "public")
+                _register_public_prompt_skills(
+                    skill_registry, resources_root() / "skills" / "public"
+                )
                 root = default_agents_root().resolve()
                 agent_path = Path(result["agent_path"]).resolve()
                 if not agent_path.is_relative_to(root):
@@ -752,7 +795,7 @@ def create_agent_world_router(
             from runtime.platform.plugins.external_skills import list_external_skills
 
             out = list_external_skills((search or "")[:200])
-            out["items"] = out["items"][offset:offset + limit]
+            out["items"] = out["items"][offset : offset + limit]
             return out
         cat = _cloud_catalog("skills")
         if refresh:
@@ -763,18 +806,37 @@ def create_agent_world_router(
 
     # ── 云商城已安装状态(本地已落地哪些技能/插件) ─────────────
     @router.get("/api/agent-market/cloud/installed")
-    def api_agent_market_cloud_installed() -> dict[str, Any]:
-        from runtime.platform.assets.skill_inventory import public_skill_inventory
+    def api_agent_market_cloud_installed(package_id: str | None = None) -> dict[str, Any]:
+        if package_id is not None:
+            from runtime.platform.plugins.workbench_package import WorkbenchPackageStore
+
+            try:
+                WorkbenchPackageStore.validate_id(package_id)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            plugins = _cloud_catalog("plugins")
+            return {
+                "plugins": [name for name in plugins.installed_plugins() if name == package_id],
+                "plugin_states": plugins.plugin_statuses(package_id=package_id),
+            }
+
+        from runtime.platform.assets.skill_inventory import (
+            public_skill_inventory,
+            scan_local_skills,
+        )
 
         cat = _cloud_catalog("skills")
         plugins = _cloud_catalog("plugins")
-        local_skills = public_skill_inventory()
+        # One scan feeds both the public list and the per-skill states.
+        rows = scan_local_skills()
+        local_skills = public_skill_inventory(rows)
         from runtime.platform.assets.skill_lifecycle import skill_management_states
         from runtime.platform.assets.skill_users import build_skill_users
+
         return {
             "skills": sorted(set(cat.installed_skills()) | {item["name"] for item in local_skills}),
             "local_skills": local_skills,
-            "skill_states": skill_management_states(skill_registry),
+            "skill_states": skill_management_states(skill_registry, rows),
             "skill_users": build_skill_users(_list_local_agents(), skill_registry),
             "plugins": plugins.installed_plugins(),
             "plugin_states": plugins.plugin_statuses(),
@@ -782,11 +844,13 @@ def create_agent_world_router(
 
     @router.post("/api/agent-market/cloud/skills/{name}/manage", dependencies=[Depends(_admin_dep)])
     def api_agent_market_skill_manage(name: str, body: dict[str, Any]) -> dict[str, Any]:
-        from runtime.platform.assets.skill_lifecycle import manage_skill
         from runtime.execution.suckers.market_skills import immutable_prompt_catalog_required
+        from runtime.platform.assets.skill_lifecycle import manage_skill
 
         if immutable_prompt_catalog_required():
-            raise HTTPException(403, "skill management is restricted in shared/commercial deployments")
+            raise HTTPException(
+                403, "skill management is restricted in shared/commercial deployments"
+            )
         try:
             return manage_skill(name, str(body.get("action", "")), skill_registry)
         except KeyError as exc:
@@ -882,7 +946,7 @@ def create_agent_world_router(
 
     @router.post(
         "/api/agent-market/cloud/plugins/{plugin_id}/install",
-        dependencies=[Depends(_admin_dep)],
+        dependencies=[Depends(_plugin_admin_dep)],
     )
     def api_agent_market_cloud_plugin_install(
         plugin_id: str,
@@ -890,6 +954,7 @@ def create_agent_world_router(
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         from runtime.execution.suckers.market_skills import immutable_prompt_catalog_required
+        from runtime.platform.plugins import install_errors as failures
 
         cat = _cloud_catalog("plugins")
         item = next((i for i in cat.items() if i.get("id") == plugin_id), None)
@@ -1047,14 +1112,23 @@ def create_agent_world_router(
             raise HTTPException(404, str(exc)) from exc
         except FileExistsError as exc:
             raise HTTPException(409, str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                409,
+                f"local workbench package is incomplete: {exc}. "
+                "In a source checkout, run pnpm --dir frontend build:workbenches.",
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
+            raise HTTPException(400, failures.public_install_error(exc)) from exc
+        except failures.ContentPackUnavailableError as exc:
+            # Upstream download failed: a gateway problem, not a bad request.
+            raise HTTPException(502, str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(400, str(exc)) from exc
 
     @router.post(
         "/api/agent-market/cloud/plugins/{plugin_id}/rollback",
-        dependencies=[Depends(_admin_dep)],
+        dependencies=[Depends(_plugin_admin_dep)],
     )
     def api_agent_market_cloud_plugin_rollback(
         plugin_id: str,
@@ -1101,7 +1175,7 @@ def create_agent_world_router(
 
     @router.post(
         "/api/agent-market/cloud/plugins/{plugin_id}/{action}",
-        dependencies=[Depends(_admin_dep)],
+        dependencies=[Depends(_plugin_admin_dep)],
     )
     def api_agent_market_cloud_plugin_activation(
         plugin_id: str,
@@ -1138,7 +1212,7 @@ def create_agent_world_router(
 
     @router.delete(
         "/api/agent-market/cloud/plugins/{plugin_id}/install",
-        dependencies=[Depends(_admin_dep)],
+        dependencies=[Depends(_plugin_admin_dep)],
     )
     def api_agent_market_cloud_plugin_uninstall(
         plugin_id: str,

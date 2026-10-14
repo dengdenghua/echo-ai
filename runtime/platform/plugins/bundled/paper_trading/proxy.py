@@ -37,6 +37,8 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
+from runtime.safety.auth.websocket_auth import WebSocketCredential, authenticate_websocket
+
 from .upstream_url import upstream_origin
 
 _logger = logging.getLogger(__name__)
@@ -260,6 +262,32 @@ def _response_headers(response: httpx.Response) -> dict[str, str]:
     }
 
 
+async def _relay_frames(websocket: WebSocket, upstream_ws: Any) -> None:
+    """双向转发帧;任一方向先结束就收摊,避免残留的 pump 协程泄漏。"""
+
+    async def pump_to_upstream() -> None:
+        while True:
+            msg = await websocket.receive_text()
+            await upstream_ws.send(msg)
+
+    async def pump_to_client() -> None:
+        async for msg in upstream_ws:
+            if isinstance(msg, bytes):
+                await websocket.send_bytes(msg)
+            else:
+                await websocket.send_text(msg)
+
+    done, pending = await asyncio.wait(
+        [
+            asyncio.create_task(pump_to_upstream()),
+            asyncio.create_task(pump_to_client()),
+        ],
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    for task in pending:
+        task.cancel()
+
+
 def register_origin_proxy(
     router: APIRouter,
     *,
@@ -378,7 +406,15 @@ def register_origin_proxy(
         不代理它的话页面会显示「您当前无任何持仓」且合约卡金额全空。
 
         鉴权靠查询串里的 ``sign``(前端逐次生成),这里原样透传、不做解释。
+        宿主侧与 HTTP ``/origin`` 豁免一致:开启认证时仅显式的本机单用户模式免会话
+        (见 ``WEBSOCKET_AUTH_EXEMPTIONS``),否则要求宿主会话;Origin 始终校验。
         """
+        state = getattr(websocket.app, "state", None)
+        trusted = getattr(state, "paper_trading_trusted_single_user_local_proxy", False)
+        credential = WebSocketCredential.TRUSTED_LOCAL if trusted else WebSocketCredential.SESSION
+        auth = await authenticate_websocket(websocket, credential=credential)
+        if auth is None:
+            return
         # websockets 是重依赖(经 uvicorn[standard] 传递引入),按仓库既有做法懒加载。
         try:
             import websockets
@@ -404,7 +440,7 @@ def register_origin_proxy(
             if value:
                 upstream_headers[name] = value
 
-        await websocket.accept()
+        await websocket.accept(subprotocol=auth.subprotocol)
         try:
             async with websockets.connect(
                 target,
@@ -416,29 +452,7 @@ def register_origin_proxy(
                 # 而握手永远建不起来 —— 表现就是页面持仓/合约详情一直为空。
                 proxy=None,
             ) as upstream_ws:
-
-                async def pump_to_upstream() -> None:
-                    while True:
-                        msg = await websocket.receive_text()
-                        await upstream_ws.send(msg)
-
-                async def pump_to_client() -> None:
-                    async for msg in upstream_ws:
-                        if isinstance(msg, bytes):
-                            await websocket.send_bytes(msg)
-                        else:
-                            await websocket.send_text(msg)
-
-                # 任一方向先结束就收摊,避免残留的 pump 协程泄漏。
-                done, pending = await asyncio.wait(
-                    [
-                        asyncio.create_task(pump_to_upstream()),
-                        asyncio.create_task(pump_to_client()),
-                    ],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                for task in pending:
-                    task.cancel()
+                await _relay_frames(websocket, upstream_ws)
         except Exception as exc:  # noqa: BLE001 - 上游断开/握手失败都只需静默收尾
             # 用 warning 而非 debug:握手失败(如缺 python-socks、上游 401)会让
             # 持仓/合约详情静默为空,是排查时第一个该看到的线索。

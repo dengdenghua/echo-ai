@@ -163,6 +163,7 @@ def start_agent_watcher(
     observer = Observer()
     observer.schedule(handler, str(agents_root), recursive=True)
     observer.daemon = True
+    observer.name = "agent-watcher"
     observer.start()
     _log.info("[agent-watcher] watching %s", agents_root)
     return observer

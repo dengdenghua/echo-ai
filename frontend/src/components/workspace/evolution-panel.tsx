@@ -61,7 +61,7 @@ export function EvolutionPanel({ status, trigger }: EvolutionPanelProps) {
         toast.success(t.evolutionPanel.toastReflectSuccess(rules, mems));
       }
       // Implementation note.
-      qc.invalidateQueries({ queryKey: ["evolution", "status"] });
+      void qc.invalidateQueries({ queryKey: ["evolution", "status"] });
     },
     onError: (e) => toast.error(t.evolutionPanel.toastReflectFailed(e.message)),
   });
@@ -88,7 +88,7 @@ export function EvolutionPanel({ status, trigger }: EvolutionPanelProps) {
     mutationFn: (index: number) => forgetRule(index),
     onSuccess: () => {
       toast.success(t.evolutionPanel.toastForgetRuleSuccess);
-      qc.invalidateQueries({ queryKey: ["evolution", "status"] });
+      void qc.invalidateQueries({ queryKey: ["evolution", "status"] });
     },
     onError: (e: Error) =>
       toast.error(t.evolutionPanel.toastDeleteFailed(e.message)),
@@ -97,7 +97,7 @@ export function EvolutionPanel({ status, trigger }: EvolutionPanelProps) {
     mutationFn: (index: number) => forgetMemory(index),
     onSuccess: () => {
       toast.success(t.evolutionPanel.toastForgetMemorySuccess);
-      qc.invalidateQueries({ queryKey: ["evolution", "status"] });
+      void qc.invalidateQueries({ queryKey: ["evolution", "status"] });
     },
     onError: (e: Error) =>
       toast.error(t.evolutionPanel.toastDeleteFailed(e.message)),
@@ -531,7 +531,7 @@ function ReActVariantsTable({ variants }: { variants: ReActVariantStat[] }) {
                 <td
                   className={cn(
                     "px-2 py-2 text-right tabular-nums",
-                    v.assignments === 0 && "text-muted-foreground/40",
+                    v.assignments === 0 && "text-muted-foreground",
                   )}
                 >
                   {v.assignments === 0

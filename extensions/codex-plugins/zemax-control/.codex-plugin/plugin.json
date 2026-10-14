@@ -1,0 +1,26 @@
+{
+  "name": "zemax-control",
+  "version": "0.1.0+echo.20260925",
+  "description": "Control local Zemax OpticStudio through ZOS-API with optical design skills and MCP tools.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Zemax Control",
+    "shortDescription": "Zemax 光学设计、分析与自动化",
+    "longDescription": "通过本地 ZOS-API MCP 连接 OpticStudio，支持镜头编辑、分析、优化、公差和非序列光线追迹。需要本机 Zemax 和有效 API 许可证。",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "检查本机 Zemax 环境并连接当前 OpticStudio。",
+      "读取当前镜头参数并分析光斑和 MTF。",
+      "根据光学指标建立模型并进行优化。"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

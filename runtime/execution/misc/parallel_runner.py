@@ -11,12 +11,15 @@ import logging
 import time
 import uuid
 from collections import deque
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Future
+from concurrent.futures import wait as wait_futures
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from threading import RLock
 from typing import Any
+
+from runtime.platform.process.daemon_executor import DaemonThreadPoolExecutor
 
 try:
     from fastapi import APIRouter, HTTPException, Request
@@ -83,7 +86,9 @@ class ParallelTaskRunner:
         max_retained_terminal: int = 200,
     ):
         self._tasks: dict[str, ParallelTask] = {}
-        self._pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="parallel-task")
+        self._pool = DaemonThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix="parallel-task"
+        )
         self._cancelled: set[str] = set()
         self._futures: dict[str, Future[None]] = {}
         self._terminal_order: deque[str] = deque()
@@ -208,7 +213,7 @@ class ParallelTaskRunner:
                 self._sources.pop(expired, None)
                 self._futures.pop(expired, None)
 
-    def shutdown(self, *, wait: bool = True) -> None:
+    def shutdown(self, *, wait: bool = True, timeout: float = 5.0) -> None:
         """Cancel active work and release this app's executor exactly once."""
         with self._lock:
             if self._closed:
@@ -231,7 +236,11 @@ class ParallelTaskRunner:
             source.cancel(reason="parallel task runner shutdown")
         for _task_id, future in futures:
             future.cancel()
-        self._pool.shutdown(wait=wait, cancel_futures=True)
+        self._pool.shutdown(wait=False, cancel_futures=True)
+        if wait and futures:
+            _, pending = wait_futures([future for _, future in futures], timeout=max(0, timeout))
+            if pending:
+                _logger.warning("parallel shutdown grace expired: %d running tasks", len(pending))
         with self._lock:
             # Queued futures cancelled by shutdown never enter the worker's
             # finally block, so release their transient bookkeeping here.

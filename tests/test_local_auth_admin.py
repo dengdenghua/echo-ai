@@ -45,8 +45,8 @@ def test_only_configured_local_owner_passes_real_cloud_install_role_gate(monkeyp
             jwt_issuer=config.jwt_issuer,
         )
     )
-    with TestClient(app) as client:
-        for username, status in [("guest", 403), ("owner", 200), ("OWNER", 403)]:
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        for username, status in [("guest", 403), ("owner", 200), ("OWNER", 200)]:
             login = client.post(
                 "/api/auth/local/login",
                 json={"username": username, "roles": ["admin"], "admin_usernames": [username]},
@@ -58,7 +58,7 @@ def test_only_configured_local_owner_passes_real_cloud_install_role_gate(monkeyp
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert response.status_code == status, response.text
-    assert calls == ["example"]
+    assert calls == ["example", "example"]
     assert identities.get("local:guest").roles == ("user", "local")
     assert identities.get("local:owner").roles == ("user", "local", "admin")
 
@@ -70,6 +70,19 @@ def test_admin_allowlist_does_not_bypass_login_allowlist(monkeypatch):
     config = LocalAuthConfig(enabled=True, allowed_usernames=["guest"], admin_usernames=["owner"])
     app = FastAPI()
     app.include_router(create_local_auth_router(config=config, identity_store=identities))
-    with TestClient(app) as client:
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
         assert client.post("/api/auth/local/login", json={"username": "owner"}).status_code == 403
     assert identities.get("local:owner") is None
+
+
+def test_wildcard_admin_promotes_existing_local_identity(monkeypatch):
+    monkeypatch.setenv("ECHO_ENV", "development")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
+    config = LocalAuthConfig(enabled=True, allow_any_username=True, admin_usernames=["*"])
+    identities = IdentityStore()
+    app = FastAPI()
+    app.include_router(create_local_auth_router(config=config, identity_store=identities))
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post("/api/auth/local/login", json={"username": "anyone"})
+    assert response.status_code == 200
+    assert identities.get("local:anyone").roles == ("user", "local", "admin")

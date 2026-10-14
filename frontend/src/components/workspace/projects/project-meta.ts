@@ -12,7 +12,9 @@ export const STATUS_LABEL: Record<string, string> = {
   running: "进行中",
   blocked: "已阻塞",
   done: "已完成",
-  failed: "失败",
+  // 后端引擎从不自行把项目置为 failed（执行问题一律阻塞待恢复），
+  // 这个终态只来自用户「取消项目」。
+  failed: "已终止",
 };
 
 export const HEALTH_LABEL: Record<string, string> = {
@@ -24,7 +26,7 @@ export const HEALTH_LABEL: Record<string, string> = {
 };
 
 export const HEALTH_TONE: Record<ProjectHealth, string> = {
-  on_track: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+  on_track: "bg-core/15 text-core border-core/30",
   at_risk: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   overdue: "bg-orange-500/15 text-orange-600 border-orange-500/30",
   blocked: "bg-rose-500/15 text-rose-600 border-rose-500/30",
@@ -32,7 +34,7 @@ export const HEALTH_TONE: Record<ProjectHealth, string> = {
 };
 
 export const HEALTH_DOT: Record<ProjectHealth, string> = {
-  on_track: "bg-emerald-500",
+  on_track: "bg-core",
   at_risk: "bg-amber-500",
   overdue: "bg-orange-500",
   blocked: "bg-rose-500",
@@ -40,7 +42,7 @@ export const HEALTH_DOT: Record<ProjectHealth, string> = {
 };
 
 export const HEALTH_FILL: Record<ProjectHealth, string> = {
-  on_track: "#10b981",
+  on_track: "var(--echo-core)",
   at_risk: "#f59e0b",
   overdue: "#f97316",
   blocked: "#f43f5e",
@@ -49,7 +51,7 @@ export const HEALTH_FILL: Record<ProjectHealth, string> = {
 
 /** 甘特条：底色（计划区间）与进度条（已完成部分）。 */
 export const HEALTH_BAR_TRACK: Record<ProjectHealth, string> = {
-  on_track: "bg-emerald-500/25",
+  on_track: "bg-core/25",
   at_risk: "bg-amber-500/25",
   overdue: "bg-orange-500/30",
   blocked: "bg-rose-500/30",
@@ -57,7 +59,7 @@ export const HEALTH_BAR_TRACK: Record<ProjectHealth, string> = {
 };
 
 export const HEALTH_BAR_FILL: Record<ProjectHealth, string> = {
-  on_track: "bg-emerald-500",
+  on_track: "bg-core",
   at_risk: "bg-amber-500",
   overdue: "bg-orange-500",
   blocked: "bg-rose-500",
@@ -74,7 +76,7 @@ export const HEALTH_LABEL_EN: Record<ProjectHealth, string> = {
 
 export const STATUS_TONE: Record<string, string> = {
   planning: "bg-muted text-muted-foreground",
-  running: "bg-emerald-500/15 text-emerald-600",
+  running: "bg-core/15 text-core",
   blocked: "bg-rose-500/15 text-rose-600",
   done: "bg-sky-500/15 text-sky-600",
   failed: "bg-rose-500/15 text-rose-600",
@@ -84,7 +86,7 @@ export const PRIORITY_TONE: Record<string, string> = {
   P0: "bg-rose-500/15 text-rose-600",
   P1: "bg-amber-500/15 text-amber-600",
   P2: "bg-muted text-muted-foreground",
-  P3: "bg-muted text-muted-foreground/70",
+  P3: "bg-muted text-muted-foreground",
 };
 
 export function statusLabel(status: string | undefined): string {

@@ -21,6 +21,9 @@ import {
 } from "react";
 
 import { useI18n } from "@/core/i18n/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { coordinationRequest, type CoordinationSnapshot } from "@/core/cowork/coordination";
+import { mergeCoordinatedAgents } from "./agent-workbench-panel/coordinated-agents";
 import {
   artifactDisplayPath,
   normalizeWorkspaceArtifactRef,
@@ -48,7 +51,7 @@ import type {
 } from "./agent-workbench-events";
 import type { LiveToolEvent } from "./live-tool-timeline";
 import { cn } from "@/lib/utils";
-import { CoworkCollabBar } from "./cowork-collab-bar";
+import { CoworkSearchMenu } from "./cowork-collab-bar";
 import { CollaborationDeliveryRecovery } from "./collaboration-delivery-recovery";
 import type { ExtractedCodeBlocks } from "@/lib/extract-code-blocks";
 import type { StreamdownProps } from "streamdown";
@@ -129,8 +132,11 @@ function AgentWorkbenchPanelImpl({
   showMachineScopeRail = true,
   showMachineRosterRail = true,
   showDeliveryRecovery = false,
+  hideMainOverview = false,
 }: {
   activeTab?: AgentWorkbenchTabId;
+  /** Chat owns task progress; the header menu owns sources. */
+  hideMainOverview?: boolean;
   events: LiveToolEvent[];
   /** 「进展」面板的叙事大纲（按 iteration 分组）；缺省时回退为 phase 平铺。 */
   progressOutline?: OutlineRound[];
@@ -246,9 +252,6 @@ function AgentWorkbenchPanelImpl({
         const turnId = `turn_${lastEvent.startedAt}`;
         const cached = await snapshotCacheRef.current?.load(threadId, turnId);
         if (cached) {
-          console.log(
-            `[WorkbenchCache] Restored snapshot from cache (${cached.events.length} events)`,
-          );
           setCachedSnapshot(cached.snapshot);
         }
       } catch (error) {
@@ -256,7 +259,7 @@ function AgentWorkbenchPanelImpl({
       }
     };
 
-    restoreFromCache();
+    void restoreFromCache();
   }, [enableCache, threadId, events, cachedSnapshot]);
 
   const workbenchSnapshot = useAgentWorkbenchSnapshot(events, {
@@ -275,7 +278,6 @@ function AgentWorkbenchPanelImpl({
       cachedSnapshot &&
       cachedSnapshot.fingerprint === workbenchSnapshot.fingerprint
     ) {
-      console.log("[WorkbenchCache] Using cached snapshot");
       return cachedSnapshot;
     }
     return workbenchSnapshot;
@@ -298,21 +300,18 @@ function AgentWorkbenchPanelImpl({
           workbenchSnapshot,
           events,
         );
-        console.log(
-          `[WorkbenchCache] Saved snapshot to cache (v${workbenchSnapshot.version})`,
-        );
       } catch (error) {
         console.warn("[WorkbenchCache] Failed to save to cache:", error);
       }
     };
 
     // 防抖保存，避免频繁写入
-    const timer = setTimeout(saveToCache, 500);
+    const timer = setTimeout(() => void saveToCache(), 500);
     return () => clearTimeout(timer);
   }, [enableCache, threadId, workbenchSnapshot, events]);
 
   const {
-    agentTiles,
+    agentTiles: eventAgentTiles,
     blocks,
     currentPhase: snapshotCurrentPhase,
     focusedTab,
@@ -321,6 +320,14 @@ function AgentWorkbenchPanelImpl({
     visibleDiffEntries,
     evidence,
   } = activeSnapshot;
+  const coordination = useQuery({
+    queryKey: ["coordination", threadId],
+    queryFn: () => coordinationRequest<CoordinationSnapshot>(threadId!),
+    enabled: Boolean(showDeliveryRecovery && threadId && threadId !== "new"),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+  });
+  const agentTiles = useMemo(() => mergeCoordinatedAgents(eventAgentTiles, coordination.data?.tasks ?? []), [eventAgentTiles, coordination.data?.tasks]);
   const typedGroundingSources = useMemo<GroundingSource[]>(
     () =>
       evidence
@@ -525,7 +532,8 @@ function AgentWorkbenchPanelImpl({
     (requestedActiveTab === "project" &&
       (projectOsQuery.isLoading || projectOsQuery.isError));
   const mergeProjectHome = projectTabVisible && workspacePresetForAgent(personaId).workbench === "office";
-  const effectiveActiveTab:
+  const isDevelopmentWorkbench = workspacePresetForAgent(personaId).workbench === "development";
+  const normalizedActiveTab:
     | "agent"
     | "diff"
     | "terminal"
@@ -542,13 +550,23 @@ function AgentWorkbenchPanelImpl({
       : requestedActiveTab === "project" && !projectTabVisible
         ? "agent"
         : requestedActiveTab;
+  const effectiveActiveTab =
+    isDevelopmentWorkbench && normalizedActiveTab === "workspace"
+      ? "diff"
+      : hideMainOverview &&
+    normalizedActiveTab === "agent" &&
+    !selectedAgent &&
+    !selectedRosterSeat &&
+    !selectedEffectKey
+      ? (mergeProjectHome ? "project" : isDevelopmentWorkbench ? "diff" : "workspace")
+      : normalizedActiveTab;
   const workbenchTabs: WorkbenchTab[] = useMemo(
     () => [
       ...(mergeProjectHome ? [{
         id: "project" as const,
         label: t.agentWorkbenchPages.projectTab,
         Icon: FolderKanbanIcon,
-      }] : [{
+      }] : isDevelopmentWorkbench ? [] : [{
         id: "workspace" as const,
         label: workspacePresetForAgent(personaId).workbenchLabel,
         Icon: PanelsTopLeftIcon,
@@ -583,7 +601,7 @@ function AgentWorkbenchPanelImpl({
           ]
         : []),
     ],
-    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome],
+    [t.agentWorkbenchPages, t.conversation, projectTabVisible, personaId, mergeProjectHome, isDevelopmentWorkbench],
   );
 
   // Auto-open a tab if it becomes the effective active tab
@@ -761,10 +779,7 @@ function AgentWorkbenchPanelImpl({
         onBack={() => setSelectedEffectKey(null)}
       />
     ) : effectiveActiveTab === "diff" ? (
-      <AgentDiffPage
-        entries={visibleDiffEntries}
-        onBackToSummary={() => handleOpenTab("agent")}
-      />
+      <AgentDiffPage entries={visibleDiffEntries} />
     ) : effectiveActiveTab === "terminal" ? (
       <TerminalPanel
         sessionId={`agent-workbench-${threadId ?? "local"}`}
@@ -823,6 +838,7 @@ function AgentWorkbenchPanelImpl({
       )}
     >
       <WorkbenchTabHeader
+        actions={threadId && effectiveActiveTab !== "project" && effectiveActiveTab !== "workspace" ? <CoworkSearchMenu threadId={threadId} /> : null}
         mainButton={{
           active:
             effectiveActiveTab === "agent" &&
@@ -841,16 +857,15 @@ function AgentWorkbenchPanelImpl({
         onTabClick={handleOpenTab}
         onTabClose={handleCloseTab}
         onClose={onClose}
-        workspaceLabel={workspaceLabel}
+        workspaceLabel={selectedAgent ? (selectedAgent.codename ?? selectedAgent.name) : workspaceLabel}
         showWorkspaceLabel
-        mainRunStatusLabel={mainRunStatus.label}
+        mainRunStatusLabel={selectedAgent ? (selectedAgent.status === "running" ? t.agentWorkbenchPanel.agentStatusRunning : selectedAgent.status === "error" ? t.agentWorkbenchPanel.agentStatusError : selectedAgent.status) : mainRunStatus.label}
       />
 
       {threadId &&
       effectiveActiveTab !== "project" &&
       effectiveActiveTab !== "workspace" ? (
         <>
-          <CoworkCollabBar threadId={threadId} rosterSeats={rosterSeats} />
           {showDeliveryRecovery ? (
             <CollaborationDeliveryRecovery threadId={threadId} />
           ) : null}
@@ -1041,7 +1056,7 @@ function FileListRow({
         {name}
       </span>
       {isCurrentTurn && (
-        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
           <SparklesIcon className="size-2.5" />
           本轮
         </span>
@@ -1097,7 +1112,7 @@ export function PreviewPane({
           {getFileName(displayPath)}
         </span>
         {lang && (
-          <span className="shrink-0 text-[10px] text-muted-foreground uppercase">
+          <span className="shrink-0 text-xs text-muted-foreground uppercase">
             {lang}
           </span>
         )}

@@ -113,7 +113,7 @@ export function SmartTeamDialog({
         openPicker: true,
       });
       onOpenChange(false);
-      navigate(taskCollaboratorRouteForLeader(runtimeLead));
+      void navigate(taskCollaboratorRouteForLeader(runtimeLead));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "智能组队失败");
     } finally {
@@ -126,7 +126,7 @@ export function SmartTeamDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <SparklesIcon className="size-5 text-violet-500" />
+            <SparklesIcon className="size-5 text-core" />
             智能组队
           </DialogTitle>
           <DialogDescription>
@@ -158,14 +158,14 @@ export function SmartTeamDialog({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{agent.display_name}</span>
-                        <span className="block truncate text-[11px] text-muted-foreground">
+                        <span className="block truncate text-xs text-muted-foreground">
                           {index === 0 ? "任务协调候选" : agent.tags.includes("专家团") ? "专家团" : agent.category}
                         </span>
                       </span>
-                      {!agent.is_installed ? <span className="text-[10px] text-amber-600">需安装</span> : null}
+                      {!agent.is_installed ? <span className="text-xs text-warning">需安装</span> : null}
                     </div>
                   ))}
-                  {catalogLoading ? <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-muted-foreground"><Loader2Icon className="size-3 animate-spin" />正在扫描云端专家目录…</div> : null}
+                  {catalogLoading ? <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground"><Loader2Icon className="size-3 animate-spin" />正在扫描云端专家目录…</div> : null}
                 </div>
               </section>
               <section className="rounded-xl border border-border bg-muted/15 p-3">
@@ -176,14 +176,14 @@ export function SmartTeamDialog({
                   {plan.plugins.length > 0 ? plan.plugins.map((plugin) => (
                     <div key={plugin.id} className="rounded-lg bg-background px-2.5 py-2">
                       <div className="text-sm font-medium">{plugin.label}</div>
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">{plugin.reason}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{plugin.reason}</div>
                     </div>
                   )) : <p className="text-xs text-muted-foreground">描述再具体一些后，会给出插件建议。</p>}
                 </div>
               </section>
             </div>
           ) : null}
-          <p className="text-[11px] leading-5 text-muted-foreground">
+          <p className="text-xs leading-5 text-muted-foreground">
             推荐成员不是固定流程。群主会获得本次任务专用的动态编排能力，按真实依赖决定并行、交接和复核，任务结束后不改变角色的永久技能。插件只推荐，不会静默安装。
           </p>
         </div>

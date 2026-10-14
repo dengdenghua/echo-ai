@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { renderWithProviders } from "@/test/harness";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 
-import { PresenceDots, SearchHitList } from "./cowork-collab-bar";
+import {
+  CoworkSearchMenu,
+  SearchHitList,
+} from "./cowork-collab-bar";
 import type {
-  CoworkMemberPresence,
   CoworkSearchHit,
 } from "@/core/cowork/types";
 
@@ -21,45 +24,7 @@ const t = {
     kindRoomTask: "Room task",
     linkedRoom: "Linked room",
   },
-} as unknown as Parameters<typeof PresenceDots>[0]["t"];
-
-function member(over: Partial<CoworkMemberPresence>): CoworkMemberPresence {
-  return {
-    member_id: "m",
-    last_read: 0,
-    last_seen_at: null,
-    online: false,
-    unread: 0,
-    ...over,
-  };
-}
-
-describe("PresenceDots", () => {
-  it("renders nothing with no members", () => {
-    const { container } = render(<PresenceDots members={[]} t={t} />);
-    expect(container.firstChild).toBeNull();
-  });
-
-  it("shows online count without aggregating member unread counters", () => {
-    render(
-      <PresenceDots
-        members={[
-          member({ member_id: "a", online: true, unread: 2 }),
-          member({ member_id: "b", online: false, unread: 3 }),
-        ]}
-        t={t}
-      />,
-    );
-    expect(screen.getByText("1 online")).toBeTruthy();
-    expect(screen.queryByText("5 unread")).toBeNull();
-    expect(screen.queryByTestId("cowork-unread-total")).toBeNull();
-  });
-
-  it("keeps the presence strip quiet when everything is read", () => {
-    render(<PresenceDots members={[member({ online: true })]} t={t} />);
-    expect(screen.queryByTestId("cowork-unread-total")).toBeNull();
-  });
-});
+} as unknown as Parameters<typeof SearchHitList>[0]["t"];
 
 describe("SearchHitList", () => {
   const hit = (over: Partial<CoworkSearchHit>): CoworkSearchHit => ({
@@ -119,4 +84,22 @@ describe("SearchHitList", () => {
     expect(screen.getByText("Room task")).toBeTruthy();
     expect(screen.getByText("Draft launch plan")).toBeTruthy();
   });
+});
+
+
+vi.mock("@/core/cowork/hooks", () => ({
+  useCollabSession: () => ({data: {presence: [{member_id: "a", online: true}], room_messages: []}}),
+  useCoworkSearch: () => ({data: {hits: []}}),
+  useCoworkGroup: () => ({data: {state: {mode: "cluster", roster: [{member_id: "a"}, {member_id: "b"}], takeover_ids: []}}}),
+  useMarkCoworkRead: () => ({mutate: vi.fn()}),
+}));
+
+it("retains workbench search without duplicate mode or member controls", () => {
+  renderWithProviders(<CoworkSearchMenu threadId="thread-group" />, {locale: "zh-CN"});
+  expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  fireEvent.pointerDown(screen.getByTestId("cowork-search-trigger"), {button: 0, ctrlKey: false, pointerType: "mouse"});
+  expect(screen.getByRole("searchbox")).toHaveFocus();
+  expect(screen.queryByTestId("cowork-presence")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("cowork-mode-selector-trigger")).not.toBeInTheDocument();
+  expect(screen.queryByText(/在线/)).not.toBeInTheDocument();
 });

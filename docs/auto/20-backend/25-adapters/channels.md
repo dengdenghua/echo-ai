@@ -98,6 +98,7 @@ tier: "standard"
 
 | Module | Summary |
 | --- | --- |
+| `_webhook_auth.py` | Shared inbound-webhook authentication helpers for channel adapters. |
 | `base.py` | — |
 | `bluebubbles.py` | — |
 | `dingtalk.py` | — |
@@ -131,6 +132,23 @@ tier: "standard"
 ## Key classes & functions
 
 > AST 自动提取 · 仅列公开顶层 class / function · 签名与真实代码一致。
+
+### `_webhook_auth.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class WebhookAuthError(ValueError)` | Inbound webhook failed authentication (maps to HTTP 401). |
+| func | `def secrets_match(provided, expected)` | Constant-time secret comparison; empty/non-string values never match. |
+| func | `def header_value(headers, name)` | Case-insensitive header lookup (the router lower-cases, tests may not). |
+| func | `def bearer_token(headers)` |  |
+| func | `def check_webhook_secret(expected, headers, query, error_cls)` | Require the configured shared secret when one is set (fail closed). |
+| func | `def host_allowed(url, allowed_hosts)` | True when *url* is https and its host matches the allowlist. |
+| func | `def rsa_key_from_jwk(jwk)` |  |
+| func | `def rsa_key_from_pem_cert(pem)` |  |
+| func | `def keys_from_jwks(jwks)` |  |
+| func | `def keys_from_x509_map(certs)` |  |
+| class | `class RemoteKeySet` | Thread-safe cache of ``kid -> (public_key, jwk)`` from a remote source. |
+| func | `def verify_rs256_jwt(token, resolve_key, issuers, audiences, leeway_seconds, now, error_cls)` | Verify an RS256 JWT and return ``(claims, jwk)``; raise *error_cls* otherwise. |
 
 ### `base.py`
 

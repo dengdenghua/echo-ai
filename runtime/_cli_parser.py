@@ -48,6 +48,7 @@ _CLI_COMMANDS = frozenset(
         "bb",
         "plugins",
         "guard-health",
+        "bundle",
     }
 )
 
@@ -79,6 +80,20 @@ def _normalize_cli_argv(argv: list[str]) -> list[str]:
             continue
         return [*argv[:idx], "code", *argv[idx:]]
     return argv
+
+
+def _add_project_run_options(run_parser: argparse.ArgumentParser) -> None:
+    """``echo project run`` options; stub hooks never drive other projects silently."""
+    run_parser.add_argument("--max-ticks", type=int, default=50, dest="max_ticks")
+    run_parser.add_argument(
+        "--allow-stub-hooks",
+        action="store_true",
+        dest="allow_stub_hooks",
+        help=(
+            "DANGEROUS: drive a project the CLI did not plan with the offline stub "
+            "hooks (fabricated output, auto-approved QA)"
+        ),
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -600,7 +615,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _pp_run.add_argument("--id", default=None, help="existing project id")
     _pp_run.add_argument("--goal", default=None, help="goal to plan+run if no --id")
     _pp_run.add_argument("--name", default="", help="project name when planning")
-    _pp_run.add_argument("--max-ticks", type=int, default=50, dest="max_ticks")
+    _add_project_run_options(_pp_run)
     _pp_report = project_sub.add_parser("report", help="Show a project's milestone report.")
     _pp_report.add_argument("--id", required=True, help="project id")
     project_sub.add_parser("list", help="List all projects.")
@@ -611,18 +626,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "-o",
         type=Path,
         default=None,
-        help=(
-            "output tar.gz path (default: backup-<timestamp>.tar.gz below the active Echo home)"
-        ),
+        help=("output tar.gz path (default: backup-<timestamp>.tar.gz below the active Echo home)"),
     )
     backupp.add_argument(
         "--base-dir",
         type=str,
         default=None,
-        help=(
-            "Echo data root (default: runtime environment; "
-            "ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"
-        ),
+        help=("Echo data root (default: runtime environment; ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"),
     )
     backupp.add_argument(
         "--components",
@@ -650,10 +660,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--base-dir",
         type=str,
         default=None,
-        help=(
-            "Echo data root (default: runtime environment; "
-            "ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"
-        ),
+        help=("Echo data root (default: runtime environment; ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"),
     )
     restorep.add_argument(
         "--components",
@@ -688,10 +695,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--base-dir",
         type=str,
         default=None,
-        help=(
-            "Echo data root (default: runtime environment; "
-            "ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"
-        ),
+        help=("Echo data root (default: runtime environment; ECHO_DATA_DIR/ECHO_HOME or ~/.echo)"),
     )
     exportp.add_argument(
         "--components",
@@ -835,6 +839,38 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     guardp.add_argument(
         "--tuning-threshold", type=int, default=20, help="min hits to consider for tuning"
+    )
+
+    bundlep = sub.add_parser(
+        "bundle",
+        help="Inspect, verify and provision the kernel supply contract (runtime/bundle.json).",
+    )
+    bundle_sub = bundlep.add_subparsers(dest="bundle_op")
+    bundlep.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="path to bundle.json (default: runtime/bundle.json)",
+    )
+    bundle_sub.add_parser("show", help="Print the declared bundle identity and resources.")
+    bundle_sub.add_parser("verify", help="Check every declared resource digest in the tree.")
+    bundle_sub.add_parser("stamp", help="Print the stamp this bundle currently renders to.")
+    bundle_sub.add_parser("sync", help="Recompute resource digests from resourceRoots.")
+    bundle_provision = bundle_sub.add_parser(
+        "provision", help="Idempotently materialise the bundle into a target directory."
+    )
+    bundle_provision.add_argument("target", type=Path, help="install root to bring up to date")
+    bundle_provision.add_argument(
+        "--stamp",
+        type=Path,
+        default=None,
+        help="stamp path (default: <target>/.echo-bundle-stamp)",
+    )
+    bundle_provision.add_argument(
+        "--dry-run", action="store_true", help="plan only; do not touch the target"
+    )
+    bundle_provision.add_argument(
+        "--force", action="store_true", help="ignore a matching stamp and re-plan"
     )
 
     return parser

@@ -69,7 +69,7 @@ describe("<ModelPicker />", () => {
       ),
     );
     await user.click(screen.getByTestId("model-picker-trigger"));
-    const search = screen.getByRole("textbox", { name: "搜索模型或提供商" });
+    const search = screen.getByRole("searchbox", { name: "搜索模型或提供商" });
     expect(search).toHaveFocus();
     await user.type(search, "ZHIpU 5.3");
     expect(
@@ -92,13 +92,13 @@ describe("<ModelPicker />", () => {
       ),
     );
     await user.click(screen.getByTestId("model-picker-trigger"));
-    await user.type(screen.getByRole("textbox"), "no-such-model");
+    await user.type(screen.getByRole("searchbox"), "no-such-model");
     expect(screen.getByRole("status")).toHaveTextContent("没有匹配的模型");
     await user.keyboard("{Enter}{Escape}");
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByTestId("model-picker-trigger")).toHaveFocus();
     await user.click(screen.getByTestId("model-picker-trigger"));
-    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(screen.getByRole("searchbox")).toHaveValue("");
   });
 
   it("switches Zen and Go catalogs without changing the selected billing source until selection", async () => {
@@ -295,18 +295,12 @@ describe("<ModelPicker />", () => {
     expect(trigger).toHaveTextContent("big-pickle");
     expect(trigger).not.toHaveTextContent("免费");
     expect(trigger).toHaveAttribute("title", "big-pickle · 免费");
-    expect(within(trigger).getByText("big-pickle")).toHaveClass(
-      "text-emerald-600",
-    );
+    expect(within(trigger).getByText("big-pickle")).toHaveClass("text-core");
 
     await user.click(trigger);
     const menu = await screen.findByTestId("model-picker-menu");
-    expect(within(menu).getByText("big-pickle")).toHaveClass(
-      "text-emerald-600",
-    );
-    expect(within(menu).getByText("mimo-v2.5-free")).toHaveClass(
-      "text-emerald-600",
-    );
+    expect(within(menu).getByText("big-pickle")).toHaveClass("text-core");
+    expect(within(menu).getByText("mimo-v2.5-free")).toHaveClass("text-core");
     expect(within(menu).queryByText("FREE")).not.toBeInTheDocument();
   });
 
@@ -398,6 +392,63 @@ describe("<ModelPicker />", () => {
     expect(change).toHaveBeenLastCalledWith("private-route");
   });
 
+  it("names the upstream model next to an official tier label", async () => {
+    const user = userEvent.setup();
+    render(
+      withRouter(
+        <ModelPicker
+          engineSource="opencode"
+          onChange={vi.fn()}
+          models={[
+            {
+              name: "official/qwen3.5-flash",
+              model: "official/qwen3.5-flash",
+              entry_id: "official",
+              selection_id: "official/qwen3.5-flash",
+              display_name: "极速",
+            },
+          ]}
+        />,
+      ),
+    );
+    await user.click(screen.getByTestId("model-picker-trigger"));
+    await user.click(
+      screen.getByRole("button", { name: "官方模型", exact: true }),
+    );
+    const row = screen.getByRole("button", { name: "极速", exact: true });
+    expect(within(row).getByText("qwen3.5-flash")).toHaveClass("font-mono");
+  });
+
+  it.each([
+    ["Zen", "还没有连接 OpenCode Zen"],
+    ["Go", "还没有连接 OpenCode Go 套餐"],
+  ])(
+    "explains an empty OpenCode %s tab instead of calling it custom models",
+    async (tab, copy) => {
+      const user = userEvent.setup();
+      render(
+        withRouter(
+          <ModelPicker
+            engineSource="opencode"
+            onChange={vi.fn()}
+            models={[]}
+          />,
+        ),
+      );
+      await user.click(screen.getByTestId("model-picker-trigger"));
+      const menu = await screen.findByTestId("model-picker-menu");
+      await user.click(within(menu).getByRole("button", { name: tab }));
+      expect(within(menu).getByText(new RegExp(copy))).toBeInTheDocument();
+      expect(within(menu).queryByText("没有自定义模型")).toBeNull();
+      expect(
+        within(menu).getByRole("button", { name: "连接 OpenCode" }),
+      ).toBeInTheDocument();
+      expect(within(menu).getByRole("searchbox")).toHaveClass(
+        "text-ui-caption",
+      );
+    },
+  );
+
   it("shows paid OpenCode models after free models without free styling", async () => {
     const user = userEvent.setup();
     render(
@@ -423,9 +474,7 @@ describe("<ModelPicker />", () => {
     ).toBeGreaterThan(
       labels.findIndex((label) => label?.startsWith("big-pickle")),
     );
-    expect(within(menu).getByText("Paid model")).not.toHaveClass(
-      "text-emerald-600",
-    );
+    expect(within(menu).getByText("Paid model")).not.toHaveClass("text-core");
   });
 
   it("lists every model in one flat list, no tabs", async () => {
@@ -730,128 +779,6 @@ describe("<ModelPicker />", () => {
     await user.click(screen.getByRole("radio", { name: "Max · 1M" }));
     expect(onChange).toHaveBeenLastCalledWith("selection-backup-shared-1m");
     expect(onChange).toHaveBeenCalledOnce();
-  });
-
-  it("keeps reasoning effort inside the model dropdown", async () => {
-    const user = userEvent.setup();
-    const onReasoningEffortChange = vi.fn();
-    render(
-      withRouter(
-        <ModelPicker
-          models={MODELS.map((model) => ({
-            ...model,
-            reasoning_efforts: ["medium", "high", "xhigh"],
-          }))}
-          value="kimi-k2.5"
-          onChange={vi.fn()}
-          reasoningEffort="medium"
-          onReasoningEffortChange={onReasoningEffortChange}
-        />,
-      ),
-    );
-
-    await user.click(screen.getByRole("button", { name: "选择模型" }));
-    const group = await screen.findByRole("radiogroup", {
-      name: "推理等级",
-    });
-
-    expect(within(group).getByRole("radio", { name: "中" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    await user.click(within(group).getByRole("radio", { name: "超高" }));
-
-    expect(onReasoningEffortChange).toHaveBeenCalledWith("xhigh");
-  });
-
-  it("only offers the effort tiers the selected model genuinely supports", async () => {
-    const user = userEvent.setup();
-    render(
-      withRouter(
-        <ModelPicker
-          models={[
-            {
-              name: "deepseek-v4",
-              model: "deepseek-v4",
-              display_name: "DeepSeek V4",
-              reasoning_efforts: ["off", "high", "xhigh"],
-            },
-          ]}
-          value="deepseek-v4"
-          onChange={vi.fn()}
-          reasoningEffort="medium"
-          onReasoningEffortChange={vi.fn()}
-        />,
-      ),
-    );
-
-    await user.click(screen.getByRole("button", { name: "选择模型" }));
-    const group = await screen.findByRole("radiogroup", {
-      name: "推理等级",
-    });
-    const radios = within(group).getAllByRole("radio");
-    // Only off / high / xhigh — the low/medium tiers DeepSeek collapses
-    // onto "high" on the wire are not offered.
-    expect(radios.map((r) => r.textContent)).toEqual(["关闭", "高", "超高"]);
-  });
-
-  it("hides the effort control when the model has no meaningful tiers", async () => {
-    const user = userEvent.setup();
-    render(
-      withRouter(
-        <ModelPicker
-          models={[
-            {
-              name: "minimax-m2",
-              model: "minimax-m2",
-              display_name: "MiniMax M2",
-              reasoning_efforts: [],
-            },
-          ]}
-          value="minimax-m2"
-          onChange={vi.fn()}
-          reasoningEffort="medium"
-          onReasoningEffortChange={vi.fn()}
-        />,
-      ),
-    );
-
-    await user.click(screen.getByRole("button", { name: "选择模型" }));
-    expect(
-      screen.queryByRole("radiogroup", { name: "推理等级" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows a mapping hint when the current effort is not offered", async () => {
-    const user = userEvent.setup();
-    render(
-      withRouter(
-        <ModelPicker
-          models={[
-            {
-              name: "deepseek-v4",
-              model: "deepseek-v4",
-              display_name: "DeepSeek V4",
-              reasoning_efforts: ["off", "high", "xhigh"],
-            },
-          ]}
-          value="deepseek-v4"
-          onChange={vi.fn()}
-          reasoningEffort="medium"
-          onReasoningEffortChange={vi.fn()}
-        />,
-      ),
-    );
-
-    await user.click(screen.getByRole("button", { name: "选择模型" }));
-    const menu = await screen.findByTestId("model-picker-menu");
-    // "中" isn't offered for DeepSeek — it maps to "高" on the wire, and the
-    // UI surfaces that instead of silently rewriting it.
-    expect(within(menu).getByText(/将按.*高.*发送/)).toBeInTheDocument();
-    expect(within(menu).getByRole("radio", { name: "高" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
   });
 
   it("selecting the official mix row invokes onChange with its backend name", async () => {

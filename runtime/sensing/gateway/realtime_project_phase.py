@@ -76,10 +76,103 @@ async def adjust_budget(runtime, turn, log, emitter, *, store, project, value, o
     await emit("预算策略已更新，未启动执行。发送 /project run 重新确认本阶段后继续。")
 
 
+async def approve_initiation_in_chat(
+    runtime, turn, log, emitter, *, store, project, owner_id, tenant_id
+):
+    """A project created on the project page waits for the owner's initiation.
+
+    Chat asks for it the same way it asks for a phase: one approval prompt on
+    the exact plan and team, recorded through the shared owner decision.
+    """
+    from runtime.projectos.group_execution import roster_from_group
+    from runtime.projectos.owner_decisions import (
+        OwnerDecisionError,
+        approve_initiation,
+        governance_view,
+    )
+
+    async def emit(text):
+        await runtime._emit_agent_message(turn, log, emitter, text)
+
+    roster = [agent for agent, _ in roster_from_group(runtime._cowork_group_store, turn.thread_id)]
+    phases = store.milestones_for(project.id)
+    initiation = governance_view(store, project, phases, roster=roster)["initiation"]
+    if not initiation["staffing_available"]:
+        await emit("项目还没有可分配的 AI 成员，请先在工作群中添加成员；未开始执行。")
+        return False
+    lines = [f"立项审批：{project.name}", f"目标：{project.goal}", "阶段："]
+    for ms in phases:
+        agents = ms.spec.get("phase_agents") or initiation["proposed_phase_agents"]
+        cap = ms.spec.get("ai_budget_usd")
+        lines.append(
+            f"- {ms.name}；成员：{'、'.join(agents)}；AI 预算上限："
+            f"{str(cap) + ' USD' if cap is not None else '未设置'}"
+        )
+    lines.append("批准后每个阶段执行前仍需阶段审批，阶段交付需你验收；不授权付款或聘用真人。")
+    preview = "\n".join(lines)
+    await emit(preview)
+    try:
+        result = await emitter.request_approval(
+            ServerMethod.REQ_COMMAND_APPROVAL,
+            {
+                "threadId": turn.thread_id,
+                "turnId": turn.id,
+                "itemId": initiation["fingerprint"],
+                "tool": "project_initiation",
+                "argsPreview": preview,
+                "detail": "批准立项与项目计划。不启动任务；开始执行仍需阶段审批。",
+                "timeoutMs": 120000,
+            },
+            timeout=120.0,
+        )
+    except Exception:
+        return False
+    if (result or {}).get("action") != "accept" or emitter.is_turn_interrupted(turn.id):
+        await emit("立项未获批准，项目保持待批准，未执行任务。")
+        return False
+    if owner_id:
+        from runtime.sensing.gateway.thread_access import ThreadAccessResolver
+
+        access = ThreadAccessResolver(
+            thread_store=runtime._thread_store,
+            group_store=runtime._cowork_group_store,
+            collaboration_store=runtime._collaboration_store,
+        ).resolve(turn.thread_id, owner_id, tenant_id)
+        if not access.can_manage:
+            raise PermissionError("initiation owner changed")
+    try:
+        approve_initiation(
+            store,
+            project.id,
+            actor=owner_id or "project-os",
+            expected_fingerprint=initiation["fingerprint"],
+            roster=roster,
+            source="chat",
+        )
+    except OwnerDecisionError as exc:
+        await emit(f"立项未记录：{exc.message}。请重新确认。")
+        return False
+    await emit("立项已批准。")
+    return True
+
+
 async def authorize_phase(runtime, turn, log, emitter, *, store, project, owner_id, tenant_id):
     async def emit(text):
         await runtime._emit_agent_message(turn, log, emitter, text)
 
+    from runtime.projectos.governance import initiation_state
+
+    if initiation_state(store, project) == "pending" and not await approve_initiation_in_chat(
+        runtime,
+        turn,
+        log,
+        emitter,
+        store=store,
+        project=project,
+        owner_id=owner_id,
+        tenant_id=tenant_id,
+    ):
+        return False
     phases = store.milestones_for(project.id)
     ms = next((m for m in phases if m.id == project.current_ms), None)
     if ms is None or ms.status == "done":

@@ -318,7 +318,12 @@ def test_opencode_output_limit_is_normalized(tmp_path):
             client.post(
                 "/v1/responses",
                 headers=headers,
-                json={"model": "test", "input": "hello", "stream": True, "max_output_tokens": 32000},
+                json={
+                    "model": "test",
+                    "input": "hello",
+                    "stream": True,
+                    "max_output_tokens": 32000,
+                },
             ).status_code
             == 200
         )

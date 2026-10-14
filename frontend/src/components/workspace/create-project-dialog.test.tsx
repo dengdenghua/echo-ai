@@ -93,7 +93,8 @@ describe("CreateProjectDialog", () => {
         screen.getByRole("button", { name: "同名助手 (planner)" }),
       ).toBeInTheDocument();
       fireEvent.change(
-        screen.getByRole("textbox", { name: "搜索成员名称、标识或能力" }),
+        // type=search (autofill guard) makes this a searchbox, not a textbox.
+        screen.getByRole("searchbox", { name: "搜索成员名称、标识或能力" }),
         { target: { value: "planner-two" } },
       );
       expect(
@@ -165,6 +166,26 @@ describe("CreateProjectDialog", () => {
     expect(mocks.createProject).not.toHaveBeenCalled();
   });
 
+  it("draws quick categories with line icons and stores an icon id", async () => {
+    // Regression (AI-46): quick categories were emoji (📈 📝 ✍️ ✈️) and the
+    // emoji itself was the project icon.
+    const user = userEvent.setup();
+    renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+
+    const travel = screen.getByRole("button", { name: "旅行" });
+    expect(travel.textContent).toBe("旅行");
+    expect(travel.querySelector("svg")).not.toBeNull();
+    await user.click(travel);
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+
+    expect(mocks.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ icon: "plane", category: "travel" }),
+      expect.anything(),
+    );
+  });
+
   it("creates immediately with the default AI collaborator", async () => {
     const user = userEvent.setup();
     renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
@@ -180,7 +201,7 @@ describe("CreateProjectDialog", () => {
     expect(mocks.createProject).toHaveBeenCalledWith(
       {
         name: "发布新版",
-        icon: "📁",
+        icon: "folder",
         category: undefined,
         initialAgents: [
           {
@@ -287,5 +308,51 @@ describe("CreateProjectDialog", () => {
         },
       },
     );
+  });
+});
+
+describe("CreateProjectDialog AI budget", () => {
+  beforeEach(() => {
+    mocks.createProject.mockReset();
+  });
+
+  it("sends the optional AI budget cap and omits it when empty", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+
+    await user.type(
+      screen.getByRole("textbox", { name: "项目名称" }),
+      "预算项目",
+    );
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    expect(mocks.createProject.mock.calls[0]?.[0].aiBudgetUsd).toBeUndefined();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "AI 预算上限（美元，可选）" }),
+      "12.5",
+    );
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    expect(mocks.createProject.mock.calls[1]?.[0].aiBudgetUsd).toBe(12.5);
+  });
+
+  it("does not create a project with an invalid budget", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CreateProjectDialog open onOpenChange={vi.fn()} />, {
+      locale: "zh-CN",
+    });
+
+    await user.type(
+      screen.getByRole("textbox", { name: "项目名称" }),
+      "预算项目",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "AI 预算上限（美元，可选）" }),
+      "-3",
+    );
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+
+    expect(mocks.createProject).not.toHaveBeenCalled();
   });
 });

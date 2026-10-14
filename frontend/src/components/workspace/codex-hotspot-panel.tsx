@@ -94,7 +94,7 @@ export function CodexHotspotPanel({
       {open && (
         <div className="mt-3 space-y-3">
           <p className="text-muted-foreground">
-            当前共享来源为本机 Codex 套餐。同事可在自己的 Echo 模型设置中连接，也支持其他 Responses 客户端。
+            当前共享来源为本机 Codex 套餐。同事可在自己的 ECHO AI 模型设置中连接，也支持其他 Responses 客户端。
             远程角色可选择 Codex 或 OpenCode。
           </p>
           <button

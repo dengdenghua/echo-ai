@@ -168,11 +168,10 @@ test.describe("workflow-as-skill · legacy route", () => {
     await expect(page).toHaveURL(
       /#\/workspace\/agents\?surface=chat&tab=skills/,
     );
-    await expect(page.getByRole("tab", { name: "Skills" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    await expect(page.getByRole("textbox").first()).toBeVisible();
+    await expect(
+      page.getByRole("tab", { name: /^(Skills|技能)$/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("searchbox").first()).toBeVisible();
   });
 });
 
@@ -227,17 +226,28 @@ test.describe("Bug#1 regression · Intelligence subscriptions", () => {
     await page.waitForLoadState("domcontentloaded");
 
     try {
-      const unavailable = page.getByText(
-        /订阅暂时不可用|Subscriptions? (?:is|are) temporarily unavailable/i,
-      );
+      const unavailable = page.getByRole("heading", {
+        // The workbench app was renamed 订阅 → 自动化 (f4098333).
+        name: /订阅暂时不可用|Subscriptions? (?:is|are) temporarily unavailable|安装(?:订阅|自动化)|Install (?:subscriptions|automation)/i,
+      });
       const draftInput = page
         .locator("textarea")
         .filter({ visible: true })
         .first();
-      await expect(unavailable.or(draftInput)).toBeVisible({ timeout: 10_000 });
+      await expect
+        .poll(
+          async () =>
+            (await unavailable.isVisible()) || (await draftInput.isVisible()),
+          {
+            timeout: 20_000,
+          },
+        )
+        .toBe(true);
       if (await unavailable.isVisible()) {
         await expect(
-          page.getByRole("button", { name: /前往应用中心|Go to App Center/i }),
+          page.getByRole("button", {
+            name: /前往应用中心|Go to App Center|^安装$|^Install$/i,
+          }),
         ).toBeVisible();
         await expect(
           page.getByRole("button", { name: /重新检查|Check again/i }),

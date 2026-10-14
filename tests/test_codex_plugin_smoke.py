@@ -4,11 +4,13 @@ import base64
 import json
 from pathlib import Path
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from runtime.platform.plugins import codex_discovery
 from runtime.platform.plugins.codex_discovery import discover_codex_plugins
 from runtime.platform.plugins.publisher_provenance import (
     canonical_publisher_signature_payload,
@@ -42,6 +44,26 @@ def test_codex_plugin_discovery_includes_smoke_metadata(tmp_path: Path) -> None:
         "ui:metadata:local",
     ]
     assert plugin_dir.name == "research"
+
+
+def test_discovery_keeps_root_precedence_and_order_across_parallel_checks(
+    tmp_path: Path,
+) -> None:
+    first, second = tmp_path / "first", tmp_path / "second"
+    _write_plugin(first)
+    _write_plugin(second)
+    (second / "atlas" / ".codex-plugin").mkdir(parents=True)
+    (second / "atlas" / ".codex-plugin" / "plugin.json").write_text(
+        json.dumps({"name": "atlas", "interface": {"displayName": "Atlas"}}),
+        encoding="utf-8",
+    )
+
+    plugins = discover_codex_plugins([first, second])
+
+    assert [plugin["id"] for plugin in plugins] == ["atlas", "research"]
+    # A later root overrides an earlier copy of the same plugin id.
+    assert Path(plugins[1]["path"]) == second / "research"
+    assert all(plugin["smoke"]["schema"] == "echo.codex_plugin_smoke.v1" for plugin in plugins)
 
 
 def test_plugin_content_provenance_changes_with_runtime_content(tmp_path: Path) -> None:
@@ -237,6 +259,81 @@ def test_codex_plugin_smoke_endpoint(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_plugin_capability_list_skips_smoke_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Smoke checks hash every plugin file: seconds for a real plugin set. The
+    # capability list (and the router's auth dependency) must not run them.
+    _write_plugin(tmp_path)
+    (tmp_path / "atlas" / ".codex-plugin").mkdir(parents=True)
+    (tmp_path / "atlas" / ".codex-plugin" / "plugin.json").write_text(
+        json.dumps(
+            {
+                "name": "atlas",
+                "interface": {
+                    "displayName": "Atlas",
+                    "capabilities": ["map", {"name": "route", "type": "tool"}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected = [
+        cap for plugin in discover_codex_plugins([tmp_path]) for cap in plugin["capabilities"]
+    ]
+
+    def _no_smoke(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("capability listing ran a plugin smoke check")
+
+    monkeypatch.setattr(codex_discovery, "_plugin_smoke_check", _no_smoke)
+    app = FastAPI()
+    app.include_router(create_plugins_router(plugin_roots=[tmp_path]))
+    client = TestClient(app)
+
+    listed = client.get("/api/plugins/capabilities")
+    tools = client.get("/api/plugins/capabilities?type=tool")
+
+    assert [cap["provider"] for cap in expected] == ["atlas", "atlas", "research"]
+    assert listed.json() == expected
+    assert tools.json() == [cap for cap in expected if cap["type"] == "tool"]
+
+
+def test_plugin_assets_are_served_without_smoke_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Locating an asset needs only the plugin directory; the smoke checks hash
+    # every plugin file and ran twice per icon request (auth dependency + route).
+    plugin_dir = _write_plugin(tmp_path)
+    (plugin_dir / "assets").mkdir()
+    (plugin_dir / "assets" / "logo.png").write_bytes(b"logo-bytes")
+    manifest_path = plugin_dir / ".codex-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["interface"]["logo"] = "assets/logo.png"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    def _no_smoke(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AssertionError("asset serving ran a plugin smoke check")
+
+    monkeypatch.setattr(codex_discovery, "_plugin_smoke_check", _no_smoke)
+    store = IdentityStore()
+    app = FastAPI()
+    app.include_router(
+        create_plugins_router(plugin_roots=[tmp_path], identity_store=store, require_auth=True)
+    )
+    client = TestClient(app)
+
+    logo = client.get("/api/plugins/research/assets/assets/logo.png")
+    hidden = client.get("/api/plugins/research/assets/.mcp.json")
+    unknown = client.get("/api/plugins/unknown/assets/assets/logo.png")
+
+    assert logo.status_code == 200
+    assert logo.content == b"logo-bytes"
+    assert hidden.status_code in {401, 404}
+    assert unknown.status_code == 401
 
 
 def test_codex_plugin_smoke_summary_endpoint(tmp_path: Path) -> None:

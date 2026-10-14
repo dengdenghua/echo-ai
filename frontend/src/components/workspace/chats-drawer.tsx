@@ -1,9 +1,12 @@
 import { WORKBENCH_BUILTIN_APPS } from "@/core/workbench/apps";
+import { RemovedThreadsButton } from "./removed-threads-button";
+import { MODULE_ICONS } from "./module-icons";
 import { useCallback, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import {
   BotIcon,
+  CoinsIcon,
   DatabaseIcon,
   CompassIcon,
   MessageSquareIcon,
@@ -13,6 +16,7 @@ import {
   SearchIcon,
   SettingsIcon,
   UserRoundPenIcon,
+  UsersIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -40,17 +44,32 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useActiveAgentId } from "@/core/agents/active";
-import { emitAgentChanged, emitOpenSettings, eventBus } from "@/core/events";
-import { useI18n } from "@/core/i18n/hooks";
 import {
-  useDeleteThread,
+  isInstallableModule,
+  useEnabledModuleIds,
+  useModuleAvailabilityKnown,
+} from "@/core/modules/enabled-modules";
+import {
+  filterRoutesByEnabled,
+  removableModuleForRoute,
+} from "@/core/modules/module-routing";
+import { emitOpenSettings, eventBus } from "@/core/events";
+import { useI18n } from "@/core/i18n/hooks";
+import { ORG_COPY } from "@/core/organizations/copy";
+import { CreditsCenterDialog } from "@/components/workspace/credits-center";
+import {
+  useThreadListVisibility,
   useRenameThread,
   useThreads,
 } from "@/core/threads/hooks";
 import type { AgentThread } from "@/core/threads/types";
 import { formatCompactRelativeTimestamp } from "@/core/utils/datetime";
 import { uuid } from "@/core/utils/uuid";
-import { activeWorkspaceThreadIdFromPathname } from "@/core/threads/sidebar";
+import {
+  activeWorkspaceThreadIdFromPathname,
+  deriveThreadAgents,
+  syncThreadAgentSelection,
+} from "@/core/threads/sidebar";
 import { isIMEComposing } from "@/lib/ime";
 import { isAbsolutePath } from "@/lib/path-utils";
 import { cn } from "@/lib/utils";
@@ -59,17 +78,15 @@ const DRAWER_WIDTH = "min(320px, 86vw)";
 
 /* Implementation note. */
 function deriveTitle(thread: AgentThread): string {
-  const meta = (thread.metadata ?? {}) as Record<string, unknown>;
+  const meta = thread.metadata ?? {};
   const metaTitle =
-    typeof meta["title"] === "string" ? (meta["title"] as string).trim() : "";
+    typeof meta["title"] === "string" ? meta["title"].trim() : "";
   if (metaTitle) {
     return metaTitle.length > 60 ? `${metaTitle.slice(0, 58)}...` : metaTitle;
   }
-  const values = (thread.values ?? {}) as Record<string, unknown>;
+  const values: Record<string, unknown> = thread.values ?? {};
   const valuesTitle =
-    typeof values["title"] === "string"
-      ? (values["title"] as string).trim()
-      : "";
+    typeof values["title"] === "string" ? values["title"].trim() : "";
   if (valuesTitle && valuesTitle !== "New chat" && valuesTitle !== "New task") {
     return valuesTitle.length > 60
       ? `${valuesTitle.slice(0, 58)}...`
@@ -102,8 +119,8 @@ function threadHref(thread: AgentThread): string {
 }
 
 function threadOwnerAgent(thread: AgentThread): string {
-  const meta = (thread.metadata ?? {}) as Record<string, unknown>;
-  const values = (thread.values ?? {}) as Record<string, unknown>;
+  const meta = thread.metadata ?? {};
+  const values: Record<string, unknown> = thread.values ?? {};
   const candidates = [
     meta["agent"],
     meta["agent_name"],
@@ -120,8 +137,8 @@ function threadOwnerAgent(thread: AgentThread): string {
 }
 
 function threadWorkspacePath(thread?: AgentThread): string {
-  const meta = (thread?.metadata ?? {}) as Record<string, unknown>;
-  const values = (thread?.values ?? {}) as Record<string, unknown>;
+  const meta = thread?.metadata ?? {};
+  const values: Record<string, unknown> = thread?.values ?? {};
   const path = meta["workspace_path"] ?? values["workspace_path"];
   return typeof path === "string" ? path.trim() : "";
 }
@@ -132,10 +149,13 @@ interface ChatsDrawerProps {
 }
 
 export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
-  const deleteThread = useDeleteThread();
+  // The desktop account menu (积分中心, 组织管理) is not on phones; the drawer
+  // carries both so a narrow screen can still reach them.
+  const [creditsOpen, setCreditsOpen] = useState(false);
+  const deleteThread = useThreadListVisibility();
   const { mutate: renameThread } = useRenameThread();
   const [query, setQuery] = useState("");
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -144,11 +164,25 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
   );
   const [renameValue, setRenameValue] = useState("");
   const activeAgentId = useActiveAgentId();
+  const enabledModuleIds = useEnabledModuleIds(activeAgentId ?? "general");
+  const availabilityKnown = useModuleAvailabilityKnown();
+  // Same rule as the desktop sidebar: optional apps appear once installed,
+  // each with its own icon, never as a fixed list of every catalog app.
+  const workbenchApps = WORKBENCH_BUILTIN_APPS.filter((app) => {
+    if (
+      !filterRoutesByEnabled([{ to: app.workspaceRoute }], enabledModuleIds)
+        .length
+    )
+      return false;
+    if (availabilityKnown) return true;
+    const descriptor = removableModuleForRoute(app.workspaceRoute);
+    return !descriptor || !isInstallableModule(descriptor.id);
+  });
   const workspaceDestinations = [
-    ...WORKBENCH_BUILTIN_APPS.map((app) => ({
+    ...workbenchApps.map((app) => ({
       label: app.name,
       to: app.workspaceRoute,
-      icon: CompassIcon,
+      icon: MODULE_ICONS[app.moduleId] ?? CompassIcon,
       active: pathname === app.workspaceRoute.split("?")[0],
     })),
     {
@@ -235,17 +269,30 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
     }, 0);
   }, [onOpenChange]);
 
+  const openCredits = useCallback(() => {
+    onOpenChange(false);
+    window.setTimeout(() => setCreditsOpen(true), 0);
+  }, [onOpenChange]);
+
   const handleDelete = useCallback(
     async (thread: AgentThread) => {
       const ok = await confirm({
         title: t.sidebar.deleteThreadTooltip,
+        confirmLabel: t.sidebar.deleteThreadTooltip,
+        destructive: false,
         description: t.sidebar.confirmDeleteThread(deriveTitle(thread)),
       });
       if (!ok) return;
-      deleteThread.mutate({ threadId: thread.thread_id });
-      if (pathname === threadHref(thread)) {
-        navigate(`/workspace/realtime/${uuid()}`, { replace: true });
-      }
+      deleteThread.mutate(
+        { threadId: thread.thread_id },
+        {
+          onSuccess: () => {
+            if (pathname === threadHref(thread)) {
+              void navigate(`/workspace/realtime/${uuid()}`, { replace: true });
+            }
+          },
+        },
+      );
     },
     [confirm, deleteThread, navigate, pathname, t],
   );
@@ -274,7 +321,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
             aria-label={t.sidebar.navigate}
             className="border-b border-border-subtle px-3 py-3"
           >
-            <div className="mb-1.5 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+            <div className="mb-1.5 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               {t.sidebar.navigate}
             </div>
             <div className="grid grid-cols-2 gap-1.5">
@@ -318,7 +365,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
             </button>
 
             <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -328,19 +375,19 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          <div className="mt-3 flex items-center justify-between px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <MessageSquareIcon className="size-3" />
               {t.sidebar.recentChats}
             </span>
-            <span className="text-xs text-muted-foreground/55">
+            <span className="text-xs text-muted-foreground">
               {filteredThreads.length}
             </span>
           </div>
 
           <div className="mt-1 min-h-0 flex-1 overflow-y-auto px-2 pb-3">
             {filteredThreads.length === 0 ? (
-              <div className="mt-4 rounded-md border border-dashed border-border-default px-3 py-4 text-center text-xs text-muted-foreground/75">
+              <div className="mt-4 rounded-md border border-dashed border-border-default px-3 py-4 text-center text-xs text-muted-foreground">
                 {query.trim()
                   ? t.sidebar.noMatchingChats
                   : t.sidebar.noChatsYet}
@@ -366,8 +413,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
                             threadWorkspacePath(thread) || undefined,
                         }}
                         onMouseDown={() => {
-                          const owner = threadOwnerAgent(thread);
-                          if (owner) emitAgentChanged(owner, "thread");
+                          syncThreadAgentSelection(deriveThreadAgents(thread));
                         }}
                         onClick={() => onOpenChange(false)}
                         aria-current={active ? "page" : undefined}
@@ -384,7 +430,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
                         </span>
                         <span
                           className={cn(
-                            "w-10 shrink-0 overflow-hidden whitespace-nowrap text-right text-xs text-muted-foreground/65 [@media(hover:none)]:mr-6",
+                            "w-10 shrink-0 overflow-hidden whitespace-nowrap text-right text-xs text-muted-foreground [@media(hover:none)]:mr-6",
                             "transition-[width,opacity] group-hover/thread:w-0 group-hover/thread:opacity-0",
                           )}
                         >
@@ -403,7 +449,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
                             }}
                             className={cn(
                               "absolute right-1 top-1/2 -translate-y-1/2 flex size-7 items-center justify-center rounded-md outline-none",
-                              "text-muted-foreground/60 opacity-0 transition-opacity [@media(hover:none)]:opacity-100",
+                              "text-muted-foreground opacity-0 transition-opacity [@media(hover:none)]:opacity-100",
                               "hover:bg-muted/60 hover:text-foreground",
                               "focus-visible:bg-muted/60 focus-visible:text-foreground focus-visible:opacity-100",
                               "group-hover/thread:opacity-100 data-[state=open]:opacity-100",
@@ -440,6 +486,26 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
           </div>
 
           <div className="border-t border-border-subtle p-2">
+            <RemovedThreadsButton />
+            <button
+              type="button"
+              onClick={openCredits}
+              className="flex h-10 w-full items-center gap-2 rounded-md px-2.5 text-caption font-medium text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-inset"
+            >
+              <CoinsIcon className="size-4" />
+              {t.creditsCenter.title}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                void navigate("/workspace/organizations");
+              }}
+              className="flex h-10 w-full items-center gap-2 rounded-md px-2.5 text-caption font-medium text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-inset"
+            >
+              <UsersIcon className="size-4" />
+              {ORG_COPY[locale].title}
+            </button>
             <button
               type="button"
               onClick={openSettings}
@@ -451,6 +517,9 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
           </div>
         </SheetContent>
       </Sheet>
+      {creditsOpen && (
+        <CreditsCenterDialog open onOpenChange={setCreditsOpen} />
+      )}
       <Dialog
         open={threadToRename !== null}
         onOpenChange={(nextOpen) => {
@@ -462,6 +531,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
       >
         <DialogContent
           showCloseButton={false}
+          aria-describedby={undefined}
           className="w-[min(360px,calc(100vw-2rem))] gap-3 rounded-lg p-4 sm:max-w-[360px]"
         >
           <DialogHeader className="gap-1 text-left">

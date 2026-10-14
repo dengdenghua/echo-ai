@@ -10,6 +10,18 @@ from __future__ import annotations
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def installed_recursive_roles(monkeypatch):
+    """Recursion exercises explicitly installed roles rather than builtin aliases."""
+    from runtime.execution.subagents import market_bridge
+
+    roles = {
+        name: market_bridge.MarketIdentity(name, name, "", "Recursive test role")
+        for name in ("reviewer", "code_reviewer", "architect", "researcher")
+    }
+    monkeypatch.setattr(market_bridge, "runnable_market_roles", lambda runner=None: roles)
+
+
 def test_ephemeral_runner_registers_delegation_when_allowed(monkeypatch):
     """Ephemeral runner conditionally registers call_agent_parallel."""
     from runtime.execution.suckers.ephemeral_runner import (

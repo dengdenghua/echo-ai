@@ -58,7 +58,15 @@ def mount_health(
     try:
         from runtime.sensing.gateway.metrics_router import create_metrics_router
 
-        app.include_router(create_metrics_router())
+        app.include_router(
+            create_metrics_router(
+                identity_store=ctx.identity_store,
+                require_auth=ctx.require_auth,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+            )
+        )
     except (
         ImportError,
         AttributeError,

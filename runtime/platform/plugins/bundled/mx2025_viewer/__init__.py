@@ -203,8 +203,7 @@ class MX2025ViewerPlugin(ModulePlugin):
             env_name="ECHO_MX2025_ALLOW_SAME_ORIGIN_SCRIPTS",
         )
         requested_bridge = str(
-            cfg.get("isolated_bridge_url")
-            or os.environ.get("ECHO_MX2025_ISOLATED_BRIDGE_URL", "")
+            cfg.get("isolated_bridge_url") or os.environ.get("ECHO_MX2025_ISOLATED_BRIDGE_URL", "")
         ).strip()
         self.isolated_bridge_url = _isolated_bridge_origin(requested_bridge) or ""
         if requested_bridge and not self.isolated_bridge_url:

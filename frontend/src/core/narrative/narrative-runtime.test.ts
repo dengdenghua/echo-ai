@@ -5,6 +5,7 @@ vi.mock("@/core/config", () => ({
 }));
 
 vi.mock("@/core/auth/api", () => ({
+  authHeaders: () => ({ Authorization: "Bearer narrative-test-token" }),
   jsonAuthHeaders: () => ({
     "Content-Type": "application/json",
     Authorization: "Bearer narrative-test-token",

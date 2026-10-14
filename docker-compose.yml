@@ -96,7 +96,7 @@ services:
     container_name: echo-storage
     restart: unless-stopped
     ports:
-      - "${STORAGE_PORT:-8767}:8767"
+      - "${ECHO_BIND_IP:-127.0.0.1}:${STORAGE_PORT:-8767}:8767"
     environment:
       ECHO_STORAGE_PATH: /data/storage.sqlite3
       # 把 Storage 的嵌入指向本地/同栈模型(可选 · OpenAI-兼容端点,如 Ollama)

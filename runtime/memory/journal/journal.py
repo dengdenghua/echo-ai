@@ -1232,13 +1232,13 @@ class JSONLJournal(_StructuredJournalRedaction, Journal):
 
     def _fsync_journal_data_locked(self) -> None:
         """Re-establish durability before completing a recovered reservation."""
-
         if not self._path.exists():
             raise JournalTransactionError("trajectory journal data is absent")
         try:
             import os as _os
 
-            with self._path.open("rb") as journal_file:
+            # Windows fsync needs a writable handle (read-only -> EBADF); r+b never truncates.
+            with self._path.open("rb" if _os.name == "posix" else "r+b") as journal_file:
                 _os.fsync(journal_file.fileno())
             _fsync_parent_directory(
                 self._path,

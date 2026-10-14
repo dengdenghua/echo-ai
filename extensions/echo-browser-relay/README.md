@@ -44,6 +44,12 @@ fingerprint has one unique match; ambiguous matches fail closed. Click-driven
 navigation is tracked separately so a destroyed execution context is not
 misreported as failure after the page has actually moved.
 
+When the push WebSocket disconnects (including plugin disablement), the relay
+cancels its active command batch and waiting DOM actions. Reconnecting does
+not resume old commands. A synchronous browser action already dispatched
+cannot be undone. This cancellation guarantee applies to the WebSocket path,
+not the HTTP polling compatibility mode for older gateways.
+
 If the EchoOS gateway has authentication enabled, open the key button in
 the side panel and enter the same API key or session token used by the main
 app. The credential is stored only in the current Chrome profile and is sent
@@ -52,6 +58,21 @@ never placed in the connection URL.
 Also set `ECHO_BROWSER_RELAY_TOKEN` for the EchoOS runtime so its internal
 ExtensionBackend requests can pass the same authenticated gateway boundary;
 diagnostics expose only whether this is configured, never the credential.
+
+The gateway also checks browser origins independently of authentication.
+Copy this extension's ID from `chrome://extensions` (or `edge://extensions`)
+and add its exact origin to the gateway's `ECHO_ALLOWED_ORIGINS`, for example
+`chrome-extension://<your-extension-id>`. Keep any existing comma-separated
+origins. An unpacked extension may get a different ID when its installation
+path changes; update that entry and reload the extension. A token alone does
+not bypass the origin check, and allowing one extension does not allow other
+installed extensions. Do not use a wildcard origin.
+
+Device pairing uses its own configured pairing/per-device credential in the
+first message; it does not grant access to host sessions. The paper-trading
+Socket.IO proxy's host-session exemption applies only to its explicitly
+enabled, validated single-user loopback deployment. Neither exception adds
+extension origins or exempts the ordinary browser relay from authentication.
 
 ## Side panel mode
 

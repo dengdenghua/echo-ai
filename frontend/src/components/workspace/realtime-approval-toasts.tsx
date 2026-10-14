@@ -8,45 +8,58 @@ import type { PendingApproval } from "@/core/realtime/items";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 
-function approvalToolLabel(
+import {
+  WEB_READ_TOOL_NAMES,
+  WEB_SEARCH_TOOL_NAMES,
+  canonicalToolName,
+} from "./tool-name-groups";
+
+const SHELL_APPROVAL_TOOLS = new Set([
+  "bash",
+  "shell",
+  "exec_shell",
+  "shell_command",
+  "run_command",
+]);
+const WRITE_APPROVAL_TOOLS = new Set([
+  "write_file",
+  "write_text_file",
+  "create_file",
+]);
+const EDIT_APPROVAL_TOOLS = new Set([
+  "apply_patch",
+  "edit",
+  "edit_file",
+  "edit_text_file",
+  "str_replace",
+]);
+
+export function approvalToolLabel(
   tool: string | undefined,
   method: PendingApproval["method"],
   t: ReturnType<typeof useI18n>["t"],
+  argsPreview?: string,
 ): string {
-  const normalized = tool?.trim().toLowerCase() ?? "";
-  if (
-    normalized === "bash" ||
-    normalized === "exec_shell" ||
-    normalized === "shell_command" ||
-    normalized === "run_command"
-  ) {
-    return t.toolApproval.tools.bash;
-  }
-  if (
-    normalized === "write_file" ||
-    normalized === "write_text_file" ||
-    normalized === "create_file"
-  ) {
-    return t.toolApproval.tools.write_file;
-  }
-  if (
-    normalized === "apply_patch" ||
-    normalized === "edit_file" ||
-    normalized === "edit_text_file" ||
-    normalized === "str_replace"
-  ) {
-    return t.toolApproval.tools.str_replace;
-  }
-  const knownTool =
-    (t.toolApproval.tools as Record<string, string>)[normalized];
+  const labels = t.toolApproval.tools;
+  const normalized = canonicalToolName(tool ?? "");
+  if (SHELL_APPROVAL_TOOLS.has(normalized)) return labels.bash;
+  if (WRITE_APPROVAL_TOOLS.has(normalized)) return labels.write_file;
+  if (EDIT_APPROVAL_TOOLS.has(normalized)) return labels.str_replace;
+  if (WEB_READ_TOOL_NAMES.has(normalized)) return labels.web_read;
+  if (WEB_SEARCH_TOOL_NAMES.has(normalized)) return labels.web_search;
+  const knownTool = (labels as Record<string, string>)[normalized];
   if (knownTool) return knownTool;
+  // The runtime sends every Echo tool approval over the command-execution
+  // channel, so the method alone does not mean a shell command. Only call it
+  // one when there is no tool name or the arguments actually carry a command.
   if (method.includes("commandExecution")) {
-    return t.toolApproval.tools.bash;
+    if (!normalized || /["']command["']\s*:/.test(argsPreview ?? "")) {
+      return labels.bash;
+    }
+  } else if (method.includes("fileChange")) {
+    return labels.str_replace;
   }
-  if (method.includes("fileChange")) {
-    return t.toolApproval.tools.str_replace;
-  }
-  return t.liveTools.genericAction;
+  return t.messageGrouping.runAction;
 }
 
 function approvalArgsSummary(
@@ -127,13 +140,18 @@ export function RealtimeApprovalPrompt({
           roleProvisions?: RoleProvision[];
           staffingReview?: { role: string; name: string; source: string; responsibilities: string; phases: number[] }[];
         };
-        const toolLabel = approvalToolLabel(params.tool, approval.method, t);
+        const toolLabel = approvalToolLabel(
+          params.tool,
+          approval.method,
+          t,
+          params.argsPreview,
+        );
         const summary = approvalArgsSummary(params, approval.method);
         const label = `${toolLabel} · ${t.toolApproval.requiresApproval}`;
         const labelId = `approval-${String(approval.requestId)}-label`;
         if (params.tool?.startsWith("project_")) {
           // Queue project dialogs rather than stacking multiple modal overlays.
-          if (approvals.find(item => String((item.params as { tool?: string }).tool ?? "").startsWith("project_")) !== approval) return null;
+          if (approvals.find(item => String(item.params.tool ?? "").startsWith("project_")) !== approval) return null;
           const roles = params.tool === "project_initiation" ? params.roleProvisions : undefined;
           return (
             <Dialog key={String(approval.requestId)} open>

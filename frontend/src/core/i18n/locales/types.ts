@@ -1,4 +1,8 @@
 import type { LucideIcon } from "lucide-react";
+
+import type { AttentionNotificationCopy } from "./attention-notifications";
+import type { AboutPageCopy } from "./about-page";
+import type { WorkLocationCopy } from "./work-location";
 export interface Translations {
   // Locale meta
   locale: {
@@ -70,6 +74,7 @@ export interface Translations {
     greeting: string;
     description: string;
     echoTagline: string;
+    brandLine: string;
     createYourOwnSkill: string;
     createYourOwnSkillDescription: string;
     scenes: {
@@ -184,6 +189,7 @@ export interface Translations {
     latest: string;
     newUpdates: (n: number) => string;
     timeoutWarning: (seconds: number) => string;
+    stallHint: (seconds: number) => string;
     thinkingPlan: string;
     thinkingPlanSourceCheck: string;
     thinkingPlanCoworkFit: string;
@@ -399,6 +405,8 @@ export interface Translations {
     stop: string;
     stopping: string;
     restoringConnection: string;
+    connectingConversation: string;
+    syncingConversation: string;
     connectionRecoveryFailed: string;
     retryConnection: string;
     projectModeLabel: string;
@@ -545,6 +553,9 @@ export interface Translations {
     creatorRoleLabel: string;
     creatorRole: string;
     creatorRoleDescription: string;
+    aiBudgetLabel: string;
+    aiBudgetHint: string;
+    invalidAiBudget: string;
     hint: string;
     cancel: string;
     create: string;
@@ -1084,6 +1095,9 @@ export interface Translations {
 
   // Agent Workbench Panel (swarm)
   workspaceComputer: Record<string, string>;
+  workLocation: WorkLocationCopy;
+  aboutPage: AboutPageCopy;
+  attentionNotifications: AttentionNotificationCopy;
   agentOperator: Record<string, string>;
 
   // Agent Workbench Panel (swarm)
@@ -1766,12 +1780,12 @@ export interface Translations {
     navCommunity: string;
     navMcp: string;
     navEvolution: string;
+    navMail: string;
     navProjects: string;
     navDesign: string;
     navNarrative: string;
     navPlugins: string;
     navHR: string;
-    navComputer: string;
     navDesktopOrganizer: string;
     navArchitecture: string;
     groupTools: string;
@@ -1812,6 +1826,13 @@ export interface Translations {
     newChatTooltip: string;
     searchTooltip: string;
     settingsTooltip: string;
+    notInstalledBadge: string;
+    moduleInstallAction: string;
+    /** Shown instead of the install action to accounts without the admin role. */
+    moduleInstallByAdmin: string;
+    activeRoleLine: (name: string) => string;
+    accountMenuLabel: (account: string, role: string) => string;
+    accountFallback: string;
     // Project + chat list actions
     deleteProjectTooltip: string;
     deleteProjectFailed: string;
@@ -2693,6 +2714,8 @@ export interface Translations {
     messageSendFailed: string;
     previousMessagePending: string;
     steeringTurnUnavailable: string;
+    quoteMessage: string;
+    removeQuote: string;
     editResend: string;
     regenerateResponse: string;
     forkFromHere: string;
@@ -2937,12 +2960,18 @@ export interface Translations {
     approved: string;
     rejected: string;
     tools: {
+      project_initiation: string;
+      project_acceptance: string;
+      project_phase: string;
+      project_budget: string;
       bash: string;
       write_file: string;
       str_replace: string;
       git_commit: string;
       schedule_cron: string;
       remote_trigger: string;
+      web_read: string;
+      web_search: string;
     };
   };
 
@@ -3023,7 +3052,6 @@ export interface Translations {
       nextStepVerifyHint: string;
       nextStepDisabledTitle: string;
       nextStepDisabledHint: string;
-      openComputerTool: string;
       loading: string;
       loadFailed: string;
       restartConfirmTitle: string;
@@ -3218,6 +3246,8 @@ export interface Translations {
       darkDescription: string;
       paletteTitle: string;
       paletteDescription: string;
+      paletteEcho: string;
+      paletteEchoDescription: string;
       paletteRose: string;
       paletteRoseDescription: string;
       paletteSteel: string;
@@ -4165,56 +4195,6 @@ export interface Translations {
       researchBriefConfirmSensitive: string;
       unknownPlatform: string;
     };
-    extensionMarketplace: {
-      title: string;
-      subtitle: string;
-      installLocal: string;
-      refreshAriaLabel: string;
-      closeAriaLabel: string;
-      searchPlaceholder: string;
-      installedExtensions: string;
-      electronSupported: string;
-      webPreviewOnly: string;
-      webPreview: string;
-      enabled: string;
-      disabled: string;
-      removeAriaLabel: (name: string) => string;
-      noExtensionsElectron: string;
-      noExtensionsWeb: string;
-      comingSoonBadge: string;
-      installedBadge: string;
-      installableBadge: string;
-      install: string;
-      rating: string;
-      installs: string;
-      status: string;
-      capabilityTags: string;
-      errorListFailed: string;
-      errorInstallFailed: string;
-      errorStatusFailed: string;
-      errorRemoveFailed: string;
-      confirmRemove: string;
-      categoryFeatured: string;
-      categoryEfficiency: string;
-      categoryResearch: string;
-      categorySecurity: string;
-      categoryDevelopment: string;
-      categoryComingSoon: string;
-      taglinePageAgent: string;
-      taglineResearchClipper: string;
-      taglineShieldLite: string;
-      taglineCookieVault: string;
-      taglineTranslatorLens: string;
-      taglineDomInspector: string;
-      taglineVisualRecorder: string;
-      tagsPageAgent: string[];
-      tagsResearchClipper: string[];
-      tagsShieldLite: string[];
-      tagsCookieVault: string[];
-      tagsTranslatorLens: string[];
-      tagsDomInspector: string[];
-      tagsVisualRecorder: string[];
-    };
     webviewTab: {
       extPluginButton: string;
       openDirectory: string;
@@ -4234,6 +4214,7 @@ export interface Translations {
       copyPath: string;
       openPluginDirectory: string;
       connectingPlugin: string;
+      pageInteractiveHint: string;
       connectingPluginDesc: string;
       searchPlaceholder: string;
       resetLayout: string;
@@ -4360,6 +4341,28 @@ export interface Translations {
       close: string;
       newTab: string;
       homeTabShort: string;
+    };
+    pageTranslate: {
+      button: string;
+      title: string;
+      detected: (language: string) => string;
+      languages: Record<string, string>;
+      translated: string;
+      bilingual: string;
+      original: string;
+      translating: string;
+      skipped: (count: number) => string;
+      model: string;
+      modelAuto: string;
+      modelAutoUsing: (model: string) => string;
+      selectionTitle: string;
+      copy: string;
+      copied: string;
+      close: string;
+      selectionFailed: string;
+      alwaysSite: string;
+      retry: string;
+      privacy: string;
     };
     urlBar: {
       back: string;
@@ -5444,6 +5447,8 @@ export interface Translations {
     processing: string;
     ttftLabel: string;
     ttftHint: string;
+    resend: string;
+    resendHint: string;
   };
 
   // Evolution Dashboard
@@ -5734,6 +5739,7 @@ export interface Translations {
 
   // Live Tool Timeline detail labels
   liveToolTimeline: {
+    statusInterrupted: string;
     searchingWeb: string;
     searchingQuery: (query: string) => string;
     searchedPages: (count?: number) => string;
@@ -5857,6 +5863,8 @@ export interface Translations {
 
   // Annotations
   annotations: {
+    deleteForbidden: string;
+    deleteFailed: string;
     resolve: string;
     unresolve: string;
     delete: string;
@@ -5888,6 +5896,7 @@ export interface Translations {
     navigate: string;
     select: string;
     close: string;
+    skillPack: (skills: string) => string;
   };
 
   // Follow-up Suggestions
@@ -6008,6 +6017,10 @@ export interface Translations {
     tabCustom: string;
     addModel: string;
     noCustomModels: string;
+    openCodeZenEmpty: string;
+    openCodeGoEmpty: string;
+    officialEmpty: string;
+    connectOpenCode: string;
     officialDisabled: string;
     loginRequired: string;
     enabling: string;
@@ -6095,6 +6108,8 @@ export interface Translations {
     totalCredits: (total: string) => string;
     billingUnavailableTitle: string;
     billingUnavailableDescription: string;
+    localAccountBillingTitle: string;
+    localAccountBillingDescription: string;
     subscriptionUnavailable: string;
     plansUnavailable: string;
     noPlans: string;
@@ -6431,6 +6446,39 @@ export interface Translations {
     emptyHint: string;
   };
 
+  workspaceNote: {
+    menuTitle: string;
+    sourcesTitle: string;
+    viewAllSources: string;
+    title: string;
+    collapse: string;
+    refresh: string;
+    more: string;
+    gitToolsTitle: string;
+    commitOrPush: string;
+    environmentSection: string;
+    changesLabel: string;
+    clean: string;
+    filesCount: (count: string) => string;
+    branchLabel: string;
+    detachedHead: string;
+    localEnv: string;
+    worktreeEnv: string;
+    envHandoffHint: string;
+    detachedHint: string;
+    aheadBehind: (ahead: string, behind: string) => string;
+    pullRequestLabel: string;
+    pullRequestUnavailable: string;
+    pullRequestHint: string;
+    trackedOnly: string;
+    diffUnavailable: string;
+    unavailable: string;
+    unavailableFresh: string;
+    processSection: string;
+    processProgress: (current: number, total: number) => string;
+    processEmpty: string;
+  };
+
   codeWelcome: {
     title: string;
     fixBug: string;
@@ -6464,6 +6512,12 @@ export interface Translations {
     tools: string;
     memory: string;
     history: string;
+    messages: string;
+    mcpTools: string;
+    systemTools: string;
+    skills: string;
+    systemPrompt: string;
+    freeSpace: string;
   };
 
   contextCompressor: {
@@ -6777,6 +6831,7 @@ export interface Translations {
       noPendingReview: string;
       refreshAriaLabel: string;
       backendLabel: string;
+      backendDisabled: string;
       sharedAcrossHosts: string;
       localCoordination: string;
       committedLabel: string;
@@ -7265,6 +7320,16 @@ export interface Translations {
     installSuccess: (name: string) => string;
     installFailed: (name: string, reason: string) => string;
     detailTitle: (name: string) => string;
+    addExpert: string;
+    addingExpert: string;
+    startExpertChat: string;
+    manageExpert: string;
+    removeExpert: string;
+    removeExpertTitle: (name: string) => string;
+    removeExpertDescription: string;
+    removeExpertSuccess: (name: string) => string;
+    removeExpertFailed: string;
+    localExpertNotFound: string;
     detailProfession: string;
     detailQuickPrompts: string;
     detailTags: string;
@@ -7321,6 +7386,12 @@ export interface Translations {
     releaseBadge: string;
     withEcho: string;
     heroDescription: string;
+    getStarted: string;
+    starOnGitHub: string;
+    /** Phrases cycled in the headline. */
+    rotatingWords: string[];
+    /** True where the language reads "with Echo, <phrase>". */
+    withEchoFirst: boolean;
   };
 
   // Channel Pairings
@@ -8356,6 +8427,8 @@ export interface Translations {
       startFailed: string;
       notConnected: string;
       networkError: string;
+      unavailable: string;
+      directoryUnavailable: string;
     };
     toolbar: {
       authorize: string;

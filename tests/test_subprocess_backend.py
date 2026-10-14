@@ -26,9 +26,11 @@ _NORMAL_TIMEOUT_SECONDS = 60.0 if sys.platform == "win32" else 10.0
 
 class TestBasicRunSkill:
     def test_list_cwd_in_subprocess(self, tmp_path: Path):
+        directory = tmp_path / "empty"
+        directory.mkdir()
         backend = SubprocessBackend(timeout_seconds=_NORMAL_TIMEOUT_SECONDS)
         with backend.sandbox(arm_id="test") as box:
-            result = box.run_skill("list_cwd", {"path": str(tmp_path)})
+            result = box.run_skill("list_cwd", {"path": str(directory)})
         assert "error" not in result
         assert "items" in result
         assert result["count"] == 0

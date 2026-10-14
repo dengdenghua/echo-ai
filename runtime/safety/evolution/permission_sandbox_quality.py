@@ -212,11 +212,12 @@ def _plugin_policy_coverage(base: Path) -> dict[str, Any]:
             verify_policy_review_rule_draft,
         )
 
-        plugins = discover_codex_plugins(
-            [
-                base / ".echo" / "plugins" / "codex",
-            ]
-        )
+        bundled_root = base / "extensions" / "codex-plugins"
+        installed_root = base / ".echo" / "plugins" / "codex"
+        # Coverage verifies pre-install deny drafts for shipped packages too.
+        # Discovery's later-root precedence keeps a local same-id replacement
+        # authoritative; a bundled copy must not hide its permission surface.
+        plugins = discover_codex_plugins([bundled_root, installed_root])
         report = build_plugin_permission_rule_drafts(plugins=plugins, limit=500)
         drafts = [draft for draft in report.get("drafts") or [] if isinstance(draft, dict)]
         verified = sum(
@@ -224,6 +225,15 @@ def _plugin_policy_coverage(base: Path) -> dict[str, Any]:
         )
         return {
             "schema": "echo.plugin_permission_rule_coverage.v1",
+            "scope": "bundled_and_repository_installed",
+            "sources": {
+                "bundled": sum(
+                    Path(plugin["path"]).is_relative_to(bundled_root) for plugin in plugins
+                ),
+                "repository_installed": sum(
+                    Path(plugin["path"]).is_relative_to(installed_root) for plugin in plugins
+                ),
+            },
             "ready": bool(drafts) and verified == len(drafts),
             "plugin_count": len(plugins),
             "total": len(drafts),

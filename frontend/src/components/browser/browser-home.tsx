@@ -1,4 +1,7 @@
+import { resolveBrowserInput } from "./task-browser-start";
+import { SEARCH_ENGINES, type SearchEngine } from "./search-engines";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { EchoAppTile } from "@/components/ui/echo-app-tile";
 import {
   useEffect,
   useState,
@@ -6,6 +9,7 @@ import {
   useRef,
   useMemo,
   type CSSProperties,
+  type ReactNode,
   type DragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
@@ -44,15 +48,13 @@ import {
   Minimize2,
   Maximize2,
   CompassIcon,
-  SquareKanbanIcon,
-  CandlestickChartIcon,
-  DnaIcon,
-  RssIcon,
   type LucideIcon,
 } from "lucide-react";
 
 import { swallow } from "@/core/utils/log";
-import { BrowserStartPage } from "./browser-start-page";
+import { BrowserStartPage, topSitesFromHistory } from "./browser-start-page";
+import { requestBrowserAssistantAsk } from "./assistant-ask";
+import { SystemWidgetBody, WeatherWidgetBody } from "./desktop-widgets";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/core/i18n/hooks";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -65,8 +67,8 @@ import {
   WORKBENCH_BUILTIN_APPS,
   setWorkspaceWebShortcut,
   useWorkspaceWebShortcuts,
-  type WorkbenchBuiltinIcon,
 } from "@/core/workbench/apps";
+import { WORKBENCH_APP_ICONS } from "@/components/workspace/module-icons";
 import { useActiveAgentId } from "@/core/agents/active";
 import { useEnabledModuleIds } from "@/core/modules/enabled-modules";
 import { useWorkbenchAvailabilitySync } from "@/core/workbench/availability";
@@ -85,14 +87,14 @@ type DesktopPanelId =
   | "games"
   | "add"
   | "settings";
-type DesktopAppCategory = "workspace" | "ai" | "video" | "dev" | "knowledge";
+type DesktopAppCategory = "workspace" | "ai" | "video" | "dev" | "knowledge" | "tool";
+type DesktopAppGroupId = Exclude<DesktopAppCategory, "tool">;
 
 interface BrowserDesktopApp {
   name: string;
   url: string;
   icon: LucideIcon;
   logoUrl?: string;
-  color: string;
   description: string;
   category: DesktopAppCategory;
   moduleId?: string;
@@ -155,34 +157,11 @@ interface EditWidgetState {
   size: Widget["size"];
 }
 
-const BUILTIN_ICON_MAP: Record<WorkbenchBuiltinIcon, LucideIcon> = {
-  projects: SquareKanbanIcon,
-  trading: CandlestickChartIcon,
-  design: PaletteIcon,
-  narrative: BookOpenIcon,
-  evolution: DnaIcon,
-  intelligence: RssIcon,
-  community: CompassIcon,
-};
-
-/** Keep native app tiles distinct without letting the theme's saturated
- * primary color overpower translucent desktop and Dock surfaces. */
-const BUILTIN_ICON_TONE: Record<WorkbenchBuiltinIcon, string> = {
-  projects: "from-slate-600/75 to-sky-500/65",
-  trading: "from-teal-600/75 to-emerald-500/65",
-  design: "from-violet-600/70 to-indigo-400/60",
-  narrative: "from-fuchsia-600/70 to-violet-500/60",
-  evolution: "from-violet-600/75 to-cyan-500/60",
-  intelligence: "from-cyan-600/75 to-blue-500/65",
-  community: "from-indigo-600/70 to-violet-500/60",
-};
-
 const WORKSPACE_DESKTOP_APPS: BrowserDesktopApp[] = WORKBENCH_BUILTIN_APPS.map(
   (app) => ({
     name: app.name,
     url: app.launchUrl,
-    icon: BUILTIN_ICON_MAP[app.icon],
-    color: BUILTIN_ICON_TONE[app.icon],
+    icon: WORKBENCH_APP_ICONS[app.icon],
     description: app.description,
     category: "workspace",
     workspaceRoute: app.workspaceRoute,
@@ -196,7 +175,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "QQ 邮箱",
     url: "https://mail.qq.com/",
     icon: MailIcon,
-    color: "from-blue-500 to-sky-400",
     description: "QQ 邮箱网页版，收发邮件",
     category: "tool",
   },
@@ -204,7 +182,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "163 邮箱",
     url: "https://mail.163.com/",
     icon: MailIcon,
-    color: "from-red-500 to-orange-400",
     description: "网易 163 邮箱网页版，收发邮件",
     category: "tool",
   },
@@ -212,7 +189,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "Gmail",
     url: "https://mail.google.com/",
     icon: MailIcon,
-    color: "from-red-500 to-rose-400",
     description: "Google 邮箱网页版，收发邮件",
     category: "tool",
   },
@@ -220,7 +196,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "Outlook",
     url: "https://outlook.live.com/mail/",
     icon: MailIcon,
-    color: "from-blue-600 to-cyan-400",
     description: "Microsoft 邮箱网页版，收发邮件",
     category: "tool",
   },
@@ -229,7 +204,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://gemini.google.com/app",
     icon: SparklesIcon,
     logoUrl: "https://cdn.simpleicons.org/googlegemini",
-    color: "from-blue-500 to-cyan-400",
     description: "Comprehensive search, multi-turn analysis",
     category: "ai",
   },
@@ -238,7 +212,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://notebooklm.google.com/",
     icon: BookOpenIcon,
     logoUrl: "https://cdn.simpleicons.org/notebooklm",
-    color: "from-warning to-orange-400",
     description: "Library, citations, document research",
     category: "ai",
   },
@@ -247,7 +220,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.doubao.com/chat/",
     icon: MessageCircleIcon,
     logoUrl: "https://www.google.com/s2/favicons?domain=www.doubao.com&sz=128",
-    color: "from-success to-teal-400",
     description: "Chinese research, Chinese rewriting",
     category: "ai",
   },
@@ -256,7 +228,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://chat.deepseek.com/",
     icon: BrainCircuitIcon,
     logoUrl: "https://cdn.simpleicons.org/deepseek",
-    color: "from-blue-700 to-indigo-500",
     description: "Reasoning, coding, Chinese Q&A",
     category: "ai",
   },
@@ -265,7 +236,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://chat.qwen.ai/",
     icon: SparklesIcon,
     logoUrl: "https://cdn.simpleicons.org/qwen",
-    color: "from-blue-600 to-cyan-500",
     description: "Tongyi models, multimodal chat",
     category: "ai",
   },
@@ -274,7 +244,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://yiyan.baidu.com/",
     icon: MessageCircleIcon,
     logoUrl: "https://cdn.simpleicons.org/baidu",
-    color: "from-indigo-600 to-blue-500",
     description: "Baidu agents, Chinese creation",
     category: "ai",
   },
@@ -284,7 +253,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     icon: BotIcon,
     logoUrl:
       "https://www.google.com/s2/favicons?domain=yuanbao.tencent.com&sz=128",
-    color: "from-cyan-600 to-blue-500",
     description: "Chinese search, material summary",
     category: "ai",
   },
@@ -293,7 +261,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.perplexity.ai/",
     icon: SearchIcon,
     logoUrl: "https://cdn.simpleicons.org/perplexity",
-    color: "from-sky-500 to-indigo-500",
     description: "Web search, source leads",
     category: "ai",
   },
@@ -302,7 +269,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://chatgpt.com/",
     icon: BotIcon,
     logoUrl: "https://chatgpt.com/favicon.ico",
-    color: "from-zinc-700 to-zinc-500",
     description: "General chat, coding assistance",
     category: "ai",
   },
@@ -311,7 +277,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://claude.ai/",
     icon: BrainCircuitIcon,
     logoUrl: "https://cdn.simpleicons.org/claude",
-    color: "from-stone-600 to-destructive",
     description: "Long-text analysis, writing organization",
     category: "ai",
   },
@@ -320,7 +285,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.kimi.com/",
     icon: GraduationCapIcon,
     logoUrl: "https://www.google.com/s2/favicons?domain=www.kimi.com&sz=128",
-    color: "from-violet-500 to-fuchsia-500",
     description: "Long context, Chinese materials",
     category: "ai",
   },
@@ -330,7 +294,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     icon: ImageIcon,
     logoUrl:
       "https://www.google.com/s2/favicons?domain=app.agnes-ai.com&sz=128",
-    color: "from-pink-500 to-destructive",
     description: "AI gateway, image/video generation",
     category: "ai",
   },
@@ -339,7 +302,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.youtube.com/",
     icon: ImageIcon,
     logoUrl: "https://cdn.simpleicons.org/youtube",
-    color: "from-destructive to-destructive",
     description: "Videos, channels, live streams",
     category: "video",
   },
@@ -348,7 +310,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.bilibili.com/",
     icon: ImageIcon,
     logoUrl: "https://cdn.simpleicons.org/bilibili",
-    color: "from-sky-500 to-cyan-400",
     description: "Videos, anime, knowledge zone",
     category: "video",
   },
@@ -357,7 +318,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://github.com/",
     icon: BotIcon,
     logoUrl: "https://github.githubassets.com/favicons/favicon.svg",
-    color: "from-zinc-900 to-zinc-700",
     description: "Code repos, project collaboration",
     category: "dev",
   },
@@ -366,7 +326,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://stackoverflow.com/",
     icon: BrainCircuitIcon,
     logoUrl: "https://cdn.simpleicons.org/stackoverflow",
-    color: "from-orange-500 to-warning",
     description: "Programming Q&A, troubleshooting",
     category: "dev",
   },
@@ -375,7 +334,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://developer.mozilla.org/",
     icon: BookOpenIcon,
     logoUrl: "https://cdn.simpleicons.org/mdnwebdocs",
-    color: "from-foreground to-blue-600",
     description: "Web docs, API reference",
     category: "dev",
   },
@@ -384,7 +342,6 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.zhihu.com/",
     icon: SearchIcon,
     logoUrl: "https://cdn.simpleicons.org/zhihu",
-    color: "from-blue-600 to-sky-500",
     description: "Q&A, columns, Chinese materials",
     category: "knowledge",
   },
@@ -393,14 +350,13 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     url: "https://www.wikipedia.org/",
     icon: GraduationCapIcon,
     logoUrl: "https://cdn.simpleicons.org/wikipedia",
-    color: "from-muted-foreground to-muted-foreground/70",
     description: "Encyclopedia, background materials",
     category: "knowledge",
   },
 ];
 
 const DESKTOP_APP_GROUPS: Array<{
-  id: DesktopAppCategory;
+  id: DesktopAppGroupId;
   appUrls: string[];
 }> = [
   {
@@ -448,39 +404,6 @@ const DESKTOP_SIDE_NAV: Array<{
   { id: "games", icon: Gamepad2Icon },
 ];
 
-const SEARCH_ENGINES = [
-  {
-    name: "Baidu",
-    url: "https://www.baidu.com/s?wd=",
-    icon: "Bai",
-    logoUrl: "https://www.baidu.com/favicon.ico",
-    accent: "bg-[#2f6bff] text-white",
-  },
-  {
-    name: "Google",
-    url: "https://www.google.com/search?q=",
-    icon: "G",
-    logoUrl: "https://www.google.com/favicon.ico",
-    accent: "bg-white text-[#4285f4]",
-  },
-  {
-    name: "Bing",
-    url: "https://www.bing.com/search?q=",
-    icon: "B",
-    logoUrl: "https://www.bing.com/favicon.ico",
-    accent: "bg-[#008373] text-white",
-  },
-  {
-    name: "GitHub",
-    url: "https://github.com/search?q=",
-    icon: "GH",
-    logoUrl: "https://github.githubassets.com/favicons/favicon.svg",
-    accent: "bg-[#24292f] text-white",
-  },
-];
-
-type SearchEngine = (typeof SEARCH_ENGINES)[number];
-
 function DesktopAppLogo({
   app,
   className,
@@ -491,27 +414,30 @@ function DesktopAppLogo({
   iconClassName?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const FallbackIcon = app.icon;
+
+  if (failed || !app.logoUrl) {
+    return (
+      <EchoAppTile
+        icon={app.icon}
+        className={cn("rounded-md", className)}
+        iconClassName={iconClassName}
+      />
+    );
+  }
 
   return (
     <span
       className={cn(
         "grid place-items-center overflow-hidden rounded-md text-foreground transition",
         className,
-        (failed || !app.logoUrl) && "bg-gradient-to-br text-white",
-        (failed || !app.logoUrl) && app.color,
       )}
     >
-      {failed || !app.logoUrl ? (
-        <FallbackIcon className={cn("size-1/2", iconClassName)} />
-      ) : (
-        <img
-          src={app.logoUrl}
-          alt=""
-          className={cn("size-[68%] object-contain", iconClassName)}
-          onError={() => setFailed(true)}
-        />
-      )}
+      <img
+        src={app.logoUrl}
+        alt=""
+        className={cn("size-[68%] object-contain", iconClassName)}
+        onError={() => setFailed(true)}
+      />
     </span>
   );
 }
@@ -788,7 +714,7 @@ function MenuItem({
       <Icon className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1 text-left">{label}</span>
       {shortcut && (
-        <span className="text-xs text-muted-foreground/70">{shortcut}</span>
+        <span className="text-xs text-muted-foreground">{shortcut}</span>
       )}
     </button>
   );
@@ -974,7 +900,9 @@ export function BrowserHome({
   active,
   device,
   onOpen,
+  startContent,
 }: {
+  startContent?: ReactNode;
   active: boolean;
   device: BrowserTab["device"];
   onOpen: (url: string) => void;
@@ -990,7 +918,16 @@ export function BrowserHome({
   const wt = t.browser.webviewTab;
   const bt = t.browserHome;
   const bp = t.browserPreviewPanel;
-  const { history } = useBrowserStore();
+  const { history, setCopilotOpen } = useBrowserStore();
+  const topSites = useMemo(() => topSitesFromHistory(history), [history]);
+  // The start page's main action: hand the question to the browser AI.
+  const askAssistant = useCallback(
+    (text: string) => {
+      setCopilotOpen(true);
+      requestBrowserAssistantAsk(text);
+    },
+    [setCopilotOpen],
+  );
   const workspaceWebShortcuts = useWorkspaceWebShortcuts();
   const [desktopVisible, setDesktopVisible] = useState(false);
   const [localServices, setLocalServices] = useState<DetectedLocalService[]>(
@@ -1085,7 +1022,7 @@ export function BrowserHome({
   }, [selectedEngine]);
   const [enginePickerOpen, setEnginePickerOpen] = useState(false);
   const [openAppGroupId, setOpenAppGroupId] =
-    useState<DesktopAppCategory | null>(null);
+    useState<DesktopAppGroupId | null>(null);
   const [activePanel, setActivePanel] = useState<DesktopPanelId>("home");
   const [editMode, setEditMode] = useState(false);
   useEffect(() => {
@@ -1272,10 +1209,10 @@ export function BrowserHome({
   );
   const desktopAppGroups = useMemo(() => {
     const titles: Record<
-      DesktopAppCategory,
+      DesktopAppGroupId,
       { title: string; subtitle: string }
     > = {
-      workspace: { title: "Echo 工作台", subtitle: "原生能力，一键直达" },
+      workspace: { title: "ECHO AI 工作台", subtitle: "原生能力，一键直达" },
       ai: { title: bt.groupAiTools, subtitle: bt.groupAiToolsSubtitle },
       video: { title: bt.groupVideo, subtitle: bt.groupVideoSubtitle },
       dev: { title: bt.groupDev, subtitle: bt.groupDevSubtitle },
@@ -1409,11 +1346,7 @@ export function BrowserHome({
     if (!trimmed) return;
     const engine = selectedSearchEngine;
     if (!engine) return;
-    const target = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)
-      ? trimmed
-      : /\s/.test(trimmed) || !trimmed.includes(".")
-        ? engine.url + encodeURIComponent(trimmed)
-        : `https://${trimmed}`;
+    const target = resolveBrowserInput(trimmed, engine.url);
     setEnginePickerOpen(false);
     onOpen(target);
   };
@@ -1815,6 +1748,7 @@ export function BrowserHome({
     return (
       <BrowserStartPage
         active={active}
+        children={startContent}
         query={query}
         onQueryChange={setQuery}
         onSearch={submitSearch}
@@ -1829,6 +1763,8 @@ export function BrowserHome({
         }))}
         onOpen={openDesktopApp}
         onManageDesktop={() => setDesktopVisible(true)}
+        onAsk={askAssistant}
+        topSites={topSites}
       />
     );
   }
@@ -1987,7 +1923,7 @@ export function BrowserHome({
               />
               <ChevronDownIcon
                 className={cn(
-                  "size-3 text-muted-foreground/60 transition-transform group-hover:text-muted-foreground",
+                  "size-3 text-muted-foreground transition-transform group-hover:text-muted-foreground",
                   enginePickerOpen && "rotate-180 text-foreground",
                 )}
               />
@@ -2002,7 +1938,7 @@ export function BrowserHome({
               placeholder={wt.searchPlaceholderFormat(
                 selectedSearchEngine?.name ?? wt.searchEngineFallback,
               )}
-              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-foreground outline-none placeholder:text-muted-foreground/60"
+              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>
 
@@ -2212,7 +2148,7 @@ export function BrowserHome({
                   </button>
                 ))}
               </div>
-              <div className="mt-1.5 text-center text-mini font-medium text-muted-foreground/70">
+              <div className="mt-1.5 text-center text-mini font-medium text-muted-foreground">
                 {bt.commonCategories}
               </div>
 
@@ -2236,7 +2172,7 @@ export function BrowserHome({
                       <button
                         type="button"
                         onClick={() => setOpenAppGroupId(null)}
-                        className="grid size-7 place-items-center rounded-lg text-muted-foreground/70 transition hover:bg-foreground/5 hover:text-foreground"
+                        className="grid size-7 place-items-center rounded-lg text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground"
                       >
                         <X className="size-4" />
                       </button>
@@ -2343,7 +2279,7 @@ export function BrowserHome({
                   ))}
                 </div>
               ) : (
-                <div className="rounded-lg border border-border-subtle/60 px-3 py-4 text-center text-mini text-muted-foreground/70">
+                <div className="rounded-lg border border-border-subtle/60 px-3 py-4 text-center text-mini text-muted-foreground">
                   {scanningLocalServices
                     ? bp.scanLocalServices
                     : bp.noLocalServices}
@@ -2371,7 +2307,7 @@ export function BrowserHome({
                 </div>
                 <div
                   className={cn(
-                    "grid size-7 place-items-center rounded-lg text-muted-foreground/70",
+                    "grid size-7 place-items-center rounded-lg text-muted-foreground",
                   )}
                   title={bt.historyOnly}
                 >
@@ -2384,7 +2320,7 @@ export function BrowserHome({
                 </div>
               )}
               {recentPanelItems.length === 0 && (
-                <div className="rounded-lg border border-border-subtle/60 px-3 py-4 text-center text-mini text-muted-foreground/70">
+                <div className="rounded-lg border border-border-subtle/60 px-3 py-4 text-center text-mini text-muted-foreground">
                   {bt.noRecentVisits}
                 </div>
               )}
@@ -2423,7 +2359,7 @@ export function BrowserHome({
                             <button
                               type="button"
                               onClick={() => handleEdit(widget.id)}
-                              className="grid size-7 place-items-center rounded-lg text-muted-foreground/60 transition hover:bg-foreground/5 hover:text-muted-foreground"
+                              className="grid size-7 place-items-center rounded-lg text-muted-foreground transition hover:bg-foreground/5 hover:text-muted-foreground"
                               title={wt.ctxEditWidget}
                               aria-label={wt.ctxEditWidget}
                             >
@@ -2435,7 +2371,7 @@ export function BrowserHome({
                             onClick={(event) =>
                               handleContext(event, widget.id, "widget")
                             }
-                            className="grid size-7 place-items-center rounded-lg text-muted-foreground/55 opacity-60 transition hover:bg-foreground/5 hover:text-foreground focus-visible:opacity-100 group-hover/widget:opacity-100"
+                            className="grid size-7 place-items-center rounded-lg text-muted-foreground opacity-60 transition hover:bg-foreground/5 hover:text-foreground focus-visible:opacity-100 group-hover/widget:opacity-100"
                             title={`${wt.ctxEditWidget} / ${wt.ctxDelete}`}
                             aria-label={`${wt.ctxEditWidget} / ${wt.ctxDelete}`}
                           >
@@ -2453,24 +2389,8 @@ export function BrowserHome({
                             </div>
                           </div>
                         )}
-                        {widget.type === "weather" && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">☀️</span>
-                            <span className="text-lg text-muted-foreground">
-                              26°C
-                            </span>
-                          </div>
-                        )}
-                        {widget.type === "system" && (
-                          <div className="space-y-1.5">
-                            <div className="h-1.5 rounded-full bg-muted-foreground/12">
-                              <div className="h-full bg-primary rounded-full w-[23%]" />
-                            </div>
-                            <div className="h-1.5 rounded-full bg-muted-foreground/12">
-                              <div className="h-full bg-accent-foreground/60 rounded-full w-[45%]" />
-                            </div>
-                          </div>
-                        )}
+                        {widget.type === "weather" && <WeatherWidgetBody />}
+                        {widget.type === "system" && <SystemWidgetBody />}
                         {widget.type === "ai-tools" && (
                           <div className="grid grid-cols-3 gap-1.5">
                             {["ChatGPT", "Claude", "Gemini"].map((name) => (
@@ -2615,7 +2535,7 @@ export function BrowserHome({
                           ) : (
                             <Folder className="w-5 h-5 text-muted-foreground" />
                           )}
-                          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary rounded-full flex items-center justify-center text-[9px] text-primary-foreground font-bold">
+                          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary rounded-full flex items-center justify-center text-micro text-primary-foreground font-bold">
                             {links.length}
                           </span>
                         </div>
@@ -2636,7 +2556,7 @@ export function BrowserHome({
                               )}
                               onClick={() => toggleFolder(folder.id)}
                             >
-                              <X className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-muted-foreground" />
+                              <X className="w-3.5 h-3.5 text-muted-foreground hover:text-muted-foreground" />
                             </button>
                           </div>
                           <div className="grid grid-cols-3 gap-1.5">
@@ -2740,7 +2660,7 @@ export function BrowserHome({
               type="button"
               onClick={() => setActivePanel("add")}
               className={cn(
-                "grid size-12 shrink-0 place-items-center rounded-lg border-dashed border border-border-subtle/70 text-muted-foreground/70 transition",
+                "grid size-12 shrink-0 place-items-center rounded-lg border-dashed border border-border-subtle/70 text-muted-foreground transition",
                 "bg-card/50 hover:bg-card/70 hover:text-muted-foreground",
                 compactDesktop && "size-11 rounded-lg",
                 tabletDesktop && "size-11",
@@ -2801,7 +2721,7 @@ export function BrowserHome({
                 })
               }
             >
-              <X className="w-5 h-5 text-muted-foreground/70 hover:text-muted-foreground" />
+              <X className="w-5 h-5 text-muted-foreground hover:text-muted-foreground" />
             </button>
           </div>
           <div className="space-y-4">

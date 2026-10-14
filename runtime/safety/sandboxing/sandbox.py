@@ -2,11 +2,10 @@
 
 The "let the agent run shell" axis is the place where the gap between
 a toy agent and a production agent is widest. ``exec_shell`` is **not**
-raw ``subprocess.Popen``. It's wrapped in a platform-appropriate
-sandbox: macOS Seatbelt, Linux ``bwrap`` / ``unshare``, Windows Job
-Object + restricted token. The harness still gets the same
-``stdout``/``stderr`` interface, but a misbehaving model cannot
-``rm -rf /``, exfiltrate to a proxy, or escape the workspace.
+raw ``subprocess.Popen``. Optional macOS Seatbelt and Linux bwrap /
+Landlock backends add platform-specific confinement. The direct backend,
+including the current Windows implementation, enforces only soft constraints;
+its network environment hints and cwd do not prevent arbitrary host access.
 
 This module does **not** ship a turnkey kernel sandbox — that's a deep
 platform integration each user has to install. Instead it provides:
@@ -205,6 +204,32 @@ _SENSITIVE_ENV_MARKERS = (
 )
 
 
+def _protected_system_paths() -> tuple[Path, ...]:
+    if sys.platform == "darwin":
+        names = (
+            "/System",
+            "/Library",
+            "/Applications",
+            "/usr",
+            "/bin",
+            "/sbin",
+            "/lib",
+            "/etc",
+            "/dev",
+            "/proc",
+            "/sys",
+        )
+    elif os.name == "nt":
+        return tuple(
+            Path(value)
+            for name in ("SystemRoot", "WINDIR", "ProgramFiles", "ProgramFiles(x86)")
+            if (value := os.environ.get(name))
+        )
+    else:
+        names = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc", "/dev", "/proc", "/sys")
+    return tuple(Path(value) for value in names)
+
+
 @dataclass(frozen=True)
 class SandboxPolicy:
     """Knobs the runner enforces for every command."""
@@ -270,20 +295,9 @@ class SandboxPolicy:
 
     def __post_init__(self) -> None:
         workspace = self.workspace.expanduser().resolve(strict=False)
+        system_paths = _protected_system_paths()
         protected_roots = tuple(
-            path.resolve(strict=False)
-            for path in (
-                Path("/usr"),
-                Path("/bin"),
-                Path("/sbin"),
-                Path("/lib"),
-                Path("/lib64"),
-                Path("/etc"),
-                Path("/dev"),
-                Path("/proc"),
-                Path("/sys"),
-            )
-            if path.exists()
+            path.resolve(strict=False) for path in system_paths if path.exists()
         )
         normalized: list[Path] = []
         for raw_root in self.additional_write_roots:
@@ -328,6 +342,10 @@ class SandboxPolicy:
             key_s = str(key)
             if _sandbox_extra_env_key_allowed(key_s, allowed):
                 env[key_s] = str(value)
+        # Captured streams are decoded as UTF-8; Python children must use the
+        # same encoding even on a Windows locale with a legacy code page.
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
         workspace = self.workspace.expanduser().resolve(strict=False)
         home_dir = _ensure_workspace_env_dir(workspace, ".echo-home")
         tmp_dir = _ensure_workspace_env_dir(workspace, ".echo-tmp")
@@ -629,19 +647,19 @@ class SeatbeltBackend:
             raise SandboxViolation("seatbelt sandbox requested but sandbox-exec is not installed")
 
         if policy.mode == "read-only":
-            write_subpaths = [Path("/dev/null"), *policy.additional_write_roots]
+            write_subpaths = ["/dev/null", *(str(path) for path in policy.additional_write_roots)]
         else:
             write_subpaths = [
-                workspace,
-                Path("/dev/null"),
-                Path("/tmp"),  # nosec B108 — sandbox write-allow rule target, not a temp file
-                Path("/private/tmp"),  # nosec B108 — sandbox write-allow rule target, not a temp file
-                Path("/var/tmp"),  # nosec B108 — sandbox write-allow rule target, not a temp file
-                Path(os.environ.get("TMPDIR", "/tmp")).expanduser().resolve(strict=False),  # nosec B108 — sandbox write-allow rule target
-                *policy.additional_write_roots,
+                str(workspace),
+                "/dev/null",
+                "/tmp",  # nosec B108 — sandbox write-allow rule target, not a temp file
+                "/private/tmp",  # nosec B108 — sandbox write-allow rule target, not a temp file
+                "/var/tmp",  # nosec B108 — sandbox write-allow rule target, not a temp file
+                str(Path(os.environ.get("TMPDIR", "/tmp")).expanduser().resolve(strict=False)),  # nosec B108 — sandbox write-allow rule target
+                *(str(path) for path in policy.additional_write_roots),
             ]
         write_rules = "\n".join(
-            f'  (subpath "{_sbpl_escape(str(path))}")' for path in _unique_paths(write_subpaths)
+            f'  (subpath "{_sbpl_escape(path)}")' for path in dict.fromkeys(write_subpaths)
         )
         network_rule = "(allow network*)" if policy.allow_network else "(deny network*)"
         profile = (
@@ -894,16 +912,14 @@ def _sbpl_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-# ═══════════════════════════════════════════════════════════
-# Resolved posture — single source of truth for the execution
-# contract.  ``select_process_backend`` above stays as the cheap,
-# pure resolver (used by embedders and tests); production entry
-# points call ``resolved_process_backend`` so the whole process
-# shares ONE verified backend instead of each exec path re-deriving
-# one (and silently downgrading).
-# ═══════════════════════════════════════════════════════════
+# Production resolves one verified backend per process. The cheap resolver
+# remains available for embedders; a PATH-shadowed CLI must not be the probe.
 
-_PROBE_COMMAND = ("echo", "echo-sandbox-probe")
+_PROBE_COMMAND = (
+    (sys.executable, "-c", "pass")
+    if os.name == "nt"
+    else (shutil.which("echo", path=os.defpath) or "/bin/echo", "echo-sandbox-probe")
+)
 _probe_cache: dict[tuple[str, str], bool] = {}
 _probe_lock = threading.Lock()
 
@@ -1042,7 +1058,9 @@ def resolve_process_backend(mode: str | None = None) -> BackendChoice:
         # Never a silent downgrade: a hard backend is present-but-broken or
         # none exists. Loudly degrade to soft and let the caller/operator see it.
         _warn_soft_fallback_once()
-        return _set_resolved(raw, BackendChoice(DirectBackend(), "direct", hard=False))
+        return _set_resolved(
+            raw, BackendChoice(DirectBackend(), "direct", hard=False, needs_approval=True)
+        )
 
     raise SandboxViolation(
         f"process sandbox mode '{raw}' has no usable hard backend "
@@ -1139,13 +1157,10 @@ class SandboxRunner:
         cmd_list, env, run_cwd = self.backend.transform(cmd_list, env, run_cwd, self.policy)
 
         started_at = time.monotonic()
-        from runtime.platform.process.tree import (
-            process_group_kwargs,
-            terminate_process_tree,
-        )
+        from runtime.platform.process import tree
 
         try:
-            proc = subprocess.Popen(
+            proc = tree.spawn_in_job(
                 cmd_list,
                 cwd=str(run_cwd),
                 env=env,
@@ -1155,7 +1170,6 @@ class SandboxRunner:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                **process_group_kwargs(),
             )
         except FileNotFoundError as exc:
             raise SandboxViolation(f"executable not found: {exc.filename}") from exc
@@ -1212,11 +1226,14 @@ class SandboxRunner:
         except subprocess.TimeoutExpired:
             timed_out = True
             killed = True
-            terminate_process_tree(proc)
+            tree.terminate_process_tree(proc)
             exit_code = proc.returncode if proc.returncode is not None else -1
 
         out_thread.join(timeout=1.0)
         err_thread.join(timeout=1.0)
+        # Normal completion keeps intentional daemons; timeout has already
+        # killed the entire job before releasing its handle.
+        tree.detach_process_job(proc)
 
         return SandboxResult(
             exit_code=exit_code,

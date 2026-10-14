@@ -64,6 +64,9 @@ ATOMIC_SKILL_NAMES: frozenset[str] = frozenset(
         # decision card. Atomic so every agent can prompt the user
         # without explicit allowlisting.
         "ask_user_question",
+        # Inert cards return responses through the ordinary user-message boundary.
+        "visual_guidelines",
+        "show_ui",
         # blackboard · turn-scoped shared state for parallel sub-agents.
         # In-process dict, no I/O · trivially atomic. Always-on so every
         # agent (lead OR sub-agent) can use bb_read/bb_write to exchange
@@ -71,6 +74,9 @@ ATOMIC_SKILL_NAMES: frozenset[str] = frozenset(
         "bb_read",
         "bb_write",
         "bb_keys",
+        # Shared group protocol; server-side membership, mode and execution
+        # ceilings still govern every operation, including delegation.
+        "collaboration",
         # jobs · in-memory registry reads/writes, no I/O. ``job_output``
         # (wait may block) and ``call_agent_background`` (spawns a worker
         # thread) stay non-atomic.
@@ -178,6 +184,8 @@ READ_ONLY_SKILL_NAMES: frozenset[str] = frozenset(
         "search_capabilities",
         "query_capability",
         # agent memory · recall side only
+        "visual_guidelines",
+        "show_ui",
         "recall",
         "recall_scores",
         "list_soul_history",

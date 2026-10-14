@@ -187,7 +187,8 @@ def test_android_websocket_rejects_authenticated_non_operator(
     ):
         pass
 
-    assert exc_info.value.code == 4403
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "admin/operator role required"
 
 
 def test_org_create_ignores_forged_owner_in_shared_mode(

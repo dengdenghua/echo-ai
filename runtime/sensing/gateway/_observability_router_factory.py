@@ -18,7 +18,7 @@ from typing import Any
 
 from runtime.sensing._fastapi_guard import require_fastapi
 
-from ._observability_auth import make_auth_dep
+from ._observability_auth import make_auth_dep, make_principal_dep
 from ._observability_helpers import APIRouter, Depends
 from ._observability_journal import register_journal_endpoints
 from ._observability_kg import register_kg_endpoints
@@ -75,13 +75,20 @@ def create_observability_router(
         jwt_audience=jwt_audience,
     )
 
-    router = APIRouter(tags=["observability"], dependencies=[Depends(make_auth_dep(ctx))])
+    operator = APIRouter(tags=["observability"], dependencies=[Depends(make_auth_dep(ctx))])
+    register_journal_endpoints(operator, ctx)
+    register_progress_stream_endpoints(operator, ctx)
+    register_rollback_panels_endpoints(operator, ctx)
 
-    register_journal_endpoints(router, ctx)
-    register_kg_endpoints(router, ctx)
-    register_progress_stream_endpoints(router, ctx)
-    register_rollback_panels_endpoints(router, ctx)
+    # Knowledge views are per-caller (AI-29): any authenticated account reads
+    # its own partition; the process-global graph keeps its admin-and-scope
+    # gate inside each handler.
+    knowledge = APIRouter(tags=["observability"], dependencies=[Depends(make_principal_dep(ctx))])
+    register_kg_endpoints(knowledge, ctx)
 
+    router = APIRouter()
+    router.include_router(operator)
+    router.include_router(knowledge)
     return router
 
 

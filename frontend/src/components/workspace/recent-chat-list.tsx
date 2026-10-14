@@ -51,7 +51,10 @@ import {
 import { getAPIClient } from "@/core/api";
 import { useActiveAgentId } from "@/core/agents/active";
 import { copyTextToClipboard } from "@/core/clipboard";
-import { emitAgentChanged } from "@/core/events";
+import {
+  deriveThreadAgents,
+  syncThreadAgentSelection,
+} from "@/core/threads/sidebar";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   type Project,
@@ -61,12 +64,13 @@ import {
   useProjects,
   useThreadMap,
 } from "@/core/projects/hooks";
+import { ProjectIcon } from "@/core/projects/project-icons";
 import {
   exportThreadAsJSON,
   exportThreadAsMarkdown,
 } from "@/core/threads/export";
 import {
-  useDeleteThread,
+  useThreadListVisibility,
   useRenameThread,
   useThreads,
 } from "@/core/threads/hooks";
@@ -80,7 +84,7 @@ import { CreateProjectDialog } from "./create-project-dialog";
 type ThreadGroup = {
   key: string;
   label: string;
-  icon?: string;
+  icon?: string | null;
   project?: Project;
   threads: AgentThread[];
 };
@@ -90,8 +94,8 @@ function routeForThread(thread: AgentThread) {
 }
 
 function ownerAgentForThread(thread: AgentThread): string {
-  const meta = (thread.metadata ?? {}) as Record<string, unknown>;
-  const values = (thread.values ?? {}) as Record<string, unknown>;
+  const meta = thread.metadata ?? {};
+  const values: Record<string, unknown> = thread.values ?? {};
   const candidates = [
     meta["agent"],
     meta["agent_name"],
@@ -134,7 +138,7 @@ export function RecentChatList() {
   );
   const { data: projects = [] } = useProjects();
   const { data: threadProjectMap = {} } = useThreadMap();
-  const { mutate: deleteThread } = useDeleteThread();
+  const { mutate: deleteThread } = useThreadListVisibility();
   const { mutate: renameThread } = useRenameThread();
   const { mutate: moveThreadToProject } = useMoveThreadToProject();
   const ensureProjectHome = useEnsureProjectHome();
@@ -154,7 +158,7 @@ export function RecentChatList() {
     (project: Project) => {
       ensureProjectHome.mutate(project, {
         onSuccess: ({ threadId }) =>
-          navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
+          void navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
             state: { openProjectWorkbench: true },
           }),
         onError: () => toast.error("项目工作群打开失败，请重试"),
@@ -165,19 +169,27 @@ export function RecentChatList() {
 
   const handleDelete = useCallback(
     (threadId: string) => {
-      deleteThread({ threadId });
-      if (threadId === threadIdFromPath) {
-        const threadIndex = threads.findIndex((x) => x.thread_id === threadId);
-        let nextThreadId = "new";
-        if (threadIndex > -1) {
-          if (threads[threadIndex + 1]) {
-            nextThreadId = threads[threadIndex + 1]!.thread_id;
-          } else if (threads[threadIndex - 1]) {
-            nextThreadId = threads[threadIndex - 1]!.thread_id;
-          }
-        }
-        void navigate(`/workspace/realtime/${nextThreadId}`);
-      }
+      deleteThread(
+        { threadId },
+        {
+          onSuccess: () => {
+            if (threadId === threadIdFromPath) {
+              const threadIndex = threads.findIndex(
+                (x) => x.thread_id === threadId,
+              );
+              let nextThreadId = "new";
+              if (threadIndex > -1) {
+                if (threads[threadIndex + 1]) {
+                  nextThreadId = threads[threadIndex + 1]!.thread_id;
+                } else if (threads[threadIndex - 1]) {
+                  nextThreadId = threads[threadIndex - 1]!.thread_id;
+                }
+              }
+              void navigate(`/workspace/realtime/${nextThreadId}`);
+            }
+          },
+        },
+      );
     },
     [deleteThread, navigate, threadIdFromPath, threads],
   );
@@ -321,8 +333,7 @@ export function RecentChatList() {
             }}
             title={titleOfThread(thread)}
             onMouseDown={() => {
-              const owner = ownerAgentForThread(thread);
-              if (owner) emitAgentChanged(owner, "thread");
+              syncThreadAgentSelection(deriveThreadAgents(thread));
             }}
           >
             <span>{titleOfThread(thread)}</span>
@@ -392,7 +403,10 @@ export function RecentChatList() {
                         })
                       }
                     >
-                      <span className="mr-1">{project.icon}</span>
+                      <ProjectIcon
+                        icon={project.icon}
+                        className="text-muted-foreground"
+                      />
                       <span>{project.name}</span>
                     </DropdownMenuItem>
                   ))}
@@ -411,7 +425,7 @@ export function RecentChatList() {
                 onSelect={() => setThreadToDelete(thread)}
               >
                 <Trash2 />
-                <span>{t.common.delete}</span>
+                <span>{t.sidebar.deleteThreadTooltip}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -460,7 +474,7 @@ export function RecentChatList() {
                     }
                     title={`打开项目工作群：${group.label}`}
                   >
-                    {group.icon && <span>{group.icon}</span>}
+                    <ProjectIcon icon={group.icon} className="size-3" />
                     <span className="truncate">{group.label}</span>
                   </button>
                 ) : (
@@ -579,7 +593,7 @@ export function RecentChatList() {
       >
         <DialogContent className="sm:max-w-[var(--dialog-md)]">
           <DialogHeader>
-            <DialogTitle>{t.common.delete}</DialogTitle>
+            <DialogTitle>{t.sidebar.deleteThreadTooltip}</DialogTitle>
             <DialogDescription>
               {threadToDelete
                 ? t.sidebar.confirmDeleteThread(titleOfThread(threadToDelete))
@@ -590,8 +604,8 @@ export function RecentChatList() {
             <Button variant="outline" onClick={() => setThreadToDelete(null)}>
               {t.common.cancel}
             </Button>
-            <Button variant="destructive" onClick={handleThreadDelete}>
-              {t.common.delete}
+            <Button onClick={handleThreadDelete}>
+              {t.sidebar.deleteThreadTooltip}
             </Button>
           </DialogFooter>
         </DialogContent>

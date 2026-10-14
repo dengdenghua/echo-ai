@@ -43,13 +43,13 @@ def render_office_fidelity_preview(path: Path) -> str | None:
     if cached.is_file():
         try:
             return cached.read_text(encoding="utf-8")
-        except OSError:
+        except OSError:  # intentional: Re-render when cached HTML cannot be read.
             pass
     with _RENDER_LOCK:
         if cached.is_file():
             try:
                 return cached.read_text(encoding="utf-8")
-            except OSError:
+            except OSError:  # intentional: Re-render after the locked cache read fails.
                 pass
         _CACHE_ROOT.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="render-", dir=_CACHE_ROOT) as output_dir:

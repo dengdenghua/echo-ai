@@ -62,9 +62,9 @@ _RUN_STATUSES = frozenset(
 )
 _TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 _LEGAL_TRANSITIONS = {
-    "queued": frozenset({"running", "failed", "cancelled", "interrupted"}),
+    "queued": frozenset({"running", "waiting", "failed", "cancelled", "interrupted"}),
     "running": frozenset({"waiting", "completed", "failed", "cancelled", "interrupted"}),
-    "waiting": frozenset({"running", "completed", "failed", "cancelled", "interrupted"}),
+    "waiting": frozenset({"queued", "running", "completed", "failed", "cancelled", "interrupted"}),
     "interrupted": frozenset({"queued", "running", "failed", "cancelled"}),
     "completed": frozenset(),
     "failed": frozenset(),
@@ -197,9 +197,10 @@ class CollaborationRunStoreMixin:
         input_payload = _json_dict(input, label="run input")
         timestamp = _iso(_now())
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
+                (run_id,),
             ).fetchone()
             if row:
                 current = _run_from_row(row)
@@ -236,23 +237,23 @@ class CollaborationRunStoreMixin:
                 created_at=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
+                (run_id,),
             ).fetchone()
         return _run_from_row(row)
 
     def collaboration_run(self, run_id: str) -> dict[str, Any] | None:
         run_id = require_cowork_id(run_id, label="run_id")
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
+                (run_id,),
             ).fetchone()
         return _run_from_row(row) if row else None
 
     def collaboration_run_events(self, run_id: str) -> list[dict[str, Any]]:
         run_id = require_cowork_id(run_id, label="run_id")
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             rows = conn.execute(
                 "SELECT seq,event_type,status,payload_json,created_at "
                 "FROM collaboration_run_events WHERE run_id=? ORDER BY seq",
@@ -295,7 +296,6 @@ class CollaborationRunStoreMixin:
         sql += " ORDER BY updated_at DESC, created_at DESC LIMIT ?"
         params.append(limit)
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [_run_from_row(row) for row in rows]
 
@@ -305,6 +305,8 @@ class CollaborationRunStoreMixin:
         *,
         worker_id: str,
         lease_seconds: int = 120,
+        max_attempts: int | None = None,
+        allow_waiting: bool = True,
     ) -> dict[str, Any]:
         run_id = require_cowork_id(run_id, label="run_id")
         worker_id = require_cowork_id(worker_id, label="worker_id")
@@ -313,14 +315,17 @@ class CollaborationRunStoreMixin:
         timestamp = _iso(now)
         expires = _iso(now + timedelta(seconds=lease_seconds))
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
+                (run_id,),
             ).fetchone()
             if not row:
                 raise KeyError(f"collaboration run not found: {run_id}")
             current = _run_from_row(row)
             status = str(current["status"])
+            if status == "waiting" and not allow_waiting:
+                raise RuntimeError("collaboration run is paused")
             if status in _TERMINAL_STATUSES:
                 raise ValueError(f"cannot claim terminal collaboration run: {status}")
             lease_expiry = str(current.get("lease_expires_at") or "")
@@ -331,6 +336,8 @@ class CollaborationRunStoreMixin:
                 # Retries from one live worker are idempotent and do not count
                 # as a new execution attempt.
                 return current
+            if max_attempts is not None and current["attempt"] >= max_attempts:
+                raise RuntimeError("execution retry limit reached")
             event_type = "reclaimed" if status in {"running", "interrupted"} else "claimed"
             conn.execute(
                 "UPDATE collaboration_runs SET status='running',attempt=attempt+1,version=version+1,"
@@ -347,7 +354,8 @@ class CollaborationRunStoreMixin:
                 created_at=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
+                (run_id,),
             ).fetchone()
         return _run_from_row(row)
 
@@ -357,6 +365,7 @@ class CollaborationRunStoreMixin:
         *,
         worker_id: str,
         lease_seconds: int = 120,
+        expected_attempt: int | None = None,
     ) -> dict[str, Any]:
         run_id = require_cowork_id(run_id, label="run_id")
         worker_id = require_cowork_id(worker_id, label="worker_id")
@@ -364,16 +373,26 @@ class CollaborationRunStoreMixin:
         timestamp = _iso(_now())
         expires = _iso(_now() + timedelta(seconds=lease_seconds))
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
+            conn.execute("BEGIN IMMEDIATE")
             changed = conn.execute(
                 "UPDATE collaboration_runs SET lease_expires_at=?,updated_at=?,version=version+1 "
-                "WHERE run_id=? AND status='running' AND lease_owner=?",
-                (expires, timestamp, run_id, worker_id),
+                "WHERE run_id=? AND status='running' AND lease_owner=? AND lease_expires_at>? "
+                "AND (? IS NULL OR attempt=?)",
+                (
+                    expires,
+                    timestamp,
+                    run_id,
+                    worker_id,
+                    timestamp,
+                    expected_attempt,
+                    expected_attempt,
+                ),
             ).rowcount
             if changed != 1:
                 raise RuntimeError("collaboration run lease is not owned by this worker")
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
+                (run_id,),
             ).fetchone()
         return _run_from_row(row)
 
@@ -387,6 +406,7 @@ class CollaborationRunStoreMixin:
         worker_id: str | None = None,
         event_type: str | None = None,
         payload: dict[str, Any] | None = None,
+        expected_attempt: int | None = None,
     ) -> dict[str, Any]:
         run_id = require_cowork_id(run_id, label="run_id")
         target = str(status or "").strip().lower()
@@ -399,14 +419,17 @@ class CollaborationRunStoreMixin:
         event_payload = _json_dict(payload, label="run event payload")
         timestamp = _iso(_now())
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
+                (run_id,),
             ).fetchone()
             if not row:
                 raise KeyError(f"collaboration run not found: {run_id}")
             current = _run_from_row(row)
             current_status = str(current["status"])
+            if expected_attempt is not None and current["attempt"] != expected_attempt:
+                raise RuntimeError("collaboration execution attempt is obsolete")
             if current_status == target and current_status in _TERMINAL_STATUSES:
                 if target == "completed" and current.get("result_sha256") != result_sha256:
                     raise ValueError("completed collaboration run result is immutable")
@@ -417,6 +440,12 @@ class CollaborationRunStoreMixin:
                 )
             if worker and current.get("lease_owner") not in {None, worker}:
                 raise RuntimeError("collaboration run is leased by another worker")
+            if expected_attempt is not None and (
+                not worker
+                or current.get("lease_owner") != worker
+                or str(current.get("lease_expires_at") or "") <= timestamp
+            ):
+                raise RuntimeError("collaboration execution lease expired or revoked")
             completed_at = timestamp if target in _TERMINAL_STATUSES else None
             clear_lease = target in _TERMINAL_STATUSES or target in {"waiting", "interrupted"}
             conn.execute(
@@ -444,7 +473,8 @@ class CollaborationRunStoreMixin:
                 created_at=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?", (run_id,)
+                f"SELECT {_RUN_COLUMNS} FROM collaboration_runs WHERE run_id=?",  # nosec B608 # literal column list; query values are bound
+                (run_id,),
             ).fetchone()
         return _run_from_row(row)
 
@@ -469,7 +499,6 @@ class CollaborationRunStoreMixin:
         sql += " ORDER BY updated_at ASC LIMIT ?"
         params.append(limit)
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
             rows = conn.execute(sql, tuple(params)).fetchall()
         return [_run_from_row(row) for row in rows]
 
@@ -485,7 +514,7 @@ class CollaborationRunStoreMixin:
         timestamp = _iso(_now())
         interrupted: list[str] = []
         with self._lock, self._connect() as conn:
-            conn.executescript(COLLABORATION_RUN_SCHEMA)
+            conn.execute("BEGIN IMMEDIATE")
             rows = conn.execute(
                 "SELECT run_id,lease_owner,lease_expires_at FROM collaboration_runs "
                 "WHERE status='running' AND (lease_expires_at IS NULL OR lease_expires_at<=?) "

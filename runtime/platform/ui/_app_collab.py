@@ -134,6 +134,24 @@ def mount_collaboration(
                 decision_engine=_tentacle_engine,
                 auth_token=_tentacle_token,
             )
+            # Per-device credentials (default ON; ECHO_TENTACLE_PER_DEVICE_AUTH=0
+            # restores the shared-token-only hub). The shared join token stays
+            # accepted unless ECHO_TENTACLE_ALLOW_SHARED_TOKEN=0, but only
+            # per-device sockets may issue device/call peer requests.
+            from runtime.tentacle.device_credentials import (
+                PER_DEVICE_AUTH_ENV,
+                env_flag,
+                install_per_device_auth,
+            )
+
+            if env_flag(PER_DEVICE_AUTH_ENV, True):
+                try:
+                    install_per_device_auth(_tentacle_coordinator.ws_server)
+                except Exception:  # noqa: BLE001
+                    logging.getLogger(__name__).warning(
+                        "tentacle per-device credentials unavailable; shared-token mode only",
+                        exc_info=True,
+                    )
             app.include_router(
                 create_tentacle_router(
                     _tentacle_coordinator,
@@ -148,6 +166,11 @@ def mount_collaboration(
                 create_tentacle_join_router(
                     ws_port=_tentacle_ws_port,
                     auth_token=_tentacle_token,
+                    identity_store=ctx.identity_store,
+                    require_auth=ctx.require_auth,
+                    jwt_secret=ctx.jwt_secret,
+                    jwt_issuer=ctx.jwt_issuer,
+                    jwt_audience=ctx.jwt_audience,
                 )
             )
             app.state.tentacle_coordinator = _tentacle_coordinator

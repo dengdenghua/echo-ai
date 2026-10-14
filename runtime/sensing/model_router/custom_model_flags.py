@@ -13,8 +13,9 @@ from typing import Any
 
 from runtime.platform.models.custom_model_selection import (
     LONG_CONTEXT_PROFILE,
+    entry_matches_model,
+    find_custom_model_entry,
     resolve_custom_model_selection,
-    selections_for_entry,
 )
 
 
@@ -31,64 +32,43 @@ def read_custom_models() -> dict[str, Any] | None:
         return None
 
 
-def entry_matches_model(entry: Any, model: str) -> bool:
-    if not isinstance(entry, dict):
-        return False
-    target = (model or "").strip()
-    if not target:
-        return False
-    entry_id = str(entry.get("id") or "").strip()
-    if entry_id and any(
-        selection.selection_id == target for selection in selections_for_entry(entry_id, entry)
-    ):
-        return True
-    target = target.removesuffix("::1m")
-    candidates = {
-        str(value).strip()
-        for value in (
-            entry.get("id"),
-            entry.get("name"),
-            entry.get("model"),
-            entry.get("display_name"),
-        )
-        if isinstance(value, str) and value.strip()
-    }
-    raw_models = entry.get("models")
-    if isinstance(raw_models, list):
-        candidates.update(
-            str(value).strip() for value in raw_models if isinstance(value, str) and value.strip()
-        )
-    return target in candidates
+def custom_model_entry_for(model: str, base_url: str | None = None) -> dict[str, Any] | None:
+    """Resolve the operator entry behind ``model``.
 
+    ``base_url`` is the endpoint the caller is actually about to hit. Passing
+    it keeps a relay from lending one vendor's entry flags to a same-named
+    model served by another vendor; omitting it preserves the historical
+    model-only lookup for callers that have no endpoint context.
+    """
 
-def custom_model_entry_for(model: str) -> dict[str, Any] | None:
     data = read_custom_models()
     if not isinstance(data, dict):
         return None
     selection = resolve_custom_model_selection(data, model)
     if selection is not None:
         return selection.entry
-    for entry in data.values():
-        if entry_matches_model(entry, model):
-            return entry
-    return None
+    return find_custom_model_entry(data, model, base_url)
 
 
-def model_supports_tool_use(model: str) -> bool:
+def model_supports_tool_use(model: str, base_url: str | None = None) -> bool:
     """Return False when ``custom_models.json`` (or per-model env
     overrides) marks this model id as not supporting native
     function calling.
+
+    ``base_url`` anchors the lookup on the endpoint actually being
+    called, so a relay cannot lend one vendor's declaration to a
+    same-named model served by another.
 
     Default is True — most OpenAI-compatible endpoints honor
     ``tools``. We only flip to False when the operator has
     explicitly declared incompatibility, so we don't accidentally
     disable working providers.
     """
-    entry = custom_model_entry_for(model)
+    entry = custom_model_entry_for(model, base_url)
     return not (isinstance(entry, dict) and entry.get("supports_tool_use") is False)
 
 
-def model_omits_sampling_parameters(model: str) -> bool:
+def model_omits_sampling_parameters(model: str, base_url: str | None = None) -> bool:
     """Return True for strict OpenAI-compatible coding endpoints.
 
     Some coding-model gateways reject sampling knobs entirely (or
@@ -96,12 +76,12 @@ def model_omits_sampling_parameters(model: str) -> bool:
     ``omit_sampling_parameters=true`` in ``custom_models.json`` so
     Echo sends only model/messages/max_tokens/tool fields.
     """
-    entry = custom_model_entry_for(model)
+    entry = custom_model_entry_for(model, base_url)
     return bool(entry.get("omit_sampling_parameters")) if isinstance(entry, dict) else False
 
 
-def custom_model_supports_thinking(model: str) -> bool:
-    entry = custom_model_entry_for(model)
+def custom_model_supports_thinking(model: str, base_url: str | None = None) -> bool:
+    entry = custom_model_entry_for(model, base_url)
     return bool(entry.get("supports_thinking")) if isinstance(entry, dict) else False
 
 
@@ -124,3 +104,14 @@ def model_context_window(model: str) -> int | None:
     except (TypeError, ValueError):
         return None
     return value if 8_192 <= value <= 2_000_000 else 256_000
+
+
+__all__ = [
+    "custom_model_entry_for",
+    "custom_model_supports_thinking",
+    "entry_matches_model",
+    "model_context_window",
+    "model_omits_sampling_parameters",
+    "model_supports_tool_use",
+    "read_custom_models",
+]

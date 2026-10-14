@@ -12,19 +12,23 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Awaitable, Callable
+from functools import partial
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
 from runtime.memory.cowork.team_invitation_store import TeamInvitationStore
 from runtime.platform.process.paths import app_paths
-from runtime.safety.auth.principal import CurrentPrincipal, resolve_principal
+from runtime.safety.auth.principal import CurrentPrincipal
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, require_connection_principal
 
+from ._team_room_presence import overlay_room_presence
 from ._team_rooms_access import TeamRoomAccess
 from ._team_rooms_state import (
     _load_state,
     _room_payload,
     _team_project_helpers,
+    legacy_room_tenant,
 )
 from ._team_rooms_state import (
     _room_storage_payload as _room_storage_payload,
@@ -51,8 +55,6 @@ from .team_rooms_models import (
 )
 from .team_rooms_ws import (
     TeamRoomWsContext,
-    broadcast_authorized_team_sockets,
-    team_room_ws,
 )
 from .team_speaker_policy import (
     _authorized_to_speak_for,
@@ -65,7 +67,6 @@ from .team_speaker_policy import (
     _normalize_speaker_policy,
     _now,
     _participant_can_speak,
-    _resolve_moderator,
 )
 
 _LOG = logging.getLogger("echo.team_rooms")
@@ -87,6 +88,8 @@ from runtime.sensing._fastapi_guard import require_fastapi  # noqa: E402, I001 �
 def create_team_rooms_router(
     *,
     state_path: Path | None = None,
+    shared_bus: Any = None,
+    live_presence: Any = None,
     identity_store: Any = None,
     require_auth: bool = False,
     jwt_secret: str | None = None,
@@ -94,11 +97,13 @@ def create_team_rooms_router(
     jwt_audience: str | None = None,
     reset_callback: Any = None,
     room_message_store: Any = None,
+    collaboration_store: Any = None,
     room_projection: Callable[[dict[str, Any]], None] | None = None,
     room_delete_projection: Callable[[str], None] | None = None,
     room_message_projection: Callable[[str, dict[str, Any]], int | None] | None = None,
     room_receipt_projection: Callable[[str, dict[str, Any]], Any] | None = None,
-    room_message_provider: Callable[[str, int, int, str], list[dict[str, Any]]] | None = None,
+    room_message_provider: Callable[[str, int, int, str], list[dict[str, Any]] | None]
+    | None = None,
     invitation_store: TeamInvitationStore | None = None,
     project_store: Any = None,
     group_store: Any = None,
@@ -126,13 +131,9 @@ def create_team_rooms_router(
     lock = Lock()
     scrub_legacy_room_invites(path)
 
-    def _legacy_tenant_for_owner(owner_id: str | None) -> str:
-        owner = str(owner_id or "").strip()
-        if not require_auth:
-            return "local"
-        identity = identity_store.get(owner) if identity_store is not None and owner else None
-        tenant = str((getattr(identity, "metadata", None) or {}).get("tenant_id") or "").strip()
-        return tenant or (f"legacy:{owner}" if owner else "local")
+    _legacy_tenant_for_owner = partial(
+        legacy_room_tenant, require_auth=require_auth, identity_store=identity_store
+    )
 
     teams: dict[str, TeamRoomWire] = _load_state(
         path,
@@ -146,6 +147,10 @@ def create_team_rooms_router(
     group_store_holder: dict[str, Any] = {"store": group_store}
     live_sockets: dict[str, dict[str, WebSocket]] = {}
     socket_loops: dict[str, dict[str, asyncio.AbstractEventLoop]] = {}
+    presence_seen: dict[tuple[str, str], str] = {}
+    from runtime.memory.cowork.transient_presence import TransientPresence
+
+    live_presence = live_presence or TransientPresence(shared_bus)
 
     def _project_binding_for_room(team: TeamRoomWire) -> tuple[str | None, bool]:
         bound_store = project_store_holder.get("store")
@@ -193,23 +198,22 @@ def create_team_rooms_router(
             project_id=project_id,
         )
 
+    # One auth config for HTTP (resolve_principal) and the room WebSocket
+    # (the shared gate in runtime.safety.auth.websocket_auth).
+    auth_config = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=require_auth,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+    )
+
     def _principal(request: Any) -> CurrentPrincipal | None:
         state = getattr(request, "state", None)
         cached = getattr(state, "principal", None) if state is not None else None
         if isinstance(cached, CurrentPrincipal):
             return cached
-        return resolve_principal(
-            request,
-            identity_store,
-            require_auth,
-            jwt_secret=jwt_secret,
-            jwt_issuer=jwt_issuer,
-            jwt_audience=jwt_audience,
-        )
-
-    def _auth(request: Any) -> str | None:
-        principal = _principal(request)
-        return principal.actor_id if principal is not None else None
+        return require_connection_principal(request, auth_config)
 
     def _tenant(request: Any) -> str:
         principal = _principal(request)
@@ -226,7 +230,7 @@ def create_team_rooms_router(
                 legacy_tenant_for_owner=_legacy_tenant_for_owner,
             )
             teams.clear()
-            teams.update(durable)
+            teams.update(overlay_room_presence(durable, presence_seen, live_presence))
             persisted_teams = dict(durable)
 
     def _assert_room_creatable(team_id: str, tenant_id: str, owner_id: str) -> None:
@@ -276,7 +280,7 @@ def create_team_rooms_router(
             legacy_tenant_for_owner=_legacy_tenant_for_owner,
         )
         teams.clear()
-        teams.update(merged)
+        teams.update(overlay_room_presence(merged, presence_seen, live_presence))
         persisted_teams = dict(merged)
         if room_projection is not None:
             for team in list(merged.values()):
@@ -315,6 +319,7 @@ def create_team_rooms_router(
         with lock:
             teams.clear()
             live_sockets.clear()
+            presence_seen.clear()
             invite_store.clear()
         if callable(reset_callback):
             reset_callback()
@@ -401,68 +406,21 @@ def create_team_rooms_router(
         await _broadcast_team_update(team_id, updated)
         return _public_room_payload(updated)
 
-    def _presence_payload(team_id: str) -> dict[str, Any]:
-        team = teams.get(team_id)
-        participants = team.participants if team else []
-        online_ids = set(live_sockets.get(team_id, {}).keys())
-        return {
-            "type": "presence",
-            "team_id": team_id,
-            "participants": [
-                p.model_dump() for p in participants if p.status == "active" and p.id in online_ids
-            ],
-            "count": len(online_ids),
-            "server_time": _now(),
-        }
+    from ._team_room_broadcast import TeamRoomBroadcast
 
-    async def _broadcast(
-        team_id: str,
-        payload: dict[str, Any] | Callable[[], dict[str, Any]],
-        *,
-        exclude: str | None = None,
-        include: str | None = None,
-    ) -> None:
-        await broadcast_authorized_team_sockets(
-            team_id=team_id,
-            payload=payload,
-            teams=teams,
-            lock=lock,
-            live_sockets=live_sockets,
-            socket_loops=socket_loops,
-            refresh=_refresh_state,
-            exclude=exclude,
-            include=include,
-        )
-
-    async def _broadcast_presence(team_id: str) -> None:
-        await _broadcast(team_id, lambda: _presence_payload(team_id))
-
-    async def _broadcast_team_update(team_id: str, team: TeamRoomWire) -> None:
-        await _broadcast(
-            team_id,
-            {
-                "type": "team:update",
-                "team_id": team_id,
-                "team": _public_room_payload(team),
-                "server_time": _now(),
-            },
-        )
-
-    async def _broadcast_floor(team_id: str, team: TeamRoomWire) -> None:
-        """Push the current turn-engine floor state so clients can render
-        whose turn it is and the raised-hands queue."""
-        await _broadcast(
-            team_id,
-            {
-                "type": "floor",
-                "team_id": team_id,
-                "speaker_policy": _normalize_speaker_policy(team.speaker_policy),
-                "current_speaker_id": getattr(team, "current_speaker_id", None),
-                "moderator_id": _resolve_moderator(team),
-                "floor_requests": list(getattr(team, "floor_requests", []) or []),
-                "server_time": _now(),
-            },
-        )
+    broadcaster = TeamRoomBroadcast(
+        teams=teams,
+        lock=lock,
+        sockets=live_sockets,
+        loops=socket_loops,
+        refresh=_refresh_state,
+        room_payload=_public_room_payload,
+        seen=presence_seen,
+        live=live_presence,
+        bus=shared_bus,
+    )
+    _broadcast, _broadcast_presence = broadcaster.broadcast, broadcaster.presence
+    _broadcast_team_update, _broadcast_floor = broadcaster.team_update, broadcaster.floor
 
     def _active_participant(team_id: str, participant_id: str) -> TeamParticipantWire | None:
         team = teams.get(team_id)
@@ -576,6 +534,7 @@ def create_team_rooms_router(
             save=_save,
             delete_reserved_state=_delete_reserved_team_state,
             delete_projection=_project_room_delete,
+            notify_deleted=broadcaster.deleted,
         )
 
     def _bind_project_store(bound_store: Any) -> None:
@@ -642,6 +601,7 @@ def create_team_rooms_router(
             return _public_room_payload(updated)
 
     router.broadcast = _broadcast
+    router.live_presence = live_presence
     router.create_team_from_payload = _create_team_from_payload
     router.create_team_from_payload_exact = _create_team_from_payload_exact
     router.delete_team_from_payload = delete_team
@@ -899,19 +859,14 @@ def create_team_rooms_router(
         project_id_for=_project_id_for_room,
         refresh_rooms=_refresh_state,
     )
-    if room_message_store is None:
-        from runtime.memory.cowork.room_messages import RoomMessageStore
-
-        room_message_store = RoomMessageStore(
-            base_dir=(state_path.parent / "teamroom") if state_path else None,
-        )
-
     _ws_ctx = TeamRoomWsContext(
         teams=teams,
         lock=lock,
         live_sockets=live_sockets,
         socket_loops=socket_loops,
-        auth=_auth,
+        presence_seen=presence_seen,
+        live_presence=live_presence,
+        ws_auth=auth_config,
         save=_save,
         broadcast=_broadcast,
         broadcast_presence=_broadcast_presence,
@@ -920,41 +875,21 @@ def create_team_rooms_router(
         refresh=_refresh_state,
         require_auth=require_auth,
         twin_responder=twin_responder,
-        message_store=room_message_store,
-        message_projection=room_message_projection,
-        receipt_projection=room_receipt_projection,
     )
 
-    @router.get("/api/teams/{team_id}/messages")
-    def get_room_messages(
-        request: Request,
-        team_id: str,
-        limit: int = 200,
-        after_seq: int = 0,
-        q: str = "",
-    ) -> dict[str, Any]:
-        """Durable room transcript — reconnect catch-up (``after_seq``) and
-        search (``q``). Closes the gap where room chat was live-only / a 20-line
-        in-memory ring."""
-        _require_member(request, team_id)
-        messages: list[dict[str, Any]] = []
-        if room_message_provider is not None:
-            try:
-                messages = room_message_provider(team_id, limit, after_seq, q)
-            except Exception:  # noqa: BLE001 - canonical transcript lookup is best-effort
-                messages = []
-        if not messages:
-            if q.strip():
-                messages = room_message_store.search(team_id, q, limit=limit)
-            else:
-                messages = room_message_store.history(team_id, limit=limit, after_seq=after_seq)
-        return {"team_id": team_id, "messages": messages}
+    from ._team_room_transcript import register_team_transcript
 
-    @router.websocket("/api/teams/{team_id}/ws")
-    async def team_room_ws_route(ws: WebSocket, team_id: str) -> None:
-        """Realtime Team Room presence + event broadcast — see
-        team_rooms_ws.team_room_ws (split out to keep this module small)."""
-        await team_room_ws(_ws_ctx, ws, team_id)
+    register_team_transcript(
+        router,
+        _ws_ctx,
+        state_path=state_path,
+        canonical_store=collaboration_store,
+        legacy_store=room_message_store,
+        provider=room_message_provider,
+        message_projection=room_message_projection,
+        receipt_projection=room_receipt_projection,
+        require_member=_require_member,
+    )
 
     return router
 

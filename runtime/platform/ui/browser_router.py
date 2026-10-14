@@ -23,9 +23,9 @@ from fastapi import (
     Request,
     WebSocket,
     WebSocketDisconnect,
+    WebSocketException,
 )
 from fastapi.responses import FileResponse, Response
-from runtime.platform.ui._browser_thread_route import BrowserThreadRoute
 from starlette.requests import HTTPConnection
 
 from runtime.platform.process.paths import app_paths
@@ -39,8 +39,10 @@ from runtime.platform.ui._browser_router_helpers import (
     mark_session_closed,
     secure_profile_dir,
 )
-from runtime.safety.auth.principal import require_operator, resolve_principal
+from runtime.platform.ui._browser_thread_route import BrowserThreadRoute
+from runtime.safety.auth.principal import require_operator
 from runtime.safety.auth.websocket import accepted_auth_subprotocol
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, require_connection_principal
 from runtime.safety.replay.browser_desktop_replay import browser_session_replay_identity
 
 __all__ = [
@@ -57,6 +59,41 @@ __all__ = [
 _RELAY_HEARTBEAT_FRESH_SECONDS = 6
 _RELAY_OFFLINE_SECONDS = 8
 _RELAY_PUSH_PING_SECONDS = 3
+
+
+_SUGGEST_URLS = {
+    "baidu": "https://suggestion.baidu.com/su?action=opensearch&ie=utf-8&oe=utf-8&wd={q}",
+    "google": "https://suggestqueries.google.com/complete/search?client=firefox&ie=utf-8&oe=utf-8&hl={lang}&q={q}",
+    "bing": "https://api.bing.com/osjson.aspx?mkt={lang}&query={q}",
+}
+_SUGGEST_LANG = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$")
+
+
+def _search_suggestions(engine: str, query: str, lang: str = "zh-CN") -> list[str]:
+    """OpenSearch suggestions (``[query, [s1, s2, ...]]``) from a fixed engine."""
+    from urllib.parse import quote
+
+    from runtime.safety.auth.url_guard import safe_httpx_request
+
+    template = _SUGGEST_URLS.get(engine.lower(), _SUGGEST_URLS["bing"])
+    # Without a market Bing guesses one from the server's IP.
+    market = lang if _SUGGEST_LANG.match(lang) else "zh-CN"
+    try:
+        response = safe_httpx_request(
+            "GET",
+            template.format(q=quote(query), lang=market),
+            timeout=2.5,
+            read_cap_bytes=64_000,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        if response.status_code != 200:
+            return []
+        data = response.json()
+    except Exception:  # noqa: BLE001 - suggestions are best effort
+        return []
+    if not isinstance(data, list) or len(data) < 2 or not isinstance(data[1], list):
+        return []
+    return [str(item) for item in data[1] if isinstance(item, str) and item.strip()][:8]
 
 
 def create_browser_router(
@@ -78,15 +115,17 @@ def create_browser_router(
     bind sessions/relay state to the verified Principal.
     """
 
+    auth_cfg = WebSocketAuthConfig(
+        identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience
+    )
+
     def _auth_dep(request: HTTPConnection) -> None:
-        resolve_principal(
-            request,
-            identity_store,
-            require_auth,
-            jwt_secret=jwt_secret,
-            jwt_issuer=jwt_issuer,
-            jwt_audience=jwt_audience,
-        )
+        # HTTP: resolve_principal (401). Relay WebSockets: the shared gate —
+        # Origin + the same session/token check, refused with 1008 pre-accept.
+        require_connection_principal(request, auth_cfg)
+        from runtime.platform.plugins.automation import require_automation_plugin
+
+        require_automation_plugin(request, "browser_control")
 
     router = APIRouter(
         tags=["browser"], dependencies=[Depends(_auth_dep)], route_class=BrowserThreadRoute
@@ -443,6 +482,64 @@ def create_browser_router(
                                 400, "x and y are required for double_click_at"
                             ) from exc
                         page.mouse.dblclick(x, y)
+                    elif action in ("click_page_at", "double_click_page_at"):
+                        # Coordinates on the full-page screenshot the web
+                        # build shows: bring that point into the viewport,
+                        # then click where it landed.
+                        try:
+                            x = int(body.get("x"))
+                            y = int(body.get("y"))
+                        except (TypeError, ValueError) as exc:
+                            raise HTTPException(400, f"x and y are required for {action}") from exc
+                        viewport_y = page.evaluate(
+                            "(y) => { window.scrollTo(0, Math.max(0, y - window.innerHeight / 2));"
+                            " return y - window.scrollY; }",
+                            y,
+                        )
+                        if action == "click_page_at":
+                            page.mouse.click(x, int(viewport_y))
+                        else:
+                            page.mouse.dblclick(x, int(viewport_y))
+                        # A link starts navigating shortly after the click; give
+                        # it a moment, then wait for the new document.
+                        with contextlib.suppress(Exception):  # noqa: BLE001 - no navigation is fine
+                            page.wait_for_timeout(400)
+                            page.wait_for_load_state("domcontentloaded", timeout=8000)
+                    elif action == "find_in_page":
+                        # Count matches, then move the selection to the next
+                        # (or previous) one so the screenshot shows it.
+                        text = str(body.get("text") or "")[:200]
+                        if not text:
+                            raise HTTPException(400, "text is required for find_in_page")
+                        found = page.evaluate(
+                            """([text, backwards]) => {
+                              const hay = (document.body?.innerText || "").toLowerCase();
+                              const needle = text.toLowerCase();
+                              let matches = 0;
+                              for (let i = hay.indexOf(needle); i !== -1; i = hay.indexOf(needle, i + needle.length)) matches += 1;
+                              const hit = matches > 0 && window.find(text, false, backwards, true, false, true, false);
+                              const node = window.getSelection()?.anchorNode?.parentElement;
+                              node?.scrollIntoView({ block: "center" });
+                              return { matches, found: Boolean(hit) };
+                            }""",
+                            [text, bool(body.get("backwards"))],
+                        )
+                        session["current_url"] = page.url
+                        session["current_title"] = page.title()
+                        return {
+                            "ok": True,
+                            "url": str(session.get("current_url") or ""),
+                            "title": str(session.get("current_title") or ""),
+                            "matches": int(found.get("matches") or 0),
+                            "found": bool(found.get("found")),
+                        }
+                    elif action == "page_info":
+                        pass  # just report where the page is now (below)
+                    elif action == "keyboard_type":
+                        text = str(body.get("text") or "")[:4000]
+                        if not text:
+                            raise HTTPException(400, "text is required for keyboard_type")
+                        page.keyboard.type(text)
                     elif action == "wait":
                         selector = str(body.get("selector") or "").strip()
                         timeout = int(body.get("timeout") or 10_000)
@@ -730,6 +827,16 @@ def create_browser_router(
             backend._close_real_browser_session(session)
         return {"ok": True}
 
+    @router.get("/api/browser/suggest")
+    def api_browser_suggest(
+        q: str = "", engine: str = "bing", lang: str = "zh-CN"
+    ) -> dict[str, Any]:
+        """Search-box suggestions; the typed text goes only to that engine."""
+        query = q.strip()[:200]
+        if not query:
+            return {"suggestions": []}
+        return {"suggestions": _search_suggestions(engine, query, lang)}
+
     @router.get("/api/browser/config")
     def api_browser_config() -> dict[str, Any]:
         return backend.browser_config_state
@@ -877,6 +984,9 @@ def create_browser_router(
 
     @router.websocket("/api/browser/relay/ws")
     async def api_browser_relay_ws(websocket: WebSocket) -> None:
+        from runtime.platform.plugins.automation import automation_cancellation_check
+
+        cancelled = automation_cancellation_check(websocket, "browser_control")
         try:
             _require_relay_owner(websocket)
         except HTTPException as exc:
@@ -892,6 +1002,16 @@ def create_browser_router(
         last_keepalive = time.monotonic()
         try:
             while True:
+                if cancelled():
+                    await websocket.close(code=4403, reason="browser plugin activation revoked")
+                    return
+                from runtime.platform.plugins.automation import require_automation_plugin
+
+                try:
+                    require_automation_plugin(websocket, "browser_control")
+                except WebSocketException as exc:
+                    await websocket.close(code=exc.code, reason=exc.reason)
+                    return
                 message: Any = None
                 with contextlib.suppress(TimeoutError):
                     message = await asyncio.wait_for(
@@ -957,6 +1077,9 @@ def create_browser_router(
 
     @router.post("/api/browser/relay/command")
     def api_browser_relay_command(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        from runtime.platform.plugins.automation import automation_cancellation_check
+
+        cancelled = automation_cancellation_check(request, "browser_control")
         _require_relay_owner(request)
         last_seen = int(backend.browser_relay_state.get("last_seen") or 0)
         if not last_seen or (backend._now_ts() - last_seen) > 15:
@@ -1022,6 +1145,8 @@ def create_browser_router(
 
         results = backend.browser_relay_state.setdefault("command_results", {})
         while time.time() < deadline:
+            if cancelled():
+                break
             result = results.pop(command_id, None)
             if result is not None:
                 if (backend.browser_relay_state.get("control_lease") or {}).get(
@@ -1043,6 +1168,8 @@ def create_browser_router(
             ]
         if (backend.browser_relay_state.get("control_lease") or {}).get("command_id") == command_id:
             backend.browser_relay_state["control_lease"] = None
+        if cancelled():
+            raise HTTPException(503, "browser relay command cancelled: plugin activation revoked")
         raise HTTPException(504, "browser relay command timed out")
 
     @router.post("/api/browser/relay/result")

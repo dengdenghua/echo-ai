@@ -1,0 +1,27 @@
+{
+  "name": "blender-control",
+  "version": "0.1.0+echo.20260925",
+  "description": "本机 Blender 自动化：场景检查、对象定位、装配编辑、截图、渲染和格式导出。",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Blender 本地控制",
+    "shortDescription": "检查和编辑 Blender 场景，完成装配、截图与导出。",
+    "longDescription": "连接本机 Blender MCP，提供场景摘要、对象检查、视口截图、渲染及受控 Python 操作，并附带适用于机械装配和 PCB 替换的操作 Skill。",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "检查当前 Blender 场景和缺失资源",
+      "给装配体生成等轴测截图",
+      "替换指定板卡并保持原来的位置"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

@@ -266,6 +266,10 @@ class ThreadStateStore:
                 self._feedback = FeedbackStore(feedback_base)
 
         # Load existing records
+        from .list_visibility import ThreadListVisibility
+
+        self.list_visibility = ThreadListVisibility(self._resolve_feedback_base())
+
         if self._path is not None and self._path.exists():
             self._load_from(self._path)
         if self._per_agent_base is not None:
@@ -1928,6 +1932,26 @@ class ThreadStateStore:
     def feedback_enabled(self) -> bool:
         """Whether the Echo message-feedback store is active."""
         return self._feedback is not None
+
+    def close(self) -> None:
+        """Release OS resources held by the store (idempotent).
+
+        The FTS5 search index keeps a long-lived SQLite connection to
+        ``search.db``. On Windows an open handle prevents the file (and its
+        directory) from being deleted or moved, so owners — app shutdown
+        hooks, tests, CLI tools — must close the store when done. After
+        ``close()`` the search index degrades to its closed-connection
+        no-op behaviour; JSONL persistence needs no explicit release.
+        """
+        with self._lock:
+            if self._search is not None:
+                self._search.close()
+
+    def __enter__(self) -> ThreadStateStore:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
 
     def search_threads(
         self,

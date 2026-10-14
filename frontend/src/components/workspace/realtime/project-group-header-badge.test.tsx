@@ -29,6 +29,35 @@ describe("ProjectGroupHeaderBadge", () => {
     expect(onOpenWorkbench).toHaveBeenCalledTimes(1);
   });
 
+  it("marks the capability with the project's own icon when it has one", () => {
+    const { container, rerender } = renderWithProviders(
+      <ProjectGroupHeaderBadge
+        name="秋季旅行"
+        status="running"
+        icon="plane"
+        onOpenWorkbench={vi.fn()}
+      />,
+      { locale: "zh-CN" },
+    );
+    const icon = container.querySelector(
+      '[data-slot="project-capability-icon"]',
+    );
+    expect(icon).toHaveAttribute("data-project-icon", "plane");
+
+    rerender(
+      <ProjectGroupHeaderBadge
+        name="秋季旅行"
+        status="running"
+        onOpenWorkbench={vi.fn()}
+      />,
+    );
+    const fallback = container.querySelector(
+      '[data-slot="project-capability-icon"]',
+    );
+    expect(fallback).not.toHaveAttribute("data-project-icon");
+    expect(fallback).toHaveClass("lucide-folder-kanban");
+  });
+
   it("shows detach only to owners and delegates the destructive action", async () => {
     const onDetach = vi.fn();
     const owner = renderWithProviders(
@@ -63,5 +92,30 @@ describe("ProjectGroupHeaderBadge", () => {
     expect(
       screen.queryByRole("button", { name: "项目操作：只读成员群" }),
     ).toBeNull();
+  });
+
+  it("renders active milestone progress and decisions count when provided", () => {
+    const onOpenWorkbench = vi.fn();
+    renderWithProviders(
+      <ProjectGroupHeaderBadge
+        name="核心架构重构"
+        status="running"
+        activeMilestone={{
+          id: "ms-2",
+          name: "M2 微服务拆解",
+          progress: 65,
+        }}
+        decisionsCount={3}
+        onOpenWorkbench={onOpenWorkbench}
+      />,
+      { locale: "zh-CN" },
+    );
+
+    expect(screen.getByText("M2 微服务拆解")).toBeInTheDocument();
+    expect(screen.getByText("65%")).toBeInTheDocument();
+    expect(screen.getByText("🏛️ 3")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("🏛️ 3"));
+    expect(screen.getByText(/核心事实库与历史决议/)).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@
  * TaskCollaboratorControl — extracted from `workspace/realtime/[thread_id]/page.tsx`
  * (P3 decomposition). Behavior-preserving move: same code, same props, own module.
  */
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   CheckIcon,
   SearchIcon,
@@ -17,11 +17,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { AgentAvatar } from "@/components/workspace/sidebar-footer";
 import { type TeamMode } from "@/components/workspace/team-mode-picker";
 import { type Agent } from "@/core/agents";
 import { isPrimaryPersonaAgentId } from "@/core/agents/persona-policy";
 import { useI18n } from "@/core/i18n/hooks";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 
 export type ChatCollaborationRosterEntry = {
@@ -42,7 +44,6 @@ export function TaskCollaboratorControl({
   selectedAgents,
   selectedAgentIds,
   currentAgentName,
-  teamMode,
   open,
   onOpenChange,
   onSelectedAgentIdsChange,
@@ -52,7 +53,9 @@ export function TaskCollaboratorControl({
   humanInviteAction,
   labelPrefix,
   disabled = false,
+  onOpenCoordination,
 }: {
+  onOpenCoordination?: () => void;
   agents: Agent[];
   selectedAgents: Agent[];
   selectedAgentIds: string[];
@@ -74,9 +77,19 @@ export function TaskCollaboratorControl({
 }) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
+  const [draftIds, setDraftIds] = useState<string[] | null>(null);
+  const [localOpen, setLocalOpen] = useState(false);
+  const effectiveIds = draftIds ?? selectedAgentIds;
+  const draftAgents = agents.filter(agent => effectiveIds.includes(agent.name));
+  const changed = effectiveIds.length !== selectedAgentIds.length || effectiveIds.some(id => !selectedAgentIds.includes(id));
+  const changeOpen = (value: boolean) => {
+    setDraftIds(null);
+    setLocalOpen(value);
+    onOpenChange?.(value);
+  };
   const selectedSet = useMemo(
-    () => new Set(selectedAgentIds),
-    [selectedAgentIds],
+    () => new Set(effectiveIds),
+    [effectiveIds],
   );
   const agentByName = useMemo(() => {
     const map = new Map<string, Agent>();
@@ -128,31 +141,16 @@ export function TaskCollaboratorControl({
     [availableAgents],
   );
 
-  const toggleAgent = useCallback(
-    (agent: Agent) => {
-      if (disabled) return;
-      if (selectedSet.has(agent.name)) {
-        onSelectedAgentIdsChange(
-          selectedAgentIds.filter((id) => id !== agent.name),
-        );
-        return;
-      }
-      if (selectedAgentIds.length === 0 && teamMode === "chat") {
-        onTeamModeChange("cluster");
-      }
-      onSelectedAgentIdsChange([...selectedAgentIds, agent.name]);
-    },
-    [
-      onSelectedAgentIdsChange,
-      onTeamModeChange,
-      disabled,
-      selectedAgentIds,
-      selectedSet,
-      teamMode,
-    ],
-  );
+  const toggleAgent = (agent: Agent) => {
+    if (disabled) return;
+    setDraftIds(previous => {
+      const ids = previous ?? selectedAgentIds;
+      return ids.includes(agent.name) ? ids.filter(id => id !== agent.name) : [...ids, agent.name];
+    });
+  };
   return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+    <>
+    <DropdownMenu open={open ?? localOpen} onOpenChange={changeOpen}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -208,7 +206,7 @@ export function TaskCollaboratorControl({
             </div>
             <button
               type="button"
-              onClick={() => onSelectedAgentIdsChange([])}
+              onClick={() => setDraftIds([])}
               disabled={disabled}
               className="rounded-lg px-2 py-1 text-xs text-muted-foreground transition-all duration-base hover:bg-muted/70 hover:text-foreground"
             >
@@ -224,8 +222,8 @@ export function TaskCollaboratorControl({
                   if (agent) {
                     toggleAgent(agent);
                   } else {
-                    onSelectedAgentIdsChange(
-                      selectedAgentIds.filter((id) => id !== entry.agent_id),
+                    setDraftIds(
+                      effectiveIds.filter((id) => id !== entry.agent_id),
                     );
                   }
                 };
@@ -238,12 +236,11 @@ export function TaskCollaboratorControl({
                           alt={entry.display_name}
                           className="size-full object-cover"
                         />
-                      ) : entry.icon?.trim() ? (
-                        <span className="text-sm leading-none">
-                          {entry.icon}
-                        </span>
                       ) : (
-                        entry.display_name.charAt(0).toUpperCase()
+                        <PersonaGlyph
+                          agentId={entry.name}
+                          name={entry.display_name}
+                        />
                       )}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">
@@ -260,7 +257,7 @@ export function TaskCollaboratorControl({
                     )}
                   </>
                 );
-                if (isLeader) {
+                if (isLeader || !selectedSet.has(entry.agent_id)) {
                   return (
                     <div
                       key={entry.agent_id}
@@ -298,16 +295,17 @@ export function TaskCollaboratorControl({
               onKeyDown={(event) => event.stopPropagation()}
               placeholder={t.chatInputBox.collaboratorsSearchPlaceholder}
               aria-label={t.chatInputBox.collaboratorsSearchPlaceholder}
-              className="h-auto min-w-0 flex-1 border-0 bg-transparent p-0 text-xs shadow-none outline-none placeholder:text-muted-foreground/45 focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="h-auto min-w-0 flex-1 border-0 bg-transparent p-0 text-xs shadow-none outline-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </label>
-          {selectedAgents.length > 0 && (
+          {draftAgents.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {selectedAgents.map((agent) => (
+              {draftAgents.map((agent) => (
                 <button
                   key={agent.name}
                   type="button"
-                  onClick={() => toggleAgent(agent)}
+                  aria-pressed={true}
+                          onClick={() => toggleAgent(agent)}
                   disabled={disabled}
                   className="group inline-flex max-w-full items-center gap-1 rounded-lg border border-primary/20 bg-primary/8 px-1.5 py-0.5 text-xs text-primary transition-all duration-base hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive"
                 >
@@ -363,6 +361,7 @@ export function TaskCollaboratorControl({
                           data-capability-kind={
                             group.onDemand ? "on-demand" : "primary"
                           }
+                          aria-pressed={selected}
                           onClick={() => toggleAgent(agent)}
                           disabled={disabled}
                           className={cn(
@@ -380,7 +379,7 @@ export function TaskCollaboratorControl({
                                 {label}
                               </span>
                               {group.onDemand ? (
-                                <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
+                                <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
                                   {t.chatInputBox.collaboratorsOnDemandBadge}
                                 </span>
                               ) : null}
@@ -416,7 +415,26 @@ export function TaskCollaboratorControl({
             </div>
           ) : null}
         </div>
+        <div className="flex items-center justify-between gap-2 border-t p-3">
+          <span className="text-xs text-muted-foreground">已选 {effectiveIds.length} 位成员</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => changeOpen(false)}>取消</Button>
+            <Button size="sm" disabled={disabled || !changed} onClick={() => {
+              if (!changed || disabled) return;
+              if (selectedAgentIds.length === 0 && effectiveIds.length > 0) onTeamModeChange("cluster");
+              onSelectedAgentIdsChange(effectiveIds);
+              changeOpen(false);
+            }}>{selectedAgentIds.length === 0 && effectiveIds.length > 0 ? "创建群聊" : "确认成员"}</Button>
+          </div>
+        </div>
+        {onOpenCoordination && (
+          <button type="button" className="mt-2 w-full rounded-md border-t px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => { onOpenChange?.(false); onOpenCoordination(); }}>
+            查看协作记录
+          </button>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    </>
   );
 }

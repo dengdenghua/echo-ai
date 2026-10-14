@@ -726,7 +726,9 @@ def create_intelligence_router(
 
     @router.get("/api/intelligence/subscriptions")
     def list_subscriptions(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         data = _read_store(path)
         return {"subscriptions": data["subscriptions"]}
 
@@ -735,7 +737,9 @@ def create_intelligence_router(
         request: Request,
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         payload = body or {}
         goal = str(payload.get("goal") or "").strip()
         if not goal:
@@ -747,7 +751,9 @@ def create_intelligence_router(
         request: Request,
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         payload = body or {}
         topic = str(payload.get("topic") or "").strip()
         if not topic:
@@ -790,7 +796,9 @@ def create_intelligence_router(
         sub_id: str,
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         payload = body or {}
         data = _read_store(path)
         for item in data["subscriptions"]:
@@ -830,7 +838,9 @@ def create_intelligence_router(
 
     @router.delete("/api/intelligence/subscriptions/{sub_id}")
     def delete_subscription(request: Request, sub_id: str) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         data = _read_store(path)
         before = len(data["subscriptions"])
         data["subscriptions"] = [item for item in data["subscriptions"] if item.get("id") != sub_id]
@@ -845,7 +855,9 @@ def create_intelligence_router(
         sub_id: str,
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         data = _read_store(path)
         subscription = next(
             (item for item in data["subscriptions"] if item.get("id") == sub_id),
@@ -870,7 +882,9 @@ def create_intelligence_router(
         request: Request,
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         payload = body or {}
         return run_enabled_subscriptions_once(
             path,
@@ -885,7 +899,9 @@ def create_intelligence_router(
 
     @router.get("/api/intelligence/reports")
     def list_reports(request: Request, topic: str | None = None) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         data = _read_store(path)
         reports = data["reports"]
         if topic:
@@ -894,7 +910,9 @@ def create_intelligence_router(
 
     @router.get("/api/intelligence/reports/{report_id}")
     def get_report(request: Request, report_id: str) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator for shared reports and subscriptions
         data = _read_store(path)
         for report in data["reports"]:
             if report.get("id") == report_id:

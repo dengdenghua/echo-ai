@@ -1,93 +1,111 @@
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
 
 import type {
   CreateTeamTaskInput,
   DeleteTeamTaskResponse,
-  ListTeamTasksResponse,
   TeamTask,
   TeamTaskProcessTimeline,
-  TeamTaskProcessTimelineResponse,
   UpdateTeamTaskInput,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import {
+  isDeleteTeamTaskResponse,
+  isListTeamTasksResponse,
+  isTeamTask,
+  isTeamTaskProcessTimelineResponse,
+} from "./guards";
 
-const BASE = () => `${getBackendBaseURL()}/api/team-tasks`;
-
-async function parseJson<T>(res: Response, action: string): Promise<T> {
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(
-      `${action} failed: ${res.status}${detail ? ` ${detail}` : ` ${res.statusText}`}`,
-    );
-  }
-  return (await res.json()) as T;
+/** Keep this module's historical error wording on ``EchoAPIError``. */
+function failed(action: string) {
+  return (failure: ApiFailure): string =>
+    `${action} failed: ${failure.status}${
+      failure.text ? ` ${failure.text}` : ` ${failure.statusText}`
+    }`;
 }
 
 export async function listTasks(roomId?: string | null): Promise<TeamTask[]> {
-  const qs = roomId ? `?room_id=${encodeURIComponent(roomId)}` : "";
-  const res = await fetch(`${BASE()}${qs}`, { headers: authHeaders() });
-  const data = await parseJson<ListTeamTasksResponse>(res, "List team tasks");
+  const data = looseBody(
+    await apiGet("/api/team-tasks", {
+      query: { room_id: roomId || undefined },
+      errorMessage: failed("List team tasks"),
+    }),
+    isListTeamTasksResponse,
+  );
   return data.tasks;
 }
 
 export async function createTask(
   input: CreateTeamTaskInput,
 ): Promise<TeamTask> {
-  const res = await fetch(BASE(), {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({
-      ...input,
-      description: input.description ?? "",
-      sop_template: input.sop_template ?? "",
-      assignees: input.assignees ?? [],
-      metadata: input.metadata ?? {},
+  return looseBody(
+    await apiPost("/api/team-tasks", {
+      body: {
+        ...input,
+        description: input.description ?? "",
+        sop_template: input.sop_template ?? "",
+        assignees: input.assignees ?? [],
+        metadata: input.metadata ?? {},
+      },
+      errorMessage: failed("Create team task"),
     }),
-  });
-  return parseJson<TeamTask>(res, "Create team task");
+    isTeamTask,
+  );
 }
 
 export async function updateTask(
   taskId: string,
   input: UpdateTeamTaskInput,
 ): Promise<TeamTask> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(taskId)}`, {
-    method: "PATCH",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(input),
-  });
-  return parseJson<TeamTask>(res, "Update team task");
+  return looseBody(
+    await apiPatch("/api/team-tasks/{task_id}", {
+      path: { task_id: taskId },
+      body: input,
+      errorMessage: failed("Update team task"),
+    }),
+    isTeamTask,
+  );
 }
 
 export async function deleteTask(
   taskId: string,
 ): Promise<DeleteTeamTaskResponse> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(taskId)}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  return parseJson<DeleteTeamTaskResponse>(res, "Delete team task");
+  return looseBody(
+    await apiDelete("/api/team-tasks/{task_id}", {
+      path: { task_id: taskId },
+      errorMessage: failed("Delete team task"),
+    }),
+    isDeleteTeamTaskResponse,
+  );
 }
 
 export async function runTask(taskId: string): Promise<TeamTask> {
-  const res = await fetch(`${BASE()}/${encodeURIComponent(taskId)}/run`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({}),
-  });
-  return parseJson<TeamTask>(res, "Run team task");
+  return untypedApi.post<TeamTask>(
+    `/api/team-tasks/${encodeURIComponent(taskId)}/run`,
+    {
+      reason:
+        "POST /api/team-tasks/{task_id}/run declares no request body in the OpenAPI snapshot; the client has always sent {}",
+      body: {},
+      errorMessage: failed("Run team task"),
+    },
+  );
 }
 
 export async function getTaskProcessTimeline(
   taskId: string,
 ): Promise<TeamTaskProcessTimeline> {
-  const res = await fetch(
-    `${BASE()}/${encodeURIComponent(taskId)}/process-timeline`,
-    { headers: authHeaders() },
-  );
-  const data = await parseJson<TeamTaskProcessTimelineResponse>(
-    res,
-    "Load team task process timeline",
+  const data = looseBody(
+    await apiGet("/api/team-tasks/{task_id}/process-timeline", {
+      path: { task_id: taskId },
+      errorMessage: failed("Load team task process timeline"),
+    }),
+    isTeamTaskProcessTimelineResponse,
   );
   return data.timeline;
 }

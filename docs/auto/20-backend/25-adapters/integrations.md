@@ -16,6 +16,7 @@ tier: "standard"
 | Module | Summary |
 | --- | --- |
 | `local_auth/config.py` | — |
+| `local_auth/owner.py` | The owner account of a self-hosted install. |
 | `local_auth/router.py` | — |
 | `oct/client.py` | oct 账号网关 HTTP 客户端 helpers。 |
 | `oct/config.py` | oct 账号网关集成配置。 |
@@ -23,6 +24,7 @@ tier: "standard"
 | `oct/router_account.py` | oct 账号管理路由 · /api/account/oct/*。 |
 | `oct/router_auth.py` | — |
 | `oct/router_proxy.py` | oct LLM 代理路由 · /api/oct/openai/v1/*。 |
+| `social_auth.py` | Google/GitHub sign-in; provider tokens never leave the server. |
 
 ## Key classes & functions
 
@@ -32,15 +34,42 @@ tier: "standard"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
+| func | `def development_login_enabled(config)` | Passwordless and fixed-account shortcuts are development-only. |
+| func | `def configure_desktop_owner_token(token)` | Install the per-launch owner token handed over by the desktop shell. |
+| func | `def take_desktop_owner_token()` | Pop the shell's owner token so nothing ``serve`` starts can inherit it. |
+| func | `def install_desktop_owner_token(token, local_loopback)` | Install ``token`` only for a desktop shell's local, loopback-bound serve. |
+| func | `def desktop_owner_token()` |  |
+| func | `def desktop_owner_login_enabled(config)` | A passwordless desktop config signs in only with the shell's owner token. |
+| func | `def owner_account_candidate(config)` | A self-hosted passwordless config: one owner account, set up on first run. |
+| func | `def owner_account_enabled(config)` |  |
+| func | `def network_bind_authenticated(config, deployment_mode)` | Whether ``local_auth`` makes a non-loopback ``serve`` bind safe. |
+| func | `def local_login_enabled(config)` | Allow configured password accounts in deployments, never dev shortcuts. |
+| func | `def interactive_local_login_enabled(config)` | Whether a login form can sign in; the desktop owner token is shell-only. |
 | func | `def hash_password(plaintext)` | Hash a password using bcrypt with a random salt. |
 | func | `def verify_password(plaintext, hashed)` | Verify a plaintext password against a bcrypt or legacy sha256 hash. |
 | class | `class LocalAuthConfig(BaseModel)` |  |
+
+### `local_auth/owner.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class OwnerSetupError(ValueError)` | The setup request cannot create the owner; ``detail`` says why. |
+| class | `class OwnerRecord` |  |
+| func | `def is_local_network_address(value)` | Whether ``value`` is this machine or a private/LAN address. |
+| func | `def request_from_local_network(request)` | The direct peer and every forwarded-for hop must be local. |
+| func | `def request_from_loopback(request)` |  |
+| class | `class OwnerAccountStore` | The owner record and its first-run setup code, under ``directory``. |
+| func | `def owner_directory()` |  |
+| func | `def owner_account_store()` | The store for the current instance data dir (one per directory). |
+| func | `def announce_setup_code(store)` | Print the pending setup code where whoever started the server sees it. |
+| func | `def with_owner_jwt_secret(cfg)` | Give an owner-account install a per-instance session signing key. |
+| func | `def owner_login_provider(request, store)` | The login page's ``local`` provider entry for an owner-account install. |
 
 ### `local_auth/router.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def create_local_auth_router(config, identity_store, clock)` |  |
+| func | `def create_local_auth_router(config, identity_store, clock, owner_store)` |  |
 
 ### `oct/client.py`
 
@@ -88,11 +117,23 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def create_proxy_router(config, link_store, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience, http_client)` |  |
 
+### `social_auth.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def safe_return_to(value)` |  |
+| func | `def create_social_auth_router(identity_store, jwt_secret, data_dir, jwt_issuer, jwt_audience)` |  |
+
 
 ## Who imports this
 
-**1** file(s) reference this package:
+**4** file(s) reference this package:
 
-- **`runtime/platform/`** · 1 file(s)
+- **`runtime/cli_serve.py/`** · 1 file(s)
+  - `runtime/cli_serve.py`
+- **`runtime/platform/`** · 2 file(s)
   - `runtime/platform/ui/_app_auth_routers.py`
+  - `runtime/platform/ui/_app_setup.py`
+- **`runtime/sensing/`** · 1 file(s)
+  - `runtime/sensing/gateway/_meta_auth_routes.py`
 

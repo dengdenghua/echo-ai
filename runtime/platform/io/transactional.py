@@ -13,6 +13,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 import weakref
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -154,6 +155,35 @@ def _fsync_parent(directory: Path) -> None:
         os.close(fd)
 
 
+_WINDOWS_REPLACE_RETRY_S = 1.0
+
+
+def _replace(source: Path, destination: Path) -> None:
+    """``os.replace`` that rides out transient Windows sharing violations.
+
+    Windows refuses to replace a file while any other handle has it open
+    without delete sharing, e.g. an antivirus or indexer scan of the file
+    that was just written; it reports that as ``PermissionError`` (WinError
+    5 or 32). Those handles close within milliseconds, so retry briefly.
+    POSIX rename has no such failure mode and keeps the single attempt.
+    """
+
+    if os.name != "nt":
+        os.replace(source, destination)
+        return
+    deadline = time.monotonic() + _WINDOWS_REPLACE_RETRY_S
+    delay = 0.005
+    while True:
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 0.1)
+
+
 def _atomic_replace_unlocked(path: Path, payload: bytes, *, mode: int | None) -> None:
     """Replace ``path`` durably.  The caller must hold ``path_transaction``."""
 
@@ -171,7 +201,7 @@ def _atomic_replace_unlocked(path: Path, payload: bytes, *, mode: int | None) ->
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        _replace(temporary, path)
         if mode is not None:
             path.chmod(mode)
         if os.name == "nt":

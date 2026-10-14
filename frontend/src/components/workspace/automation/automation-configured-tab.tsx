@@ -131,18 +131,12 @@ export function AutomationConfiguredTab() {
   useEffect(() => {
     let cancelled = false;
     const requestWakeLock = async () => {
-      const wakeLock = (
-        navigator as Navigator & {
-          wakeLock?: {
-            request(type: "screen"): Promise<WakeLockSentinel>;
-          };
-        }
-      ).wakeLock;
+      const wakeLock = navigator.wakeLock;
       if (!keepAwake || !wakeLock) return;
       try {
         const lock = await wakeLock.request("screen");
         if (cancelled) {
-          lock.release?.();
+          lock.release?.().catch(() => {});
           return;
         }
         wakeLockRef.current = lock;
@@ -158,14 +152,14 @@ export function AutomationConfiguredTab() {
       }
     };
     if (keepAwake) {
-      requestWakeLock();
+      void requestWakeLock();
       const onVisibility = () => {
         if (
           document.visibilityState === "visible" &&
           keepAwake &&
           !wakeLockRef.current
         ) {
-          requestWakeLock();
+          void requestWakeLock();
         }
       };
       document.addEventListener("visibilitychange", onVisibility);
@@ -316,7 +310,7 @@ export function AutomationConfiguredTab() {
 
       {subscriptions.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-default bg-card/50 py-16 text-center">
-          <CloudIcon className="size-10 text-muted-foreground/60" />
+          <CloudIcon className="size-10 text-muted-foreground" />
           <div className="mt-4 text-sm font-medium text-foreground">
             {t.intelligence.configuredEmptyTitle}
           </div>

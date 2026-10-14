@@ -68,6 +68,28 @@ def registry_with_presets() -> AgentRegistry:
 
 
 class TestListAgents:
+    def test_legacy_avatar_urls_serve_canonical_images(self, registry_with_presets):
+        from runtime.execution.agents.aliases import AGENT_ID_ALIASES
+
+        app = FastAPI()
+        app.include_router(create_agents_router(registry=registry_with_presets))
+        client = TestClient(app)
+        for old, current in AGENT_ID_ALIASES.items():
+            legacy = client.get(f"/api/agents/{old}/avatar")
+            canonical = client.get(f"/api/agents/{current}/avatar")
+            assert legacy.status_code == canonical.status_code == 200
+            assert legacy.content == canonical.content
+
+    def test_zero_is_canonical_and_aoi_is_only_a_legacy_alias(self, registry_with_presets):
+        app = FastAPI()
+        app.include_router(create_agents_router(registry=registry_with_presets))
+        client = TestClient(app)
+        current = client.get("/api/agents/zero")
+        legacy = client.get("/api/agents/aoi")
+        assert current.status_code == legacy.status_code == 200
+        assert current.json() == legacy.json()
+        assert "aoi" not in registry_with_presets.all_ids()
+
     def test_lists_all_registered(self, registry_with_presets):
         app = FastAPI()
         app.include_router(create_agents_router(registry=registry_with_presets))
@@ -81,13 +103,13 @@ class TestListAgents:
         # than exact count so adding a new preset doesn't break the
         # test. The seven White Ghost personas must always be there.
         required = {
-            "general",
-            "coder",
-            "vibe_selling",
-            "ecommerce_mind",
-            "desktop_operator",
-            "aoi",
-            "admin",
+            "eve",
+            "kane",
+            "luna",
+            "shion",
+            "raven",
+            "zero",
+            "leon",
         }
         missing = required - names
         assert not missing, f"missing required presets: {missing}"
@@ -120,8 +142,8 @@ class TestListAgents:
 
         assert response.status_code == 200
         data = response.json()
-        general = next(agent for agent in data if agent["name"] == "general")
-        assert general["avatar_url"] == "/api/agents/general/avatar"
+        general = next(agent for agent in data if agent["name"] == "eve")
+        assert general["avatar_url"] == "/api/agents/eve/avatar"
         assert general["visual_urls"] == {}
 
     def test_compact_list_reuses_wire_snapshot_until_registry_changes(self, monkeypatch):
@@ -171,13 +193,13 @@ class TestListAgents:
         app = FastAPI()
         app.include_router(create_agents_router(registry=registry_with_presets))
         data = TestClient(app).get("/api/agents").json()
-        coder = next(a for a in data if a["name"] == "coder")
+        coder = next(a for a in data if a["name"] == "kane")
         assert coder["tool_groups"] == [
             "web_read_arm",
             "fs_writer_arm",
             "git_arm",
             "shell_arm",
-            "coder_private_arm",
+            "kane_private_arm",
         ]
 
     def test_empty_registry_returns_empty_list(self):
@@ -220,7 +242,9 @@ class TestListAgents:
         app = FastAPI()
         app.include_router(create_agents_router(registry=registry))
 
-        data = TestClient(app).get("/api/agents", params={"include_visuals": include_visuals}).json()
+        data = (
+            TestClient(app).get("/api/agents", params={"include_visuals": include_visuals}).json()
+        )
 
         assert [agent["name"] for agent in data] == ["general", "admin", "desktop_operator"]
 
@@ -238,7 +262,7 @@ class TestAgentDetail:
         assert r.status_code == 200
         data = r.json()
         # Implementation note.
-        assert data["name"] == "coder"
+        assert data["name"] == "kane"
         assert data["display_name"] == "Kane"
         # Implementation note.
         assert len(data["arms"]) == 5
@@ -248,7 +272,7 @@ class TestAgentDetail:
             "fs_writer_arm",
             "git_arm",
             "shell_arm",
-            "coder_private_arm",
+            "kane_private_arm",
         ]
         # Implementation note.
         assert "git_commit" in data["allowed_skills"]
@@ -971,19 +995,34 @@ class TestRemovedLocalPartnerSurface:
 class TestAuth:
     def test_visible_leon_does_not_grant_user_admin_operations(self):
         registry = AgentRegistry()
-        registry.register(Agent(agent_id="admin", display_name="Leon", description="系统管家",
-                                soul="", arms=ArmPool([make_web_read_arm(_rt())])))
+        registry.register(
+            Agent(
+                agent_id="admin",
+                display_name="Leon",
+                description="系统管家",
+                soul="",
+                arms=ArmPool([make_web_read_arm(_rt())]),
+            )
+        )
         store = IdentityStore()
         store.add(Identity(actor_id="member"), api_key_plaintext="sk-member")
         app = FastAPI()
-        app.include_router(create_agents_router(registry=registry, identity_store=store, require_auth=True))
+        app.include_router(
+            create_agents_router(registry=registry, identity_store=store, require_auth=True)
+        )
         client = TestClient(app)
         headers = {"Authorization": "Bearer sk-member"}
         response = client.get("/api/agents?include_visuals=false", headers=headers)
         assert response.status_code == 200
         assert response.json()[0]["display_name"] == "Leon"
-        assert client.put("/api/agents/admin/tool-registry", headers=headers,
-                          json={"arms": [], "private_skills": []}).status_code == 403
+        assert (
+            client.put(
+                "/api/agents/admin/tool-registry",
+                headers=headers,
+                json={"arms": [], "private_skills": []},
+            ).status_code
+            == 403
+        )
         assert client.post("/api/agents/admin/reload", headers=headers).status_code == 403
         assert client.delete("/api/agents/admin", headers=headers).status_code == 403
 
@@ -1092,7 +1131,7 @@ class TestChatAgentRouting:
         )
         assert r.status_code == 200
         data = r.json()
-        assert data["echo"]["agent"] == "general"
+        assert data["echo"]["agent"] == "eve"
 
     def test_unknown_agent_falls_back_gracefully(self, tmp_path: Path):
         """Implementation note."""
@@ -1179,11 +1218,10 @@ class TestIsolation:
         coder_skills = set(coder["allowed_skills"])
         general_skills = set(general["allowed_skills"])
 
-        # General currently uses a wildcard private-skills grant. The
-        # configuration UI owns narrowing it later; this endpoint should
-        # preserve the wildcard instead of expanding it into a stale list.
+        # Eve declares an explicit office skill set after persona migration.
         assert "git_commit" in coder_skills
-        assert "*" in general_skills
+        assert {"documents", "project-initiation"} <= general_skills
+        assert "*" not in general_skills
 
         # Implementation note.
         assert "web_search" in coder_skills

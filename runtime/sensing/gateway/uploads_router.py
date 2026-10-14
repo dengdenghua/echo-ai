@@ -35,7 +35,7 @@ from typing import Any
 
 try:
     from fastapi import APIRouter, File, HTTPException, Request, UploadFile
-    from fastapi.responses import FileResponse, HTMLResponse
+    from fastapi.responses import HTMLResponse
     from pydantic import BaseModel
 
     FASTAPI_AVAILABLE = True
@@ -46,7 +46,6 @@ except ImportError:  # pragma: no cover
     HTTPException = None  # type: ignore[assignment, misc]
     Request = None  # type: ignore[assignment, misc]
     UploadFile = None  # type: ignore[assignment, misc]
-    FileResponse = None  # type: ignore[assignment, misc]
     HTMLResponse = None  # type: ignore[assignment, misc]
     BaseModel = object  # type: ignore[assignment, misc]
 
@@ -56,6 +55,7 @@ from runtime.execution.misc.office_preview import render_office_preview
 from runtime.platform.process.paths import app_paths
 from runtime.platform.runtime_policy.workspaces import WorkspaceManager
 from runtime.sensing._fastapi_guard import require_fastapi
+from runtime.sensing.gateway._untrusted_content import untrusted_file_response
 
 MAX_UPLOAD_FILES = 20
 MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024
@@ -482,9 +482,14 @@ def create_uploads_router(
                     "X-Content-Type-Options": "nosniff",
                 },
             )
-        return FileResponse(
+        # Uploads/artifacts are user- or agent-authored and served from the
+        # API origin: sandbox them so HTML/SVG cannot run as the app.
+        # HTML previews keep script (opaque origin) for interactive reports.
+        return untrusted_file_response(
             str(target),
             filename=target.name if download else None,
+            download=download,
+            allow_scripts=True,
         )
 
     return router

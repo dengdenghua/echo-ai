@@ -168,5 +168,90 @@ class CoworkGroupAccess:
         principal = self.principal(request)
         return str(getattr(principal, "actor_id", "") or "user")
 
+    def _caller_room_seats(
+        self,
+        room_id: str,
+        actor_id: str,
+        tenant_id: str,
+    ) -> list[dict[str, Any]]:
+        """The caller's own Team Room seats, the authoritative resolver's first."""
+
+        seats: list[dict[str, Any]] = []
+        participant_resolver = getattr(self._team_rooms_router, "get_room_participant", None)
+        if callable(participant_resolver):
+            try:
+                participant = participant_resolver(room_id, actor_id, tenant_id)
+            except TypeError:
+                participant = participant_resolver(room_id, actor_id, tenant_id=tenant_id)
+            if isinstance(participant, dict):
+                seats.append(participant)
+        room = self._room_snapshot(room_id) or {}
+        raw_participants = room.get("participants")
+        for participant in raw_participants if isinstance(raw_participants, list) else []:
+            if (
+                isinstance(participant, dict)
+                and str(participant.get("actor_id") or "").strip() == actor_id
+                and participant.get("status") != "removed"
+            ):
+                seats.append(participant)
+        return seats
+
+    def bind_caller_member(
+        self,
+        request: Request,
+        claimed: str,
+        *,
+        room_id: str | None = None,
+    ) -> tuple[str, str | None]:
+        """Bind a self-scoped member id (sender, read marker, heartbeat) to the caller.
+
+        Local no-auth mode keeps its historical contract: the single trusted
+        local user names itself, so ``claimed`` is returned unchanged and the
+        display name is left to the caller (``None``).
+
+        In shared mode the id is derived from the authenticated principal, as
+        the Team Room socket does: a client may only name an id it provably
+        owns — its actor id or one of its own room seats (``actor-…`` /
+        ``owner-…``) — and an empty claim means the actor id. Anything else is
+        impersonation and is refused with 403. The display name then comes
+        from the server-owned room seat, never from the request body.
+        """
+
+        if not self._require_auth:
+            return str(claimed or ""), None
+        claimed = str(claimed or "").strip()
+        principal = self.principal(request)
+        actor_id = str(getattr(principal, "actor_id", "") or "").strip()
+        if principal is None or not actor_id:
+            raise HTTPException(401, "authentication required")
+        seats = self._caller_room_seats(room_id, actor_id, principal.tenant_id) if room_id else []
+        owned = {actor_id, *(str(seat.get("id") or "").strip() for seat in seats)}
+        owned.discard("")
+        member_id = claimed or actor_id
+        if member_id not in owned:
+            raise HTTPException(403, "member id does not belong to the authenticated caller")
+        seat = next((s for s in seats if str(s.get("id") or "").strip() == member_id), None)
+        seat = seat or (seats[0] if seats else None)
+        display_name = str((seat or {}).get("display_name") or "").strip() or member_id
+        return member_id, display_name
+
+    def can_moderate(self, thread_id: str, request: Request) -> bool:
+        """Thread owner or linked-room owner/admin; the sole local user in no-auth mode."""
+
+        if not self._require_auth:
+            return True
+        decision = getattr(getattr(request, "state", None), "cowork_thread_access", None)
+        if decision is None:
+            principal = self.principal(request)
+            if principal is None:
+                return False
+            decision = self._thread_access.resolve(
+                thread_id,
+                principal.actor_id,
+                principal.tenant_id,
+            )
+        # ``admin`` room roles are normalized to ``owner`` by the resolver.
+        return bool(decision.can_manage or decision.room_role == "owner")
+
 
 __all__ = ["CoworkGroupAccess"]

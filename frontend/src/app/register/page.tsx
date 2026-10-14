@@ -11,7 +11,7 @@ import {
   UserCircle2Icon,
 } from "lucide-react";
 
-import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
+import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -74,7 +74,7 @@ export default function RegisterPage() {
     authStatus && (!authStatus.enabled || !authStatus.allow_registration);
 
   useEffect(() => {
-    if (redirectToWorkspace) navigate(returnTo, { replace: true });
+    if (redirectToWorkspace) void navigate(returnTo, { replace: true });
   }, [redirectToWorkspace, navigate, returnTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,7 +100,7 @@ export default function RegisterPage() {
     try {
       await register({ username, password, email: email || undefined });
       toast.success(t.registerPage.toastSuccess);
-      navigate(loginPathWithReturnTo(returnTo), { replace: true });
+      void navigate(loginPathWithReturnTo(returnTo), { replace: true });
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t.registerPage.toastFailed,
@@ -131,7 +131,7 @@ export default function RegisterPage() {
     {
       icon: GitBranchIcon,
       title: "灵活编排",
-      desc: "可视化工作流，自由组合 Agent 能力",
+      desc: "可视化工作流，自由组合智能体能力",
     },
     {
       icon: BoxesIcon,
@@ -142,23 +142,23 @@ export default function RegisterPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background">
-      {/* 背景渐变装饰 */}
+      {/* 背景装饰：ECHO 只用中性雾面，外加一处很淡的 core 青光，不用彩虹渐变 */}
       <div className="pointer-events-none absolute inset-0">
         <FloatingOrb
           className="-top-32 -left-32"
-          color="linear-gradient(135deg, oklch(0.85 0.15 15), oklch(0.75 0.18 350))"
+          color="color-mix(in srgb, var(--echo-ink) 8%, transparent)"
           size={500}
           blur={100}
         />
         <FloatingOrb
           className="top-1/3 -right-40"
-          color="linear-gradient(135deg, oklch(0.8 0.12 260), oklch(0.75 0.15 220))"
+          color="var(--echo-core-soft)"
           size={450}
           blur={120}
         />
         <FloatingOrb
           className="-bottom-40 left-1/4"
-          color="linear-gradient(135deg, oklch(0.88 0.1 140), oklch(0.8 0.12 180))"
+          color="color-mix(in srgb, var(--echo-ink-muted) 8%, transparent)"
           size={400}
           blur={100}
         />
@@ -174,9 +174,8 @@ export default function RegisterPage() {
       <div className="relative z-10 grid w-full max-w-6xl items-center gap-16 px-8 py-12 lg:grid-cols-[1.2fr_1fr] lg:gap-20">
         {/* 左侧品牌区 */}
         <div className="hidden flex-col justify-center space-y-10 lg:flex">
-          <div className="inline-flex items-center gap-3">
-            <EchoBrandMark size="lg" />
-            <span className="text-xl font-semibold tracking-tight">Echo</span>
+          <div className="inline-flex items-center">
+            <EchoLockup product="AI" wordmarkClassName="h-7" />
           </div>
 
           <div className="space-y-5">
@@ -187,12 +186,10 @@ export default function RegisterPage() {
             <h1 className="text-5xl font-bold leading-[1.1] tracking-tight lg:text-[3.5rem]">
               创建账户
               <br />
-              <span className="bg-gradient-to-r from-primary via-[oklch(0.65_0.18_20)] to-[oklch(0.6_0.16_320)] bg-clip-text text-transparent">
-                即刻开启
-              </span>
+              <span className="text-muted-foreground">即刻开启</span>
             </h1>
             <p className="max-w-md text-lg leading-relaxed text-muted-foreground">
-              注册一个账户，让不同角色在 EchoOS 上协作、学习与进化。
+              注册一个账户，让不同角色在 ECHO 上协作、学习与进化。
             </p>
           </div>
 
@@ -221,9 +218,8 @@ export default function RegisterPage() {
 
         {/* 右侧注册表单 */}
         <div className="mx-auto w-full max-w-md">
-          <div className="mb-8 flex items-center justify-center gap-2.5 lg:hidden">
-            <EchoBrandMark size="md" />
-            <span className="text-lg font-semibold tracking-tight">Echo</span>
+          <div className="mb-8 flex items-center justify-center lg:hidden">
+            <EchoLockup product="AI" wordmarkClassName="h-6" />
           </div>
 
           <Card className="overflow-hidden rounded-2xl border-border/50 bg-card/80 shadow-2xl shadow-black/[0.03] backdrop-blur-xl">
@@ -242,7 +238,7 @@ export default function RegisterPage() {
                     {t.registerPage.usernameLabel}
                   </Label>
                   <div className="relative">
-                    <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <UserCircle2Icon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="username"
                       type="text"
@@ -260,7 +256,7 @@ export default function RegisterPage() {
                     {t.registerPage.emailLabel}
                   </Label>
                   <div className="relative">
-                    <MailIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <MailIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       type="email"
@@ -277,7 +273,7 @@ export default function RegisterPage() {
                     {t.registerPage.passwordLabel}
                   </Label>
                   <div className="relative">
-                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
                       type="password"
@@ -297,7 +293,7 @@ export default function RegisterPage() {
                     {t.registerPage.confirmPasswordLabel}
                   </Label>
                   <div className="relative">
-                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground/50" />
+                    <KeyRoundIcon className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="confirmPassword"
                       type="password"
@@ -332,8 +328,8 @@ export default function RegisterPage() {
             </CardContent>
           </Card>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground/50">
-            © {new Date().getFullYear()} Echo · Powered by EchoOS
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            © {new Date().getFullYear()} ECHO · AI
           </p>
         </div>
       </div>

@@ -17,6 +17,7 @@ except ImportError:  # pragma: no cover
     BaseModel = object  # type: ignore[assignment, misc]
     Response = None  # type: ignore[assignment, misc]
 
+from runtime.safety.auth.login_throttle import AuthAttemptLimiter
 from runtime.sensing._fastapi_guard import require_fastapi
 
 from .client import OctClientError, mask_email, post_public
@@ -73,6 +74,8 @@ def create_auth_router(
     # agent 自有会话 JWT 的密钥:config 优先,其次 app 注入。留空则直接复用网关 JWT。
     effective_jwt_secret = config.jwt_secret or jwt_secret
     effective_jwt_issuer = config.jwt_issuer or jwt_issuer
+    send_limit = AuthAttemptLimiter(ip_limit=5, subject_limit=3, window_s=300)
+    login_limit = AuthAttemptLimiter(ip_limit=20, subject_limit=8, window_s=300)
 
     def _require_enabled() -> None:
         if not config.enabled:
@@ -88,9 +91,10 @@ def create_auth_router(
         return e
 
     @router.post("/email/send", response_model=EmailSendResponse)
-    def email_send(body: EmailSendRequest) -> EmailSendResponse:
+    def email_send(body: EmailSendRequest, request: Request) -> EmailSendResponse:
         _require_enabled()
         email_addr = _check_email(body.email)
+        send_limit.check(request, email_addr)
         try:
             upstream = post_public(
                 f"{base}/auth/email/send",
@@ -114,6 +118,7 @@ def create_auth_router(
     ) -> EmailLoginResponse:
         _require_enabled()
         email_addr = _check_email(body.email)
+        login_limit.check(request, email_addr)
         t0 = time.perf_counter()
         try:
             data = post_public(
@@ -142,10 +147,20 @@ def create_auth_router(
                 from runtime.safety.auth.identity import Identity
 
                 existing = identity_store.get(actor_id) if hasattr(identity_store, "get") else None
+                admin_emails = {
+                    str(email).strip().lower()
+                    for email in getattr(config, "admin_emails", ())
+                    if str(email).strip()
+                }
+                desired_roles = (
+                    ("user", "oct", "admin")
+                    if "*" in admin_emails or email_addr.lower() in admin_emails
+                    else ("user", "oct")
+                )
                 if existing is None:
                     identity = Identity(
                         actor_id=actor_id,
-                        roles=("user", "oct"),
+                        roles=desired_roles,
                         metadata={
                             "provider": "oct",
                             "email": email,
@@ -158,6 +173,8 @@ def create_auth_router(
                         created = True
                     except ValueError:  # noqa: BLE001 — duplicate silently skipped
                         pass
+                elif set(existing.roles) != set(desired_roles):
+                    identity_store.set_roles(actor_id, desired_roles)
         except Exception as exc:  # noqa: BLE001
             logger.warning("oct identity upsert failed (non-fatal): %s", exc)
 
@@ -192,6 +209,15 @@ def create_auth_router(
                     "provider": "oct",
                     "email": email,
                 }
+                admin_emails = {
+                    str(e).strip().lower()
+                    for e in getattr(config, "admin_emails", ())
+                    if str(e).strip()
+                }
+                if "*" in admin_emails or email.lower() in admin_emails:
+                    claims["roles"] = ["user", "oct", "admin"]
+                else:
+                    claims["roles"] = ["user", "oct"]
                 if effective_jwt_issuer:
                     claims["iss"] = effective_jwt_issuer
                 if jwt_audience:

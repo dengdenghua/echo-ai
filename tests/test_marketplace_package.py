@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -183,7 +184,19 @@ def test_marketplace_package_rejects_symlinked_content(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.parametrize("mutation", ["ignored-directory", "file-mode"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "ignored-directory",
+        pytest.param(
+            "file-mode",
+            marks=pytest.mark.skipif(
+                os.name != "posix",
+                reason="Windows has no execute bit: chmod(0o755) cannot change the signed mode",
+            ),
+        ),
+    ],
+)
 def test_marketplace_signature_covers_all_directories_and_file_modes(
     tmp_path: Path,
     mutation: str,

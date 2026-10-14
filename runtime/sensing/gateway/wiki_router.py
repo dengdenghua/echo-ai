@@ -332,7 +332,7 @@ def create_wiki_router(
 
     @router.post("/api/wiki/ask")
     def api_wiki_ask(request: Request, body: dict[str, Any]) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Synthesis Q&A over the project wiki — retrieve + compose a cited
         answer (ADR-009 · gbrain-style). Returns ``{answer, citations, grounded,
         reason?}``; ``grounded=False`` when no model is configured or the wiki
@@ -344,7 +344,7 @@ def create_wiki_router(
 
     @router.get("/api/wiki/graph")
     def api_wiki_graph(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Wiki dependency graph (ADR-009): the page nodes + the zero-LLM
         page→page import edges from index.json, for a graph visualiser."""
 
@@ -366,7 +366,7 @@ def create_wiki_router(
 
     @router.get("/api/wiki/okf-bundle")
     def api_wiki_okf_bundle(request: Request) -> Any:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Export the wiki as a portable OKF bundle — a ``tar.gz`` of
         ``docs/auto`` (markdown + frontmatter + index.json + edges). The family
         lingua franca (ADR-009): any OKF-aware consumer (Storage, mobile, os)
@@ -392,7 +392,7 @@ def create_wiki_router(
 
     @router.get("/api/wiki/status")
     def api_wiki_status(request: Request, root: str | None = Query(None)) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Frontend consumes ``{exists, status, generated_at, ...}``
         and switches between "generate CTA" / "content shell".
 
@@ -448,7 +448,7 @@ def create_wiki_router(
         lang: str = Query("zh"),
         root: str | None = Query(None),
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Flat WikiDocEntry list · frontend builds the tree via
         ``path.split('/')`` so we don't need to pre-structure here."""
         user_root = _validate_user_root(root)
@@ -462,7 +462,7 @@ def create_wiki_router(
         doc_path: str,
         root: str | None = Query(None),
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         user_root = _validate_user_root(root)
         if user_root is not None:
             try:
@@ -495,7 +495,7 @@ def create_wiki_router(
         doc_path: str,
         body: dict[str, Any],
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Overwrite a generated doc · used by the inline editor in
         the frontend. Note: edits are lost on next ``generate`` run ·
         the generator is the source of truth."""
@@ -511,7 +511,7 @@ def create_wiki_router(
 
     @router.post("/api/wiki/generate")
     def api_wiki_generate(request: Request, root: str | None = Query(None)) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """User-triggered generation. For per-project mode (``root``
         passed) we run synchronously since the generic generator is
         bounded (≤2s on typical repos)."""
@@ -530,7 +530,7 @@ def create_wiki_router(
 
     @router.post("/api/wiki/update")
     def api_wiki_update(request: Request, root: str | None = Query(None)) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Alias for generate · frontend uses this button when the
         wiki is already present but needs a refresh."""
         user_root = _validate_user_root(root)
@@ -560,7 +560,7 @@ def create_wiki_router(
 
     @router.get("/api/wiki/settings")
     def api_wiki_settings_get(request: Request, root: str = Query(...)) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Per-project wiki settings · currently just the autosync
         flag. ``root`` is required (settings only meaningful in
         per-project mode). The response also reflects whether the
@@ -587,7 +587,7 @@ def create_wiki_router(
         body: dict[str, Any],
         root: str = Query(...),
     ) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         """Persist autosync + arm/disarm the file watcher in one call.
 
         Watcher lifecycle is bound to the persisted flag so a backend
@@ -608,7 +608,7 @@ def create_wiki_router(
 
     @router.get("/api/wiki/progress")
     def api_wiki_progress(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth requires operator for the shared host wiki
         snap = _STATE.snapshot()
         total = max(len(_flat_docs()), 1)
         if snap["status"] == "running":

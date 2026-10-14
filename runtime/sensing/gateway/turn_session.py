@@ -126,6 +126,9 @@ def build_turn_metadata(
     except (KeyError, AttributeError):
         stored_meta = {}
 
+    if ctx.get("private_conversation") is True or stored_meta.get("private_conversation") is True:
+        metadata["private_conversation"] = True
+
     # Keep model selection in one place. This also preserves compatibility
     # with older clients that send ``context.model`` or top-level ``model``.
     from runtime.platform.process.turn_model import resolve_turn_model
@@ -161,7 +164,9 @@ def build_turn_metadata(
         for key in ("agent", "agent_name"):
             value = config_meta.get(key) or ctx.get(key)
             if isinstance(value, str) and value.strip():
-                metadata[key] = value.strip()
+                from runtime.execution.agents.aliases import canonical_agent_id
+
+                metadata[key] = canonical_agent_id(value.strip())
 
     if authoritative_workspace is not None:
         metadata["workspace_path"] = str(authoritative_workspace)
@@ -242,6 +247,14 @@ def build_turn_metadata(
             metadata[key] = value.strip()
         elif isinstance(value, bool):
             metadata[key] = value
+    if metadata.get("agent_mode") == "uxui":
+        from runtime.core.cerebrum.design_capabilities import design_preferences
+
+        metadata["design_capabilities"] = design_preferences(
+            ctx.get("design_capabilities", stored_meta.get("design_capabilities"))
+        )
+    else:
+        metadata.pop("design_capabilities", None)
     personal_instructions = ctx.get("personal_instructions")
     if personal_instructions is None and not explicit_conversation_mode:
         personal_instructions = stored_meta.get("personal_instructions")

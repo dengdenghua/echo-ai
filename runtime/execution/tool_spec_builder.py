@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import inspect
 import re
+from copy import deepcopy
 from functools import lru_cache
-from typing import Any
+from types import UnionType
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 from runtime.core.cerebrum.capability_router import (
     activate_capabilities,
@@ -28,11 +30,18 @@ from runtime.platform.models.llm import ToolSpec
 
 PRIORITY_SKILLS: frozenset[str] = frozenset(
     {
+        "ask_user_question",
         "todo_write",
+        "collaboration",
         "search_capabilities",
+        "find_capability",
+        "visual_guidelines",
+        "show_visual",
+        "visual_status",
         "query_capability",
         "use_capability",
         "execute_skill",
+        "call_agent",
         "call_agent_parallel",
         "bb_keys",
         "bb_read",
@@ -191,6 +200,8 @@ _INTERNAL_PARAMS = frozenset(
     {
         "sandbox_dir",
         "allow_sensitive",
+        "allow_network",
+        "egress_allow_common",
         "self",
         "cls",
         "_kw",
@@ -215,6 +226,7 @@ def _input_schema_from_handler(handler: Any) -> tuple[dict[str, Any], ...]:
     """
     try:
         sig = inspect.signature(handler)
+        hints = get_type_hints(handler)
     except (ValueError, TypeError):
         return ({"type": "object", "properties": {}, "additionalProperties": True},)
 
@@ -245,25 +257,38 @@ def _input_schema_from_handler(handler: Any) -> tuple[dict[str, Any], ...]:
             continue
 
         prop: dict[str, Any] = {}
-        annotation = param.annotation
+        annotation = hints.get(pname, param.annotation)
 
         if annotation is inspect.Parameter.empty:
             prop["type"] = "string"
         else:
             ann_str = str(annotation)
-            origin = getattr(annotation, "__origin__", None)
+            origin = get_origin(annotation)
 
             # Handle both real types (list, dict) and their string
             # forms ("list", "dict") — the latter appear when the
             # module uses ``from __future__ import annotations``.
-            if origin is list or ann_str in ("list", "List"):
+            if origin is list or annotation is list or ann_str in ("list", "List"):
                 prop["type"] = "array"
-            elif origin is dict or ann_str in ("dict", "Dict"):
+            elif origin is dict or annotation is dict or ann_str in ("dict", "Dict"):
                 prop["type"] = "object"
+            elif origin in (Union, UnionType):
+                non_none_args = [arg for arg in get_args(annotation) if arg is not type(None)]
+                if len(non_none_args) == 1 and get_origin(non_none_args[0]) is list:
+                    prop["type"] = "array"
+                elif len(non_none_args) == 1 and get_origin(non_none_args[0]) is dict:
+                    prop["type"] = "object"
+                else:
+                    prop["type"] = "string"
             else:
                 matched = False
                 for py_type, json_type in _SIMPLE_TYPE_MAP.items():
-                    if ann_str == py_type or ann_str.startswith(py_type + "."):
+                    annotation_name = getattr(annotation, "__name__", ann_str)
+                    if (
+                        annotation_name == py_type
+                        or ann_str == py_type
+                        or ann_str.startswith(py_type + ".")
+                    ):
                         prop["type"] = json_type
                         matched = True
                         break
@@ -374,6 +399,12 @@ def build_anthropic_tool_specs(
     if tool_ceiling is not None:
         all_names = [name for name in all_names if name in tool_ceiling]
 
+    from runtime.execution.request import current_execution_request
+
+    host_request = current_execution_request()
+    if host_request is not None and host_request.task.allowed_tools is not None:
+        all_names = [name for name in all_names if name in host_request.task.allowed_tools]
+
     activation = activate_capabilities(
         goal,
         user_context=user_context,
@@ -431,21 +462,49 @@ def build_anthropic_tool_specs(
             selected.append(name)
 
     specs: list[ToolSpec] = []
+    from runtime.platform.process.session import current_session
+
+    session = current_session()
+    coordination = getattr(registry, "coordination", None)
+    group_members = (
+        coordination.members(session.thread_id)
+        if coordination is not None and session is not None and session.thread_id
+        else []
+    )
     for name in selected:
         try:
             skill = registry.get(name)
             desc = (getattr(skill, "description", "") or "").strip()
             handler = getattr(skill, "handler", None)
+            declared_schema = getattr(skill, "input_schema", None)
         except (AttributeError, TypeError, KeyError):
             desc = ""
             handler = None
+            declared_schema = None
         if not desc:
             desc = f"Run the `{name}` skill."
-        input_schema = (
-            _input_schema_from_handler(handler)[0]
-            if handler is not None
-            else {"type": "object", "properties": {}, "additionalProperties": True}
-        )
+        if group_members and name in {"call_agent", "call_agent_parallel", "collaboration"}:
+            import json
+
+            desc = (
+                "Current group members (authoritative): "
+                + json.dumps(group_members, ensure_ascii=False)
+                + "\nUse existing members first. Only if a capability gap remains, search global roles "
+                "and call collaboration(action='propose_member', assignee=installed_role_id, "
+                "reason=why_existing_members_cannot_cover, message=proposed_task, request_id=stable_id). "
+                "This opens a human review dialog; never invite or execute a global candidate before approval. "
+                "Group call_agent and call_agent_parallel enqueue durable tasks and return immediately. "
+                "Pending is not completion. Query collaboration list/inbox for real results before summarizing.\n"
+                + (desc if name == "collaboration" else "")
+            )
+        if isinstance(declared_schema, dict):
+            input_schema = deepcopy(declared_schema)
+        else:
+            input_schema = (
+                _input_schema_from_handler(handler)[0]
+                if handler is not None
+                else {"type": "object", "properties": {}, "additionalProperties": True}
+            )
         specs.append(
             ToolSpec(
                 name=name,

@@ -6,6 +6,7 @@ import json
 import time
 from typing import Any, Protocol, cast
 
+from runtime.projectos._store_event_write import insert_sealed_event
 from runtime.projectos._store_helpers import (
     _json_dict,
     _milestone_from_doc,
@@ -159,11 +160,7 @@ def commit_message_action(
             "payload": payload,
             "created_at": created_at,
         }
-        conn.execute(
-            "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (event_id, project_id, kind, json.dumps(payload, ensure_ascii=False), created_at),
-        )
+        insert_sealed_event(conn, event)
         return event, stored_task, True
 
 

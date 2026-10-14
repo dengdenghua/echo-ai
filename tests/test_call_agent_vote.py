@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from runtime.execution.suckers import delegation_skills as ds
+from runtime.execution.suckers._delegation_skills_vote import _VOTER_INDEPENDENT_ROLES
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +38,12 @@ def _reset_runner_and_budget():
     set_subagent_registry(None)
     _TURN_DELEGATIONS.clear()
     _TURN_FAILED_FINGERPRINTS.clear()
+
+
+@pytest.fixture(autouse=True)
+def _installed_voter_roles(installed_hub_roles):
+    """The panel rotates through these personas; voters must be installed HUB roles."""
+    installed_hub_roles(*_VOTER_INDEPENDENT_ROLES)
 
 
 def _patch_voters(monkeypatch, outputs: list[str]):

@@ -64,7 +64,7 @@ def create_meta_skill_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; shared skill catalog and stateless matching
 
     router = APIRouter(tags=["meta-skill"], dependencies=[Depends(_auth_dep)])
 

@@ -360,8 +360,10 @@ def test_forged_composite_blocks_risky_subskill_under_taint() -> None:
     assert ran["shell"] is False, "blocked sub-skill handler must NOT have run"
 
 
-def test_forged_composite_runs_subskill_on_clean_turn() -> None:
-    """Control: with no taint, the composite runs its sub-skills normally."""
+def test_forged_composite_holds_risky_subskill_for_approval_on_clean_turn() -> None:
+    """A clean turn is not an approval: the approval gate reviewed the OUTER
+    composite, never the inner exec_shell, and a nested dispatch cannot ask
+    the user — so a non-auto-approve session refuses the risky sub-skill."""
     from runtime.execution.suckers.forged_persistence import (
         _build_composite_handler,
     )
@@ -385,8 +387,130 @@ def test_forged_composite_runs_subskill_on_clean_turn() -> None:
     )
     composite = _build_composite_handler(["exec_shell"], registry)
     result = composite(command="echo hi")
+    assert result["success"] is False
+    assert result.get("error_type") == "ApprovalRequired"
+    assert ran["shell"] is False, "unapproved sub-skill handler must NOT have run"
+
+
+def test_forged_composite_runs_subskill_when_session_auto_approves() -> None:
+    """Control: an auto-approve session lets the composite run its sub-skills."""
+    from runtime.execution.suckers.forged_persistence import (
+        _build_composite_handler,
+    )
+    from runtime.execution.suckers.registry import Skill, SkillRegistry
+    from runtime.platform.process.session import Session, session_scope
+
+    ran = {"shell": False}
+
+    def _shell(**_kw):
+        ran["shell"] = True
+        return {"exit_code": 0}
+
+    registry = SkillRegistry()
+    registry.register(
+        Skill(
+            name="exec_shell",
+            summary="shell",
+            affinity=["shell", "exec", "dangerous"],
+            trusted_source="skill://public/exec_shell",
+            handler=_shell,
+        )
+    )
+    composite = _build_composite_handler(["exec_shell"], registry)
+    with session_scope(Session(metadata={"auto_approve": True})):
+        result = composite(command="echo hi")
     assert result["success"] is True
     assert ran["shell"] is True
+
+
+def _sandboxed_writer_registry(ran: dict) -> SkillRegistry:
+    from runtime.execution.suckers.registry import Skill
+
+    def _write(path: str = "", content: str = "", *, sandbox_dir: str | None = None, **_kw):
+        ran["wrote"] = True
+        ran["sandbox_dir"] = sandbox_dir
+        return {"ok": True}
+
+    registry = SkillRegistry()
+    registry.register(
+        Skill(
+            name="write_text_file",
+            summary="write",
+            affinity=["file", "write"],
+            trusted_source="skill://public/write_text_file",
+            handler=_write,
+        )
+    )
+    return registry
+
+
+def test_forged_composite_refuses_write_outside_sandbox(tmp_path, monkeypatch) -> None:
+    """A composite whose step writes outside the workspace sandbox is refused:
+    on a non-auto-approve session by the approval hold, and even on an
+    auto-approve session by the scope check (sandbox_dir must stay in scope)."""
+    from runtime.execution.suckers.forged_persistence import (
+        _build_composite_handler,
+    )
+    from runtime.platform.process.session import Session, session_scope
+
+    monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+    project = tmp_path / "project"
+    project.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    meta = {"mode": "code", "workspace_path": str(project)}
+
+    ran: dict = {"wrote": False}
+    composite = _build_composite_handler(["write_text_file"], _sandboxed_writer_registry(ran))
+    args = {"path": "pwned.txt", "content": "x", "sandbox_dir": str(outside)}
+
+    with session_scope(Session(actor="u", thread_id="t-forge", metadata=dict(meta))):
+        held = composite(**args)
+    assert held["success"] is False
+    assert held.get("error_type") == "ApprovalRequired"
+    assert ran["wrote"] is False
+
+    auto = {**meta, "auto_approve": True}
+    with session_scope(Session(actor="u", thread_id="t-forge", metadata=auto)):
+        escaped = composite(**args)
+        in_scope = composite(path="ok.txt", content="x")
+    assert escaped["success"] is False
+    assert escaped.get("error_type") == "ScopeBlocked"
+    # The in-scope call runs with the workspace sandbox injected.
+    assert in_scope["success"] is True
+    from pathlib import Path
+
+    assert Path(ran["sandbox_dir"]).resolve() == project.resolve()
+
+
+def test_inprocess_forge_composite_holds_risky_subskill_for_approval() -> None:
+    """The in-process forge twin uses the same inner-dispatch pipeline."""
+    from runtime.execution.suckers.registry import Skill
+    from runtime.memory.journal import InMemoryJournal
+    from runtime.safety.recovery.skill_forge import SkillForge
+
+    ran = {"shell": False}
+
+    def _shell(**_kw):
+        ran["shell"] = True
+        return {"exit_code": 0}
+
+    reg = SkillRegistry()
+    reg.register(
+        Skill(
+            name="exec_shell",
+            summary="shell",
+            affinity=["shell", "exec", "dangerous"],
+            trusted_source="skill://public/exec_shell",
+            handler=_shell,
+        )
+    )
+    cand = _mk_candidate(name="inproc_forged_hold", sequence=["exec_shell"])
+    handler = SkillForge(journal=InMemoryJournal(), registry=reg)._build_meta_handler(cand)
+    result = handler(command="echo hi")
+    assert result["success"] is False
+    assert result.get("error_type") == "ApprovalRequired"
+    assert ran["shell"] is False
 
 
 def test_forged_composite_blocks_denied_subskill() -> None:

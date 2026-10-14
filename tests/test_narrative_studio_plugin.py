@@ -75,6 +75,7 @@ def test_data_dir_follows_desktop_root_and_preserves_legacy_source_projects(
     legacy_data = legacy_home / ".echo" / "data" / "narrative-studio"
     legacy_data.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(legacy_home))
+    monkeypatch.setenv("USERPROFILE", str(legacy_home))  # Windows "~"
     monkeypatch.delenv("ECHO_DATA_DIR", raising=False)
     monkeypatch.delenv("ECHO_HOME", raising=False)
     monkeypatch.setattr(

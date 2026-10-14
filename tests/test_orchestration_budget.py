@@ -42,6 +42,12 @@ def _reset_budget_state():
     set_subagent_registry(None)
 
 
+@pytest.fixture(autouse=True)
+def _installed_roles(installed_hub_roles):
+    """Fan-out only targets installed HUB roles."""
+    installed_hub_roles("researcher")
+
+
 # ── pure: scope + envelope accounting ────────────────────────────
 
 

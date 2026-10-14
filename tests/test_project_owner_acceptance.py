@@ -101,8 +101,11 @@ def test_acceptance_is_invalidated_when_reviewed_requirements_change(tmp_path, c
     engine.run(project.id)
     ms = store.get_milestone("first")
     tasks = store.tasks_for_milestone(ms.id)
-    store.append_event(project.id, kind="project.delivery_accepted",
-                       payload={"milestone_id": ms.id, "fingerprint": delivery_fingerprint(ms, tasks)})
+    store.append_event(
+        project.id,
+        kind="project.delivery_accepted",
+        payload={"milestone_id": ms.id, "fingerprint": delivery_fingerprint(ms, tasks)},
+    )
     if change == "task_goal":
         tasks[0].goal = "expanded goal"
     elif change == "task_criteria":
@@ -124,9 +127,19 @@ def test_done_task_without_deliverable_cannot_open_acceptance(tmp_path, output):
     store.project_for_thread = lambda _: store.get_project(project.id)
     emitter = SimpleNamespace(request_approval=AsyncMock(), is_turn_interrupted=lambda _: False)
     runtime = SimpleNamespace(_emit_agent_message=AsyncMock())
-    asyncio.run(accept_delivery(runtime, Turn(threadId="thread"), None, emitter,
-                               project_store=store, thread_id="thread", milestone_id="first",
-                               owner_id="", tenant_id=""))
+    asyncio.run(
+        accept_delivery(
+            runtime,
+            Turn(threadId="thread"),
+            None,
+            emitter,
+            project_store=store,
+            thread_id="thread",
+            milestone_id="first",
+            owner_id="",
+            tenant_id="",
+        )
+    )
     emitter.request_approval.assert_not_awaited()
     assert not delivery_accepted(store, project.id, store.get_milestone("first"), tasks)
     assert "未提供交付内容" in runtime._emit_agent_message.call_args.args[-1]

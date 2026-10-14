@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 
 import pytest
@@ -23,12 +24,14 @@ pytestmark = pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="FastAPI not avail
 @pytest.fixture
 def test_env():
     """Create test environment with store, client, and sample thread."""
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir, contextlib.ExitStack() as cleanup:
         store = ThreadStateStore(
             per_agent_base=tmpdir,
             search_enabled=True,
             feedback_enabled=True,
         )
+        # Close search.db before the temp dir is removed (Windows locks open files).
+        cleanup.callback(store.close)
         router = create_thread_state_router(store=store, require_auth=False)
         app = FastAPI()
         app.include_router(router)
@@ -142,12 +145,14 @@ def test_feedback_stats(test_env):
 
 def test_features_disabled():
     """Test behavior when P2 features disabled."""
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir, contextlib.ExitStack() as cleanup:
         store = ThreadStateStore(
             per_agent_base=tmpdir,
             search_enabled=False,
             feedback_enabled=False,
         )
+        # Close search.db before the temp dir is removed (Windows locks open files).
+        cleanup.callback(store.close)
         router = create_thread_state_router(store=store, require_auth=False)
         app = FastAPI()
         app.include_router(router)

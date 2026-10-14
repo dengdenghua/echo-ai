@@ -19,6 +19,12 @@ from typing import Any
 
 from benchmarks.eval_harness import Trajectory, Verdict
 from benchmarks.verifier_sandbox import VerifierProcessResult, run_hidden_verifier
+from runtime.platform.process.win_job import (
+    CREATE_SUSPENDED,
+    WindowsJob,
+    attach_suspended,
+    release_job,
+)
 
 TrajectoryValidator = Callable[[Trajectory], str | None]
 
@@ -59,9 +65,19 @@ class IsolatedFixture:
 
     def teardown(self) -> None:
         current = self._current
-        self._current = None
         if current is not None and not self.preserve_runs:
-            shutil.rmtree(current, ignore_errors=False)
+            deadline = time.monotonic() + 3
+            while True:
+                try:
+                    shutil.rmtree(current, ignore_errors=False)
+                    break
+                except OSError as exc:
+                    # Windows may release an exited child's cwd handle shortly
+                    # after process termination. Other errors remain failures.
+                    if os.name != "nt" or exc.winerror != 32 or time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.02)
+        self._current = None
 
 
 @dataclass
@@ -115,6 +131,7 @@ class LiveIsolatedFixture(IsolatedFixture):
     server_command: Sequence[str] = field(default_factory=tuple)
     startup_timeout_seconds: float = 10.0
     _server: subprocess.Popen[str] | None = field(default=None, init=False, repr=False)
+    _server_job: WindowsJob | None = field(default=None, init=False, repr=False)
 
     def setup(self) -> None:
         super().setup()
@@ -123,6 +140,8 @@ class LiveIsolatedFixture(IsolatedFixture):
         if not command:
             super().teardown()
             raise ValueError("live fixture server_command is empty")
+        job = WindowsJob()
+        self._server_job = job
         self._server = subprocess.Popen(
             command,
             cwd=workspace,
@@ -130,7 +149,12 @@ class LiveIsolatedFixture(IsolatedFixture):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             text=True,
+            creationflags=CREATE_SUSPENDED if job.active else 0,
         )
+        if job.active and not attach_suspended(job, self._server):
+            self._stop_server()
+            super().teardown()
+            raise RuntimeError("live fixture server could not be resumed")
         url_path = workspace / "EVAL_URL.txt"
         deadline = time.monotonic() + self.startup_timeout_seconds
         while time.monotonic() < deadline:
@@ -153,14 +177,31 @@ class LiveIsolatedFixture(IsolatedFixture):
     def _stop_server(self) -> None:
         process = self._server
         self._server = None
-        if process is None or process.poll() is not None:
-            return
-        process.terminate()
+        job = self._server_job
+        self._server_job = None
         try:
-            process.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=3)
+            # Windows venv launchers can spawn the interpreter as a child.
+            # Reap the entire owned tree before removing its working directory.
+            if job is not None and job.active:
+                job.terminate()
+                deadline = time.monotonic() + 3
+                while job.process_ids() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                if job.process_ids():
+                    raise RuntimeError("live fixture server process tree did not exit")
+            if process is None or process.poll() is not None:
+                return
+            process.terminate()
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+        finally:
+            if process is not None:
+                release_job(process)
+            if job is not None:
+                job.close()
 
 
 def python_test_runner_provenance(python_executable: str | None = None) -> dict[str, str]:
@@ -279,9 +320,15 @@ def _write_python_test_runner(
 
 def _preflight_python_test_runner(workspace: Path, provenance: dict[str, str]) -> None:
     runner = workspace / provenance["runner_path"]
+    command: list[str] | str
     if os.name == "nt":
         comspec = os.environ.get("COMSPEC") or "cmd.exe"
-        command = [comspec, "/d", "/s", "/c", f'""{runner}" --echo-preflight"']
+        # Pass one literal command line: list2cmdline would backslash-escape
+        # the inner quotes, which cmd.exe does not understand. ``/s`` strips
+        # only the outer quote pair, so the quoted runner path survives.
+        command = (
+            f'{subprocess.list2cmdline([comspec, "/d", "/s", "/c"])} ""{runner}" --echo-preflight"'
+        )
     else:
         command = [str(runner), "--echo-preflight"]
     try:

@@ -28,6 +28,7 @@ import {
 import { useI18n } from "@/core/i18n/hooks";
 import type { Translations } from "@/core/i18n";
 import { cn } from "@/lib/utils";
+import { EchoAPIError } from "@/core/api/request";
 
 import {
   useCollab,
@@ -75,10 +76,12 @@ export function AnnotationThread({
     unresolveAnnotation,
     deleteAnnotation,
     replyToAnnotation,
+    canWrite = true,
   } = useCollab();
 
   const [replyText, setReplyText] = useState("");
   const [replying, setReplying] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleReply = useCallback(async () => {
@@ -145,6 +148,7 @@ export function AnnotationThread({
                     void unresolveAnnotation(annotation.annotation_id)
                   }
                   aria-label={t.annotations.unresolve}
+                  disabled={!canWrite}
                 >
                   <Undo2 size={12} />
                 </Button>
@@ -162,6 +166,7 @@ export function AnnotationThread({
                     void resolveAnnotation(annotation.annotation_id)
                   }
                   aria-label={t.annotations.resolve}
+                  disabled={!canWrite}
                 >
                   <CheckCircle2 size={12} />
                 </Button>
@@ -175,8 +180,19 @@ export function AnnotationThread({
                 variant="ghost"
                 size="icon"
                 className="size-6 text-destructive hover:text-destructive"
-                onClick={() => void deleteAnnotation(annotation.annotation_id)}
+                onClick={() => {
+                  setDeleteError(null);
+                  void deleteAnnotation(annotation.annotation_id).catch(
+                    (error) =>
+                      setDeleteError(
+                        error instanceof EchoAPIError && error.status === 403
+                          ? t.annotations.deleteForbidden
+                          : t.annotations.deleteFailed,
+                      ),
+                  );
+                }}
                 aria-label={t.annotations.delete}
+                disabled={!canWrite}
               >
                 <Trash2 size={12} />
               </Button>
@@ -187,6 +203,11 @@ export function AnnotationThread({
       </div>
 
       {/* Body */}
+      {deleteError && (
+        <p role="alert" className="mb-2 text-sm text-destructive">
+          {deleteError}
+        </p>
+      )}
       <p className="mb-2 whitespace-pre-wrap text-sm leading-relaxed">
         {annotation.body}
       </p>
@@ -209,7 +230,7 @@ export function AnnotationThread({
       )}
 
       {/* Reply input */}
-      {!annotation.resolved && (
+      {!annotation.resolved && canWrite && (
         <div className="mt-2 flex items-center gap-1.5">
           <input
             ref={inputRef}
@@ -353,7 +374,7 @@ export function AddAnnotationButton({
   className,
 }: AddAnnotationButtonProps) {
   const { t } = useI18n();
-  const { addAnnotation } = useCollab();
+  const { addAnnotation, canWrite = true } = useCollab();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -371,6 +392,8 @@ export function AddAnnotationButton({
       setSubmitting(false);
     }
   }, [text, messageId, addAnnotation]);
+
+  if (!canWrite) return null;
 
   if (!open) {
     return (

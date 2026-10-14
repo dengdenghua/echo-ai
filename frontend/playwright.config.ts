@@ -19,13 +19,17 @@ export default defineConfig({
   // Visual-regression baselines are shared across platforms (CI runs on
   // Linux, dev on macOS): drop the default -{project}-{platform} suffix so
   // both lanes compare against the same committed PNGs.
-  snapshotPathTemplate:
-    "{testDir}/__screenshots__/{testFilePath}/{arg}{ext}",
+  snapshotPathTemplate: "{testDir}/__screenshots__/{testFilePath}/{arg}{ext}",
   // The default suite reuses a developer backend on :8310 and exercises
   // browser/UI contracts only. Specs that own isolated :13000/:18000 servers
   // belong to playwright.full.config.ts and must never leak into this lane.
   testMatch: [
     "chat.spec.ts",
+    "inline-visual.spec.ts",
+    "native-ui.spec.ts",
+    "organizations.spec.ts",
+    "standing-authorization.spec.ts",
+    "subagent-layout.spec.ts",
     "mobile-smoke.spec.ts",
     "stream-timeline-narrative.spec.ts",
     "workflow-editor.spec.ts",
@@ -48,7 +52,18 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: {
+          args: [
+            "--disable-gpu",
+            "--disable-lcd-text",
+            "--font-render-hinting=none",
+            "--disable-font-subpixel-positioning",
+            "--force-color-profile=srgb",
+          ],
+        },
+      },
     },
     {
       name: "firefox",

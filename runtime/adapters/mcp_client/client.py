@@ -261,6 +261,7 @@ class StdioMCPClient(MCPClient):
             command=self.config.command,
             args=list(self.config.args),
             env=self._stdio_env(),
+            cwd=self.config.cwd,
         )
         async with (
             stdio_client(params) as (read, write),
@@ -272,7 +273,7 @@ class StdioMCPClient(MCPClient):
                 MCPTool(
                     name=t.name,
                     description=(t.description or ""),
-                    input_schema=(t.inputSchema or {}),
+                    input_schema=(getattr(t, "input_schema", getattr(t, "inputSchema", {})) or {}),
                     server_name=self.config.name,
                 )
                 for t in result.tools
@@ -286,6 +287,7 @@ class StdioMCPClient(MCPClient):
             command=self.config.command,
             args=list(self.config.args),
             env=self._stdio_env(),
+            cwd=self.config.cwd,
         )
         async with (
             stdio_client(params) as (read, write),
@@ -299,7 +301,7 @@ class StdioMCPClient(MCPClient):
                 if hasattr(b, "text") and getattr(b, "text", None)
             )
             raw = [b.model_dump() if hasattr(b, "model_dump") else str(b) for b in result.content]
-            is_err = bool(getattr(result, "isError", False))
+            is_err = bool(getattr(result, "is_error", getattr(result, "isError", False)))
             return MCPInvocationResult(
                 tool_name=name,
                 success=not is_err,
@@ -453,7 +455,9 @@ class HttpMCPClient(MCPClient):
                     MCPTool(
                         name=t.name,
                         description=(t.description or ""),
-                        input_schema=(t.inputSchema or {}),
+                        input_schema=(
+                            getattr(t, "input_schema", getattr(t, "inputSchema", {})) or {}
+                        ),
                         server_name=self.config.name,
                     )
                     for t in result.tools
@@ -475,7 +479,7 @@ class HttpMCPClient(MCPClient):
                 raw = [
                     b.model_dump() if hasattr(b, "model_dump") else str(b) for b in result.content
                 ]
-                is_err = bool(getattr(result, "isError", False))
+                is_err = bool(getattr(result, "is_error", getattr(result, "isError", False)))
                 return MCPInvocationResult(
                     tool_name=name,
                     success=not is_err,

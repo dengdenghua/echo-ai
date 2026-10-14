@@ -58,6 +58,7 @@ as a repository-root child.
 | `CODE_WIKI.md` | Maintained high-level codebase encyclopedia |
 | `SECURITY.md` | Private vulnerability-reporting policy |
 | `.git-blame-ignore-revs` | Mechanical commits skipped by `git blame` (repo-wide format sweeps) |
+| `.gitleaksignore` | Exact historical finding fingerprints for reviewed scanner false positives; default secret rules remain enabled |
 
 ## Repository Tooling
 

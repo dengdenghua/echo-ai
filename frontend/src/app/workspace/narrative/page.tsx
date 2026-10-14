@@ -77,7 +77,7 @@ type GovernanceAction =
     };
 
 const fieldClass =
-  "border-border/70 bg-background/55 shadow-none focus-visible:ring-violet-400/40";
+  "border-border/70 bg-background/55 shadow-none focus-visible:ring-ring/40";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "操作失败，请稍后重试。";
@@ -130,7 +130,7 @@ function CandidateBadge({ compact = false }: { compact?: boolean }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-400/8 font-medium text-amber-700 dark:text-amber-300",
-        compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs",
+        compact ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-xs",
       )}
     >
       <CircleDotIcon className={compact ? "size-2.5" : "size-3"} />
@@ -679,7 +679,7 @@ export default function NarrativePage() {
         stageId,
         kind: "error",
         message: activeContextPack
-          ? "当前阶段不是受支持的叙事 Agent 阶段。"
+          ? "当前阶段不是受支持的叙事智能体阶段。"
           : "请先构建章节上下文包，再运行 AI 阶段。",
       });
       return;
@@ -903,7 +903,7 @@ export default function NarrativePage() {
       <header className="sticky top-0 z-20 border-b border-border/55 bg-background/85 px-4 py-3 backdrop-blur-xl md:px-6">
         <div className="mx-auto flex w-full max-w-[1720px] flex-wrap items-center gap-3">
           <div className="mr-auto flex min-w-0 items-center gap-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-violet-500/12 text-violet-600 dark:text-violet-300">
+            <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-muted text-foreground">
               <BookOpenIcon className="size-5" />
             </div>
             <div className="min-w-0">
@@ -919,7 +919,7 @@ export default function NarrativePage() {
 
           {projects.length ? (
             <select
-              className="h-9 max-w-56 rounded-lg border border-border/70 bg-background px-3 text-sm outline-none focus:border-violet-400/60"
+              className="h-9 max-w-56 rounded-lg border border-border/70 bg-background px-3 text-sm outline-none focus:border-ring"
               value={activeProjectId}
               onChange={(event) => {
                 setActiveProjectId(event.target.value);
@@ -942,7 +942,7 @@ export default function NarrativePage() {
             onClick={() => setIntegrationsOpen(true)}
           >
             <PlugZapIcon className="size-4" />
-            MCP · {status?.packaged_skills?.length ?? 3} Skills
+            MCP · {status?.packaged_skills?.length ?? 3} 个技能
           </Button>
           <Button
             variant="outline"
@@ -956,7 +956,6 @@ export default function NarrativePage() {
             size="sm"
             onClick={() => void importEcho()}
             disabled={!workspace || busy}
-            className="bg-violet-600 text-white hover:bg-violet-500"
           >
             {busy ? (
               <LoaderCircleIcon className="size-4 animate-spin" />
@@ -983,7 +982,7 @@ export default function NarrativePage() {
           </div>
         ) : null}
         {notice ? (
-          <div className="mb-3 flex items-center justify-between gap-4 rounded-xl border border-emerald-400/20 bg-emerald-500/8 px-4 py-2.5 text-sm text-emerald-700 dark:text-emerald-300">
+          <div className="mb-3 flex items-center justify-between gap-4 rounded-xl border border-core/20 bg-core/[0.08] px-4 py-2.5 text-sm text-core">
             <span className="flex items-center gap-2">
               <CheckIcon className="size-4" />
               {notice}
@@ -1098,7 +1097,7 @@ export default function NarrativePage() {
                 ) : (
                   volumes.map((volume) => (
                     <div key={volume.id} className="mb-3">
-                      <div className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                         {volume.title}
                       </div>
                       <div className="space-y-1">
@@ -1110,7 +1109,7 @@ export default function NarrativePage() {
                                 "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
                                 selectedChapterId === chapter.id &&
                                   !selectedSceneId &&
-                                  "bg-violet-500/10 text-violet-700 dark:text-violet-200",
+                                  "bg-core/10 text-core",
                               )}
                               onClick={() => {
                                 setSelectedChapterId(chapter.id);
@@ -1134,7 +1133,7 @@ export default function NarrativePage() {
                                     className={cn(
                                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/55 hover:text-foreground",
                                       selectedSceneId === scene.id &&
-                                        "bg-violet-500/10 text-violet-700 dark:text-violet-200",
+                                        "bg-core/10 text-core",
                                     )}
                                     onClick={() => {
                                       setSelectedChapterId(chapter.id);
@@ -1510,12 +1509,12 @@ export default function NarrativePage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold">
-                    <PlugZapIcon className="size-4 text-violet-500" />
+                    <PlugZapIcon className="size-4 text-muted-foreground" />
                     Narrative MCP
                   </div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    可供其他 Agent 和 MCP
-                    客户端读取项目、构建上下文并创建候选章节；直接继承 Echo
+                    可供其他智能体和 MCP
+                    客户端读取项目、构建上下文并创建候选章节；直接继承 ECHO AI
                     当前身份与权限，无需再次登录或授权。
                   </p>
                 </div>
@@ -1523,8 +1522,8 @@ export default function NarrativePage() {
                   className={cn(
                     "rounded-full px-2 py-1 text-micro font-medium",
                     status?.mcp?.enabled
-                      ? "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300"
-                      : "bg-amber-500/12 text-amber-700 dark:text-amber-300",
+                      ? "bg-core/10 text-core"
+                      : "bg-warning/10 text-warning",
                   )}
                 >
                   {status?.mcp?.enabled ? "已启用" : "等待插件加载"}
@@ -1547,8 +1546,8 @@ export default function NarrativePage() {
 
             <div className="rounded-xl border border-border/70 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold">
-                <ShieldCheckIcon className="size-4 text-emerald-500" />
-                插件自带 Skills
+                <ShieldCheckIcon className="size-4 text-core" />
+                插件自带技能
               </div>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 安装时注册，停用或卸载时一并撤销；所有写入都只生成候选稿。
@@ -1568,8 +1567,8 @@ export default function NarrativePage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-violet-400/20 bg-violet-500/6 px-4 py-3 text-xs leading-5 text-muted-foreground">
-              MCP 与 Skills 均不提供直接写入正典、跳过投票或解除审核阻断的能力。
+            <div className="rounded-xl border border-border/70 bg-muted/40 px-4 py-3 text-xs leading-5 text-muted-foreground">
+              MCP 与技能均不提供直接写入正典、跳过投票或解除审核阻断的能力。
             </div>
           </div>
         </Modal>
@@ -1588,11 +1587,11 @@ export default function NarrativePage() {
         />
       ) : null}
 
-      <div className="pointer-events-none fixed bottom-3 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-border/70 bg-background/85 px-3 py-1.5 text-[11px] text-muted-foreground shadow-lg backdrop-blur md:flex">
+      <div className="pointer-events-none fixed bottom-3 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-border/70 bg-background/85 px-3 py-1.5 text-xs text-muted-foreground shadow-lg backdrop-blur md:flex">
         <span
           className={cn(
             "size-1.5 rounded-full",
-            status?.ready ? "bg-emerald-500" : "bg-amber-500",
+            status?.ready ? "bg-core" : "bg-warning",
           )}
         />
         Narrative Engine {status?.version || "0.1"} · candidate only

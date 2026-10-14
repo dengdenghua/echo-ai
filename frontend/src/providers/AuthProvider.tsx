@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
   useCallback,
@@ -9,11 +10,15 @@ import {
 } from "react";
 
 import {
+  ACCOUNT_FREE_TOKEN,
+  desktopOwnerLogin,
   getAuthStatus,
   getMe,
   getToken,
   getUser as getStoredUser,
   login as loginApi,
+  setupOwnerAccount,
+  type OwnerSetupRequest,
   logout as logoutApi,
   refreshToken,
   register as registerApi,
@@ -27,13 +32,18 @@ import { swallow } from "@/core/utils/log";
 import type {
   AuthStatus,
   LoginRequest,
+  LoginResponse,
   RegisterRequest,
   User,
 } from "@/core/auth/types";
 import { useI18n } from "@/core/i18n/hooks";
+import { looseBody } from "@/core/api/response";
+import { isUser } from "@/core/auth/guards";
+import { isRecord, isString } from "@/core/utils/guards";
 
 const GUEST_USER_ID = "__guest__";
 const ANONYMOUS_USER_ID = "__anonymous__";
+const ACCOUNT_FREE_USER_ID = "__account_free__";
 
 function isPlaceholderUsername(username?: string | null): boolean {
   const value = username?.trim().toLowerCase();
@@ -57,11 +67,7 @@ function userFromJwt(token: string | null): Partial<User> | null {
       Math.ceil(rawPayload.length / 4) * 4,
       "=",
     );
-    const json = JSON.parse(window.atob(payload)) as {
-      sub?: string;
-      mobile?: string;
-      provider?: string;
-    };
+    const json = looseBody(JSON.parse(window.atob(payload)), isJwtIdentity);
     const actorId = json.sub;
     const mobile = json.mobile;
     if (!actorId && !mobile) return null;
@@ -78,8 +84,18 @@ function userFromJwt(token: string | null): Partial<User> | null {
   }
 }
 
+function isJwtIdentity(
+  value: unknown,
+): value is { sub?: string; mobile?: string; provider?: string } {
+  return (
+    isRecord(value) &&
+    (value.sub === undefined || isString(value.sub)) &&
+    (value.mobile === undefined || isString(value.mobile))
+  );
+}
+
 function normalizeUserIdentity(
-  incoming: User,
+  incoming: Partial<User>,
   fallback?: Partial<User> | null,
   fallbackMobile?: string,
 ): User {
@@ -97,13 +113,14 @@ function normalizeUserIdentity(
     fallback?.username && !isPlaceholderUsername(fallback.username)
       ? fallback.username
       : undefined;
-  const username = isPlaceholderUsername(incoming.username)
-    ? mobile ||
-      incoming.email ||
-      fallbackUsername ||
-      incoming.username ||
-      userId
-    : incoming.username;
+  const username =
+    incoming.username && !isPlaceholderUsername(incoming.username)
+      ? incoming.username
+      : mobile ||
+        incoming.email ||
+        fallbackUsername ||
+        incoming.username ||
+        userId;
 
   return {
     ...fallback,
@@ -122,41 +139,75 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (request: LoginRequest) => Promise<void>;
+  /** Create a self-hosted install's owner account and sign it in. */
+  setupOwner: (request: OwnerSetupRequest) => Promise<void>;
   emailLogin: (email: string, code: string) => Promise<void>;
+  /** Sign the desktop owner in through the Electron shell. */
+  desktopLogin: () => Promise<void>;
   /** Deprecated: guest mode is disabled when auth is enabled. */
   guestLogin: () => Promise<void>;
   register: (request: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
+  startAccountFreeMode: () => void;
   refresh: () => Promise<void>;
-  retryAuth: () => Promise<void>;
+  /**
+   * Re-run the auth bootstrap. `quiet` retries (e.g. the login page's
+   * automatic backend-availability polling) skip the global loading
+   * flip and keep the current error visible until the retry settles,
+   * so the UI does not flicker between spinner and error card.
+   */
+  retryAuth: (options?: { quiet?: boolean }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<Error | null>(null);
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const initializedRef = useRef(false);
+  // After an explicit logout the desktop owner stays signed out until they
+  // choose to sign in again, instead of being signed straight back in.
+  const desktopAutoLoginSuppressedRef = useRef(false);
 
   const isAuthenticated =
     !!user && !isPlaceholderUserId(user.user_id) && !user.is_guest;
 
-  const initAuth = useCallback(async () => {
-    setIsLoading(true);
-    setAuthError(null);
+  const initAuth = useCallback(async (options?: { quiet?: boolean }) => {
+    const quiet = options?.quiet === true;
+    if (!quiet) {
+      setIsLoading(true);
+      setAuthError(null);
+    }
     const token = getToken();
     const storedUser = getStoredUser();
     const tokenUser = userFromJwt(token);
     const localUser = storedUser || tokenUser;
     try {
+      if (
+        token === ACCOUNT_FREE_TOKEN &&
+        storedUser &&
+        !storedUser.is_guest &&
+        storedUser.is_account_free
+      ) {
+        setUser(normalizeUserIdentity(storedUser));
+        setAuthStatus({
+          enabled: false,
+          jwt_available: false,
+          allow_registration: false,
+          exempt_paths: [],
+        });
+        setAuthError(null);
+        return;
+      }
       if (token === GUEST_USER_ID || storedUser?.is_guest) {
         _clearTokens();
         setUser(null);
       } else if (token && localUser && !localUser.is_guest) {
-        setUser(normalizeUserIdentity(localUser as User, tokenUser));
+        setUser(normalizeUserIdentity(localUser, tokenUser));
       } else {
         setUser(null);
       }
@@ -164,6 +215,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         status = await getAuthStatus();
         setAuthStatus(status);
+        // Clear a stale unavailability error after a successful quiet
+        // retry (the non-quiet path already reset it on entry).
+        setAuthError(null);
       } catch (error) {
         const unavailable =
           error instanceof Error
@@ -175,24 +229,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       // A browser restart intentionally has no sessionStorage JWT.  The
-      // HttpOnly cookie is the durable credential, so always ask the backend
-      // for the current actor when authentication is enabled.
-      const current = status.enabled
-        ? await getMe()
-            .then((currentUser) => ({ currentUser, error: null }))
-            .catch((error: unknown) => ({ currentUser: null, error }))
-        : { currentUser: null, error: null };
+      // HttpOnly cookie is the durable credential, so ask the backend for the
+      // current actor whenever one may exist.  When the status call carried
+      // neither cookie nor token, /api/auth/me can only answer 401.
+      const mayHaveSession =
+        status.credential_present !== false || Boolean(getToken());
+      const current =
+        status.enabled && mayHaveSession
+          ? await getMe()
+              .then((currentUser) => ({ currentUser, error: null }))
+              .catch((error: unknown) => ({ currentUser: null, error }))
+          : { currentUser: null, error: null };
       if (current.currentUser) {
         setUser(
           normalizeUserIdentity(current.currentUser, storedUser || tokenUser),
         );
-      } else if (current.error) {
+        return;
+      }
+      if (current.error) {
         swallow(current.error);
         const msg = current.error instanceof Error ? current.error.message : "";
         if (/401|Unauthorized/i.test(msg)) {
           _clearTokens();
           setUser(null);
         }
+      }
+      // The desktop shell signs its owner in; elsewhere this is a no-op.
+      if (status.enabled && !desktopAutoLoginSuppressedRef.current) {
+        const owner = await desktopOwnerLogin().catch((error: unknown) => {
+          swallow(error);
+          return null;
+        });
+        if (owner) setUser(normalizeUserIdentity(owner));
       }
     } catch (e) {
       swallow(e);
@@ -204,11 +272,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
-    initAuth();
+    void initAuth();
   }, [initAuth]);
 
   useEffect(() => {
     const expire = () => {
+      if (getToken() === ACCOUNT_FREE_TOKEN) return;
       _clearTokens();
       setUser(null);
       // HttpOnly cookies cannot be cleared from JavaScript.  The logout route
@@ -222,28 +291,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, expire);
   }, []);
 
-  const login = useCallback(async (request: LoginRequest) => {
-    const response = await loginApi(request);
-    if (response.user) {
-      const normalized = normalizeUserIdentity(response.user);
-      if (response.access_token) _writeToken(response.access_token, normalized);
-      setUser(normalized);
-    }
-  }, []);
+  // Signing in starts a new account session in the same tab: drop data the
+  // previous account loaded (thread list, projects, settings) so it never
+  // shows under the next account. The workspace is not mounted on the
+  // sign-in page, so nothing refetches with the old credential.
+  const startSession = useCallback(
+    (next: User) => {
+      queryClient.clear();
+      setUser(next);
+      // A login response names the account but not its roles or scopes.
+      // Read them now, or admin-only actions (installing workbenches,
+      // instance settings) stay hidden until the next reload.
+      void getMe()
+        .then((me) => {
+          const sameAccount = (u: User) => u.actor_id || u.user_id;
+          setUser((current) =>
+            current && sameAccount(current) === sameAccount(me)
+              ? normalizeUserIdentity(me, current)
+              : current,
+          );
+        })
+        .catch(swallow);
+    },
+    [queryClient],
+  );
 
-  const emailLogin = useCallback(async (email: string, code: string) => {
-    // oct 账号网关:邮箱验证码登录 → agent 自有会话 JWT
-    const response = await octAuthApi.emailLogin(email, code);
-    if (response.user) {
-      const normalized = normalizeUserIdentity(
-        response.user as unknown as User,
-        null,
-        email,
-      );
-      if (response.access_token) _writeToken(response.access_token, normalized);
-      setUser(normalized);
-    }
-  }, []);
+  const startLocalSession = useCallback(
+    (response: LoginResponse) => {
+      if (response.user) {
+        const normalized = normalizeUserIdentity(response.user);
+        if (response.access_token)
+          _writeToken(response.access_token, normalized);
+        startSession(normalized);
+      }
+    },
+    [startSession],
+  );
+
+  const login = useCallback(
+    async (request: LoginRequest) => {
+      startLocalSession(await loginApi(request));
+    },
+    [startLocalSession],
+  );
+
+  const setupOwner = useCallback(
+    async (request: OwnerSetupRequest) => {
+      startLocalSession(await setupOwnerAccount(request));
+    },
+    [startLocalSession],
+  );
+
+  const emailLogin = useCallback(
+    async (email: string, code: string) => {
+      // oct 账号网关:邮箱验证码登录 → agent 自有会话 JWT
+      const response = await octAuthApi.emailLogin(email, code);
+      if (response.user) {
+        const normalized = normalizeUserIdentity(
+          looseBody(response.user, isUser),
+          null,
+          email,
+        );
+        if (response.access_token)
+          _writeToken(response.access_token, normalized);
+        startSession(normalized);
+      }
+    },
+    [startSession],
+  );
+
+  const desktopLogin = useCallback(async () => {
+    desktopAutoLoginSuppressedRef.current = false;
+    const owner = await desktopOwnerLogin();
+    if (!owner) throw new Error("本机登录不可用");
+    startSession(normalizeUserIdentity(owner));
+  }, [startSession]);
 
   const guestLogin = useCallback(async () => {
     _clearTokens();
@@ -251,13 +373,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     throw new Error(t.auth.notLoggedIn);
   }, [t.auth.notLoggedIn]);
 
-  const register = useCallback(async (request: RegisterRequest) => {
-    const newUser = await registerApi(request);
-    setUser(newUser);
+  const startAccountFreeMode = useCallback(() => {
+    const accountFreeUser: User = {
+      user_id: ACCOUNT_FREE_USER_ID,
+      username: "免账号",
+      provider: "account_free",
+      is_account_free: true,
+      is_active: true,
+    };
+    _writeToken(ACCOUNT_FREE_TOKEN, accountFreeUser);
+    setAuthStatus({
+      enabled: false,
+      jwt_available: false,
+      allow_registration: false,
+      exempt_paths: [],
+    });
+    setAuthError(null);
+    setUser(accountFreeUser);
   }, []);
+
+  const register = useCallback(
+    async (request: RegisterRequest) => {
+      startSession(await registerApi(request));
+    },
+    [startSession],
+  );
 
   const logout = useCallback(async () => {
     await logoutApi();
+    desktopAutoLoginSuppressedRef.current = true;
     _clearTokens();
     setUser(null);
   }, []);
@@ -282,10 +426,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isAuthenticated,
       login,
+      setupOwner,
       emailLogin,
+      desktopLogin,
       guestLogin,
       register,
       logout,
+      startAccountFreeMode,
       refresh,
       retryAuth: initAuth,
     }),
@@ -296,10 +443,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isAuthenticated,
       login,
+      setupOwner,
       emailLogin,
+      desktopLogin,
       guestLogin,
       register,
       logout,
+      startAccountFreeMode,
       refresh,
       initAuth,
     ],

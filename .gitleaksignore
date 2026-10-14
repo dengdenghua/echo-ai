@@ -1,0 +1,63 @@
+# False positive in a historical Google Chat JWT verification test: the
+# matched f-string calls a signer using a fresh, local RSA key and an invalid
+# audience. It is Python source, not an issued token or embedded credential.
+# Limit this exception to this exact commit, file, rule, and line; future
+# edits and every other generic-api-key match remain subject to scanning.
+53fdec9c50f412076ba837f33e44f408f4572068:tests/test_channel_webhook_auth.py:generic-api-key:205
+
+# Reviewed historical vendor documentation. These exact findings are export
+# job/resource IDs, pagination cursors, advertising enums, a literal Coze
+# placeholder, or a JWT truncated with ellipses (not an issued credential).
+# Classification and validation: docs/security/historical-secret-scan.md.
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/77ircloud/skills/site-assistant/references/导出/导出任务查询.md:generic-api-key:45
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/77ircloud/skills/site-assistant/references/导出/导出任务查询.md:generic-api-key:64
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/77ircloud/skills/workflow-assistant/references/导出/数据导出.md:generic-api-key:140
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/77ircloud/skills/workflow-assistant/references/导出/数据导出.md:generic-api-key:180
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/77ircloud/skills/workflow-assistant/references/导出/数据导出.md:generic-api-key:98
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/cloudbase/skills/references/cloudbase-agent/py/adapter-coze.md:generic-api-key:124
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/cloudbase/skills/references/cloudbase-agent/py/adapter-coze.md:generic-api-key:57
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/dingtalk/skills/references/products/doc.md:generic-api-key:605
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/dingtalk/skills/references/products/doc.md:generic-api-key:981
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/dingtalk/skills/references/products/doc/doc-info.md:generic-api-key:99
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/feishu/skills/lark-approval/references/lark-approval-instance-form-control-parameters.md:generic-api-key:205
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/feishu/skills/lark-base/references/lark-base-app-block-data-config.md:generic-api-key:110
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/feishu/skills/lark-base/references/lark-base-app-block-data-config.md:generic-api-key:91
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/feishu/skills/lark-im/references/lark-im-reactions.md:generic-api-key:125
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/linkfox-product-selection/skills/linkfox-onboarding/references/api.md:generic-api-key:501
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-advertiser/resources/enums.json:generic-api-key:349
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-advertiser/resources/enums.json:generic-api-key:354
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-advertiser/resources/enums.json:generic-api-key:359
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-delivery-smart-create/resources/enums.json:generic-api-key:349
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-delivery-smart-create/resources/enums.json:generic-api-key:354
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-delivery-smart-create/resources/enums.json:generic-api-key:359
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-delivery-standard-create/resources/enums.json:generic-api-key:349
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-delivery-standard-create/resources/enums.json:generic-api-key:354
+6e6bf99c878b36f343ddfd7a9ba59dfa52a76c67:extensions/workbuddy-connectors/connectors/tencentads/skills/tencentads-delivery-standard-create/resources/enums.json:generic-api-key:359
+
+# Reviewed initial-source examples, detector fixtures and source syntax.
+# Truncated/ordered demo tokens, deliberately invalid JWT/PEM fixtures,
+# unissued redaction inputs, a localStorage key, a type and cost prose.
+# Keep the default rules; each exception binds commit + path + rule + line.
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:docs/channels/discord.md:generic-api-key:43
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:docs/channels/homeassistant.md:generic-api-key:41
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:docs/channels/homeassistant.md:generic-api-key:93
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:docs/channels/slack.md:slack-bot-token:40
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:docs/channels/slack.md:slack-bot-token:49
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:docs/channels/whatsapp.md:curl-auth-header:95
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:frontend/src/components/workspace/api-publish-panel.tsx:curl-auth-header:585
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:frontend/src/components/workspace/live-tool-timeline.test.tsx:generic-api-key:455
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:frontend/src/components/workspace/market/market-data.ts:generic-api-key:218
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:frontend/src/components/workspace/replay-from-blocks.test.ts:jwt:317
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:runtime/memory/learning/deep_evolution.py:generic-api-key:404
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_cloud_catalog_signed_packages.py:generic-api-key:39
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_config.py:generic-api-key:246
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_constitution_gate.py:generic-api-key:179
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_constitution_profiles.py:generic-api-key:170
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_echo_mx_cloud_session.py:generic-api-key:481
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_env_scrub.py:jwt:64
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_react_guards_surface.py:generic-api-key:383
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_redactor_budget_structlog.py:aws-access-token:43
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_redactor_budget_structlog.py:aws-access-token:44
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_redactor_budget_structlog.py:generic-api-key:36
+fb9a584c3bd6b1889ddd65c49fc9fe4c730d0484:tests/test_redactor_budget_structlog.py:private-key:93
+cb6191270d3b141d2c57908582a589cc39817539:tests/test_channel_webhook_auth.py:generic-api-key:205

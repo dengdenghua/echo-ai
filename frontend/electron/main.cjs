@@ -8,10 +8,13 @@
 const {
   app,
   BrowserWindow,
+  clipboard,
   desktopCapturer,
   dialog,
   ipcMain,
+  Menu,
   net,
+  Notification,
   protocol,
   safeStorage,
   shell,
@@ -27,15 +30,25 @@ const {
   spawnBackend,
   killBackend,
   ensureOptionalDeps,
+  loginDesktopOwner,
 } = require("./backend-runtime.cjs");
 const petSidecar = require("./pet-sidecar.cjs");
 const desktopCore = require("./desktop-shell-core.cjs");
+const { selectPreviewSource } = require("./automation-preview.cjs");
 const desktopProtocol = require("./desktop-protocol.cjs");
 const mcpOAuthDeepLink = require("./mcp-oauth-deep-link.cjs");
+const { startBrowserControlBridge } = require("./browser-control-bridge.cjs");
+const extensionStore = require("./extension-store.cjs");
+const { createExtensionHost } = require("./extension-host.cjs");
+let browserControlBridge = null;
+let activeBrowserTabId = null;
 const {
   ensureDesktopConfigFile,
   ensureDesktopResources,
 } = require("./desktop-config.cjs");
+const {
+  createAttentionNotifications,
+} = require("./attention-notifications.cjs");
 
 const DEV_URL = process.env.ELECTRON_START_URL || "http://127.0.0.1:3310";
 const DESKTOP_DIR = path.join(os.homedir(), "Desktop");
@@ -51,67 +64,24 @@ const SMOKE_TEST = process.argv.includes("--smoke-test");
 const SMOKE_TEST_BACKEND = process.argv.includes("--smoke-test-backend");
 const BUILT_RENDERER_SMOKE = SMOKE_TEST || SMOKE_TEST_BACKEND;
 
-function normalizePreviewMatchText(value) {
-  return String(value || "")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[\s\u2013\u2014|:_-]+/g, " ");
-}
-
-function previewSourceScore(source, request) {
-  const sourceId = normalizePreviewMatchText(source?.id);
-  const sourceName = normalizePreviewMatchText(source?.name);
-  const targetId = normalizePreviewMatchText(request?.id);
-  const targetTitle = normalizePreviewMatchText(request?.title);
-  const appName = normalizePreviewMatchText(
-    request?.appName || request?.app_name || request?.appId || request?.app_id,
-  );
-  let score = source?.id?.startsWith("window:") ? 8 : 0;
-
-  if (targetId && sourceId.includes(targetId)) score += 180;
-  if (targetTitle) {
-    if (sourceName === targetTitle) score += 160;
-    else if (
-      sourceName.includes(targetTitle) ||
-      targetTitle.includes(sourceName)
-    ) {
-      score += 110;
-    }
-  }
-  if (appName && sourceName.includes(appName)) score += 70;
-  if (
-    request?.kind === "browser_tab" &&
-    /chrome|edge|chromium|brave|firefox|opera/.test(sourceName)
-  ) {
-    score += 20;
-  }
-  return score;
-}
-
 async function captureAutomationPreview(request = {}) {
   const width = Math.max(320, Math.min(1280, Number(request.width) || 800));
   const height = Math.max(180, Math.min(720, Number(request.height) || 450));
   try {
     const sources = await desktopCapturer.getSources({
-      types: ["window", "screen"],
+      types: ["window"],
       thumbnailSize: { width, height },
-      fetchWindowIcons: false,
+      fetchWindowIcons: true,
     });
     const usable = sources.filter(
       (source) => source?.thumbnail && !source.thumbnail.isEmpty(),
     );
-    const ranked = usable
-      .map((source) => ({
-        source,
-        score: previewSourceScore(source, request),
-      }))
-      .sort((left, right) => right.score - left.score);
-    const matched = ranked[0]?.score > 8;
-    const selected = matched
-      ? ranked[0]?.source
-      : usable.find((source) => source.id.startsWith("screen:")) || usable[0];
+    const selected = selectPreviewSource(usable, request);
     if (!selected) {
-      return { ok: false, error: "no capturable window or screen" };
+      return {
+        ok: false,
+        error: "Selected window is unavailable; select the window again",
+      };
     }
     const size = selected.thumbnail.getSize();
     return {
@@ -121,7 +91,8 @@ async function captureAutomationPreview(request = {}) {
       height: size.height,
       sourceId: selected.id,
       sourceName: selected.name,
-      matched,
+      matched: true,
+      iconUrl: selected.appIcon?.toDataURL(),
     };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
@@ -199,11 +170,19 @@ function setupAutoUpdater() {
 }
 
 let mainWindow = null;
+// Toolbar actions, menus and the other extension APIs Electron lacks.
+let extensionHost = null;
 const auxiliaryWindows = new Map();
 const BROWSER_PARTITION = "persist:echo-browser";
+// Private tabs: in-memory session, nothing written to disk.
+const PRIVATE_BROWSER_PARTITION = "echo-private";
 
 function browserProfileSession() {
   return session.fromPartition(BROWSER_PARTITION);
+}
+
+function openUrlInBrowserTab(url) {
+  mainWindow?.webContents.send("browser:open-tab", { url });
 }
 
 // ── backend URL ────────────────────────────────────────────────
@@ -333,9 +312,29 @@ async function moveDesktopItem(srcPath, destDir) {
   return { ok: true, destPath: target };
 }
 
+// CPU usage is the busy share since the previous sample (the first sample
+// covers the time since boot); os.loadavg() is always 0 on Windows.
+let lastCpuTimes = null;
+function cpuUsagePercent(cpus) {
+  let idle = 0;
+  let total = 0;
+  for (const cpu of cpus) {
+    idle += cpu.times.idle;
+    total += Object.values(cpu.times).reduce((a, b) => a + b, 0);
+  }
+  const previous = lastCpuTimes;
+  lastCpuTimes = { idle, total };
+  const busy = previous
+    ? total - previous.total - (idle - previous.idle)
+    : total - idle;
+  const span = previous ? total - previous.total : total;
+  return span > 0
+    ? Math.max(0, Math.min(100, Math.round((busy / span) * 100)))
+    : 0;
+}
+
 function sampleSystemInfo() {
   const cpus = os.cpus();
-  const load = os.loadavg()[0];
   const total = os.totalmem();
   const free = os.freemem();
   return {
@@ -343,7 +342,7 @@ function sampleSystemInfo() {
     cpu: {
       model: cpus[0]?.model || "unknown",
       cores: cpus.length,
-      usage: Math.min(100, Math.round((load / Math.max(1, cpus.length)) * 100)),
+      usage: cpuUsagePercent(cpus),
     },
     memory: {
       total,
@@ -356,6 +355,10 @@ function sampleSystemInfo() {
 }
 
 // ── browser bridge (embedded <webview> automation) ─────────────
+// Isolated world for Echo's page tools (0 is the page, 999 Electron's
+// preload world).
+const PAGE_TOOLS_WORLD_ID = 1031;
+
 function wc(webContentsId) {
   const target = webContents.fromId(webContentsId);
   if (!target || target.isDestroyed())
@@ -430,6 +433,68 @@ const js = {
   })()`,
 };
 
+function activeBrowserTarget() {
+  if (activeBrowserTabId == null || !mainWindow || mainWindow.isDestroyed())
+    return null;
+  try {
+    const target = wc(activeBrowserTabId);
+    return target.hostWebContents?.id === mainWindow.webContents.id
+      ? target
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function runBrowserControlAction(target, action, data) {
+  if (action === "current-url") {
+    return { ok: true, url: target.getURL(), title: target.getTitle() };
+  }
+  if (action === "execute-js") {
+    return {
+      ok: true,
+      result: await target.executeJavaScript(String(data.code || ""), true),
+    };
+  }
+  if (action === "navigate") {
+    const url = new URL(String(data.url || ""));
+    if (!["http:", "https:"].includes(url.protocol))
+      throw new Error("unsupported URL");
+    await target.loadURL(url.href);
+    return { ok: true, url: target.getURL(), title: target.getTitle() };
+  }
+  if (action === "screenshot") {
+    const capture = await target.capturePage();
+    return { ok: true, dataUrl: capture.toDataURL(), ...capture.getSize() };
+  }
+  const scripts = {
+    click: () => js.click(String(data.selector || "")),
+    type: () =>
+      js.type(String(data.selector || ""), String(data.text || ""), data.clear),
+    scroll: () => js.scroll(data),
+    wait: () =>
+      js.waitFor(
+        String(data.selector || ""),
+        Math.max(1, Math.min(30000, Number(data.timeout) || 10000)),
+      ),
+    extract: () => js.extractText,
+    // Do not return input values: password and other filled fields can contain secrets.
+    state: () => `(() => {
+      const limit = ${Math.max(1, Math.min(100, Number(data.max_items) || 30))};
+      const items = [...document.querySelectorAll('a,button,input,textarea,select,[role="button"]')]
+        .filter(el => el.getClientRects().length).slice(0, limit).map(el => ({
+          tag: el.tagName.toLowerCase(), role: el.getAttribute('role'),
+          name: el.getAttribute('aria-label') || el.labels?.[0]?.innerText || el.innerText || '',
+          selector: el.id ? '#' + CSS.escape(el.id) : null,
+          type: el.getAttribute('type'), disabled: !!el.disabled
+        }));
+      return { ok: true, url: location.href, title: document.title, items };
+    })()`,
+  };
+  const result = await target.executeJavaScript(scripts[action](), true);
+  return { ok: true, ...result };
+}
+
 const DEVICE_PRESETS = {
   mobile: {
     width: 390,
@@ -495,6 +560,92 @@ function normalizeHttpOrigin(value) {
   return parsed.origin;
 }
 
+/** Save or update the login for origin + username. */
+function storePasswordEntry(entry) {
+  const origin = normalizeHttpOrigin(entry?.origin);
+  const username = String(entry?.username || "").trim();
+  const password = String(entry?.password || "");
+  if (!username || !password) throw new Error("username and password required");
+  const entries = readPasswordVault();
+  const existing = entries.find(
+    (item) => item.origin === origin && item.username === username,
+  );
+  const next = {
+    id:
+      existing?.id ||
+      `pwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+    origin,
+    username,
+    password,
+    updatedAt: Date.now(),
+  };
+  writePasswordVault([next, ...entries.filter((item) => item.id !== next.id)]);
+}
+
+// Sites the user told never to offer saving a password for.
+const passwordNeverFile = () =>
+  path.join(app.getPath("userData"), "browser-password-never.json");
+
+function readPasswordNeverSites() {
+  try {
+    const list = JSON.parse(fs.readFileSync(passwordNeverFile(), "utf8"));
+    return Array.isArray(list) ? list.filter((o) => typeof o === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePasswordNeverSites(origins) {
+  fs.writeFileSync(passwordNeverFile(), JSON.stringify([...new Set(origins)]));
+}
+
+// Logins submitted in a browser tab wait here (password stays in the main
+// process) until the user answers the "save password?" prompt.
+const pendingPasswordOffers = new Map();
+const PASSWORD_OFFER_TTL_MS = 10 * 60 * 1000;
+
+function offerToSavePassword(event, payload) {
+  const sender = event.sender;
+  if (
+    sender.getType() !== "webview" ||
+    event.senderFrame !== sender.mainFrame ||
+    // Private tabs (and any other session) never offer to save.
+    sender.session !== browserProfileSession() ||
+    !passwordVaultAvailable()
+  )
+    return;
+  let origin;
+  try {
+    origin = normalizeHttpOrigin(event.senderFrame.url);
+  } catch {
+    return;
+  }
+  const username = String(payload?.username || "")
+    .trim()
+    .slice(0, 200);
+  const password = String(payload?.password || "").slice(0, 500);
+  if (!username || !password) return;
+  if (readPasswordNeverSites().includes(origin)) return;
+  const existing = readPasswordVault().find(
+    (item) => item.origin === origin && item.username === username,
+  );
+  if (existing?.password === password) return;
+  const now = Date.now();
+  for (const [token, offer] of pendingPasswordOffers) {
+    if (now - offer.at > PASSWORD_OFFER_TTL_MS)
+      pendingPasswordOffers.delete(token);
+  }
+  const token = `offer-${now.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  pendingPasswordOffers.set(token, { origin, username, password, at: now });
+  mainWindow?.webContents.send("browser:password-offer", {
+    token,
+    origin,
+    username,
+    update: Boolean(existing),
+    webContentsId: sender.id,
+  });
+}
+
 function passwordVaultAvailable() {
   return safeStorage.isEncryptionAvailable();
 }
@@ -513,10 +664,7 @@ function readPasswordVault() {
     return Array.isArray(entries) ? entries : [];
   } catch (error) {
     if (error?.code !== "ENOENT") {
-      console.warn(
-        "[echo] password vault could not be read:",
-        error.message,
-      );
+      console.warn("[echo] password vault could not be read:", error.message);
     }
     return [];
   }
@@ -555,10 +703,7 @@ function readSitePermissions() {
     return Array.isArray(entries) ? entries : [];
   } catch (error) {
     if (error?.code !== "ENOENT") {
-      console.warn(
-        "[echo] site permissions could not be read:",
-        error.message,
-      );
+      console.warn("[echo] site permissions could not be read:", error.message);
     }
     return [];
   }
@@ -759,18 +904,378 @@ function writeExtensionRegistry(list) {
   fs.writeFileSync(extensionsFile(), JSON.stringify(list, null, 2));
 }
 
+// Extensions run in browser tabs (the persistent browser profile), never in
+// the app's own UI session; private tabs get none, as in Chrome.
+function browserExtensions() {
+  const ses = browserProfileSession();
+  // Electron 35+ moved these methods to session.extensions.
+  return ses.extensions ?? ses;
+}
+
+async function loadBrowserExtension(dir) {
+  const loaded = await browserExtensions().loadExtension(dir);
+  try {
+    await extensionHost?.prepareExtension(loaded);
+    return loaded;
+  } catch (error) {
+    browserExtensions().removeExtension(loaded.id);
+    extensionHost?.forget(loaded.id);
+    throw error;
+  }
+}
+
+// Store installs are unpacked here; removing one deletes its folder.
+const storeExtensionsDir = () =>
+  path.join(app.getPath("userData"), "store-extensions");
+
+function isStoreExtensionPath(dir) {
+  const root = path.resolve(storeExtensionsDir());
+  return path.resolve(dir).startsWith(root + path.sep);
+}
+
+/** Load an unpacked extension folder into browser tabs and register it. */
+async function installExtensionFromDir(dir, source = "folder") {
+  const manifest = JSON.parse(
+    await fsp.readFile(path.join(dir, "manifest.json"), "utf8"),
+  );
+  const loaded = await loadBrowserExtension(dir);
+  const previous = readExtensionRegistry().find(
+    (e) => e.path === dir || e.id === loaded.id,
+  );
+  // Store packages name themselves with __MSG_…__ placeholders; the
+  // loaded extension carries the localized values.
+  const info = {
+    id: loaded.id,
+    name: loaded.name || manifest.name || path.basename(dir),
+    version: loaded.version || manifest.version || "0.0.0",
+    description: loaded.manifest?.description || manifest.description || "",
+    manifestVersion: manifest.manifest_version || 3,
+    path: dir,
+    enabled: true,
+    installedAt: new Date().toISOString(),
+    source,
+    // A fresh install shows on the toolbar; an update keeps its place.
+    pinned: previous?.pinned ?? true,
+  };
+  const registry = readExtensionRegistry().filter(
+    (e) => e.path !== dir && e.id !== info.id,
+  );
+  registry.push(info);
+  writeExtensionRegistry(registry);
+  return info;
+}
+
+async function installExtensionFromStore(input) {
+  const parsed = extensionStore.parseStoreInput(input);
+  if (!parsed)
+    return {
+      ok: false,
+      error: "不是 Chrome 应用店或 Edge 加载项的扩展链接 / ID",
+    };
+  let crx = null;
+  let lastError = "";
+  for (const url of extensionStore.crxDownloadUrls(
+    parsed,
+    process.versions.chrome,
+  )) {
+    try {
+      const response = await net.fetch(url);
+      if (!response.ok) {
+        lastError = `HTTP ${response.status}`;
+        continue;
+      }
+      const body = Buffer.from(await response.arrayBuffer());
+      if (body.length > 64 * 1024 * 1024) {
+        lastError = "扩展包过大";
+        continue;
+      }
+      crx = body;
+      break;
+    } catch (err) {
+      lastError = err.message;
+    }
+  }
+  if (!crx) return { ok: false, error: `下载扩展失败：${lastError}` };
+  const dir = path.join(storeExtensionsDir(), parsed.id);
+  try {
+    for (const ext of readExtensionRegistry()) {
+      if (ext.path === dir) {
+        try {
+          browserExtensions().removeExtension(ext.id);
+        } catch {
+          /* not loaded */
+        }
+      }
+    }
+    await fsp.rm(dir, { recursive: true, force: true });
+    extensionStore.extractZip(extensionStore.crxZip(crx), dir);
+    return {
+      ok: true,
+      extension: await installExtensionFromDir(dir, parsed.store || "store"),
+    };
+  } catch (err) {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+    writeExtensionRegistry(
+      readExtensionRegistry().filter((e) => e.path !== dir),
+    );
+    return { ok: false, error: err.message };
+  }
+}
+
 async function loadEnabledExtensions() {
   for (const ext of readExtensionRegistry()) {
     if (!ext.enabled) continue;
     try {
-      await session.defaultSession.loadExtension(ext.path);
+      await loadBrowserExtension(ext.path);
     } catch (err) {
-      console.warn(
-        `[echo] extension ${ext.name} failed to load:`,
-        err.message,
-      );
+      console.warn(`[echo] extension ${ext.name} failed to load:`, err.message);
     }
   }
+}
+
+// ── bookmark import ────────────────────────────────────────────
+// Bookmarks of a locally installed Chromium browser, read only when the
+// user asks to import them. Folders are flattened.
+function chromiumBookmarksPath(browser) {
+  const home = os.homedir();
+  const local = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+  const support = path.join(home, "Library", "Application Support");
+  const paths = {
+    chrome: {
+      win32: path.join(
+        local,
+        "Google",
+        "Chrome",
+        "User Data",
+        "Default",
+        "Bookmarks",
+      ),
+      darwin: path.join(support, "Google", "Chrome", "Default", "Bookmarks"),
+      linux: path.join(
+        home,
+        ".config",
+        "google-chrome",
+        "Default",
+        "Bookmarks",
+      ),
+    },
+    edge: {
+      win32: path.join(
+        local,
+        "Microsoft",
+        "Edge",
+        "User Data",
+        "Default",
+        "Bookmarks",
+      ),
+      darwin: path.join(support, "Microsoft Edge", "Default", "Bookmarks"),
+      linux: path.join(
+        home,
+        ".config",
+        "microsoft-edge",
+        "Default",
+        "Bookmarks",
+      ),
+    },
+  };
+  return Object.hasOwn(paths, browser)
+    ? paths[browser][process.platform] || null
+    : null;
+}
+
+async function importChromiumBookmarks(browser) {
+  const file = chromiumBookmarksPath(String(browser || ""));
+  if (!file) return { ok: false, entries: [], error: "not-found" };
+  try {
+    const data = JSON.parse(await fsp.readFile(file, "utf8"));
+    const entries = [];
+    const walk = (node) => {
+      if (!node || entries.length >= 500) return;
+      if (node.type === "url" && /^https?:\/\//i.test(node.url || "")) {
+        entries.push({
+          title: String(node.name || node.url).slice(0, 300),
+          url: node.url,
+        });
+      }
+      for (const child of node.children || []) walk(child);
+    };
+    for (const root of Object.values(data.roots || {})) walk(root);
+    return { ok: true, entries };
+  } catch (err) {
+    if (err?.code === "ENOENT")
+      return { ok: false, entries: [], error: "not-found" };
+    return { ok: false, entries: [], error: err.message };
+  }
+}
+
+// ── per-tab back / forward history ─────────────────────────────
+// Only URL and title are kept (no page state: it can hold form input), at
+// most NAV_HISTORY_LIMIT entries around the current one.
+const NAV_HISTORY_LIMIT = 50;
+
+function trimNavigationHistory(entries, index) {
+  const usable = [];
+  let active = -1;
+  entries.forEach((entry, i) => {
+    const url = String(entry?.url || "");
+    if (!/^https?:\/\//i.test(url)) return;
+    if (i === index) active = usable.length;
+    usable.push({ url, title: String(entry?.title || "").slice(0, 300) });
+  });
+  if (usable.length === 0) return { entries: [], index: -1 };
+  if (active < 0) active = usable.length - 1;
+  const start = Math.max(
+    0,
+    Math.min(
+      active - (NAV_HISTORY_LIMIT - 10),
+      usable.length - NAV_HISTORY_LIMIT,
+    ),
+  );
+  return {
+    entries: usable.slice(start, start + NAV_HISTORY_LIMIT),
+    index: active - start,
+  };
+}
+
+// A tab's history is queued by its src just before its webview attaches.
+// The webview is then created without an initial load and the history is
+// restored into it (restore() refuses a webContents that loaded a page).
+const pendingNavigationRestores = new Map();
+const webviewAttachQueue = [];
+
+function restoreQueuedNavigation(contents) {
+  contents.on("will-attach-webview", (_event, webPreferences, params) => {
+    webPreferences.preload = path.join(__dirname, "webview-preload.cjs");
+    const now = Date.now();
+    for (const [src, item] of pendingNavigationRestores) {
+      if (now - item.queuedAt > 30_000) pendingNavigationRestores.delete(src);
+    }
+    const pending = pendingNavigationRestores.get(params.src);
+    pendingNavigationRestores.delete(params.src);
+    webviewAttachQueue.push(pending ? { ...pending, src: params.src } : null);
+    if (pending) params.src = "";
+  });
+  contents.on("did-attach-webview", (_event, guest) => {
+    const pending = webviewAttachQueue.shift();
+    if (!pending) return;
+    guest.navigationHistory
+      .restore({ entries: pending.entries, index: pending.index })
+      .catch(() => guest.loadURL(pending.src).catch(() => {}));
+  });
+}
+
+// ── webview keyboard shortcuts + context menu ──────────────────
+// A focused page swallows keys, so tab shortcuts are forwarded to the
+// browser UI; the renderer decides what they do.
+function forwardBrowserShortcuts(contents) {
+  contents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown") return;
+    const mod = process.platform === "darwin" ? input.meta : input.control;
+    if (!mod) return;
+    const key = String(input.key || "").toLowerCase();
+    const forwarded =
+      ["t", "w", "l", "f", "p"].includes(key) ||
+      /^[1-9]$/.test(key) ||
+      input.key === "Tab" ||
+      (input.shift && (key === "n" || key === "b"));
+    if (!forwarded || !mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send("browser:keyboard-shortcut", {
+      key: input.key,
+      shift: input.shift,
+      alt: input.alt,
+      meta: input.meta,
+      control: input.control,
+    });
+    event.preventDefault();
+  });
+}
+
+function showBrowserContextMenu(contents, params) {
+  const template = [];
+  const separate = () => {
+    if (template.length && template[template.length - 1].type !== "separator")
+      template.push({ type: "separator" });
+  };
+  if (params.linkURL && /^https?:/i.test(params.linkURL)) {
+    template.push(
+      {
+        label: "在新标签页打开",
+        click: () => openUrlInBrowserTab(params.linkURL),
+      },
+      { label: "复制链接", click: () => clipboard.writeText(params.linkURL) },
+    );
+    separate();
+  }
+  if (params.mediaType === "image" && params.srcURL) {
+    template.push(
+      {
+        label: "复制图片",
+        click: () => contents.copyImageAt(params.x, params.y),
+      },
+      {
+        label: "复制图片地址",
+        click: () => clipboard.writeText(params.srcURL),
+      },
+    );
+    separate();
+  }
+  const selection = String(params.selectionText || "").trim();
+  if (selection) {
+    const ask = (action) =>
+      mainWindow?.webContents.send("browser:ask-selection", {
+        text: selection.slice(0, 4000),
+        action,
+        // The tab the selection is in, so a translation can show there.
+        webContentsId: contents.id,
+      });
+    template.push(
+      { label: "AI 解释", click: () => ask("explain") },
+      { label: "AI 翻译成中文", click: () => ask("translate") },
+      { label: "问 AI…", click: () => ask("ask") },
+    );
+    separate();
+  }
+  if (params.isEditable) {
+    template.push(
+      { role: "cut", label: "剪切" },
+      { role: "copy", label: "复制" },
+      { role: "paste", label: "粘贴" },
+      { role: "selectAll", label: "全选" },
+    );
+    separate();
+  } else if (selection) {
+    template.push({ role: "copy", label: "复制" });
+    separate();
+  }
+  const extensionItems = extensionHost?.contextMenuItems(contents, params);
+  if (extensionItems?.length) {
+    template.push(...extensionItems);
+    separate();
+  }
+  const history = contents.navigationHistory;
+  template.push(
+    {
+      label: "后退",
+      enabled: history.canGoBack(),
+      click: () => history.goBack(),
+    },
+    {
+      label: "前进",
+      enabled: history.canGoForward(),
+      click: () => history.goForward(),
+    },
+    { label: "刷新", click: () => contents.reload() },
+    { type: "separator" },
+    {
+      label: "检查元素",
+      click: () => {
+        if (!contents.isDevToolsOpened())
+          contents.openDevTools({ mode: "detach" });
+        contents.inspectElement(params.x, params.y);
+      },
+    },
+  );
+  Menu.buildFromTemplate(template).popup({ window: mainWindow || undefined });
 }
 
 // ── IPC wiring ─────────────────────────────────────────────────
@@ -782,6 +1287,20 @@ function registerIpc() {
   handle("app:getVersion", () => app.getVersion());
   handle("app:openExternal", (url) => shell.openExternal(url));
   handle("app:getPlatform", () => process.platform);
+
+  // notifications — long-task attention (completed / failed / approval /
+  // paused). Only the app's own windows may raise them.
+  const isAppRendererContents = (contents) =>
+    contents === mainWindow?.webContents ||
+    Array.from(auxiliaryWindows.values()).some(
+      (win) => !win.isDestroyed() && win.webContents === contents,
+    );
+  createAttentionNotifications({
+    Notification,
+    getMainWindow: () => mainWindow,
+    windowForContents: (contents) => BrowserWindow.fromWebContents(contents),
+    isTrustedSender: isAppRendererContents,
+  }).registerIpc(ipcMain);
 
   // dialog
   handle("dialog:open", (options) =>
@@ -813,7 +1332,25 @@ function registerIpc() {
       return { ok: false, reason: err.message };
     }
   });
-  handle("backend:ensureOptionalDeps", async (_e, group) => {
+  // Desktop owner sign-in. The main process holds the per-launch owner token
+  // and logs in itself, handing back only the session; webviews and embedded
+  // frames cannot ask for one.
+  ipcMain.handle("auth:desktopOwnerLogin", async (event) => {
+    if (
+      !isAppRendererContents(event.sender) ||
+      event.senderFrame !== event.sender.mainFrame ||
+      !desktopProtocol.isDesktopAppURL(event.senderFrame?.url || "")
+    )
+      return { ok: false, reason: "forbidden" };
+    let displayName = "";
+    try {
+      displayName = os.userInfo().username;
+    } catch {
+      // No account entry for this uid; the owner keeps the default name.
+    }
+    return loginDesktopOwner(resolveBackendBaseURL(), { displayName });
+  });
+  handle("backend:ensureOptionalDeps", async (group) => {
     if (!app.isPackaged) {
       return {
         ok: false,
@@ -877,7 +1414,7 @@ function registerIpc() {
     ok: true,
     running: petSidecar.isPetRunning(),
   }));
-  handle("pet:sendEvent", (_e, state) => {
+  handle("pet:sendEvent", (state) => {
     if (!petEnabled()) return { ok: false, reason: "pet disabled" };
     const event = petSidecar.petEventForAgentState(state);
     if (!event) return { ok: false, reason: `unknown agent state: ${state}` };
@@ -886,7 +1423,7 @@ function registerIpc() {
     });
     return { ok: sent, running: petSidecar.isPetRunning() };
   });
-  handle("pet:sendRaw", (_e, type, extra) => {
+  handle("pet:sendRaw", (type, extra) => {
     if (!petEnabled()) return { ok: false, reason: "pet disabled" };
     const sent = petSidecar.sendPetEvent(type, extra);
     return { ok: sent, running: petSidecar.isPetRunning() };
@@ -1030,10 +1567,7 @@ function registerIpc() {
       const exe = process.execPath; // path to the packaged Echo.exe
       const entries = [
         ["HKCU\\Software\\Classes\\*\\shell\\Echo", "Open with Echo"],
-        [
-          "HKCU\\Software\\Classes\\Directory\\shell\\Echo",
-          "Open with Echo",
-        ],
+        ["HKCU\\Software\\Classes\\Directory\\shell\\Echo", "Open with Echo"],
       ];
       for (const [key, label] of entries) {
         spawnSync("reg", ["add", key, "/d", label, "/f"], { stdio: "ignore" });
@@ -1094,6 +1628,16 @@ function registerIpc() {
   });
   handle("browser:executeJS", (id, code) =>
     wc(id).executeJavaScript(code, true),
+  );
+  // Page tools such as translation run in their own isolated world: they
+  // share the page's DOM but not its JavaScript, so page scripts can neither
+  // see nor tamper with them.
+  handle("browser:executeIsolated", (id, code) =>
+    wc(id).executeJavaScriptInIsolatedWorld(
+      PAGE_TOOLS_WORLD_ID,
+      [{ code }],
+      false,
+    ),
   );
   handle("browser:reload", (id) => wc(id).reload());
   handle("browser:goBack", (id) => wc(id).navigationHistory.goBack());
@@ -1196,33 +1740,41 @@ function registerIpc() {
   });
   handle("browser:savePassword", (entry) => {
     try {
-      const origin = normalizeHttpOrigin(entry?.origin);
-      const username = String(entry?.username || "").trim();
-      const password = String(entry?.password || "");
-      if (!username || !password)
-        throw new Error("username and password required");
-      const entries = readPasswordVault();
-      const existing = entries.find(
-        (item) => item.origin === origin && item.username === username,
-      );
-      const next = {
-        id:
-          existing?.id ||
-          `pwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
-        origin,
-        username,
-        password,
-        updatedAt: Date.now(),
-      };
-      writePasswordVault([
-        next,
-        ...entries.filter((item) => item.id !== next.id),
-      ]);
+      storePasswordEntry(entry);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
+  handle("browser:resolvePasswordOffer", (token, save) => {
+    const offer = pendingPasswordOffers.get(String(token));
+    pendingPasswordOffers.delete(String(token));
+    if (!offer) return { ok: false, error: "offer expired" };
+    if (save === "never") {
+      writePasswordNeverSites([...readPasswordNeverSites(), offer.origin]);
+      return { ok: true, saved: false };
+    }
+    if (!save) return { ok: true, saved: false };
+    try {
+      storePasswordEntry(offer);
+      return { ok: true, saved: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+  handle("browser:listPasswordNeverSites", () => ({
+    ok: true,
+    origins: readPasswordNeverSites(),
+  }));
+  handle("browser:removePasswordNeverSite", (origin) => {
+    writePasswordNeverSites(
+      readPasswordNeverSites().filter((item) => item !== origin),
+    );
+    return { ok: true };
+  });
+  ipcMain.on("browser-page:login-submitted", (event, payload) =>
+    offerToSavePassword(event, payload),
+  );
   handle("browser:deletePassword", (id) => {
     try {
       const entries = readPasswordVault();
@@ -1280,6 +1832,39 @@ function registerIpc() {
     } catch (err) {
       return { ok: false, error: err.message };
     }
+  });
+  handle("browser:print", (id) => {
+    const target = wc(id);
+    return new Promise((resolve) => {
+      target.print({}, (success, reason) =>
+        resolve(
+          success ? { ok: true } : { ok: false, error: reason || "cancelled" },
+        ),
+      );
+    });
+  });
+  handle("browser:importBookmarks", (browser) =>
+    importChromiumBookmarks(browser),
+  );
+  handle("browser:getNavigationHistory", (id) => {
+    const history = wc(id).navigationHistory;
+    return {
+      ok: true,
+      ...trimNavigationHistory(
+        history.getAllEntries(),
+        history.getActiveIndex(),
+      ),
+    };
+  });
+  handle("browser:queueNavigationRestore", (src, entries, index) => {
+    const trimmed = trimNavigationHistory(
+      Array.isArray(entries) ? entries : [],
+      Number(index),
+    );
+    if (typeof src !== "string" || trimmed.entries.length === 0)
+      return { ok: false, error: "nothing to restore" };
+    pendingNavigationRestores.set(src, { ...trimmed, queuedAt: Date.now() });
+    return { ok: true };
   });
   handle("browser:listSitePermissions", () => ({
     ok: true,
@@ -1376,38 +1961,24 @@ function registerIpc() {
       return { ok: false, canceled: true };
     const dir = picked.filePaths[0];
     try {
-      const manifest = JSON.parse(
-        await fsp.readFile(path.join(dir, "manifest.json"), "utf8"),
-      );
-      const loaded = await session.defaultSession.loadExtension(dir);
-      const info = {
-        id: loaded.id,
-        name: manifest.name || path.basename(dir),
-        version: manifest.version || "0.0.0",
-        description: manifest.description || "",
-        manifestVersion: manifest.manifest_version || 3,
-        path: dir,
-        enabled: true,
-        installedAt: new Date().toISOString(),
-      };
-      const registry = readExtensionRegistry().filter((e) => e.path !== dir);
-      registry.push(info);
-      writeExtensionRegistry(registry);
-      return { ok: true, extension: info };
+      return { ok: true, extension: await installExtensionFromDir(dir) };
     } catch (err) {
       return { ok: false, error: err.message };
     }
   });
+  handle("extensions:installFromStore", (input) =>
+    installExtensionFromStore(input),
+  );
   handle("extensions:setEnabled", async (id, enabled) => {
     const registry = readExtensionRegistry();
     const ext = registry.find((e) => e.id === id);
     if (!ext) return { ok: false, error: "extension not found" };
     try {
       if (enabled) {
-        const loaded = await session.defaultSession.loadExtension(ext.path);
+        const loaded = await loadBrowserExtension(ext.path);
         ext.id = loaded.id;
       } else {
-        session.defaultSession.removeExtension(id);
+        browserExtensions().removeExtension(id);
       }
       ext.enabled = enabled;
       writeExtensionRegistry(registry);
@@ -1416,19 +1987,62 @@ function registerIpc() {
       return { ok: false, error: err.message };
     }
   });
-  handle("extensions:remove", (id) => {
+  handle("extensions:actions", (tabId) =>
+    extensionHost
+      ? extensionHost.listActions(tabId)
+      : { ok: true, actions: [] },
+  );
+  handle("extensions:clickAction", (id, tabId, anchor) =>
+    extensionHost?.clickAction(id, tabId, anchor),
+  );
+  handle("extensions:showActionMenu", (id, tabId) =>
+    extensionHost?.showActionMenu(id, tabId),
+  );
+  handle("extensions:setPinned", (id, pinned) =>
+    extensionHost?.setPinned(id, pinned),
+  );
+  handle("extensions:openOptions", (id) => extensionHost?.openOptions(id));
+  handle("extensions:sidePanelState", () => extensionHost?.sidePanelState() ?? null);
+  handle("extensions:setSidePanelBounds", (bounds) => extensionHost?.setSidePanelBounds(bounds));
+  handle("extensions:closeSidePanel", (id) => extensionHost?.closeSidePanel(id));
+  handle("extensions:remove", async (id) => {
+    extensionHost?.forget(id, { purge: true });
     try {
-      session.defaultSession.removeExtension(id);
+      browserExtensions().removeExtension(id);
     } catch {
       /* may not be loaded */
     }
-    writeExtensionRegistry(readExtensionRegistry().filter((e) => e.id !== id));
+    const registry = readExtensionRegistry();
+    const removed = registry.find((e) => e.id === id);
+    writeExtensionRegistry(registry.filter((e) => e.id !== id));
+    // A store install's unpacked copy is ours to delete; a user's own
+    // folder is left alone.
+    if (removed && isStoreExtensionPath(removed.path))
+      await fsp.rm(removed.path, { recursive: true, force: true });
     return { ok: true };
   });
 
   // active-tab bridge (fire-and-forget from renderer)
-  ipcMain.on("bridge:setActiveTab", () => {
-    /* reserved for tab-aware main-process features */
+  ipcMain.on("bridge:setActiveTab", (event, id) => {
+    if (
+      !mainWindow ||
+      event.sender !== mainWindow.webContents ||
+      event.senderFrame !== event.sender.mainFrame
+    )
+      return;
+    if (id == null) {
+      activeBrowserTabId = null;
+      return;
+    }
+    activeBrowserTabId = null;
+    try {
+      const target = wc(id);
+      if (target.hostWebContents?.id === event.sender.id)
+        activeBrowserTabId = id;
+      extensionHost?.tabActivated(activeBrowserTabId);
+    } catch {
+      /* invalid or destroyed tab */
+    }
   });
 }
 
@@ -1480,8 +2094,7 @@ function configureMcpOAuthPopup(popupWindow) {
 
 function isTrustedMainWindowURL(rawURL, useBuiltRenderer) {
   if (useBuiltRenderer) {
-    const parsed = desktopProtocol.parseDesktopAppURL(rawURL);
-    return parsed?.pathname === "/index.html" || parsed?.pathname === "/";
+    return desktopProtocol.isDesktopAppNavigationURL(rawURL);
   }
   try {
     return new URL(rawURL).origin === new URL(DEV_URL).origin;
@@ -1562,7 +2175,9 @@ function createMainWindow() {
     },
   });
 
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => {
+    if (!process.argv.includes("--hidden")) win.show();
+  });
   win.on("enter-full-screen", () => {
     win.webContents.send("window:fullscreen-changed", { fullScreen: true });
   });
@@ -1660,10 +2275,20 @@ if (!app.requestSingleInstanceLock()) {
         return { action: "deny" };
       }
       if (/^(https?:|view-source:)/i.test(url)) {
-        mainWindow?.webContents.send("browser:open-tab", url);
+        openUrlInBrowserTab(url);
       }
       return { action: "deny" };
     });
+    forwardBrowserShortcuts(contents);
+    // Clicks inside a page never reach the app's DOM; split view needs to
+    // know which pane was clicked to focus it.
+    contents.on("before-mouse-event", (_e, mouse) => {
+      if (mouse.type === "mouseDown")
+        mainWindow?.webContents.send("browser:webview-pointer", contents.id);
+    });
+    contents.on("context-menu", (_e, params) =>
+      showBrowserContextMenu(contents, params),
+    );
     contents.on("render-process-gone", (_e, details) => {
       mainWindow?.webContents.send("browser:tab-crashed", {
         webContentsId: contents.id,
@@ -1693,7 +2318,42 @@ if (!app.requestSingleInstanceLock()) {
     configureBrowserPermissionRequests(browserProfileSession());
     trackDownloads(session.defaultSession);
     trackDownloads(browserProfileSession());
+    const privateSession = session.fromPartition(PRIVATE_BROWSER_PARTITION);
+    configureBrowserPermissionRequests(privateSession);
+    extensionHost = createExtensionHost({
+      session: browserProfileSession(),
+      getMainWindow: () => mainWindow,
+      getActiveTab: activeBrowserTarget,
+      openUrlInTab: openUrlInBrowserTab,
+      sendToRenderer: (channel, ...args) => {
+        if (
+          mainWindow &&
+          !mainWindow.isDestroyed() &&
+          !mainWindow.webContents.isDestroyed()
+        )
+          mainWindow.webContents.send(channel, ...args);
+      },
+      readRegistry: readExtensionRegistry,
+      writeRegistry: writeExtensionRegistry,
+    });
+    extensionHost.install();
+    trackDownloads(privateSession);
     mainWindow = createMainWindow();
+    restoreQueuedNavigation(mainWindow.webContents);
+    try {
+      const bridgeDataDir =
+        process.env.ECHO_DATA_DIR ||
+        (app.isPackaged || SMOKE_TEST_BACKEND
+          ? path.join(app.getPath("userData"), "data")
+          : path.resolve(__dirname, "../../data"));
+      browserControlBridge = await startBrowserControlBridge({
+        statePath: path.join(bridgeDataDir, "bridge.json"),
+        getTarget: activeBrowserTarget,
+        runAction: runBrowserControlAction,
+      });
+    } catch {
+      console.warn("[echo] browser control bridge could not start");
+    }
     // Create the window before starting the bundled backend so the renderer
     // can show a bounded startup state while /readyz becomes available.
     if (app.isPackaged || SMOKE_TEST_BACKEND) {
@@ -1739,9 +2399,7 @@ if (!app.requestSingleInstanceLock()) {
           .then((visible) => {
             if (visible) maybeStartPet();
             else
-              console.log(
-                "[echo] pet suppressed by settings (visible=false)",
-              );
+              console.log("[echo] pet suppressed by settings (visible=false)");
           })
           .catch(() => maybeStartPet());
       });
@@ -1759,8 +2417,10 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0)
+      if (BrowserWindow.getAllWindows().length === 0) {
         mainWindow = createMainWindow();
+        restoreQueuedNavigation(mainWindow.webContents);
+      }
     });
   });
 
@@ -1771,6 +2431,8 @@ if (!app.requestSingleInstanceLock()) {
   // Clean up the packaged backend child process on quit (also covers
   // window-all-closed → app.quit() on non-macOS).
   app.on("before-quit", () => {
+    extensionHost?.dispose();
+    browserControlBridge?.close();
     killBackend();
     petSidecar.shutdown();
   });

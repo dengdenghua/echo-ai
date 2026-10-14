@@ -7,7 +7,57 @@ length suffix (``@@ -1 +1 @@`` is shorthand for ``@@ -1,1 +1,1 @@``).
 
 from __future__ import annotations
 
-from runtime.protocol.diff_parser import parse_unified_diff
+import difflib
+
+import pytest
+
+from runtime.protocol.diff_parser import (
+    DiffApplyConflict,
+    DiffFormatError,
+    parse_unified_diff,
+    reverse_unified_diff,
+)
+
+
+@pytest.mark.parametrize(
+    "diff",
+    [
+        "@@ -1,2 +1,2 @@\n-old\n+new\n",
+        "@@ -1 +1 @@\n-old\n+new\n+extra\n",
+        "@@ -1 +1 @@\n-old\n@@ -2 +2 @@\n-second\n+new\n",
+        "@@ -1 +1 @@\n",
+        "@@ -1 +1 @@\n\\ No newline at end of file\n-old\n+new\n",
+    ],
+)
+def test_reverse_rejects_incomplete_or_malformed_hunks(diff: str) -> None:
+    with pytest.raises(DiffFormatError):
+        reverse_unified_diff("new\nextra\n", diff)
+
+
+def test_reverse_round_trips_insertions_deletions_and_eof_newlines() -> None:
+    texts = ["", "old", "old\n", "old\n\n", "head\nold", "head\nnew\n", "\n", "head\nnew\ntail"]
+    for before in texts:
+        for after in texts:
+            if before == after:
+                continue
+            # difflib leaves unterminated payload lines unterminated. Render
+            # the explicit EOF marker used by git/unified-diff producers.
+            chunks = difflib.unified_diff(
+                before.splitlines(keepends=True),
+                after.splitlines(keepends=True),
+                fromfile="a/file.txt",
+                tofile="b/file.txt",
+            )
+            diff = "".join(
+                chunk if chunk.endswith("\n") else chunk + "\n\\ No newline at end of file\n"
+                for chunk in chunks
+            )
+            assert reverse_unified_diff(after, diff) == before, (before, after, diff)
+
+
+def test_reverse_does_not_ignore_changed_eof_newline() -> None:
+    with pytest.raises(DiffApplyConflict):
+        reverse_unified_diff("new", "@@ -1 +1 @@\n-old\n+new\n")
 
 
 class TestSingleFileUpdate:

@@ -13,7 +13,10 @@ class SharedExecutionRouter:
 
     def has(self, model: str) -> bool:
         if model.startswith("official/"):
-            return bool(model.removeprefix("official/")) and getattr(self.router, "official_router", None) is not None
+            return (
+                bool(model.removeprefix("official/"))
+                and getattr(self.router, "official_router", None) is not None
+            )
         has = getattr(self.router, "has", None)
         return bool(has(model)) if callable(has) else callable(getattr(self.router, "call", None))
 
@@ -26,7 +29,9 @@ class SharedExecutionRouter:
             router = getattr(self.router, "official_router", None)
             if router is None:
                 raise ValueError("Official model service is unavailable")
-            return router, request.model_copy(update={"model": request.model.removeprefix("official/")})
+            return router, request.model_copy(
+                update={"model": request.model.removeprefix("official/")}
+            )
         if not self.has(request.model):
             raise ValueError("Selected API model has no exact route")
         return self.router, request
@@ -37,7 +42,15 @@ class SharedExecutionRouter:
 
     def call_stream(self, request: Any) -> Any:
         router, selected = self._route(request)
-        yield from router.call_stream(selected)
+        stream = getattr(router, "call_stream", None)
+        if callable(stream):
+            yield from stream(selected)
+        else:
+            from runtime.platform.models.llm import ModelStreamEvent
+
+            # Older integrations implement only call(). Preserve their route
+            # and response contract without retrying a failed stream.
+            yield ModelStreamEvent(type="done", final=router.call(selected))
 
 
 def native_model_services(stack: Any) -> tuple[Any | None, str | None]:

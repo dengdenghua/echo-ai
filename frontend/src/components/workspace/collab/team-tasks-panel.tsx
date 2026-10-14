@@ -40,6 +40,7 @@ import {
   type TeamTaskProgressEvent,
 } from "./collab-provider";
 import { CreateTaskDialog } from "./create-task-dialog";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 interface TeamTasksPanelProps {
   roomId: string | null | undefined;
@@ -146,7 +147,10 @@ export function TeamTasksPanel({
     try {
       await updateTask.mutateAsync({
         taskId: task.id,
-        input: { status: "cancelled" },
+        input: {
+          status: "cancelled",
+          ...(task.revision ? { expected_revision: task.revision } : {}),
+        },
       });
       toast.success(t.teamTasksPanel.toast.taskPaused);
     } catch (error) {
@@ -240,7 +244,7 @@ export function TeamTasksPanel({
               <span>{t.agentWorkbenchPages.reference.plans}</span>
               {(team?.members.length ?? 0) > 1 ? (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success"
+                  className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-1.5 py-0.5 text-xs font-medium text-success"
                   title="群主会根据实际结果动态调整成员分工、执行顺序与复核方式"
                   data-testid="adaptive-orchestration-badge"
                 >
@@ -284,10 +288,10 @@ export function TeamTasksPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {tasksQuery.isLoading ? (
-          <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2Icon className="size-4 animate-spin" />
-            {t.teamTasksPanel.loading}
-          </div>
+          <BrandLoadingPanel
+            label={t.teamTasksPanel.loading}
+            className="min-h-40"
+          />
         ) : visibleTasks.length === 0 ? (
           <div className="flex min-h-48 items-center justify-center rounded-lg border border-dashed border-border-default bg-muted/15 px-4 text-center text-sm text-muted-foreground">
             {t.teamTasksPanel.emptyFilter}
@@ -433,7 +437,7 @@ export function TeamTasksPanel({
         {showArtifacts && artifactCount > 0 && (
           <div className="space-y-1.5 border-t border-border-subtle px-3 py-2">
             {task.produced_artifacts.map((artifact, i) => {
-              const a = artifact as Record<string, unknown>;
+              const a = artifact;
               const title = String(
                 a.title ?? a.agent_id ?? a.type ?? `产出 ${i + 1}`,
               );

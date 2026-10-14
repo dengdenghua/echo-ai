@@ -140,7 +140,7 @@ the two new runtime modules also passed mypy. No live model call was made.
 
 ## Engine policy and controls
 
-`turn/start.executionEngine` accepts `auto`, `echo`, or `codex`. The server
+`turn/start.executionEngine` accepts `auto`, `echo`, `codex`, or `opencode`. The server
 validates it independently of display metadata and a role's preferred backend.
 The composer remembers the choice per principal and task, including the id
 assigned to a newly created task. Roles retain their persona and allowed skills.
@@ -148,12 +148,15 @@ Codex model selection uses its principal-scoped profile or a trusted server
 override, not a native persona's model hint.
 
 Automatic selection supports the upstream unified General/Design modes. Their
-labels and directory scope do not imply a coding task: parsed debug/refactor
-intent and deterministic coding-purpose signals prefer Codex, while ambiguous
-and office requests default to Native. Old build/general/research payloads remain
-compatible. This policy adds no model call. A configured Codex role retains its
-existing default; explicit task selection overrides that preference.
-Project/team coordination remains native, with Codex available to member tasks.
+labels and directory scope do not imply a coding task. Local deployments use
+the configured OpenCode member engine by default; non-local deployments default
+to Echo. Explicit task selection and Codex role bindings take precedence over
+that host default. Without an external host default, deterministic coding
+signals can prefer Codex. This policy adds no model call.
+Project/team scheduling remains on the host, while coordinators and members
+can use external execution engines. Auto selection of a text-only engine for
+an image input rebinds to Echo before execution, preserving the project/team
+scheduler. Explicit incompatible engine choices fail admission instead.
 The upstream focused/fanout/presence strategy stays authoritative; coordinated
 delivery repair also passes through the bound supervisor and its durable receipt.
 

@@ -59,9 +59,18 @@ class _ThreadStore:
         return {"metadata": self.metadata}
 
 
-def scoped_client(metadata: dict[str, object]) -> TestClient:
+def scoped_client(
+    metadata: dict[str, object],
+    *,
+    workspace_root: Path | None = None,
+) -> TestClient:
     app = FastAPI()
-    app.include_router(create_fs_router(thread_store=_ThreadStore(metadata)))
+    app.include_router(
+        create_fs_router(
+            thread_store=_ThreadStore(metadata),
+            workspace_root=workspace_root,
+        )
+    )
     return TestClient(app)
 
 
@@ -272,6 +281,70 @@ class TestFsRead:
         assert blocked.status_code == 403
         assert blocked.json()["detail"]["error"] == "path_outside_workspace"
 
+    def test_project_thread_can_preview_thread_artifact_output(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Regression: project-mode threads keep workspace_path on the opened
+        project, while deliverables land under data/workspaces/<thread>/output.
+        Preview/read must accept that second root or every HTML/image chip 403s.
+        """
+        project = tmp_path / "pod-App"
+        project.mkdir()
+        workspaces = tmp_path / "workspaces"
+        thread_ws = workspaces / "thread-scope"
+        artifact = thread_ws / "output" / "final" / "report.html"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("<h1>ok</h1>", encoding="utf-8")
+        outside = tmp_path / "secret.txt"
+        outside.write_text("nope", encoding="utf-8")
+
+        client = scoped_client(
+            {"workspace_path": str(project)},
+            workspace_root=workspaces,
+        )
+
+        ok = client.get(
+            "/api/fs/preview",
+            params={"path": str(artifact), "thread_id": "thread-scope"},
+        )
+        blocked = client.get(
+            "/api/fs/preview",
+            params={"path": str(outside), "thread_id": "thread-scope"},
+        )
+
+        assert ok.status_code == 200
+        assert ok.headers["content-type"] == "application/octet-stream"
+        assert blocked.status_code == 403
+        assert blocked.json()["detail"]["error"] == "path_outside_workspace"
+
+    def test_project_thread_can_read_via_artifact_output_root_metadata(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project = tmp_path / "project"
+        project.mkdir()
+        thread_ws = tmp_path / "thread-artifacts"
+        final = thread_ws / "output" / "final"
+        final.mkdir(parents=True)
+        report = final / "notes.md"
+        report.write_text("# done\n", encoding="utf-8")
+
+        client = scoped_client(
+            {
+                "workspace_path": str(project),
+                "_artifact_output_root": str(final),
+            }
+        )
+
+        ok = client.get(
+            "/api/fs/read",
+            params={"path": str(report), "thread_id": "thread-scope"},
+        )
+
+        assert ok.status_code == 200
+        assert "# done" in ok.json()["content"]
+
 
 class TestFsWrite:
     def test_write_creates_file(
@@ -396,6 +469,20 @@ class TestFsWrite:
 
 
 class TestFsRevertDiff:
+    def test_incomplete_diff_does_not_modify_file(
+        self,
+        client: TestClient,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "incomplete.txt"
+        target.write_bytes(b"new1\nnew2\n")
+        response = client.post(
+            "/api/fs/revert-diff",
+            json={"path": str(target), "diff": "@@ -1,2 +1,2 @@\n-old1\n+new1\n"},
+        )
+        assert response.status_code == 400
+        assert target.read_bytes() == b"new1\nnew2\n"
+
     def test_revert_diff_restores_file_content(
         self,
         client: TestClient,
@@ -605,7 +692,8 @@ class TestFsAuth:
     ) -> None:
         from runtime.sensing.gateway import _fs_router_endpoints as endpoints
 
-        selected = "/Users/alice/project"
+        # Synthetic home path exercises picker or private-path redaction behavior.
+        selected = "/Users/alice/project"  # lint: allow-user-path
         monkeypatch.setattr(endpoints, "_pick_directory_macos", lambda _default: selected)
         monkeypatch.setattr(endpoints, "_pick_directory_tk", lambda _default: selected)
         monkeypatch.setattr(endpoints, "_pick_directory_windows", lambda _default: selected)

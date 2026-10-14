@@ -1,4 +1,8 @@
 import { expect, test } from "./fixtures";
+import {
+  assertNoVisualOverflow,
+  freezeVisualState,
+} from "./helpers/visual-stability";
 
 /**
  * Visual regression: pixel-level baselines for the key workspace surfaces.
@@ -48,13 +52,18 @@ test.describe("Visual regression · workspace surfaces", () => {
       )
       .toBeDefined();
     await expect(
-      page.getByRole("heading", { name: /Hello, I am|你好，我是/ }),
+      // The empty state is titled with the product name since 3ae6f7bf.
+      page.getByRole("heading", { name: "ECHO AI", exact: true }),
     ).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.locator(".animate-skeleton-entrance")).toHaveCount(0, {
       timeout: 15_000,
     });
+
+    // 冻结动效与字体渲染，并校验无布局意外溢出
+    await freezeVisualState(page);
+    await assertNoVisualOverflow(page.locator("main").first());
 
     await expect(page).toHaveScreenshot("chat-composer.png", {
       maxDiffPixelRatio: 0.02,
@@ -80,6 +89,7 @@ test.describe("Visual regression · workspace surfaces", () => {
     await expect(page.getByTestId("chat-composer-input")).toBeEditable();
     await expect(page.getByTestId("chat-send-button")).toBeDisabled();
 
+    await freezeVisualState(page);
     await expect(page).toHaveScreenshot("recoverable-empty-state.png", {
       maxDiffPixelRatio: 0.02,
       animations: "disabled",
@@ -92,10 +102,13 @@ test.describe("Visual regression · workspace surfaces", () => {
     await page.goto("/#/workspace/realtime/new");
     await page.waitForLoadState("domcontentloaded");
 
-    await expect(page.getByRole("tab", { name: "Echo" })).toBeVisible({
+    await expect(page.getByRole("tab", { name: "ECHO AI" })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.locator("textarea").first()).toBeVisible();
+
+    await freezeVisualState(page);
+    await assertNoVisualOverflow(page.locator("main").first());
 
     await expect(page).toHaveScreenshot("workspace-shell.png", {
       maxDiffPixelRatio: 0.02,
@@ -127,6 +140,7 @@ test.describe("Visual regression · workspace surfaces", () => {
       page.getByRole("button", { name: "Close workbench" }),
     ).toBeVisible();
 
+    await freezeVisualState(page);
     await expect(page).toHaveScreenshot("workbench-drawer-1024.png", {
       maxDiffPixelRatio: 0.02,
       animations: "disabled",

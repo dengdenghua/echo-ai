@@ -19,6 +19,7 @@ import { getBackendBaseURL } from "@/core/config";
 
 const TOKEN_KEY = "echo_auth_token";
 const GUEST_SENTINEL = "__guest__";
+const ACCOUNT_FREE_SENTINEL = "__account_free__";
 export const AUTH_EXPIRED_EVENT = "echo:auth-expired";
 
 let installed = false;
@@ -76,8 +77,14 @@ function observeAuthResponse(
   rawUrl: string,
 ): Promise<Response> {
   return response.then((res) => {
+    const token =
+      typeof window !== "undefined"
+        ? window.sessionStorage.getItem(TOKEN_KEY) ||
+          window.localStorage.getItem(TOKEN_KEY)
+        : null;
     if (
       res.status === 401 &&
+      token !== ACCOUNT_FREE_SENTINEL &&
       res.headers.get("X-Echo-Auth-Expired") === "1" &&
       !isInteractiveLoginRequest(rawUrl) &&
       typeof window !== "undefined"
@@ -119,7 +126,11 @@ export function installAuthFetchInterceptor(): void {
       const token =
         window.sessionStorage.getItem(TOKEN_KEY) ||
         window.localStorage.getItem(TOKEN_KEY);
-      if (token && token !== GUEST_SENTINEL) {
+      if (
+        token &&
+        token !== GUEST_SENTINEL &&
+        token !== ACCOUNT_FREE_SENTINEL
+      ) {
         // Merge the Request's own headers (if any) with init's, so passing a
         // fresh `headers` to fetch doesn't drop headers the caller set.
         const headers = new Headers(

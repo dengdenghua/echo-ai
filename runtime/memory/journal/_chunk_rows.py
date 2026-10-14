@@ -124,14 +124,17 @@ def continues_chunk_run(prev: dict[str, Any], entry: dict[str, Any]) -> bool:
     """Whether ``entry`` extends a run ending in ``prev``.
 
     Same event type, identical envelope (common + extra), and a
-    strictly increasing timestamp — the same-block, same-call
-    continuity dsh enforces with its seq/block checks.
+    non-decreasing timestamp — the same-block, same-call continuity
+    dsh enforces with its seq/block checks. Equal timestamps continue
+    the run (a zero gap round-trips exactly): the Windows wall clock
+    ticks every ~15.6 ms, so consecutive token chunks routinely share
+    a timestamp there. Only a clock that went backwards breaks it.
     """
     return (
         entry["event_type"] == prev["event_type"]
         and entry["common"] == prev["common"]
         and entry["extra"] == prev["extra"]
-        and entry["ts_us"] > prev["ts_us"]
+        and entry["ts_us"] >= prev["ts_us"]
     )
 
 

@@ -226,8 +226,8 @@ export function A2AAgentsPanel({ className }: { className?: string }) {
   }, []);
 
   useEffect(() => {
-    fetchAgents();
-    const timer = setInterval(fetchAgents, 30000);
+    void fetchAgents();
+    const timer = setInterval(() => void fetchAgents(), 30000);
     return () => clearInterval(timer);
   }, [fetchAgents]);
 
@@ -300,7 +300,7 @@ export function A2AAgentsPanel({ className }: { className?: string }) {
         <RegisterForm
           onRegistered={() => {
             setShowRegister(false);
-            fetchAgents();
+            void fetchAgents();
           }}
           onCancel={() => setShowRegister(false)}
         />
@@ -385,7 +385,7 @@ function RegisterForm({
         <button
           type="submit"
           disabled={!url.trim() || registering}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-info px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-info disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
         >
           {registering ? (
             <Loader2Icon className="size-3 animate-spin" />
@@ -426,12 +426,12 @@ function EmptyState({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-12">
       <div className="rounded-lg bg-muted/40 p-4">
-        <NetworkIcon className="text-muted-foreground/40 size-8" />
+        <NetworkIcon className="text-muted-foreground size-8" />
       </div>
       <p className="text-muted-foreground text-sm font-medium">
         {t.a2a.noAgents}
       </p>
-      <p className="text-muted-foreground/60 text-center text-xs leading-relaxed whitespace-pre-line">
+      <p className="text-muted-foreground text-center text-xs leading-relaxed whitespace-pre-line">
         {t.a2a.noAgentsDesc}
       </p>
       {showAction && (
@@ -567,7 +567,7 @@ function AgentDetailView({
   }, [agent.agent_id]);
 
   useEffect(() => {
-    fetchTasks();
+    void fetchTasks();
   }, [fetchTasks]);
 
   useEffect(() => {
@@ -819,7 +819,7 @@ function AgentDetailView({
           <button
             type="submit"
             disabled={!taskText.trim() || sending}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-info px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-info disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {sending ? (
               <Loader2Icon className="size-3 animate-spin" />

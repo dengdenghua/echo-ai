@@ -103,18 +103,30 @@ def rebase(value: Any, mapping: dict[str, str]) -> Any:
     ``mapping`` maps the real prefix to its placeholder, e.g.
     ``{str(tmp_path): "{workdir}"}``. Replacement happens before any
     other normalization so ordering is irrelevant to callers.
+
+    On Windows the path tail that follows a placeholder is rewritten with
+    ``/`` separators, so one recorded transcript replays on every platform.
     """
 
     if isinstance(value, str):
         out = value
         for old, new in mapping.items():
             out = out.replace(old, new)
+            if os.sep == "\\" and new in out:
+                out = _posix_path_tails(out, new)
         return out
     if isinstance(value, dict):
         return {str(key): rebase(item, mapping) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [rebase(item, mapping) for item in value]
     return value
+
+
+def _posix_path_tails(text: str, placeholder: str) -> str:
+    """Turn ``{placeholder}\\a\\b.py`` into ``{placeholder}/a/b.py``."""
+
+    tail = re.compile(re.escape(placeholder) + r"((?:\\[^\\\s\"'<>|*?]+)+)")
+    return tail.sub(lambda match: placeholder + match.group(1).replace("\\", "/"), text)
 
 
 def snapshot_filename(nodeid: str, name: str) -> Path:

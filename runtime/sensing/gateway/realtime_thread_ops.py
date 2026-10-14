@@ -287,6 +287,10 @@ async def _handle_hunk_decide_locked(
         file_path = Path(path_value)
     reverted_bytes = 0
     if decision == "accepted" and thread_id is not None:
+        if not isinstance(turn_id, str) or not isinstance(item_id, str):
+            raise _RpcError(
+                JsonRpcErrorCode.INVALID_PARAMS, "threadId, turnId and itemId are required"
+            )
         from runtime.protocol.items import FileChangeItem
 
         log = runtime._log_for(thread_id)
@@ -300,19 +304,17 @@ async def _handle_hunk_decide_locked(
             ),
             None,
         )
-        hunk = (
-            next(
-                (
-                    hunk
-                    for change in recorded.changes
-                    if runtime._resolve_hunk_path(thread_id, change.path) == file_path
-                    for hunk in change.hunks
-                    if hunk.id == hunk_id
-                ),
-                None,
-            )
-            if recorded
-            else None
+        if recorded is None:
+            raise _RpcError(JsonRpcErrorCode.INVALID_PARAMS, "recorded file change is required")
+        hunk = next(
+            (
+                hunk
+                for change in recorded.changes
+                if runtime._resolve_hunk_path(thread_id, change.path) == file_path
+                for hunk in change.hunks
+                if hunk.id == hunk_id
+            ),
+            None,
         )
         if hunk is None:
             raise _RpcError(JsonRpcErrorCode.INVALID_PARAMS, "recorded hunk is required")
@@ -324,6 +326,10 @@ async def _handle_hunk_decide_locked(
         hunk.decision = "accepted"
         log.item_completed(thread_id, turn_id, recorded, durable=True)
     if decision == "rejected":
+        if thread_id is None or not isinstance(turn_id, str) or not isinstance(item_id, str):
+            raise _RpcError(
+                JsonRpcErrorCode.INVALID_PARAMS, "threadId, turnId and itemId are required"
+            )
         if not isinstance(diff_text, str) or not diff_text.strip():
             raise _RpcError(
                 JsonRpcErrorCode.INVALID_PARAMS,
@@ -351,17 +357,15 @@ async def _handle_hunk_decide_locked(
             ),
             None,
         )
-        change = (
-            next(
-                (
-                    change
-                    for change in recorded.changes
-                    if runtime._resolve_hunk_path(thread_id, change.path) == file_path
-                ),
-                None,
-            )
-            if recorded is not None
-            else None
+        if recorded is None:
+            raise _RpcError(JsonRpcErrorCode.INVALID_PARAMS, "recorded file change is required")
+        change = next(
+            (
+                change
+                for change in recorded.changes
+                if runtime._resolve_hunk_path(thread_id, change.path) == file_path
+            ),
+            None,
         )
         hunk = next((h for h in change.hunks if h.id == hunk_id), None) if change else None
         if change is not None and change.hunks and hunk is None:

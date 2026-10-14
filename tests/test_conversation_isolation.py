@@ -384,8 +384,11 @@ class TestChatAgentStampsJournal:
         )
         assert r.status_code == 200
 
-        events = list(stack.journal.read_by_agent("general"))
-        assert events, "no events tagged with agent_id=general"
+        # The legacy "general" request id resolves to the canonical persona.
+        from runtime.execution.agents.aliases import canonical_agent_id
+
+        events = list(stack.journal.read_by_agent(canonical_agent_id("general")))
+        assert events, "no events tagged with the general persona's agent_id"
 
 
 # ═══════════════════════════════════════════════════════════

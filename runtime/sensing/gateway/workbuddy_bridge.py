@@ -14,9 +14,10 @@ import json
 import mimetypes
 import re
 import uuid
+from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, cast
 from urllib.parse import urlsplit
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -65,11 +66,27 @@ def _files(workspace: Path) -> dict[str, tuple[int, int]]:
     return result
 
 
+class RoleBridgeConfig(Protocol):
+    @property
+    def data_dir(self) -> Path: ...
+
+    @property
+    def permission_mode(self) -> str: ...
+
+
 class WorkBuddyExecutor(AgentExecutor):
-    def __init__(self, config: WorkBuddyConfig, *, label: str = "WorkBuddy", runner=None) -> None:
+    def __init__(
+        self,
+        config: RoleBridgeConfig,
+        *,
+        label: str = "WorkBuddy",
+        runner: Callable[..., AsyncGenerator[dict[str, Any], None]] | None = None,
+    ) -> None:
         self.config = config
         self.label = label
-        self.runner = runner or stream_workbuddy
+        self.runner = runner or cast(
+            Callable[..., AsyncGenerator[dict[str, Any], None]], stream_workbuddy
+        )
         self.running: dict[str, asyncio.Task] = {}
         self.context_locks: dict[str, asyncio.Lock] = {}
         self.slots = asyncio.Semaphore(2)
@@ -268,7 +285,7 @@ class WorkBuddyExecutor(AgentExecutor):
 
 
 def create_app(
-    config: WorkBuddyConfig,
+    config: RoleBridgeConfig,
     *,
     public_url: str = "http://127.0.0.1:8321",
     executor: WorkBuddyExecutor | None = None,

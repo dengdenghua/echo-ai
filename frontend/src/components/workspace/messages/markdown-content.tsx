@@ -18,7 +18,8 @@ import {
   CodeBlock,
   CodeBlockCopyButton,
 } from "@/components/ai-elements/code-block";
-import { FileReferenceChip } from "@/components/ui/file-reference-chip";
+import { LinkedFileReference } from "./linked-file-reference";
+import { parseFileReference } from "@/core/navigation/file-reference";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
 import {
   artifactRefFromMarkdownHref,
@@ -271,6 +272,9 @@ export const MarkdownContent = memo(
           }
           const { className, target, rel, onClick, ...rest } = props;
           const external = isExternalUrl(props.href);
+          const generatedArtifact = props.href ? artifactRefFromMarkdownHref(props.href) : null;
+          const file = !external && props.href && !generatedArtifact?.startsWith("workspace-output:") ? parseFileReference(props.href) : null;
+          if (file) return <LinkedFileReference {...file} label={typeof props.children === "string" ? props.children : undefined} />;
           return (
             <RoutedWebLink
               {...rest}
@@ -303,7 +307,7 @@ export const MarkdownContent = memo(
         // carrying path + lines as data attributes; we render it as a chip.
         "file-ref": (props: { path?: string; lines?: string }) => {
           if (!props.path) return null;
-          return <FileReferenceChip path={props.path} lines={props.lines} />;
+          return <LinkedFileReference path={props.path} lines={props.lines} />;
         },
         ...componentsFromProps,
       };

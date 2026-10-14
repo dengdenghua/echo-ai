@@ -6,6 +6,7 @@ import { getWorkspaceArtifactRefetchInterval } from "@/core/artifacts/polling";
 import { useWorkspaceArtifacts } from "@/core/artifacts/use-workspace-artifacts";
 import { normalizeWorkspaceArtifactRef } from "@/core/artifacts/utils";
 import { isInternalArtifactRef } from "@/core/artifacts/workspace-outputs";
+import { streamPhaseOf } from "@/core/realtime/stream-vitals";
 import { cn } from "@/lib/utils";
 
 import { ArtifactPanel, useArtifacts } from "../artifacts";
@@ -29,7 +30,14 @@ const ChatBox: React.FC<{
   artifactPanelMode?: "drawer" | "external";
   children: React.ReactNode;
   threadId: string;
-}> = ({ artifactPanelMode = "drawer", children, threadId }) => {
+  /** A pending id the server has not created yet: nothing to list. */
+  isNewThread?: boolean;
+}> = ({
+  artifactPanelMode = "drawer",
+  children,
+  threadId,
+  isNewThread = false,
+}) => {
   const { thread } = useThread();
   const queryClient = useQueryClient();
   const threadIdRef = useRef(threadId);
@@ -40,7 +48,11 @@ const ChatBox: React.FC<{
   const { data: workspaceArtifacts = EMPTY_ARTIFACTS } = useWorkspaceArtifacts(
     threadId,
     {
-      refetchInterval: getWorkspaceArtifactRefetchInterval(thread.isLoading),
+      enabled: !isNewThread,
+      refetchInterval: getWorkspaceArtifactRefetchInterval(
+        thread.isLoading,
+        streamPhaseOf(thread),
+      ),
     },
   );
 

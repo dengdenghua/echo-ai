@@ -1,9 +1,12 @@
+import { BrowserHome } from "@/components/browser/browser-home";
+import { DEVICE_STAGE } from "@/core/browser/device-stage";
 /* Implementation note. */
 
 import { swallow } from "@/core/utils/log";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 import {
+  ArrowLeftRightIcon,
   ClockIcon,
   CopyIcon,
   ExternalLinkIcon,
@@ -33,6 +36,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { TabBar } from "@/components/browser/tab-bar";
 import { AssistantSurface } from "@/components/browser/assistant-surface";
 import { UrlBar } from "@/components/browser/url-bar";
+import { ExtensionSidePanel } from "@/components/browser/extension-side-panel";
 import {
   BROWSER_HOME_URL,
   BROWSER_OPEN_URL_REQUEST_KEY,
@@ -45,6 +49,17 @@ import {
   type BrowserOpenUrlAck,
   BROWSER_OPEN_URL_REQUEST_EVENT,
 } from "@/components/browser/browser-store";
+import { useSelectionActions } from "@/components/browser/use-selection-actions";
+import { BookmarksBar } from "@/components/browser/bookmarks-bar";
+import {
+  BROWSER_FIND_EVENT,
+  BROWSER_READER_EVENT,
+  openBrowserFind,
+} from "@/components/browser/browser-events";
+import { ExtensionsDialog } from "@/components/browser/extensions-dialog";
+import { FindBar } from "@/components/browser/find-bar";
+import { ReaderView } from "@/components/browser/reader-view";
+import { useShellTabEvents } from "@/components/browser/use-shell-tab-events";
 import type { WebviewTabHandle } from "@/components/browser/webview-tab";
 import { WorkspaceSurfaceHeader } from "@/components/workspace/workspace-surface-header";
 import { BrowserPreviewPanel } from "@/components/workspace/browser-preview-panel";
@@ -70,35 +85,10 @@ const WebviewTab = lazy(() =>
   })),
 );
 
-const CHROME_WEB_STORE_EXTENSIONS_URL =
-  "https://chromewebstore.google.com/category/extensions";
-
 const isBrowserDevice = (
   value: unknown,
 ): value is BrowserOpenUrlRequest["device"] =>
   value === "desktop" || value === "tablet" || value === "mobile";
-
-/* Implementation note. */
-const DEVICE_STAGE = {
-  desktop: {
-    width: 0,
-    height: 0,
-    label: "Desktop",
-    description: "Fluid viewport",
-  },
-  tablet: {
-    width: 768,
-    height: 1024,
-    label: "iPad",
-    description: "768 x 1024",
-  },
-  mobile: {
-    width: 390,
-    height: 844,
-    label: "iPhone",
-    description: "390 x 844",
-  },
-} as const;
 
 function BrowserShell() {
   const navigate = useNavigate();
@@ -107,6 +97,9 @@ function BrowserShell() {
   const personaThemeId = workspacePresetForAgent(activeAgentId).themeId;
   const {
     state,
+    settings,
+    updateSettings,
+    bookmarks,
     activeTab,
     patchTab,
     openTab,
@@ -116,6 +109,7 @@ function BrowserShell() {
     recordVisit,
     setCopilotOpen,
     setCopilotWidth,
+    setSplit,
   } = useBrowserStore();
   // Implementation note.
   const handlesRef = useRef<Map<string, WebviewTabHandle | null>>(new Map());
@@ -128,9 +122,15 @@ function BrowserShell() {
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const stageRef = useRef<HTMLDivElement>(null);
   const sidePanelCloseTimerRef = useRef<number | null>(null);
-  const { titleBarInset } = useElectronTitleBar();
+  const {
+    titleBarHeight,
+    controlsSafeInset,
+    controlsSide,
+    macTrafficLightsWidth,
+  } = useElectronTitleBar();
   const activeTabId = activeTab?.id ?? null;
   const activeTabUrl = activeTab?.url ?? "";
+  const activeTabPrivate = Boolean(activeTab?.private);
   const activeTabTitle = activeTab?.title ?? "";
   const activeTabFavicon = activeTab?.favicon;
   const activeTabLoading = activeTab?.isLoading ?? false;
@@ -149,19 +149,20 @@ function BrowserShell() {
     [],
   );
 
-  const openExtensionsStore = useCallback(() => {
-    if (window.echo?.app?.openExternal) {
-      void window.echo.app.openExternal(CHROME_WEB_STORE_EXTENSIONS_URL);
-      return;
-    }
-
-    const opened = window.open(
-      CHROME_WEB_STORE_EXTENSIONS_URL,
-      "_blank",
-      "noopener,noreferrer",
-    );
-    if (!opened) openTab(CHROME_WEB_STORE_EXTENSIONS_URL);
-  }, [openTab]);
+  // The desktop app installs from a store page opened in a tab; the web
+  // build cannot install, so the store opens outside.
+  const openExtensionsStore = useCallback(
+    (url: string) => {
+      if (window.echo?.extensions?.installFromStore) {
+        openTab(url);
+        setExtensionsOpen(false);
+        return;
+      }
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+      if (!opened) openTab(url);
+    },
+    [openTab],
+  );
 
   // Implementation note.
   // Implementation note.
@@ -200,9 +201,51 @@ function BrowserShell() {
     setActiveHandle(h);
     const wcId = h?.getWebContentsId() ?? null;
     if (wcId != null) window.echo?.bridge.setActiveTab(wcId);
-  }, [activeTabId]);
+    // A tab swaps surfaces (start page → website) without changing its id;
+    // re-read the handle when its address changes too.
+  }, [activeTabId, activeTabUrl]);
 
   const activeDevice = activeTab?.device ?? "desktop";
+  // Split view: both tabs are on screen while either one is focused.
+  const split =
+    state.split &&
+    window.echo?.isElectron &&
+    (state.activeId === state.split.leftId ||
+      state.activeId === state.split.rightId) &&
+    activeDevice === "desktop"
+      ? state.split
+      : null;
+  const [splitDragging, setSplitDragging] = useState(false);
+  // A click inside the other pane's page focuses that tab.
+  const splitKey = split ? `${split.leftId}|${split.rightId}` : "";
+  useEffect(() => {
+    if (!splitKey || !window.echo?.on) return;
+    const [leftId, rightId] = splitKey.split("|");
+    return window.echo.on("browser:webview-pointer", (...args) => {
+      const id = Number(args[0]);
+      const tabId = document
+        .querySelector(`webview[data-echo-adopted-web-contents-id="${id}"]`)
+        ?.closest("[data-browser-pane]")
+        ?.getAttribute("data-browser-pane");
+      if (tabId && (tabId === leftId || tabId === rightId)) activateTab(tabId);
+    });
+  }, [activateTab, splitKey]);
+  const paneStyle = (tabId: string): React.CSSProperties => {
+    if (split && (tabId === split.leftId || tabId === split.rightId)) {
+      const left = tabId === split.leftId;
+      const share = left ? split.ratio : 1 - split.ratio;
+      return {
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        [left ? "left" : "right"]: 0,
+        width: `calc(${share * 100}% - 3px)`,
+      };
+    }
+    return tabId === state.activeId
+      ? { position: "absolute", inset: 0 }
+      : { position: "absolute", width: 0, height: 0, overflow: "hidden" };
+  };
   const renderDevice =
     activeTabUrl === BROWSER_HOME_URL &&
     activeDevice === "desktop" &&
@@ -248,10 +291,9 @@ function BrowserShell() {
   // Implementation note.
   useEffect(() => {
     if (!activeTabUrl || activeTabLoading) return;
-    if (
-      activeTabUrl.startsWith("about:") ||
-      activeTabUrl.startsWith("echo:")
-    ) {
+    // Private tabs leave no history.
+    if (activeTabPrivate) return;
+    if (activeTabUrl.startsWith("about:") || activeTabUrl.startsWith("echo:")) {
       return;
     }
     const t = setTimeout(() => {
@@ -265,20 +307,18 @@ function BrowserShell() {
   }, [
     activeTabFavicon,
     activeTabLoading,
+    activeTabPrivate,
     activeTabTitle,
     activeTabUrl,
     recordVisit,
   ]);
 
-  // Implementation note.
-  useEffect(() => {
-    if (!window.echo) return;
-    const off = window.echo.on("browser:open-tab", (...args) => {
-      const payload = args[0] as { url?: string } | undefined;
-      if (payload?.url) openTab(payload.url);
-    });
-    return () => off();
-  }, [openTab]);
+  const getTabHandle = useCallback(
+    (tabId: string) => handlesRef.current.get(tabId) ?? null,
+    [],
+  );
+
+  useSelectionActions(setCopilotOpen);
 
   useEffect(() => {
     try {
@@ -341,6 +381,28 @@ function BrowserShell() {
       if (!mod) return;
       const k = e.key.toLowerCase();
 
+      if (k === "f" && !e.shiftKey) {
+        e.preventDefault();
+        openBrowserFind();
+        return;
+      }
+      if (k === "p" && !e.shiftKey) {
+        e.preventDefault();
+        void activeHandle?.print?.().catch(swallow);
+        return;
+      }
+      if (k === "n" && e.shiftKey) {
+        if (!window.echo?.isElectron) return;
+        e.preventDefault();
+        openTab(BROWSER_HOME_URL, { private: true });
+        return;
+      }
+      if (k === "b" && e.shiftKey) {
+        e.preventDefault();
+        updateSettings({ showBookmarksBar: !settings.showBookmarksBar });
+        return;
+      }
+
       // Implementation note.
       if (k === "t" && !e.shiftKey) {
         e.preventDefault();
@@ -361,8 +423,9 @@ function BrowserShell() {
       // Implementation note.
       if (k === "l") {
         e.preventDefault();
+        // By attribute, not placeholder text: the placeholder is localized.
         const input = document.querySelector<HTMLInputElement>(
-          'input[placeholder="搜索或输入网址"]',
+          "input[data-browser-address]",
         );
         input?.focus();
         input?.select();
@@ -394,30 +457,27 @@ function BrowserShell() {
     // Implementation note.
     // Implementation note.
     // Implementation note.
-    const offIpc = window.echo?.on(
-      "browser:keyboard-shortcut",
-      (...args) => {
-        const p = args[0] as
-          | {
-              key: string;
-              shift: boolean;
-              alt: boolean;
-              meta: boolean;
-              control: boolean;
-            }
-          | undefined;
-        if (!p) return;
-        onKey(
-          new KeyboardEvent("keydown", {
-            key: p.key,
-            shiftKey: p.shift,
-            altKey: p.alt,
-            metaKey: p.meta,
-            ctrlKey: p.control,
-          }),
-        );
-      },
-    );
+    const offIpc = window.echo?.on("browser:keyboard-shortcut", (...args) => {
+      const p = args[0] as
+        | {
+            key: string;
+            shift: boolean;
+            alt: boolean;
+            meta: boolean;
+            control: boolean;
+          }
+        | undefined;
+      if (!p) return;
+      onKey(
+        new KeyboardEvent("keydown", {
+          key: p.key,
+          shiftKey: p.shift,
+          altKey: p.alt,
+          metaKey: p.meta,
+          ctrlKey: p.control,
+        }),
+      );
+    });
 
     return () => {
       window.removeEventListener("keydown", onKey);
@@ -429,9 +489,39 @@ function BrowserShell() {
     restoreClosedTab,
     activateTab,
     activeTab,
+    activeHandle,
+    settings.showBookmarksBar,
     state.tabs,
     state.activeId,
+    updateSettings,
   ]);
+
+  // Find bar and reader mode cover the current page; both close when the
+  // page changes.
+  const [findOpen, setFindOpen] = useState(false);
+  const [readerOpen, setReaderOpen] = useState(false);
+  const [extensionsOpen, setExtensionsOpen] = useState(false);
+  const openExtensions = () => setExtensionsOpen(true);
+  useShellTabEvents(handlesRef, {
+    openTab,
+    activateTab,
+    closeTab,
+    openManager: openExtensions,
+  });
+  useEffect(() => {
+    const onFind = () => setFindOpen(true);
+    const onReader = () => setReaderOpen(true);
+    window.addEventListener(BROWSER_FIND_EVENT, onFind);
+    window.addEventListener(BROWSER_READER_EVENT, onReader);
+    return () => {
+      window.removeEventListener(BROWSER_FIND_EVENT, onFind);
+      window.removeEventListener(BROWSER_READER_EVENT, onReader);
+    };
+  }, []);
+  useEffect(() => {
+    setFindOpen(false);
+    setReaderOpen(false);
+  }, [activeTabId, activeTabUrl]);
 
   const sidePanelOpen = sidePanelHovered || sidePanelPinned;
   const clearSidePanelCloseTimer = useCallback(() => {
@@ -457,7 +547,6 @@ function BrowserShell() {
     <div
       data-persona-theme={personaThemeId}
       className="persona-shell browser-shell relative flex h-screen overflow-hidden bg-[linear-gradient(135deg,var(--muted)_0%,var(--background)_42%,var(--muted)_100%)] text-foreground"
-      style={{ paddingTop: titleBarInset }}
     >
       <BrowserSidePanel
         open={sidePanelOpen}
@@ -469,11 +558,18 @@ function BrowserShell() {
       <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="relative z-[80] shrink-0">
           <div
-            className="flex h-10 shrink-0 items-center gap-0.5 rounded-none border-x-0 border-t-0 border-b border-border-subtle px-1.5"
+            className="flex h-9 shrink-0 items-center gap-0.5 rounded-none border-x-0 border-t-0 border-b border-border-subtle px-1.5"
             style={
               {
-                paddingLeft: 10,
-                paddingRight: 6,
+                paddingLeft:
+                  10 +
+                  (titleBarHeight && controlsSide === "left"
+                    ? macTrafficLightsWidth
+                    : 0),
+                paddingRight:
+                  titleBarHeight && controlsSafeInset !== "0px"
+                    ? controlsSafeInset
+                    : 6,
                 WebkitAppRegion: "drag",
               } as React.CSSProperties
             }
@@ -531,12 +627,42 @@ function BrowserShell() {
           {!activeTab?.taskPreview && (
             <UrlBar
               webviewHandle={activeHandle}
-              onOpenExtensions={openExtensionsStore}
+              onOpenExtensions={openExtensions}
             />
           )}
+          {settings.showBookmarksBar && !activeTab?.taskPreview ? (
+            <BookmarksBar
+              bookmarks={bookmarks}
+              onOpen={(url) => {
+                if (!activeTab) {
+                  openTab(url);
+                } else if (activeHandle && activeTabUrl !== BROWSER_HOME_URL) {
+                  activeHandle.loadURL(url);
+                  patchTab(activeTab.id, { url });
+                } else {
+                  // The start page swaps to a page surface that loads it.
+                  patchTab(activeTab.id, { url, isLoading: true });
+                }
+              }}
+            />
+          ) : null}
         </div>
 
         <div className="relative z-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          {findOpen && activeTabUrl !== BROWSER_HOME_URL ? (
+            <FindBar handle={activeHandle} onClose={() => setFindOpen(false)} />
+          ) : null}
+          {readerOpen && activeTabUrl !== BROWSER_HOME_URL ? (
+            <ReaderView
+              handle={activeHandle}
+              onClose={() => setReaderOpen(false)}
+            />
+          ) : null}
+          <ExtensionsDialog
+            open={extensionsOpen}
+            onOpenChange={setExtensionsOpen}
+            onOpenStore={openExtensionsStore}
+          />
           <div
             className="flex min-h-0 flex-1 overflow-hidden"
             style={{ position: "relative" }}
@@ -547,21 +673,21 @@ function BrowserShell() {
                   data-testid="local-preview-toolbar"
                   className="flex h-10 shrink-0 items-center gap-2 border-b border-border-subtle bg-muted/35 px-3"
                 >
-                  <span className="grid size-6 place-items-center rounded-md bg-emerald-500/10 text-emerald-600">
+                  <span className="grid size-6 place-items-center rounded-md bg-core/10 text-core">
                     <ServerIcon className="size-3.5" />
                   </span>
-                  <span className="text-[11px] font-semibold">
+                  <span className="text-xs font-semibold">
                     {t.browserPreviewPanel.localPreviewMode}
                   </span>
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="size-1.5 rounded-full bg-core" />
                     {t.browserPreviewPanel.localPreviewRunning(previewPort)}
                   </span>
                   <span className="mx-1 h-4 w-px bg-border-subtle" />
                   <div className="flex rounded-lg bg-background/80 p-0.5 shadow-[var(--shadow-xs)]">
                     {(
                       [
-                        ["desktop", MonitorIcon, DEVICE_STAGE.desktop.label],
+                        ["desktop", MonitorIcon, t.livePreview.desktop],
                         ["tablet", TabletIcon, DEVICE_STAGE.tablet.label],
                         ["mobile", SmartphoneIcon, DEVICE_STAGE.mobile.label],
                       ] as const
@@ -571,7 +697,7 @@ function BrowserShell() {
                         type="button"
                         onClick={() => patchTab(activeTab.id, { device })}
                         className={cn(
-                          "flex h-7 items-center gap-1.5 rounded-md px-2 text-[10px] text-muted-foreground transition-colors hover:text-foreground",
+                          "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:text-foreground",
                           activeDevice === device &&
                             "bg-foreground text-background shadow-sm hover:text-background",
                         )}
@@ -649,6 +775,29 @@ function BrowserShell() {
                         tab.id === state.activeId ? (
                           <BrowserPreviewPanel
                             key={tab.id}
+                            renderStartPage={(onNavigate, services) => (
+                              <BrowserHome
+                                active
+                                device={tab.device}
+                                startContent={services}
+                                onOpen={(url) =>
+                                  url.startsWith("echo://")
+                                    ? openTab(url)
+                                    : onNavigate(url)
+                                }
+                              />
+                            )}
+                            searchEngineUrl={
+                              SEARCH_ENGINE_URLS[settings.searchEngine]
+                            }
+                            onPageInfoChange={(page) =>
+                              patchTab(tab.id, {
+                                title:
+                                  !page.url || page.url === "about:blank"
+                                    ? "新标签页"
+                                    : page.title || page.url,
+                              })
+                            }
                             threadId={tab.taskPreview.threadId}
                             workspacePath={tab.taskPreview.workspacePath}
                             sharedSessionId={tab.taskPreview.sessionId}
@@ -672,34 +821,117 @@ function BrowserShell() {
                           />
                         ) : null
                       ) : (
-                        <WebviewTab
+                        <div
                           key={tab.id}
-                          tab={tab}
-                          active={tab.id === state.activeId}
-                          renderDevice={
-                            tab.id === state.activeId
-                              ? renderDevice
-                              : tab.device
-                          }
-                          onPatch={(patch) => patchTab(tab.id, patch)}
-                          onClose={() => closeTab(tab.id)}
-                          ref={(handle) => {
-                            if (handle) {
-                              handlesRef.current.set(tab.id, handle);
-                              if (tab.id === state.activeId) {
-                                setActiveHandle((prev) => prev ?? handle);
-                              }
-                            } else {
-                              handlesRef.current.delete(tab.id);
-                            }
+                          data-browser-pane={tab.id}
+                          style={paneStyle(tab.id)}
+                          onFocusCapture={() => {
+                            if (split && tab.id !== state.activeId)
+                              activateTab(tab.id);
                           }}
-                        />
+                          onMouseDownCapture={() => {
+                            if (split && tab.id !== state.activeId)
+                              activateTab(tab.id);
+                          }}
+                        >
+                          {split && tab.id === state.activeId ? (
+                            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 bg-primary" />
+                          ) : null}
+                          <WebviewTab
+                            tab={tab}
+                            active={tab.id === state.activeId}
+                            visible={
+                              tab.id === state.activeId ||
+                              (!!split &&
+                                (tab.id === split.leftId ||
+                                  tab.id === split.rightId))
+                            }
+                            renderDevice={
+                              tab.id === state.activeId
+                                ? renderDevice
+                                : tab.device
+                            }
+                            onPatch={(patch) => patchTab(tab.id, patch)}
+                            onClose={() => closeTab(tab.id)}
+                            ref={(handle) => {
+                              if (handle) {
+                                handlesRef.current.set(tab.id, handle);
+                                if (tab.id === state.activeId) {
+                                  setActiveHandle((prev) => prev ?? handle);
+                                }
+                              } else {
+                                handlesRef.current.delete(tab.id);
+                              }
+                            }}
+                          />
+                        </div>
                       ),
                     )}
                   </Suspense>
+                  {split ? (
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label="调整分屏宽度"
+                      aria-valuenow={Math.round(split.ratio * 100)}
+                      className="group absolute inset-y-0 z-20 flex w-1.5 cursor-col-resize items-center justify-center bg-border-default hover:bg-primary/40"
+                      style={{ left: `calc(${split.ratio * 100}% - 3px)` }}
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        setSplitDragging(true);
+                      }}
+                      onDoubleClick={() => setSplit({ ...split, ratio: 0.5 })}
+                    >
+                      <div className="absolute top-2 flex flex-col gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          type="button"
+                          title="左右交换"
+                          aria-label="左右交换"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={() =>
+                            setSplit({
+                              leftId: split.rightId,
+                              rightId: split.leftId,
+                              ratio: 1 - split.ratio,
+                            })
+                          }
+                          className="grid size-6 place-items-center rounded-full border border-border-subtle bg-popover text-muted-foreground shadow-sm hover:text-foreground"
+                        >
+                          <ArrowLeftRightIcon className="size-3" />
+                        </button>
+                        <button
+                          type="button"
+                          title="退出分屏"
+                          aria-label="退出分屏"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={() => setSplit(null)}
+                          className="grid size-6 place-items-center rounded-full border border-border-subtle bg-popover text-muted-foreground shadow-sm hover:text-foreground"
+                        >
+                          <XIcon className="size-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {split && splitDragging ? (
+                    // Pages swallow pointer events; this layer keeps the drag.
+                    <div
+                      className="absolute inset-0 z-30 cursor-col-resize"
+                      onPointerMove={(event) => {
+                        const box = event.currentTarget.getBoundingClientRect();
+                        if (box.width <= 0) return;
+                        setSplit({
+                          ...split,
+                          ratio: (event.clientX - box.left) / box.width,
+                        });
+                      }}
+                      onPointerUp={() => setSplitDragging(false)}
+                      onPointerLeave={() => setSplitDragging(false)}
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
+            <ExtensionSidePanel />
             <AssistantSurface
               open={state.copilotOpen}
               onOpenChange={setCopilotOpen}
@@ -715,7 +947,11 @@ function BrowserShell() {
                   />
                 }
               >
-                <AssistantPanel webviewHandle={activeHandle} framed />
+                <AssistantPanel
+                  webviewHandle={activeHandle}
+                  getTabHandle={getTabHandle}
+                  framed
+                />
               </Suspense>
             </AssistantSurface>
           </div>
@@ -1026,7 +1262,7 @@ function BrowserSidePanel({
                     event.stopPropagation();
                     closeTab(tab.id);
                   }}
-                  className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground/70 opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100 data-[active=true]:opacity-100"
+                  className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100 data-[active=true]:opacity-100"
                   data-active={active}
                   title={t.browser.closeTab}
                 >

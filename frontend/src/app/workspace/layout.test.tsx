@@ -29,6 +29,10 @@ vi.mock("@/components/workspace/workspace-sidebar", () => ({
   WorkspaceSidebar: () => <aside>sidebar</aside>,
 }));
 
+vi.mock("@/components/workspace/attention-notifier-host", () => ({
+  AttentionNotifierHost: () => null,
+}));
+
 describe("<WorkspaceLayout /> stub response banner", () => {
   afterEach(() => {
     eventBus.clear();

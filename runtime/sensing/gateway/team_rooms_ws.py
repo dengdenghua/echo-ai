@@ -16,19 +16,17 @@ import contextlib
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from runtime.platform.process.sliding_window_limiter import SlidingWindowLimiter
+from runtime.safety.auth.websocket_auth import WebSocketAuthConfig, authenticate_websocket
 
 from .team_speaker_policy import (
-    _TURN_POLICIES,
     _authorized_to_speak_for,
     _is_moderator,
-    _next_speaker,
     _normalize_participant_role,
     _normalize_speak_mode,
     _normalize_speaker_policy,
@@ -40,10 +38,19 @@ from .team_speaker_policy import (
     apply_floor_yield,
 )
 
+_SOCKET_ERRORS: tuple[type[BaseException], ...] = (
+    ConnectionError,
+    TimeoutError,
+    OSError,
+    RuntimeError,
+)
+
 try:
+    from anyio import BrokenResourceError, ClosedResourceError, EndOfStream
     from fastapi import WebSocket, WebSocketDisconnect
 
     FASTAPI_AVAILABLE = True
+    _SOCKET_ERRORS += (BrokenResourceError, ClosedResourceError, EndOfStream, WebSocketDisconnect)
 except ImportError:  # pragma: no cover
     FASTAPI_AVAILABLE = False
     WebSocket = None  # type: ignore[assignment,misc]
@@ -65,23 +72,9 @@ _RING_SIZE = 20
 _TEAM_WS_MAX_MSG_BYTES = 64 * 1024
 _TEAM_WS_MSG_PER_SEC = 30
 
-# Single background worker for durable message writes — keeps synchronous
-# sqlite I/O off the WS event loop and serializes appends (no write contention).
-_PERSIST_POOL: ThreadPoolExecutor | None = None
-
 
 def _noop_refresh() -> None:
     return
-
-
-def _persist_pool() -> ThreadPoolExecutor:
-    global _PERSIST_POOL
-    if _PERSIST_POOL is None:
-        _PERSIST_POOL = ThreadPoolExecutor(
-            max_workers=1,
-            thread_name_prefix="room-persist",
-        )
-    return _PERSIST_POOL
 
 
 async def broadcast_authorized_team_sockets(
@@ -148,23 +141,25 @@ async def broadcast_authorized_team_sockets(
             raise RuntimeError("WebSocket owner loop is closed")
 
     for _participant_id, socket, owner_loop in revoked:
-        with contextlib.suppress(ConnectionError, TimeoutError, OSError, RuntimeError):
+        with contextlib.suppress(*_SOCKET_ERRORS):
             await _dispatch(socket, owner_loop, close=True)
 
-    dead: list[str] = []
+    dead: list[tuple[str, WebSocket]] = []
     for participant_id, socket, owner_loop in authorized:
         if (exclude and participant_id == exclude) or (include and participant_id != include):
             continue
         try:
             await _dispatch(socket, owner_loop, close=False)
-        except (ConnectionError, TimeoutError, OSError, RuntimeError):
-            dead.append(participant_id)
+        except _SOCKET_ERRORS:
+            dead.append((participant_id, socket))
     if dead:
         with lock:
             current_room = live_sockets.get(team_id)
             current_loops = socket_loops.get(team_id)
             if current_room:
-                for participant_id in dead:
+                for participant_id, failed_socket in dead:
+                    if current_room.get(participant_id) is not failed_socket:
+                        continue
                     current_room.pop(participant_id, None)
                     if current_loops:
                         current_loops.pop(participant_id, None)
@@ -179,7 +174,6 @@ class TeamRoomWsContext:
     teams: dict[str, TeamRoomWire]
     lock: Lock
     live_sockets: dict[str, dict[str, WebSocket]]
-    auth: Callable[[Any], str | None]
     save: Callable[[], None]
     broadcast: Callable[..., Awaitable[None]]
     broadcast_presence: Callable[[str], Awaitable[None]]
@@ -187,11 +181,16 @@ class TeamRoomWsContext:
     active_participant: Callable[[str, str], TeamParticipantWire | None]
     refresh: Callable[[], None] = _noop_refresh
     require_auth: bool = False
+    # Handshake auth for the shared WebSocket gate; ``None`` uses the host
+    # config published on ``app.state`` (fail closed when host auth is on).
+    ws_auth: WebSocketAuthConfig | None = None
     # A TestClient connection, embedded server, or multi-loop host may own
     # different sockets from different event loops. Broadcasts must schedule
     # each send on the loop that accepted that socket; directly awaiting a
     # foreign-loop socket intermittently deadlocks both loops.
     socket_loops: dict[str, dict[str, asyncio.AbstractEventLoop]] = field(default_factory=dict)
+    presence_seen: dict[tuple[str, str], str] = field(default_factory=dict)
+    live_presence: Any = None
     # Twin speaking (optional injection — keeps the gateway a leaf): when the
     # floor lands on a participant who bound a digital-twin agent
     # (``speak_mode == "twin"``), the handler asks this callback for a line
@@ -215,6 +214,7 @@ class TeamRoomWsContext:
     message_store: Any = None
     message_projection: Callable[[str, dict[str, Any]], int | None] | None = None
     receipt_projection: Callable[[str, dict[str, Any]], Any] | None = None
+    transcript: Any = None
 
 
 def _client_message_identity(
@@ -254,10 +254,9 @@ def _remember_line(
 ) -> dict[str, Any]:
     """Durably append a line before making it visible to the room.
 
-    CollaborationStore is the canonical path when the room is linked. The
-    legacy store remains the durable fallback and asynchronous shadow. A
-    message is appended to the in-memory responder transcript only after at
-    least one configured durable path has accepted it.
+    Production uses the canonical transcript. Explicit standalone hosts may
+    supply a legacy authority. A line reaches the responder buffer only after
+    the selected durable source commits it.
     """
 
     message_id = message_id or f"room-msg-{uuid4().hex}"
@@ -268,34 +267,44 @@ def _remember_line(
         message_metadata.setdefault("source_message_id", f"ws:{message_id}")
 
     sequence = 0
-    projection_succeeded = False
     canonical_persisted = False
     projection = ctx.message_projection
-    if projection is not None:
-        try:
-            projected_seq = projection(
-                team_id,
-                {
-                    "participant_id": participant_id,
-                    "display_name": display_name,
-                    "text": text,
-                    "metadata": message_metadata,
-                },
-            )
-            projection_succeeded = True
-            if projected_seq is not None:
-                sequence = int(projected_seq)
-                canonical_persisted = sequence > 0
-        except Exception:  # noqa: BLE001 — the legacy store is the fallback
-            canonical_persisted = False
+    persisted: dict[str, Any] = {}
+    if ctx.transcript is not None:
+        persisted = ctx.transcript.append(
+            team_id,
+            dict(
+                participant_id=participant_id,
+                display_name=display_name,
+                text=text,
+                metadata=message_metadata,
+            ),
+        )
+        sequence = int(persisted["seq"])
+        message_id = str(persisted["message_id"])
+        canonical_persisted = True
+    elif projection is not None:
+        projected_seq = projection(
+            team_id,
+            {
+                "participant_id": participant_id,
+                "display_name": display_name,
+                "text": text,
+                "metadata": message_metadata,
+            },
+        )
+        if projected_seq is not None:
+            sequence = int(projected_seq)
+            if sequence < 1:
+                raise RuntimeError(
+                    "canonical message persistence did not produce a durable sequence"
+                )
+            canonical_persisted = True
 
     store = ctx.message_store
-    if store is not None:
-        if canonical_persisted:
-            # Keep the legacy log as a compatibility shadow without delaying
-            # the canonical acknowledgement.
-            _persist_pool().submit(
-                store.append,
+    if store is not None and not canonical_persisted:
+        sequence = int(
+            store.append(
                 team_id,
                 text=text,
                 participant_id=participant_id,
@@ -303,18 +312,8 @@ def _remember_line(
                 message_id=message_id,
                 client_message_id=client_message_id,
             )
-        else:
-            sequence = int(
-                store.append(
-                    team_id,
-                    text=text,
-                    participant_id=participant_id,
-                    display_name=display_name,
-                    message_id=message_id,
-                    client_message_id=client_message_id,
-                )
-            )
-    elif projection is not None and not projection_succeeded:
+        )
+    elif not canonical_persisted:
         raise RuntimeError("room message persistence did not produce a durable sequence")
 
     with ctx.lock:
@@ -335,7 +334,25 @@ def _remember_line(
         "message_id": message_id,
         "client_message_id": client_message_id,
         "seq": sequence,
+        **({"cursor_epoch": persisted["cursor_epoch"]} if "cursor_epoch" in persisted else {}),
+        **({"session_seq": persisted["session_seq"]} if "session_seq" in persisted else {}),
+        **({"created_at": persisted["created_at"]} if "created_at" in persisted else {}),
     }
+
+
+def _record_room_receipt(
+    ctx: TeamRoomWsContext, team_id: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    if ctx.transcript is not None:
+        return ctx.transcript.record_receipt(team_id, **payload)
+    if ctx.receipt_projection is not None:
+        receipt = ctx.receipt_projection(team_id, payload)
+        if not isinstance(receipt, dict):
+            raise RuntimeError("canonical receipt persistence did not return a committed receipt")
+        return receipt
+    if ctx.message_store is None:
+        raise RuntimeError("Room receipt persistence is unavailable")
+    return ctx.message_store.record_receipt(team_id, **payload)
 
 
 async def _twin_speak(
@@ -396,16 +413,14 @@ async def _twin_speak(
             "type": "message",
             "team_id": team_id,
             "thread_id": None,
-            "message_id": persisted["message_id"],
-            "client_message_id": persisted["client_message_id"],
-            "seq": persisted["seq"],
+            **persisted,
             "delivery_status": "sent",
             "participant_id": participant.id,
             "display_name": participant.display_name,
             "spoken_by": twin_agent_id,
             "via": "twin",
             "text": text,
-            "created_at": _now(),
+            "created_at": persisted.get("created_at") or _now(),
         },
     )
     return True
@@ -444,6 +459,56 @@ async def _drive_round_robin_twins(ctx: TeamRoomWsContext, team_id: str) -> None
         await ctx.broadcast_floor(team_id, advanced)
 
 
+async def _dispatch_room_receipt(
+    ctx: TeamRoomWsContext, team_id: str, participant_id: str, msg: dict[str, Any]
+) -> None:
+    """Persist the selected authority's receipt before broadcasting its result."""
+    msg_type = msg.get("type")
+    message_id = str(msg.get("message_id") or "").strip()
+    if not message_id:
+        return
+    status = "read" if msg_type == "message:read" else "delivered"
+    raw_seq = msg.get("seq")
+    try:
+        seq = int(raw_seq) if raw_seq is not None else None
+    except (TypeError, ValueError):
+        seq = None
+    try:
+        receipt = await asyncio.to_thread(
+            _record_room_receipt,
+            ctx,
+            team_id,
+            dict(
+                message_id=message_id,
+                participant_id=participant_id,
+                status=status,
+                seq=seq,
+            ),
+        )
+    except (TypeError, ValueError):
+        return
+    except Exception:  # noqa: BLE001 - do not broadcast an uncommitted receipt
+        await ctx.broadcast(
+            team_id,
+            {
+                "type": "message:receipt:error",
+                "message_id": message_id,
+                "code": "receipt_persistence_failed",
+                "retryable": True,
+            },
+            include=participant_id,
+        )
+        return
+    await ctx.broadcast(
+        team_id,
+        {
+            "type": "message:receipt",
+            "team_id": team_id,
+            **receipt,
+        },
+    )
+
+
 async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> None:
     """Realtime Team Room presence and lightweight event broadcast."""
     # Bind the shared state / helpers to the names the handler body uses, so
@@ -452,7 +517,6 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
     lock = ctx.lock
     live_sockets = ctx.live_sockets
     socket_loops = ctx.socket_loops
-    _auth = ctx.auth
     _save = ctx.save
     _broadcast = ctx.broadcast
     _broadcast_presence = ctx.broadcast_presence
@@ -476,18 +540,13 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
         if not has_peer:
             await _broadcast(team_id, payload, include=participant_id)
 
-    actor: str | None = None
-    auth_error: str | None = None
-    try:
-        actor = _auth(ws)
-    except Exception as exc:
-        auth_error = str(getattr(exc, "detail", None) or exc or "unauthorized")
-
-    await ws.accept()
-    if auth_error is not None:
-        await ws.send_json({"type": "error", "message": auth_error})
-        await ws.close(code=4401)
+    # Shared gate: Origin, then the HTTP session/token check. A refused
+    # client is closed with 1008 before accept() and never sees room state.
+    auth = await authenticate_websocket(ws, config=ctx.ws_auth)
+    if auth is None:
         return
+    actor = auth.actor_id
+    await ws.accept(subprotocol=auth.subprotocol)
 
     ctx.refresh()
     participant_id = ws.query_params.get("participant_id") or f"guest-{uuid4().hex[:10]}"
@@ -572,6 +631,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                 teams[team_id] = team
                 live_sockets.setdefault(team_id, {})[participant_id] = ws
                 socket_loops.setdefault(team_id, {})[participant_id] = owner_loop
+                ctx.presence_seen[(team_id, participant_id)] = now
                 display_name = participant.display_name
                 _save()
                 ready_payload = {
@@ -586,6 +646,23 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
         await ws.close(code=4403 if reject_reason else 4404)
         return
 
+    if ctx.transcript is not None:
+        try:
+            ready_payload["cursor_epoch"] = await asyncio.to_thread(ctx.transcript.epoch, team_id)
+        except Exception:  # noqa: BLE001 - no ready acknowledgement for an unavailable transcript
+            from ._team_room_departure import disconnect_room
+
+            disconnect_room(ctx, ws, team_id, participant_id)
+            await ws.send_json(
+                {
+                    "type": "error",
+                    "code": "room_transcript_unavailable",
+                    "message": "Room messages are temporarily unavailable",
+                    "retryable": True,
+                }
+            )
+            await ws.close(code=1013)
+            return
     await _broadcast(team_id, ready_payload, include=participant_id)
     await _broadcast_presence(team_id)
 
@@ -627,20 +704,14 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                             p.model_copy(
                                 update={
                                     "last_seen_at": seen,
-                                    "status": "active",
                                 }
                             )
                             if p.id == participant_id
                             else p
                             for p in current.participants
                         ]
-                        teams[team_id] = current.model_copy(
-                            update={
-                                "participants": participants,
-                                "updated_at": seen,
-                            }
-                        )
-                        _save()
+                        ctx.presence_seen[(team_id, participant_id)] = seen
+                        teams[team_id] = current.model_copy(update={"participants": participants})
                 await _broadcast(
                     team_id,
                     {"type": "pong", "server_time": _now()},
@@ -648,41 +719,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                 )
                 await _broadcast_presence(team_id)
             elif msg_type in {"message:delivered", "message:read"}:
-                message_id = str(msg.get("message_id") or "").strip()
-                if not message_id:
-                    continue
-                receipt_store = ctx.message_store
-                record_receipt = getattr(receipt_store, "record_receipt", None)
-                if not callable(record_receipt):
-                    continue
-                status = "read" if msg_type == "message:read" else "delivered"
-                raw_seq = msg.get("seq")
-                try:
-                    seq = int(raw_seq) if raw_seq is not None else None
-                except (TypeError, ValueError):
-                    seq = None
-                try:
-                    receipt = await asyncio.to_thread(
-                        record_receipt,
-                        team_id,
-                        message_id=message_id,
-                        participant_id=participant_id,
-                        status=status,
-                        seq=seq,
-                    )
-                except (TypeError, ValueError):
-                    continue
-                if ctx.receipt_projection is not None:
-                    with contextlib.suppress(Exception):
-                        ctx.receipt_projection(team_id, receipt)
-                await _broadcast(
-                    team_id,
-                    {
-                        "type": "message:receipt",
-                        "team_id": team_id,
-                        **receipt,
-                    },
-                )
+                await _dispatch_room_receipt(ctx, team_id, participant_id, msg)
             elif msg_type == "cursor":
                 msg_thread_id = str(msg.get("thread_id") or thread_id or "").strip() or None
                 await _broadcast(
@@ -803,9 +840,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                     "type": "message",
                     "team_id": team_id,
                     "thread_id": msg_thread_id,
-                    "message_id": persisted["message_id"],
-                    "client_message_id": persisted["client_message_id"],
-                    "seq": persisted["seq"],
+                    **persisted,
                     "delivery_status": "sent",
                     "participant_id": speaker.id,
                     "display_name": speaker.display_name,
@@ -817,7 +852,7 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
                         else {}
                     ),
                     "text": clean_text,
-                    "created_at": _now(),
+                    "created_at": persisted.get("created_at") or _now(),
                 }
                 # The server echo is the sender's delivery acknowledgement;
                 # peers receive the exact same canonical message envelope.
@@ -925,50 +960,9 @@ async def team_room_ws(ctx: TeamRoomWsContext, ws: WebSocket, team_id: str) -> N
     except (ConnectionError, TimeoutError, OSError):  # noqa: BLE001 — WS send failed; cleanup proceeds
         pass
     finally:
-        floor_broadcast: TeamRoomWire | None = None
-        with lock:
-            room = live_sockets.get(team_id)
-            if room and room.get(participant_id) is ws:
-                room.pop(participant_id, None)
-                socket_loops.get(team_id, {}).pop(participant_id, None)
-            current = teams.get(team_id)
-            if current is not None:
-                left_at = _now()
-                participants = [
-                    p.model_copy(
-                        update={
-                            "last_seen_at": left_at,
-                            "status": "offline",
-                        }
-                    )
-                    if p.id == participant_id and p.status != "removed"
-                    else p
-                    for p in current.participants
-                ]
-                updates: dict[str, Any] = {
-                    "participants": participants,
-                    "updated_at": left_at,
-                }
-                # Keep turn-based rooms live if the floor holder drops:
-                # round_robin advances past them, roll_call/moderated
-                # re-open the floor. Also drop them from the hand queue.
-                policy_now = _normalize_speaker_policy(current.speaker_policy)
-                if policy_now in _TURN_POLICIES and current.current_speaker_id == participant_id:
-                    rebuilt = current.model_copy(update={"participants": participants})
-                    updates["current_speaker_id"] = (
-                        _next_speaker(rebuilt, participant_id)
-                        if policy_now == "round_robin"
-                        else None
-                    )
-                if participant_id in (current.floor_requests or []):
-                    updates["floor_requests"] = [
-                        q for q in current.floor_requests if q != participant_id
-                    ]
-                new_team = current.model_copy(update=updates)
-                teams[team_id] = new_team
-                _save()
-                if "current_speaker_id" in updates or "floor_requests" in updates:
-                    floor_broadcast = new_team
+        from ._team_room_departure import disconnect_room
+
+        floor_broadcast = disconnect_room(ctx, ws, team_id, participant_id)
         await _broadcast_presence(team_id)
         if floor_broadcast is not None:
             await _broadcast_floor(team_id, floor_broadcast)

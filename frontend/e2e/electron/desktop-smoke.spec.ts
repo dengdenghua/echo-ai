@@ -17,6 +17,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { freeLoopbackPort } from "./fixtures/free-port";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ELECTRON_DIR = path.resolve(THIS_DIR, "..", "..", "electron");
@@ -89,9 +90,7 @@ test("desktop shell boots: window, preload bridge, workbench root", async () => 
     expect(webPreferences.webSecurity).not.toBe(false);
 
     // The desktop organizer IPC round-trips (listItems → {ok, items}).
-    const listing = await win.evaluate(() =>
-      window.echo?.desktop?.listItems(),
-    );
+    const listing = await win.evaluate(() => window.echo?.desktop?.listItems());
     expect(listing.ok).toBe(true);
     expect(Array.isArray(listing.items)).toBe(true);
 
@@ -176,7 +175,9 @@ test("desktop shell boots: window, preload bridge, workbench root", async () => 
 });
 
 test("desktop backend spawns and the renderer reaches it", async () => {
-  const backendPort = 18000;
+  // Booting the Python backend alone can take the whole default minute.
+  test.setTimeout(150_000);
+  const backendPort = await freeLoopbackPort();
   const backendUrl = `http://127.0.0.1:${backendPort}`;
   const userDataDir = await mkdtemp(
     path.join(tmpdir(), "echo-electron-backend-"),
@@ -207,29 +208,32 @@ test("desktop backend spawns and the renderer reaches it", async () => {
     const baseURL = await win.evaluate(() => window.echo?.backendBaseURL);
     expect(baseURL).toBe(backendUrl);
 
-    // Poll /api/health until the Python backend finishes booting.
-    let healthOk = false;
-    for (let i = 0; i < 60; i++) {
-      try {
-        const res = await fetch(`${backendUrl}/api/health`);
-        if (res.ok) {
-          healthOk = true;
-          break;
-        }
-      } catch {
-        // backend still booting — retry
-      }
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    expect(healthOk).toBe(true);
+    // Poll /api/health until the Python backend finishes booting: about 20 s
+    // on an idle machine, well past 30 s while other backends are running.
+    await expect
+      .poll(
+        async () => {
+          try {
+            return (await fetch(`${backendUrl}/api/health`)).ok;
+          } catch {
+            return false; // backend still booting — retry
+          }
+        },
+        { timeout: 90_000, intervals: [500] },
+      )
+      .toBe(true);
 
     // This is the production contract that Node-side polling cannot prove:
     // Chromium fetches native /api and /api/plugins paths from the fixed app
     // origin, and the main process forwards them without disabling CORS.
+    // The plugin page must exist in a fresh profile: paper-trading is a
+    // removable workbench package (``delivery: remote``) that is not
+    // installed here, while the bundled mx2025_viewer always serves its
+    // public landing page on the authenticated desktop host.
     const rendererContract = await win.evaluate(async () => {
       const health = await fetch("/api/health");
       const auth = await fetch("/api/auth/status");
-      const plugin = await fetch("/api/plugins/paper-trading/page");
+      const plugin = await fetch("/api/plugins/mx2025_viewer/page");
       return {
         origin: window.location.origin,
         healthStatus: health.status,
@@ -250,26 +254,51 @@ test("desktop backend spawns and the renderer reaches it", async () => {
     expect(rendererContract.pluginContentType).toContain("text/html");
     expect(rendererContract.pluginBody).toContain("<");
 
+    // The packaged desktop signs its owner in through the shell: the
+    // workbench does it on startup without any login form, a passwordless
+    // renderer login is refused, and the main process's per-launch owner
+    // token yields an admin session. No ECHO_ENV=development shortcut here.
+    await win.waitForFunction(
+      () =>
+        !!window.sessionStorage.getItem("echo_auth_token") &&
+        !window.location.pathname.startsWith("/login"),
+      undefined,
+      { timeout: 60_000 },
+    );
+
     // Authenticate through the custom origin, then establish the raw
     // loopback WebSocket transport used by realtime/terminal/tentacle hooks.
     // This catches secure-context mixed-content regressions that HTTP fetch
     // and Node-side backend polling cannot see.
     const websocketContract = await win.evaluate(async () => {
-      const login = await fetch("/api/auth/local/login", {
+      const providers = (await (await fetch("/api/auth/providers")).json()) as {
+        providers: { id: string }[];
+      };
+      const passwordless = await fetch("/api/auth/local/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: `electron-e2e-${Date.now()}` }),
       });
-      const body = (await login.json()) as { access_token?: string };
-      if (!login.ok || !body.access_token) {
-        return { loginStatus: login.status, websocket: "no-token" };
-      }
+      const owner = await window.echo!.auth!.desktopOwnerLogin();
+      const result = {
+        providerIds: providers.providers.map((provider) => provider.id),
+        passwordlessStatus: passwordless.status,
+        ownerLogin: owner.ok ? "ok" : owner.reason,
+        isAdmin: false,
+        websocket: "no-token",
+      };
+      if (!owner.ok) return result;
+      const whoami = await fetch("/api/auth/local/whoami", {
+        headers: { Authorization: `Bearer ${owner.access_token}` },
+      });
+      const roles = ((await whoami.json()) as { roles?: string[] }).roles;
+      result.isAdmin = roles?.includes("admin") ?? false;
       const backend = window.echo?.backendBaseURL ?? "";
       const websocketBase = backend.replace(/^http/, "ws");
-      const websocket = await new Promise<string>((resolve) => {
+      result.websocket = await new Promise<string>((resolve) => {
         const socket = new WebSocket(`${websocketBase}/api/realtime`, [
           "bearer",
-          body.access_token!,
+          owner.access_token,
         ]);
         const timer = window.setTimeout(() => {
           socket.close();
@@ -285,9 +314,15 @@ test("desktop backend spawns and the renderer reaches it", async () => {
           resolve("error");
         };
       });
-      return { loginStatus: login.status, websocket };
+      return result;
     });
-    expect(websocketContract).toEqual({ loginStatus: 200, websocket: "open" });
+    expect(websocketContract).toEqual({
+      providerIds: ["oct"],
+      passwordlessStatus: 401,
+      ownerLogin: "ok",
+      isAdmin: true,
+      websocket: "open",
+    });
   } finally {
     await app.close();
     await rm(userDataDir, { recursive: true, force: true });
@@ -357,16 +392,13 @@ test("browser profile downloads can pause, resume, and cancel", async () => {
             () => reject(new Error("download event timeout")),
             10_000,
           );
-          const off = window.echo!.on(
-            "browser:download-event",
-            (...args) => {
-              const payload = args[0] as { id?: string; state?: string };
-              if (!payload?.id || payload.state !== "progressing") return;
-              window.clearTimeout(timeout);
-              off();
-              resolve(payload.id);
-            },
-          );
+          const off = window.echo!.on("browser:download-event", (...args) => {
+            const payload = args[0] as { id?: string; state?: string };
+            if (!payload?.id || payload.state !== "progressing") return;
+            window.clearTimeout(timeout);
+            off();
+            resolve(payload.id);
+          });
           const webview = document.createElement("webview");
           webview.setAttribute("partition", "persist:echo-browser");
           webview.setAttribute("src", pageUrl);

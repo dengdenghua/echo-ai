@@ -87,9 +87,44 @@ def effect_key(
     step_id: int,
     sucker_id: Any,
     args: dict[str, Any],
+    *,
+    attempt: str | None = None,
 ) -> str:
     material = f"{task_id}\0{step_id}\0{sucker_id}\0{args_fingerprint(args)}"
+    if attempt is not None:
+        material += f"\0attempt:{attempt}"
     return "effect:v1:" + hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def recovered_effect_step(
+    resolution: EffectResolution,
+    *,
+    step_id: int,
+    node_id: str,
+    call: ToolCall,
+    journal: Any,
+    task_id: Any,
+    arm_id: Any,
+    actor: str | None,
+    span: Any,
+) -> Step:
+    """Record a cached or uncertain effect without ever entering its handler."""
+    if resolution.kind == "replay":
+        assert resolution.step is not None
+        step = resolution.step
+        span.set_attribute("echo.effect.replayed", True)
+    else:
+        step = indeterminate_step(
+            step_id=step_id,
+            node_id=node_id,
+            call=call,
+            effect_key=resolution.key,
+            fencing_token=resolution.fencing_token,
+            reason=resolution.reason,
+        )
+        span.set_attribute("echo.effect.indeterminate", True)
+    journal.write_step(task_id, arm_id, step, actor=actor)
+    return step
 
 
 def is_side_effecting(affinity: list[str] | None) -> bool:
@@ -296,9 +331,10 @@ class ToolEffectReceiptIndex:
         sucker_id: Any,
         args: dict[str, Any],
         side_effecting: bool,
+        attempt: str | None = None,
     ) -> EffectResolution:
         fingerprint = args_fingerprint(args)
-        key = effect_key(task_id, step_id, sucker_id, args)
+        key = effect_key(task_id, step_id, sucker_id, args, attempt=attempt)
         deadline = time.monotonic() + self._wait_timeout_s
         with self._condition:
             self._refresh_from_journal()

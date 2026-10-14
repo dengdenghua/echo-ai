@@ -4,8 +4,8 @@ import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import { visit } from "unist-util-visit";
-import type { BuildVisitor } from "unist-util-visit";
 import type { StreamdownProps } from "streamdown";
+import { parseFileReference } from "@/core/navigation/file-reference";
 
 const CJK_TEXT_RE =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
@@ -83,7 +83,7 @@ export function rehypeSplitWordsIntoSpans({
   tailWindow = DEFAULT_TAIL_WINDOW,
 }: RehypeSplitWordsOptions = {}) {
   return (tree: Root) => {
-    visit(tree, "element", ((node: Element) => {
+    visit(tree, "element", (node: Element) => {
       if (
         ["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "strong"].includes(
           node.tagName,
@@ -134,7 +134,7 @@ export function rehypeSplitWordsIntoSpans({
         });
         node.children = newChildren;
       }
-    }) as BuildVisitor<Root, "element">);
+    });
   };
 }
 
@@ -146,23 +146,22 @@ export function rehypeSplitWordsIntoSpans({
  * touches inline <code> nodes (not code fences), and only when the text
  * has a filename-ish extension followed by `:lineRange`.
  */
-const FILE_REF_RE = /^([\w./\\-]+\.[a-zA-Z0-9]+):(\d+(?:-\d+)?)$/;
 
 export function rehypeFileReferences() {
   return (tree: Root) => {
-    visit(tree, "element", ((node: Element, index, parent) => {
+    visit(tree, "element", (node: Element, index, parent) => {
       if (
         node.tagName !== "code" ||
         !parent ||
-        (parent as Element).tagName === "pre"
+        ["pre", "a"].includes((parent as Element).tagName)
       ) {
         return;
       }
       const first = node.children[0];
       if (!first || first.type !== "text") return;
-      const m = first.value.match(FILE_REF_RE);
-      if (!m) return;
-      const [, path, lines] = m;
+      const reference = parseFileReference(first.value);
+      if (!reference) return;
+      const { path, lines } = reference;
       const replacement: Element = {
         type: "element",
         tagName: "file-ref",
@@ -172,7 +171,7 @@ export function rehypeFileReferences() {
       if (typeof index === "number") {
         (parent as Element).children[index] = replacement;
       }
-    }) as BuildVisitor<Root, "element">);
+    });
   };
 }
 
@@ -190,18 +189,17 @@ const CHAT_REHYPE_BASE: StreamdownProps["rehypePlugins"] = [
   rehypeRaw,
   rehypeSanitize,
   [rehypeKatex, { output: "html" }],
-] as StreamdownProps["rehypePlugins"];
+];
 
 export function useChatRehypePlugins({
   splitWords = true,
 }: { splitWords?: boolean } = {}): StreamdownProps["rehypePlugins"] {
   return useMemo<StreamdownProps["rehypePlugins"]>(
-    () =>
-      [
-        ...(CHAT_REHYPE_BASE ?? []),
-        rehypeFileReferences,
-        ...(splitWords ? [rehypeSplitWordsIntoSpans] : []),
-      ] as StreamdownProps["rehypePlugins"],
+    () => [
+      ...(CHAT_REHYPE_BASE ?? []),
+      rehypeFileReferences,
+      ...(splitWords ? [rehypeSplitWordsIntoSpans] : []),
+    ],
     [splitWords],
   );
 }

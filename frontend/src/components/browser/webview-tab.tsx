@@ -29,6 +29,7 @@ import {
   HomeIcon,
   ImageIcon,
   LayoutGridIcon,
+  Loader2Icon,
   MessageCircleIcon,
   PaletteIcon,
   PanelLeftIcon,
@@ -41,10 +42,12 @@ import {
 } from "lucide-react";
 
 import { swallow } from "@/core/utils/log";
+import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { copyTextToClipboard } from "@/core/clipboard";
 import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
+import { EchoAppTile } from "@/components/ui/echo-app-tile";
 import { cn } from "@/lib/utils";
 import { WORKBENCH_BUILTIN_APPS } from "@/core/workbench/apps";
 import { RemoteWorkbenchSurface } from "@/core/workbench/remote-surface";
@@ -74,15 +77,32 @@ const BrowserHome = lazy(() =>
   })),
 );
 
+// <webview> flag attributes. React treats `webview` (no hyphen) as a plain
+// element and drops boolean `true` props, so they are passed as strings;
+// Electron only checks that the attribute is present.
+const WEBVIEW_FLAG_ATTRIBUTES = {
+  // Chromium's built-in PDF viewer inside the tab.
+  plugins: "true",
+  // Without it target=_blank links and window.open are dropped in the page;
+  // the main process denies every popup window and opens the URL as a
+  // browser tab instead.
+  allowpopups: "true",
+} as unknown as { plugins: boolean; allowpopups: boolean };
+
 interface Props {
   tab: BrowserTab;
+  /** The focused tab: address bar, automation bridge and shortcuts. */
   active: boolean;
+  /** Shown on screen; defaults to `active` (split view shows two). */
+  visible?: boolean;
   onPatch: (patch: Partial<BrowserTab>) => void;
   onClose?: () => void;
   renderDevice?: BrowserTab["device"];
 }
 
-const BROWSER_CORE_COMPONENTS: Record<string, ComponentType> = {};
+const BROWSER_CORE_COMPONENTS: Record<string, ComponentType> = {
+  mail: lazy(() => import("@/app/workspace/mail/page")),
+};
 
 /* Implementation note. */
 type CrashInfo = NonNullable<BrowserTab["crash"]>;
@@ -96,9 +116,22 @@ type WebviewElement = HTMLElement & {
   canGoBack: () => boolean;
   canGoForward: () => boolean;
   getTitle: () => string;
+  getURL: () => string;
   isLoading: () => boolean;
   loadURL: (url: string) => Promise<void>;
+  stop: () => void;
+  findInPage: (
+    text: string,
+    options?: { forward?: boolean; findNext?: boolean },
+  ) => number;
+  stopFindInPage: (action: "clearSelection" | "keepSelection") => void;
 };
+
+/** Result of a find-in-page step: how many matches, which one is active. */
+export interface FindInPageResult {
+  matches: number;
+  active: number;
+}
 
 export interface WebviewTabHandle {
   reload: () => void;
@@ -109,6 +142,16 @@ export interface WebviewTabHandle {
   canGoForward: () => boolean;
   executeJS: (code: string) => Promise<unknown>;
   getWebContentsId: () => number | null;
+  /** Stop loading (desktop app). */
+  stop?: () => void;
+  /** Find text; forward=false goes back. Resolves with the match count. */
+  findInPage?: (
+    text: string,
+    options: { forward: boolean; findNext: boolean },
+  ) => Promise<FindInPageResult | null>;
+  stopFindInPage?: () => void;
+  /** System print dialog (desktop app). */
+  print?: () => Promise<void>;
   extractText: () => Promise<{
     url: string;
     title: string;
@@ -152,7 +195,6 @@ interface BrowserDesktopApp {
   name: string;
   url: string;
   icon: LucideIcon;
-  color: string;
   description: string;
 }
 
@@ -160,7 +202,6 @@ interface BrowserDesktopWidget {
   title: string;
   subtitle: string;
   icon: LucideIcon;
-  color: string;
 }
 
 type DesktopPanelId =
@@ -177,49 +218,42 @@ const AI_DESKTOP_APPS: BrowserDesktopApp[] = [
     name: "Gemini",
     url: "https://gemini.google.com/app",
     icon: SparklesIcon,
-    color: "from-blue-500 to-cyan-400",
     description: "comprehensiveSearch",
   },
   {
     name: "NotebookLM",
     url: "https://notebooklm.google.com/",
     icon: BookOpenIcon,
-    color: "from-warning to-orange-400",
     description: "researchDocs",
   },
   {
     name: "Doubao",
     url: "https://www.doubao.com/chat/",
     icon: MessageCircleIcon,
-    color: "from-success to-teal-400",
     description: "chineseResearch",
   },
   {
     name: "Perplexity",
     url: "https://www.perplexity.ai/",
     icon: SearchIcon,
-    color: "from-sky-500 to-indigo-500",
     description: "webSearch",
   },
   {
     name: "ChatGPT",
     url: "https://chatgpt.com/",
     icon: BotIcon,
-    color: "from-zinc-700 to-zinc-500",
     description: "generalChat",
   },
   {
     name: "Claude",
     url: "https://claude.ai/",
     icon: BrainCircuitIcon,
-    color: "from-stone-600 to-destructive",
     description: "longTextAnalysis",
   },
   {
     name: "Kimi",
     url: "https://www.kimi.com/",
     icon: GraduationCapIcon,
-    color: "from-violet-500 to-fuchsia-500",
     description: "longContext",
   },
 ];
@@ -229,13 +263,11 @@ const DESKTOP_WIDGETS: BrowserDesktopWidget[] = [
     title: "research",
     subtitle: "researchSubtitle",
     icon: FileTextIcon,
-    color: "from-muted-foreground to-muted-foreground/70",
   },
   {
     title: "todayTasks",
     subtitle: "todayTasksSubtitle",
     icon: LayoutGridIcon,
-    color: "from-indigo-500 to-blue-400",
   },
 ];
 
@@ -348,16 +380,19 @@ function BackendBrowserTab({
     `${getBackendBaseURL()}/api/browser/relay/bookmarklet.js?app=`,
   )}+encodeURIComponent(location.origin)+"&t="+Date.now();document.documentElement.appendChild(s);})()`;
 
-  const refreshRelayStatus = async () => {
-    const status = await browserJson<BrowserRelayStatus>(
+  const relayRequest = useRef<Promise<BrowserRelayStatus> | null>(null);
+  const readRelayStatus = () =>
+    (relayRequest.current ??= browserJson<BrowserRelayStatus>(
       "/api/browser/relay/status",
-      {
-        headers: authHeaders(),
-      },
-    );
-    setRelayStatus(status);
-    return status;
-  };
+      { headers: authHeaders() },
+    ).finally(() => {
+      relayRequest.current = null;
+    }));
+  const refreshRelayStatus = () =>
+    readRelayStatus().then((status) => {
+      setRelayStatus(status);
+      return status;
+    });
 
   const openExtensionFolder = async () => {
     try {
@@ -518,6 +553,84 @@ function BackendBrowserTab({
     return data;
   };
 
+  // The screenshot is the page here, so the user drives it through the
+  // backend browser: clicks land at the same spot, keys go to the focused
+  // field. (With the relay, the page is the user's own Chrome tab instead.)
+  // Keys go through a hidden text field so IME composition (Chinese input),
+  // paste and plain typing all arrive as text; Enter, arrows and the like
+  // are sent as key presses.
+  const sinkRef = useRef<HTMLTextAreaElement | null>(null);
+  const typedRef = useRef("");
+  const typeTimerRef = useRef<number | null>(null);
+  const interactive = Boolean(screenshot) && !relayStatus?.connected;
+  const forwardAction = async (
+    action: string,
+    params: Record<string, unknown>,
+  ) => {
+    try {
+      await runAction(action, params);
+      // Slow navigations finish after the action returns: look again.
+      window.setTimeout(() => {
+        void runAction("page_info").catch(swallow);
+      }, 1500);
+    } catch (e) {
+      swallow(e);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const pagePoint = (event: React.MouseEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    const rect = image.getBoundingClientRect();
+    if (!rect.width || !image.naturalWidth) return null;
+    // Full-page PNG at device scale 1: image pixels are page CSS pixels.
+    const scale = image.naturalWidth / rect.width;
+    return {
+      x: Math.round((event.clientX - rect.left) * scale),
+      y: Math.round((event.clientY - rect.top) * scale),
+    };
+  };
+  const flushTyped = () => {
+    if (typeTimerRef.current) window.clearTimeout(typeTimerRef.current);
+    typeTimerRef.current = null;
+    const text = typedRef.current;
+    typedRef.current = "";
+    if (text) void forwardAction("keyboard_type", { text });
+  };
+  const queueTyped = (text: string) => {
+    if (!text) return;
+    typedRef.current += text;
+    if (typeTimerRef.current) window.clearTimeout(typeTimerRef.current);
+    typeTimerRef.current = window.setTimeout(flushTyped, 300);
+  };
+  const takeSinkText = (field: HTMLTextAreaElement) => {
+    const text = field.value;
+    field.value = "";
+    queueTyped(text);
+  };
+  const PASSTHROUGH_KEYS = new Set([
+    "Enter",
+    "Backspace",
+    "Delete",
+    "Tab",
+    "Escape",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+  ]);
+  const onSinkKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing || event.key === "Process") return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!PASSTHROUGH_KEYS.has(event.key)) return;
+    event.preventDefault();
+    flushTyped();
+    void forwardAction("press", { key: event.key });
+  };
+
   useImperativeHandle(
     imperativeRef,
     () => ({
@@ -553,6 +666,16 @@ function BackendBrowserTab({
           `/api/browser/extract-text?session_id=${encodeURIComponent(sessionId)}`,
           { headers: authHeaders() },
         );
+      },
+      findInPage: async (text, { forward }) => {
+        if (relayStatus?.connected) return null;
+        const data = await runAction("find_in_page", {
+          text,
+          backwards: !forward,
+        });
+        const matches = typeof data.matches === "number" ? data.matches : 0;
+        // The page reports a count only; the bar tracks the position.
+        return { matches, active: matches > 0 ? -1 : 0 };
       },
       capturePage: async () => {
         if (await preferRelay()) {
@@ -603,12 +726,7 @@ function BackendBrowserTab({
 
     const tick = async () => {
       try {
-        const status = await browserJson<BrowserRelayStatus>(
-          "/api/browser/relay/status",
-          {
-            headers: authHeaders(),
-          },
-        );
+        const status = await readRelayStatus();
         if (!cancelled) {
           consecutiveFailures = 0;
           setRelayStatus(status);
@@ -649,8 +767,24 @@ function BackendBrowserTab({
               pointerEvents: "none",
             }
       }
-      className="relative flex-col overflow-auto bg-muted/20"
+      className="relative flex-col overflow-auto bg-muted/20 focus-within:ring-2 focus-within:ring-inset focus-within:ring-primary/30"
     >
+      {interactive ? (
+        <textarea
+          ref={sinkRef}
+          aria-label={wt.pageInteractiveHint}
+          className="pointer-events-none absolute left-0 top-0 size-px resize-none opacity-0"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          onKeyDown={onSinkKeyDown}
+          onInput={(event) => {
+            if ((event.nativeEvent as InputEvent).isComposing) return;
+            takeSinkText(event.currentTarget);
+          }}
+          onCompositionEnd={(event) => takeSinkText(event.currentTarget)}
+        />
+      ) : null}
       <div
         className={cn(
           AUTOMATION_CAPSULE_OVERLAY_CLASS_NAME,
@@ -716,7 +850,7 @@ function BackendBrowserTab({
                     className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-[var(--shadow-xs)] hover:bg-primary/90"
                     title={wt.dragToBookmarksTitle}
                   >
-                    Echo
+                    ECHO AI
                   </a>
                 </div>
               </div>
@@ -773,21 +907,47 @@ function BackendBrowserTab({
         <img
           src={screenshot}
           alt={tab.title || tab.url}
-          className="w-full object-contain"
-          onClick={() => void refreshScreenshot()}
+          className={cn(
+            "w-full object-contain",
+            interactive && "cursor-pointer",
+          )}
+          draggable={false}
+          // Typing after a click belongs to the page, not the address bar.
+          onMouseDown={() => {
+            if (interactive) sinkRef.current?.focus({ preventScroll: true });
+          }}
+          onClick={(event) => {
+            if (!interactive) return void refreshScreenshot();
+            const point = pagePoint(event);
+            if (point) void forwardAction("click_page_at", point);
+          }}
+          onDoubleClick={(event) => {
+            if (!interactive) return;
+            const point = pagePoint(event);
+            if (point) void forwardAction("double_click_page_at", point);
+          }}
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+          {loading ? (
+            <Loader2Icon
+              className="mb-1 size-5 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+          ) : null}
           <div className="text-sm font-medium">{wt.connectingPlugin}</div>
           <div className="max-w-sm text-xs leading-relaxed text-muted-foreground">
             {wt.connectingPluginDesc}
           </div>
         </div>
       )}
-      {loading && (
-        <div className="absolute inset-0 grid place-items-center bg-background/60 text-xs text-muted-foreground">
-          Loading...
-        </div>
+      {/* Over a page: a thin bar, so the last screenshot stays readable. */}
+      {loading && screenshot && (
+        <div
+          role="progressbar"
+          aria-label={wt.connectingPlugin}
+          className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-primary/70"
+        />
       )}
       {error && (
         <div className="absolute left-3 right-3 top-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -1034,7 +1194,7 @@ function BrowserDesktopHome({
             onKeyDown={onSearchKey}
             placeholder={wt.searchPlaceholder}
             aria-label={wt.searchPlaceholder}
-            className="min-w-0 flex-1 bg-transparent text-lg font-medium text-foreground outline-none placeholder:text-muted-foreground/70"
+            className="min-w-0 flex-1 bg-transparent text-lg font-medium text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div
@@ -1209,20 +1369,16 @@ function BrowserDesktopHome({
                   )}
                 >
                   {DESKTOP_WIDGETS.map((widget) => {
-                    const Icon = widget.icon;
                     return (
                       <div
                         key={widget.title}
                         className="flex items-center gap-4 border-b border-white/20 pb-4 last:border-0"
                       >
-                        <span
-                          className={cn(
-                            "grid size-10 place-items-center rounded-2xl bg-gradient-to-br",
-                            widget.color,
-                          )}
-                        >
-                          <Icon className="size-5 text-white" />
-                        </span>
+                        <EchoAppTile
+                          icon={widget.icon}
+                          className="size-10 rounded-2xl"
+                          iconClassName="size-5"
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-lg font-semibold">
                             {labelFromMap(widgetTitleMap, widget.title)}
@@ -1299,44 +1455,46 @@ function BrowserDesktopHome({
             mobileDesktop && "bottom-4 left-16 right-4 gap-2 px-3",
           )}
         >
-          {orderedApps.map((app) => {
-            const Icon = app.icon;
-            return (
-              <button
-                key={app.url}
-                type="button"
-                draggable={editMode}
-                onClick={() => {
-                  if (!editMode) onOpen(app.url);
-                }}
-                onDragStart={(event) => startAppDrag(event, app.url)}
-                onDragOver={(event) => {
-                  if (editMode) event.preventDefault();
-                }}
-                onDrop={(event) => dropApp(event, app.url)}
-                onDragEnd={() => setDraggingUrl(null)}
+          {orderedApps.map((app) => (
+            <button
+              key={app.url}
+              type="button"
+              draggable={editMode}
+              onClick={() => {
+                if (!editMode) onOpen(app.url);
+              }}
+              onDragStart={(event) => startAppDrag(event, app.url)}
+              onDragOver={(event) => {
+                if (editMode) event.preventDefault();
+              }}
+              onDrop={(event) => dropApp(event, app.url)}
+              onDragEnd={() => setDraggingUrl(null)}
+              className={cn(
+                "group shrink-0 rounded-3xl transition hover:-translate-y-1 focus-visible:outline-none",
+                compactDesktop && "rounded-2xl",
+                mobileDesktop && "rounded-2xl",
+                editMode &&
+                  "cursor-move ring-2 ring-white/35 hover:translate-y-0",
+                draggingUrl === app.url && "scale-95 opacity-45",
+              )}
+              title={`${labelFromMap(appNameMap, app.name)} · ${labelFromMap(appDescMap, app.description)}`}
+            >
+              <EchoAppTile
+                icon={app.icon}
                 className={cn(
-                  "grid size-16 place-items-center rounded-3xl bg-gradient-to-br text-white shadow-[var(--shadow-md)] shadow-black/12 transition hover:-translate-y-1 hover:shadow-xl",
-                  app.color,
-                  compactDesktop && "size-13 shrink-0 rounded-2xl",
+                  "size-16 rounded-3xl",
+                  compactDesktop && "size-13 rounded-2xl",
                   tabletDesktop && "size-14",
                   mobileDesktop && "size-11 rounded-2xl",
-                  editMode &&
-                    "cursor-move ring-2 ring-white/35 hover:translate-y-0",
-                  draggingUrl === app.url && "scale-95 opacity-45",
                 )}
-                title={`${labelFromMap(appNameMap, app.name)} · ${labelFromMap(appDescMap, app.description)}`}
-              >
-                <Icon
-                  className={cn(
-                    "size-8",
-                    compactDesktop && "size-7",
-                    mobileDesktop && "size-6",
-                  )}
-                />
-              </button>
-            );
-          })}
+                iconClassName={cn(
+                  "size-8",
+                  compactDesktop && "size-7",
+                  mobileDesktop && "size-6",
+                )}
+              />
+            </button>
+          ))}
         </div>
       </div>
       {activePanel !== "home" && (
@@ -1490,14 +1648,16 @@ function DesktopControlPanel({
                 <button
                   key={name}
                   type="button"
-                  className="flex w-full items-center gap-3 rounded-2xl bg-white/46 p-3 text-left transition hover:bg-white/74"
+                  className="group flex w-full items-center gap-3 rounded-2xl bg-white/46 p-3 text-left transition hover:bg-white/74"
                   onClick={() => {
                     if (index === 0) onOpen("https://www.bilibili.com/");
                   }}
                 >
-                  <span className="grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
-                    <Icon className="size-5" />
-                  </span>
+                  <EchoAppTile
+                    icon={Icon}
+                    className="size-10 rounded-2xl"
+                    iconClassName="size-5"
+                  />
                   <span className="text-sm font-semibold">{name}</span>
                 </button>
               );
@@ -1508,22 +1668,18 @@ function DesktopControlPanel({
         {panel === "add" && (
           <div className="space-y-3">
             {AI_DESKTOP_APPS.map((app) => {
-              const Icon = app.icon;
               return (
                 <button
                   key={app.url}
                   type="button"
                   onClick={() => onOpen(app.url)}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-white/46 p-3 text-left transition hover:bg-white/74"
+                  className="group flex w-full items-center gap-3 rounded-2xl bg-white/46 p-3 text-left transition hover:bg-white/74"
                 >
-                  <span
-                    className={cn(
-                      "grid size-10 place-items-center rounded-2xl bg-gradient-to-br text-white",
-                      app.color,
-                    )}
-                  >
-                    <Icon className="size-5" />
-                  </span>
+                  <EchoAppTile
+                    icon={app.icon}
+                    className="size-10 rounded-2xl"
+                    iconClassName="size-5"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold">
                       {appNameMap[app.name] ?? app.name}
@@ -1578,7 +1734,6 @@ function DesktopAppIcon({
   appNameMap?: Record<string, string>;
   appDescMap?: Record<string, string>;
 }) {
-  const Icon = app.icon;
   const displayName = appNameMap?.[app.name] ?? app.name;
   const displayDesc = appDescMap?.[app.description] ?? app.description;
   return (
@@ -1601,15 +1756,14 @@ function DesktopAppIcon({
       )}
       title={`${displayName} · ${displayDesc}`}
     >
-      <span
+      <EchoAppTile
+        icon={app.icon}
         className={cn(
-          "grid place-items-center rounded-3xl bg-gradient-to-br text-white shadow-[var(--shadow-md)] shadow-black/14 transition group-hover:-translate-y-0.5 group-hover:shadow-xl",
+          "rounded-3xl transition group-hover:-translate-y-0.5",
           compact ? "size-16" : "size-[72px]",
-          app.color,
         )}
-      >
-        <Icon className={compact ? "size-8" : "size-9"} />
-      </span>
+        iconClassName={compact ? "size-8" : "size-9"}
+      />
       <span className="w-24 truncate text-sm font-medium text-white drop-shadow">
         {displayName}
       </span>
@@ -1624,9 +1778,10 @@ function DesktopAppIcon({
 
 export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
   function WebviewTab(
-    { tab, active, onPatch, onClose, renderDevice },
+    { tab, active, visible, onPatch, onClose, renderDevice },
     imperativeRef,
   ) {
+    const shown = visible ?? active;
     useWorkbenchAvailabilitySync();
     const activeAgentId = useActiveAgentId() ?? "general";
     const enabledModuleIds = useEnabledModuleIds(activeAgentId);
@@ -1658,6 +1813,18 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
     // "The WebView must be attached to the DOM and the dom-ready event
     // emitted before this method can be called."
     const readyRef = useRef(false);
+    // Saved back / forward history is handed to the desktop shell before the
+    // page loads (it can only be restored into a fresh webContents); the
+    // webview gets its src once that is queued.
+    const [restoreHistory] = useState(() =>
+      window.echo?.browser?.queueNavigationRestore &&
+      !tab.private &&
+      (tab.navHistory?.entries.length ?? 0) > 1
+        ? tab.navHistory!
+        : null,
+    );
+    const [restoreQueued, setRestoreQueued] = useState(!restoreHistory);
+    const isPrivateTab = Boolean(tab.private);
 
     // Implementation note.
     const safe = <T,>(fn: () => T, fallback: T): T => {
@@ -1700,8 +1867,11 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       [],
     );
 
+    // Outside the desktop app this tab renders <BackendBrowserTab>, which
+    // owns the handle; binding the webview handle too would overwrite it
+    // (parents' layout effects run after children's).
     useImperativeHandle(
-      imperativeRef,
+      window.echo?.isElectron ? imperativeRef : null,
       () => ({
         reload: () =>
           safe(() => {
@@ -1719,19 +1889,17 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
             return undefined;
           }, undefined),
         loadURL: (url) => {
-          if (!ref.current || !readyRef.current) {
-            // Implementation note.
-            if (ref.current) ref.current.src = url;
+          const wv = ref.current;
+          if (!wv) return;
+          // Navigate through the src attribute, the same path as the tab's
+          // src={tab.url}: callers also patch tab.url, and Electron ignores
+          // setting src to the value it already has. Calling wv.loadURL here
+          // as well would start the navigation twice (two back entries).
+          if (readyRef.current && safe(() => wv.getURL(), "") === url) {
+            safe(() => wv.reload(), undefined);
             return;
           }
-          try {
-            void ref.current.loadURL(url).catch((e) => {
-              swallow(e);
-            });
-          } catch (e) {
-            swallow(e);
-            ref.current.src = url;
-          }
+          wv.src = url;
         },
         canGoBack: () => safe(() => ref.current!.canGoBack(), false),
         canGoForward: () => safe(() => ref.current!.canGoForward(), false),
@@ -1763,6 +1931,62 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
             throw new Error("webview not ready");
           }
           return api.browser.capturePage(wv.getWebContentsId());
+        },
+        stop: () =>
+          safe(() => {
+            ref.current?.stop();
+            return undefined;
+          }, undefined),
+        findInPage: (text, { forward, findNext }) =>
+          new Promise<FindInPageResult | null>((resolve) => {
+            const wv = ref.current;
+            if (!wv || !readyRef.current || !text) return resolve(null);
+            let requestId = -1;
+            const timer = window.setTimeout(() => {
+              wv.removeEventListener("found-in-page", onFound);
+              resolve(null);
+            }, 1500);
+            function onFound(event: Event) {
+              const result = (
+                event as Event & {
+                  result?: {
+                    requestId: number;
+                    matches: number;
+                    activeMatchOrdinal: number;
+                    finalUpdate: boolean;
+                  };
+                }
+              ).result;
+              if (
+                !result ||
+                result.requestId !== requestId ||
+                !result.finalUpdate
+              ) {
+                return;
+              }
+              window.clearTimeout(timer);
+              wv?.removeEventListener("found-in-page", onFound);
+              resolve({
+                matches: result.matches,
+                active: result.activeMatchOrdinal,
+              });
+            }
+            wv.addEventListener("found-in-page", onFound);
+            requestId = wv.findInPage(text, { forward, findNext });
+          }),
+        stopFindInPage: () =>
+          safe(() => {
+            ref.current?.stopFindInPage("clearSelection");
+            return undefined;
+          }, undefined),
+        print: async () => {
+          const wv = ref.current;
+          const api = window.echo;
+          if (!wv || !api || !readyRef.current) return;
+          const result = await api.browser.print(wv.getWebContentsId());
+          if (!result.ok && result.error && result.error !== "cancelled") {
+            throw new Error(result.error);
+          }
         },
         runAction: async (action, params = {}) => {
           const wv = ref.current;
@@ -1828,10 +2052,7 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
         // Every tab remains mounted while hidden. Publish a stable logical
         // lease and current native id so the desktop host can move the same
         // live webContents between surfaces without navigating it again.
-        wv.setAttribute(
-          "data-echo-webcontents-adoption-lease",
-          adoptionLease,
-        );
+        wv.setAttribute("data-echo-webcontents-adoption-lease", adoptionLease);
         try {
           wv.setAttribute(
             "data-echo-adopted-web-contents-id",
@@ -1854,7 +2075,20 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       const onStart = () => onPatch({ isLoading: true });
       const onStop = () => onPatch({ isLoading: false });
       const onNavigated = (e: Event & { url?: string }) => {
-        if (e.url) onPatch({ url: e.url });
+        if (!e.url) return;
+        onPatch({ url: e.url });
+        if (isPrivateTab) return;
+        const api = window.echo?.browser;
+        if (!api?.getNavigationHistory) return;
+        void api
+          .getNavigationHistory(wv.getWebContentsId())
+          .then((result) => {
+            if (result.ok && result.entries.length > 0)
+              onPatch({
+                navHistory: { entries: result.entries, index: result.index },
+              });
+          })
+          .catch(swallow);
       };
 
       // Implementation note.
@@ -1919,7 +2153,28 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
           onCrashed as EventListener,
         );
       };
-    }, [adoptionLease, onPatch, reloadSeed]);
+    }, [adoptionLease, isPrivateTab, onPatch, reloadSeed]);
+
+    useEffect(() => {
+      const api = window.echo?.browser;
+      if (!restoreHistory || !api?.queueNavigationRestore) return;
+      let cancelled = false;
+      api
+        .queueNavigationRestore(
+          tab.url,
+          restoreHistory.entries,
+          restoreHistory.index,
+        )
+        .catch(swallow)
+        // Without the shell's help the tab just loads its address.
+        .finally(() => {
+          if (!cancelled) setRestoreQueued(true);
+        });
+      return () => {
+        cancelled = true;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the history captured at mount
+    }, []);
 
     useEffect(
       () => () => {
@@ -1955,11 +2210,28 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
         cancelled = true;
         wv.removeEventListener("dom-ready", handler);
       };
-    }, [tab.device]);
+    }, [tab.device, tab.url]);
 
-    // Implementation note.
-    // Implementation note.
-    const style: CSSProperties = active
+    // Report the active page; the <webview> only exists once off the start page.
+    useEffect(() => {
+      const wv = ref.current;
+      if (!active || !wv) return;
+      const select = () => {
+        try {
+          window.echo?.bridge.setActiveTab(wv.getWebContentsId());
+        } catch {
+          /* webview is not attached yet */
+        }
+      };
+      if (readyRef.current) select();
+      wv.addEventListener("dom-ready", select);
+      return () => {
+        wv.removeEventListener("dom-ready", select);
+        window.echo?.bridge.setActiveTab(null);
+      };
+    }, [active, reloadSeed, tab.url]);
+
+    const style: CSSProperties = shown
       ? { display: "inline-flex", width: "100%", height: "100%" }
       : {
           display: "inline-flex",
@@ -1983,11 +2255,23 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       return (
         <Suspense
           fallback={
+            // The graphite start page stays dark in either color scheme, so its
+            // first paint matches home instead of an empty grey pane.
             <div
-              className="size-full animate-pulse bg-muted/25"
+              data-echo-theme="graphite"
+              className="grid size-full place-items-center bg-[radial-gradient(ellipse_at_50%_38%,var(--echo-surface-raised)_0%,var(--echo-surface)_48%,var(--echo-ground)_100%)]"
               role="status"
               aria-label="加载浏览器桌面"
-            />
+            >
+              <div className="flex flex-col items-center gap-3 text-sm text-[var(--echo-ink-muted)]">
+                <EchoBrandMark
+                  size="lg"
+                  breathe
+                  className="text-[var(--echo-ink)]"
+                />
+                正在打开主页…
+              </div>
+            </div>
           }
         >
           <BrowserHome
@@ -2077,7 +2361,7 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
       );
     }
 
-    if (crash && active) {
+    if (crash && shown) {
       return (
         <div
           style={{ width: "100%", height: "100%" }}
@@ -2128,26 +2412,30 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
 
     const controlEdgeVisible = controlIndicator.mode !== "idle";
     const controlEdgePaused = controlIndicator.mode === "paused";
+    // Agent control lights the edge in core (running); a pause is a
+    // warning. ECHO has no green or teal.
+    const edgeTint = (token: "--echo-core" | "--echo-warning", pct: number) =>
+      `color-mix(in srgb, var(${token}) ${pct}%, transparent)`;
     const controlEdgeColor = controlEdgePaused
-      ? "rgba(245, 158, 11, 0.78)"
-      : "rgba(20, 184, 166, 0.62)";
+      ? edgeTint("--echo-warning", 78)
+      : edgeTint("--echo-core", 62);
     const controlEdgeGlow = controlEdgePaused
       ? [
-          "inset 0 0 0 1px rgba(245, 158, 11, 0.34)",
-          "inset 0 0 18px rgba(245, 158, 11, 0.18)",
+          `inset 0 0 0 1px ${edgeTint("--echo-warning", 34)}`,
+          `inset 0 0 18px ${edgeTint("--echo-warning", 18)}`,
         ].join(", ")
       : [
-          "inset 0 0 0 1px rgba(20, 184, 166, 0.26)",
-          "inset 0 0 18px rgba(20, 184, 166, 0.16)",
+          `inset 0 0 0 1px ${edgeTint("--echo-core", 26)}`,
+          `inset 0 0 18px ${edgeTint("--echo-core", 16)}`,
         ].join(", ");
 
     return (
       <div style={style} className="relative overflow-hidden bg-background">
         <style>
           {`@keyframes echo-browser-webview-edge-pulse {
-  0% { box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.24), inset 0 0 10px rgba(20, 184, 166, 0.10); }
-  45% { box-shadow: inset 0 0 0 2px rgba(20, 184, 166, 0.72), inset 0 0 24px rgba(20, 184, 166, 0.24); }
-  100% { box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.26), inset 0 0 18px rgba(20, 184, 166, 0.16); }
+  0% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--echo-core) 24%, transparent), inset 0 0 10px color-mix(in srgb, var(--echo-core) 10%, transparent); }
+  45% { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--echo-core) 72%, transparent), inset 0 0 24px color-mix(in srgb, var(--echo-core) 24%, transparent); }
+  100% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--echo-core) 26%, transparent), inset 0 0 18px color-mix(in srgb, var(--echo-core) 16%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
   .echo-browser-webview-edge-light { animation: none !important; transition: none !important; }
@@ -2156,8 +2444,10 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
         <webview
           key={`wv-${tab.id}-${reloadSeed}`}
           ref={ref as unknown as React.RefObject<HTMLElement>}
-          src={tab.url}
-          partition="persist:echo-browser"
+          src={restoreQueued ? tab.url : undefined}
+          // Private tabs get an in-memory session that is dropped on quit.
+          partition={tab.private ? "echo-private" : "persist:echo-browser"}
+          {...WEBVIEW_FLAG_ATTRIBUTES}
           data-echo-webcontents-adoption-lease={adoptionLease}
           data-echo-adopted-web-contents-id="pending"
           style={{ width: "100%", height: "100%" }}

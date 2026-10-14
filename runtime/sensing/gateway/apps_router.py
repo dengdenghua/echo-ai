@@ -98,7 +98,7 @@ def create_apps_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; read-only installed application catalog
 
     router = APIRouter(tags=["apps"], dependencies=[Depends(_auth_dep)])
 

@@ -18,6 +18,16 @@ export function canAccessOperatorControlPlane(
   return roles.has("admin") || roles.has("operator");
 }
 
+/** Instance-wide settings guarded by the server's ``admin`` role. */
+export function canManageInstanceSettings(
+  authStatus: AuthStatus | null,
+  user: User | null,
+): boolean {
+  if (authStatus?.enabled === false) return true;
+  if (!authStatus?.enabled || !user) return false;
+  return (user.roles ?? []).includes("admin");
+}
+
 /** Cross-tenant process-global controls require an admin and a durable scope. */
 export function canAccessGlobalControlPlane(
   authStatus: AuthStatus | null,
@@ -25,12 +35,9 @@ export function canAccessGlobalControlPlane(
 ): boolean {
   if (authStatus?.enabled === false) return true;
   if (!authStatus?.enabled || !user?.roles?.includes("admin")) return false;
+  // ``/api/auth/me`` reports the durable scopes the server authorizes on.
+  // Without one the server refuses every cross-tenant request, so asking
+  // anyway only produces a 403 per poll.
   const permissions = user.permissions ?? [];
-  // Older auth payloads omitted scopes for an otherwise valid admin. Let the
-  // backend make the final decision in that compatibility case; explicit
-  // permission lists are authoritative when present.
-  return (
-    permissions.length === 0 ||
-    permissions.some((permission) => GLOBAL_SCOPES.has(permission))
-  );
+  return permissions.some((permission) => GLOBAL_SCOPES.has(permission));
 }

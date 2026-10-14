@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
@@ -21,6 +20,7 @@ from runtime.memory.cowork.team_invitation_store import (  # noqa: E402
 from runtime.projectos.model import Project  # noqa: E402
 from runtime.projectos.store import ProjectStore  # noqa: E402
 from runtime.safety.auth.identity import Identity, IdentityStore  # noqa: E402
+from runtime.sensing.gateway._team_rooms_state import _load_state  # noqa: E402
 from runtime.sensing.gateway.team_rooms_router import create_team_rooms_router  # noqa: E402
 
 
@@ -141,17 +141,17 @@ def _raise_once_after_commit(
     store: TeamInvitationStore,
     boundary: str,
 ) -> None:
-    if boundary == "json":
+    if boundary == "membership":
         from runtime.sensing.gateway import _team_room_persistence as persistence
 
-        original = persistence._save_state
+        original = persistence.commit_room_delta
 
-        def save_then_raise(path: Path, teams: dict[str, Any]) -> None:
-            original(path, teams)
-            monkeypatch.setattr(persistence, "_save_state", original)
-            raise RuntimeError("json committed before response failure")
+        def save_then_raise(conn, upserts, deleted) -> None:
+            original(conn, upserts, deleted)
+            monkeypatch.setattr(persistence, "commit_room_delta", original)
+            raise RuntimeError("membership committed before response failure")
 
-        monkeypatch.setattr(persistence, "_save_state", save_then_raise)
+        monkeypatch.setattr(persistence, "commit_room_delta", save_then_raise)
         return
 
     original_finalize = store._finalize_reservation
@@ -159,7 +159,7 @@ def _raise_once_after_commit(
     def finalize_then_raise(reservation_id: str) -> None:
         original_finalize(reservation_id)
         monkeypatch.setattr(store, "_finalize_reservation", original_finalize)
-        raise RuntimeError("sqlite finalized before response failure")
+        raise RuntimeError("invitation finalized before response failure")
 
     monkeypatch.setattr(store, "_finalize_reservation", finalize_then_raise)
 
@@ -167,13 +167,13 @@ def _raise_once_after_commit(
 def _fail_once_before_membership_commit(monkeypatch: pytest.MonkeyPatch) -> None:
     from runtime.sensing.gateway import _team_room_persistence as persistence
 
-    original = persistence._save_state
+    original = persistence.commit_room_delta
 
-    def fail_before_save(_path: Path, _teams: dict[str, Any]) -> None:
-        monkeypatch.setattr(persistence, "_save_state", original)
+    def fail_before_save(_conn, _upserts, _deleted) -> None:
+        monkeypatch.setattr(persistence, "commit_room_delta", original)
         raise RuntimeError("membership failed before durable commit")
 
-    monkeypatch.setattr(persistence, "_save_state", fail_before_save)
+    monkeypatch.setattr(persistence, "commit_room_delta", fail_before_save)
 
 
 def test_ordinary_room_stays_direct_while_project_room_defaults_to_approval(
@@ -722,7 +722,7 @@ def test_failed_approval_membership_write_retains_capacity_for_retry(tmp_path: P
     assert [item["actor_id"] for item in store.acceptances(invite_id=invitation["id"])] == ["bob"]
 
 
-@pytest.mark.parametrize("boundary", ["json", "sqlite"])
+@pytest.mark.parametrize("boundary", ["membership", "invitation"])
 def test_approval_commit_then_raise_cannot_oversell_and_replays(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -748,8 +748,7 @@ def test_approval_commit_then_raise_cannot_oversell_and_replays(
             f"/api/teams/project-room/join-requests/{applications['bob']}/approve",
             headers=_bearer(keys, "alice"),
         )
-    durable = json.loads((tmp_path / "rooms.json").read_text(encoding="utf-8"))
-    room = next(item for item in durable["teams"] if item["id"] == "project-room")
+    room = _load_state(tmp_path / "rooms.json")["project-room"].model_dump()
     assert len([item for item in room["participants"] if item.get("actor_id") == "bob"]) == 1
     assert store.find_by_token(token, tenant_id="tenant-acme")["use_count"] == 1
     revoked = client.delete(
@@ -810,8 +809,7 @@ def test_reserved_approval_without_membership_stays_blocked_after_restart(
         )
     assert store.find_by_token(token, tenant_id="tenant-acme")["use_count"] == 1
     assert store.acceptances(invite_id=invite["invite_id"]) == []
-    durable = json.loads((tmp_path / "rooms.json").read_text(encoding="utf-8"))
-    room = next(item for item in durable["teams"] if item["id"] == "project-room")
+    room = _load_state(tmp_path / "rooms.json")["project-room"].model_dump()
     assert not [
         item
         for item in room["participants"]
@@ -836,8 +834,7 @@ def test_reserved_approval_without_membership_stays_blocked_after_restart(
         headers=_bearer(restarted_keys, "alice"),
     )
     assert retry.status_code == 410, retry.json()
-    durable = json.loads((tmp_path / "rooms.json").read_text(encoding="utf-8"))
-    room = next(item for item in durable["teams"] if item["id"] == "project-room")
+    room = _load_state(tmp_path / "rooms.json")["project-room"].model_dump()
     assert not [
         item
         for item in room["participants"]

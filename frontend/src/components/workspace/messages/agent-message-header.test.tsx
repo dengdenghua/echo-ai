@@ -20,11 +20,12 @@ describe("AgentMessageHeader", () => {
     expect(screen.getByText("C")).toBeInTheDocument();
   });
 
-  it("renders emoji icon before initial when provided", () => {
+  it("draws a monogram, never the emoji icon (ECHO brand)", () => {
     renderWithProviders(
       <AgentMessageHeader agentDisplayName="Coder" icon="💻" />,
     );
-    expect(screen.getByText("💻")).toBeInTheDocument();
+    expect(screen.queryByText("💻")).not.toBeInTheDocument();
+    expect(screen.getByText("C")).toBeInTheDocument();
   });
 
   it("renders avatar image when avatarUrl is provided", () => {

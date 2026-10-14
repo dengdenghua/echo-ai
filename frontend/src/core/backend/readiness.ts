@@ -6,6 +6,7 @@ const STARTUP_WAIT_MS = 30_000;
 
 export async function probeBackendAvailability(): Promise<boolean> {
   try {
+    // raw fetch: deliberately unauthenticated probe of a backend that may not be up yet (no auth/CSRF headers, no preflight)
     const response = await fetch(`${getControlPlaneBaseURL()}/api/health`, {
       cache: "no-store",
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),

@@ -307,7 +307,7 @@ export function formatResults(
 
 /* Implementation note. */
 export const BROWSER_ACTION_PROTOCOL = `\
-[Echo AI 浏览器协议]
+[ECHO AI AI 浏览器协议]
 你不只是回答问题,还可以**直接操作当前网页**。需要操作时,在回复里
 包含 \`\`\`action ... \`\`\` 代码块,块里每行一条 JSON 指令:
 
@@ -333,6 +333,73 @@ export const BROWSER_ACTION_PROTOCOL = `\
 任务完成时,**正常回答用户**(不要再发 action 块),loop 自动停止。
 最大连续 action 轮次 8 轮,超过会强停。每条 action 简洁、明确、可验证。\
 `;
+
+/** Separates context prepended for the model from the user's request. */
+export const USER_REQUEST_MARKER = "=== 用户请求 ===";
+
+/** Prepend model-only context (protocol, page text, other tabs). */
+export function withModelContext(
+  blocks: readonly string[],
+  request: string,
+): string {
+  const present = blocks.filter((block) => block.trim());
+  if (present.length === 0) return request;
+  return `${present.join("\n\n---\n\n")}\n\n${USER_REQUEST_MARKER}\n\n${request}`;
+}
+
+export interface PageSnapshot {
+  url: string;
+  title: string;
+  text: string;
+  truncated?: boolean;
+  textLength?: number;
+  pageAgent?: unknown;
+}
+
+/** A page as model context, capped so one page cannot crowd out the rest. */
+export function pageContextBlock(
+  heading: string,
+  page: PageSnapshot,
+  { maxChars = 8000, pageAgentLabel }: { maxChars?: number; pageAgentLabel?: string } = {},
+): string {
+  const full = page.textLength ?? page.text.length;
+  const text =
+    page.text.length > maxChars || page.truncated
+      ? `${page.text.slice(0, maxChars)}\n[…已截断，原文 ${full} 字符]`
+      : page.text;
+  const agent =
+    page.pageAgent && pageAgentLabel
+      ? `\n\n${pageAgentLabel}\n${JSON.stringify(page.pageAgent).slice(0, 12000)}`
+      : "";
+  return `${heading}\n标题：${page.title}\nURL：${page.url}\n\n${text}${agent}`;
+}
+
+/**
+ * What the user typed, without context prepended for the model (the action
+ * protocol, the recorder header, page text). The model still gets all of
+ * it; the conversation and its preview show only the request.
+ */
+export function visibleUserText(
+  text: string,
+  headers: readonly string[] = [BROWSER_ACTION_PROTOCOL],
+): string {
+  const marker = text.lastIndexOf(USER_REQUEST_MARKER);
+  if (marker !== -1) return text.slice(marker + USER_REQUEST_MARKER.length).trim();
+  // Messages sent before the marker existed used "---" after the protocol.
+  let out = text;
+  for (let pass = 0; pass <= headers.length; pass += 1) {
+    const trimmed = out.trimStart();
+    const injected = headers.some((header) => {
+      const firstLine = header.trimStart().split("\n", 1)[0]?.trim();
+      return Boolean(firstLine) && trimmed.startsWith(firstLine!);
+    });
+    if (!injected) break;
+    const separator = /\n\s*---\s*\n/.exec(trimmed);
+    if (!separator) break;
+    out = trimmed.slice(separator.index + separator[0].length);
+  }
+  return out;
+}
 
 // Run an AgentAction against a WebviewTabHandle (the React webview component's
 // imperative handle), as opposed to runAction() above which drives the Electron

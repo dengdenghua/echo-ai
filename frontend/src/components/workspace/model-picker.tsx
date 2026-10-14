@@ -388,7 +388,7 @@ function ReasoningEffortSetting({
   return (
     <div className="mx-1 mt-1 border-t border-border-default pt-1">
       <div className="mb-0.5 flex items-center justify-between px-1">
-        <span className="text-ui font-medium text-muted-foreground/70">
+        <span className="text-ui font-medium text-muted-foreground">
           {title}
         </span>
         <span className="text-ui text-muted-foreground">
@@ -398,7 +398,7 @@ function ReasoningEffortSetting({
         </span>
       </div>
       {mapped && (
-        <div className="mb-1 px-1 text-[11px] text-muted-foreground/70">
+        <div className="mb-1 px-1 text-xs text-muted-foreground">
           {t.inputBox.reasoningEffortMapped(
             reasoningEffortLabel(rawCurrent, t),
             reasoningEffortLabel(effective, t),
@@ -497,7 +497,7 @@ function PickerRow({
           {badge}
         </span>
         {right !== undefined && (
-          <span className="shrink-0 text-ui tabular-nums text-muted-foreground/70 transition-colors group-hover/row:text-muted-foreground">
+          <span className="shrink-0 text-ui tabular-nums text-muted-foreground transition-colors group-hover/row:text-muted-foreground">
             {right}
           </span>
         )}
@@ -505,6 +505,16 @@ function PickerRow({
       {trailingAction}
     </div>
   );
+}
+
+/**
+ * Official rows are named by tier ("极速"); the upstream id tells the user
+ * which model that tier is. Shown as telemetry when the two differ.
+ */
+function officialModelId(model: PickerModel): string | null {
+  if (model.entry_id !== "official") return null;
+  const id = (model.model ?? model.name ?? "").replace(/^official\//, "");
+  return id && id !== model.display_name ? id : null;
 }
 
 export interface ModelPickerProps {
@@ -741,11 +751,7 @@ export function ModelPicker({
       <PickerRow
         key={selectKey}
         label={
-          <span
-            className={cn(
-              isFreePickerModel(m) && "text-emerald-600 dark:text-emerald-400",
-            )}
-          >
+          <span className={cn(isFreePickerModel(m) && "text-core")}>
             {m.display_name || m.name}
           </span>
         }
@@ -755,6 +761,13 @@ export function ModelPicker({
           ["opencode-zen", "opencode-go"].includes(m.entry_id || "") ? (
             <span aria-hidden="true" className="text-muted-foreground">
               {m.entry_id === "opencode-go" ? "Go" : "Zen"}
+            </span>
+          ) : officialModelId(m) ? (
+            <span
+              aria-hidden="true"
+              className="block max-w-32 truncate font-mono text-muted-foreground"
+            >
+              {officialModelId(m)}
             </span>
           ) : undefined
         }
@@ -772,6 +785,7 @@ export function ModelPicker({
         "bg-transparent px-1.5 py-1 text-ui text-muted-foreground transition outline-none",
         "hover:border-border-default hover:bg-muted/60 hover:text-foreground",
         "data-[state=open]:bg-muted data-[state=open]:text-foreground",
+        "focus-visible:ring-2 focus-visible:ring-ring/50",
       )}
       aria-label={t.modelPicker.selectModel}
       title={
@@ -781,23 +795,15 @@ export function ModelPicker({
       }
     >
       {isAutoMode && <SparklesIcon className="size-3 shrink-0 text-primary" />}
-      <span
-        className={cn(
-          "max-w-28 truncate",
-          selectedIsFree && "text-emerald-600 dark:text-emerald-400",
-        )}
-      >
+      <span className={cn("max-w-28 truncate", selectedIsFree && "text-core")}>
         {selectedDisplayLabel}
       </span>
       {selected?.entry_id === "opencode-go" && (
-        <span className="text-[10px] text-muted-foreground">Go</span>
+        <span className="text-xs text-muted-foreground">Go</span>
       )}
       {selectedIsFree ? (
-        <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium leading-none text-emerald-600 dark:text-emerald-400">
-          <span
-            className="size-1.5 rounded-full bg-emerald-500"
-            aria-hidden="true"
-          />
+        <span className="flex shrink-0 items-center gap-1 text-xs font-medium leading-none text-core">
+          <span className="size-1.5 rounded-full bg-core" aria-hidden="true" />
         </span>
       ) : null}
       <ChevronDownIcon className="size-3 opacity-60" />
@@ -856,6 +862,15 @@ export function ModelPicker({
           />
           <input
             ref={searchRef}
+            // See settings-dialog: a bare text input invites the browser's
+            // password manager to auto-fill the saved account, which would
+            // then filter the model list by the user's own account name.
+            type="search"
+            name="echo-model-search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             value={query}
             aria-label={searchCopy[0]}
             placeholder={searchCopy[0]}
@@ -877,7 +892,7 @@ export function ModelPicker({
               }
               if (event.key === "Enter") event.preventDefault();
             }}
-            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 bg-transparent text-ui-caption outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
         </div>
         {engineSource && (
@@ -954,7 +969,7 @@ export function ModelPicker({
             value={reasoningEffort}
             disabled={reasoningEffortDisabled}
             efforts={engineSource === "opencode"
-              ? supportedReasoningEfforts({reasoning_efforts: nativeEfforts?.model === value ? nativeEfforts.efforts : []})
+              ? supportedReasoningEfforts({reasoning_efforts: nativeEfforts && nativeEfforts.model === value ? nativeEfforts.efforts : []})
               : supportedReasoningEfforts(selected)}
             onChange={onReasoningEffortChange}
           />
@@ -988,7 +1003,30 @@ export function ModelPicker({
               )
             ) : flatEntries.length === 0 ? (
               <div className="px-2 py-4 text-center text-ui text-muted-foreground">
-                {t.modelPicker.noCustomModels}
+                {!engineSource
+                  ? t.modelPicker.noCustomModels
+                  : openCodeSource === "official"
+                    ? t.modelPicker.officialEmpty
+                    : openCodeSource === "opencode-go"
+                      ? t.modelPicker.openCodeGoEmpty
+                      : t.modelPicker.openCodeZenEmpty}
+                {engineSource && openCodeSource !== "official" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      // Zen and Go connections live in Settings → Models.
+                      window.dispatchEvent(
+                        new CustomEvent("echo:open-settings", {
+                          detail: { tab: "models" },
+                        }),
+                      );
+                    }}
+                    className="mt-2 block w-full rounded-md px-2 py-1.5 text-ui text-foreground hover:bg-accent"
+                  >
+                    {t.modelPicker.connectOpenCode}
+                  </button>
+                )}
               </div>
             ) : (
               <>

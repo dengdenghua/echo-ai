@@ -69,3 +69,44 @@ def test_token_persists_across_calls(monkeypatch, tmp_path) -> None:
     first = get_or_create_tentacle_token()
     assert first and get_or_create_tentacle_token() == first  # stable
     assert (tmp_path / "tentacle_token").read_text(encoding="utf-8").strip() == first
+
+
+def _auth_client():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from runtime.safety.auth import Identity, IdentityStore
+    from runtime.sensing.gateway.tentacle_join_router import create_tentacle_join_router
+
+    store = IdentityStore()
+    store.add(Identity(actor_id="admin", roles=("admin",)), api_key_plaintext="sk-admin")
+    store.add(Identity(actor_id="mallory", roles=("user",)), api_key_plaintext="sk-mallory")
+    app = FastAPI()
+    app.include_router(
+        create_tentacle_join_router(
+            ws_port=8765,
+            auth_token="secret123",
+            identity_store=store,
+            require_auth=True,
+        )
+    )
+    return TestClient(app)
+
+
+def test_join_info_requires_auth_when_enabled() -> None:
+    assert _auth_client().get("/api/tentacle/join-info").status_code == 401
+
+
+def test_join_info_forbids_plain_user() -> None:
+    # 设备 WS 入网令牌只能给 admin/operator，普通登录账号拿不到。
+    r = _auth_client().get(
+        "/api/tentacle/join-info", headers={"Authorization": "Bearer sk-mallory"}
+    )
+    assert r.status_code == 403
+    assert "secret123" not in r.text
+
+
+def test_join_info_allows_admin() -> None:
+    r = _auth_client().get("/api/tentacle/join-info", headers={"Authorization": "Bearer sk-admin"})
+    assert r.status_code == 200
+    assert r.json()["token"] == "secret123"

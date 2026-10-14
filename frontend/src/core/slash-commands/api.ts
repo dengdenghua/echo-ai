@@ -4,20 +4,19 @@
 // it. Body text never crosses the wire — the picker only needs
 // metadata (name / description / argument hint).
 
+import { EchoAPIError, apiGet } from "@/core/api/request";
 import type { components } from "@/core/api/openapi-types";
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
 
 export type SlashCommand = components["schemas"]["SlashCommandWire"];
 
 export async function listSlashCommands(): Promise<{
   commands: SlashCommand[];
 }> {
-  const response = await fetch(`${getBackendBaseURL()}/api/slash-commands`, {
-    headers: authHeaders(),
-  });
-  if (!response.ok) {
-    return { commands: [] };
+  try {
+    return await apiGet("/api/slash-commands");
+  } catch (error) {
+    // Any HTTP failure degrades to an empty catalog.
+    if (error instanceof EchoAPIError) return { commands: [] };
+    throw error;
   }
-  return response.json();
 }

@@ -624,7 +624,7 @@ function coalesceDeltaNotifications(batch: Notification[]): Notification[] {
       merged[merged.length - 1] = {
         ...seed,
         params: {
-          ...(seed.params as Record<string, unknown>),
+          ...seed.params,
           delta: runParts.join(""),
         },
       };
@@ -634,15 +634,13 @@ function coalesceDeltaNotifications(batch: Notification[]): Notification[] {
   for (const note of batch) {
     const last = merged[merged.length - 1];
     if (last && runParts.length > 0 && canMergeDeltaNotifications(last, note)) {
-      runParts.push(
-        String((note.params as Record<string, unknown>).delta ?? ""),
-      );
+      runParts.push(String(note.params.delta ?? ""));
       continue;
     }
     closeRun();
     merged.push(note);
     if (DELTA_METHODS.has(note.method)) {
-      runParts = [String((note.params as Record<string, unknown>).delta ?? "")];
+      runParts = [String(note.params.delta ?? "")];
     }
   }
   closeRun();
@@ -658,8 +656,8 @@ function canMergeDeltaNotifications(
   // / ``item/completed`` snapshots must never merge — they replace,
   // not append, so coalescing two of them would silently drop one.
   if (!DELTA_METHODS.has(left.method)) return false;
-  const leftParams = left.params as Record<string, unknown>;
-  const rightParams = right.params as Record<string, unknown>;
+  const leftParams = left.params;
+  const rightParams = right.params;
   // Durable deltas must reach the replay-dedupe ledger one envelope per
   // event id. Merging them would keep only the seed's eventId, so a later
   // thread/events fetch could apply every swallowed id again. Matching ids

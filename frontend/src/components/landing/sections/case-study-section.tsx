@@ -1,81 +1,42 @@
 import { Link } from "react-router-dom";
 
 import { Card } from "@/components/ui/card";
-import { env } from "@/env";
-import { pathOfThread } from "@/core/threads/utils";
+import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 
 import { Section } from "../section";
 
-// Deterministic per-card gradients. Previously each card pulled a
-// ``public/images/<threadId>.jpg`` background, but those JPEG assets were
-// corrupted (UTF-8-mangled, ~4.5 MB of unrenderable bytes) and shipped a
-// broken background on the landing page. Gradients keep the visual design,
-// add zero network weight, and never break.
+// ECHO card covers: a graphite ground with one cyan core glow per card.
+// The family palette is monochrome — the core is the only hue (brand book:
+// "no gold or rainbow"), so each card varies the glow's position and
+// strength instead of inventing new colors. The colors resolve through
+// the ECHO tokens; this section renders on the pinned-graphite shell.
 const CARD_GRADIENTS = [
-  "linear-gradient(135deg, #4f46e5 0%, #9333ea 100%)",
-  "linear-gradient(135deg, #e11d48 0%, #f59e0b 100%)",
-  "linear-gradient(135deg, #0284c7 0%, #06b6d4 100%)",
-  "linear-gradient(135deg, #059669 0%, #14b8a6 100%)",
-  "linear-gradient(135deg, #c026d3 0%, #7c3aed 100%)",
-  "linear-gradient(135deg, #ea580c 0%, #db2777 100%)",
+  "radial-gradient(115% 85% at 20% 18%, color-mix(in srgb, var(--echo-core) 20%, transparent) 0%, transparent 58%), linear-gradient(155deg, #12151a 0%, #090a0c 100%)",
+  "radial-gradient(105% 80% at 82% 22%, color-mix(in srgb, var(--echo-core) 14%, transparent) 0%, transparent 55%), linear-gradient(155deg, #0d0f13 0%, #101216 100%)",
+  "radial-gradient(120% 90% at 50% 88%, color-mix(in srgb, var(--echo-core) 24%, transparent) 0%, transparent 60%), linear-gradient(155deg, #090a0c 0%, #12151a 100%)",
+  "radial-gradient(100% 75% at 26% 76%, color-mix(in srgb, var(--echo-core) 12%, transparent) 0%, transparent 52%), linear-gradient(155deg, #101216 0%, #0b0d10 100%)",
+  "radial-gradient(110% 82% at 74% 30%, color-mix(in srgb, var(--echo-core) 18%, transparent) 0%, transparent 56%), linear-gradient(155deg, #0b0d10 0%, #12151a 100%)",
+  "radial-gradient(118% 88% at 48% 24%, color-mix(in srgb, var(--echo-core) 22%, transparent) 0%, transparent 59%), linear-gradient(155deg, #12151a 0%, #0d0f13 100%)",
 ];
 
 export function CaseStudySection({ className }: { className?: string }) {
-  const caseStudies = [
-    {
-      threadId: "7cfa5f8f-a2f8-47ad-acbd-da7137baf990",
-      title: "Forecast 2026 Agent Trends and Opportunities",
-      description:
-        "Create a webpage with a Deep Research report forecasting the agent technology trends and opportunities in 2026.",
-    },
-    {
-      threadId: "4f3e55ee-f853-43db-bfb3-7d1a411f03cb",
-      title: 'Generate a Video Based On the Novel "Pride and Prejudice"',
-      description:
-        'Search the specific scene from the novel "Pride and Prejudice", then generate a video as well as a reference image based on the scenes.',
-    },
-    {
-      threadId: "21cfea46-34bd-4aa6-9e1f-3009452fbeb9",
-      title: "Doraemon Explains the MOE Architecture",
-      description:
-        "Generate a Doraemon comic strip explaining the MOE architecture to the teenagers who are interested in AI.",
-    },
-    {
-      threadId: "ad76c455-5bf9-4335-8517-fc03834ab828",
-      title: "An Exploratory Data Analysis of the Titanic Dataset",
-      description:
-        "Explore the Titanic dataset and identify the key factors that influenced survival rates with visualizations and insights.",
-    },
-    {
-      threadId: "d3e5adaf-084c-4dd5-9d29-94f1d6bccd98",
-      title: "Watch Y Combinator's Video then Conduct a Deep Research",
-      description:
-        "Watch the given Y Combinator's YouTube video and conduct a deep research on the YC's tips for technical startup founders.",
-    },
-    {
-      threadId: "3823e443-4e2b-4679-b496-a9506eae462b",
-      title: "Collect and Summarize Dr. Fei Fei Li's Podcasts",
-      description:
-        "Collect all the podcast appearances of Dr. Fei Fei Li in the last 6 months, then summarize them into a comprehensive report.",
-    },
-  ];
+  const { t } = useI18n();
+  const copy = t.aboutPage.caseStudies;
   return (
     <Section
       className={className}
-      title="Case Studies"
-      subtitle="See how Echo is used in the wild"
+      title={copy.title}
+      subtitle={copy.subtitle}
     >
       <div className="container-md mt-8 grid grid-cols-1 gap-4 px-4 sm:px-8 lg:px-20 md:grid-cols-2 lg:grid-cols-3">
-        {caseStudies.map((caseStudy, index) => (
+        {copy.items.map((caseStudy, index) => (
+          // A new chat with the case's prompt: the demo threads these
+          // cards used to open never existed in a user's own instance.
           <Link
             key={caseStudy.title}
-            to={
-              pathOfThread(caseStudy.threadId) +
-              (env.STATIC_WEBSITE_ONLY ? "?mock=true" : "")
-            }
-            target="_blank"
-            rel="noopener noreferrer"
+            to={`/workspace/realtime/new?prompt=${encodeURIComponent(caseStudy.prompt)}`}
+            title={copy.tryPrompt}
           >
             <Card className="group/card relative h-64 overflow-hidden">
               <div
@@ -104,7 +65,7 @@ export function CaseStudySection({ className }: { className?: string }) {
                       {caseStudy.title}
                     </h3>
                     <p className="box-shadow-black overflow-hidden text-sm text-white/85 text-shadow-black">
-                      {caseStudy.description}
+                      {caseStudy.prompt}
                     </p>
                   </div>
                 </div>

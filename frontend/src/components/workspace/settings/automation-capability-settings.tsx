@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import DesktopOrganizerPage from "@/app/workspace/desktop-organizer/page";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2Icon,
@@ -41,6 +42,10 @@ import {
   saveCapabilities,
 } from "@/core/settings/capabilities-api";
 import { cn } from "@/lib/utils";
+import {
+  AutomationPluginCard,
+  AUTOMATION_PLUGINS_QUERY_KEY,
+} from "./automation-plugin-card";
 
 const CAPABILITIES_QUERY_KEY = ["automation-capabilities"] as const;
 const RELAY_QUERY_KEY = ["browser-relay-status"] as const;
@@ -71,6 +76,9 @@ function useCapabilitySettings() {
     mutationFn: (capabilities: Capabilities) => saveCapabilities(capabilities),
     onSuccess: (result) => {
       queryClient.setQueryData(CAPABILITIES_QUERY_KEY, result.capabilities);
+      void queryClient.invalidateQueries({
+        queryKey: AUTOMATION_PLUGINS_QUERY_KEY,
+      });
     },
   });
   const setCapability = async (key: keyof Capabilities, enabled: boolean) => {
@@ -296,11 +304,12 @@ export function BrowserAutomationSettingsPage() {
             : "Let Echo inspect, click, and type in browser tabs you authorize. Manage access and connection status here."
         }
       />
+      <AutomationPluginCard pluginId="browser_control" />
       <CapabilitySwitchCard
         title={zh ? "允许浏览器操作" : "Allow browser actions"}
         description={
           zh
-            ? "关闭后，浏览器与 live_browser 工具不会进入 Agent 的可用工具目录。"
+            ? "关闭后，浏览器与 live_browser 工具不会进入智能体的可用工具目录。"
             : "When off, browser and live_browser tools are removed from the agent tool catalog."
         }
         checked={query.data?.browser_automation === true}
@@ -459,7 +468,7 @@ export function BrowserAutomationSettingsPage() {
               {zh ? "外部浏览器" : "External browser"}
             </SelectItem>
             <SelectItem value="in_app">
-              {zh ? "Echo 应用内" : "Inside Echo"}
+              {zh ? "ECHO AI 应用内" : "Inside ECHO AI"}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -489,7 +498,7 @@ export function BrowserAutomationSettingsPage() {
               {zh ? "外部浏览器" : "External browser"}
             </SelectItem>
             <SelectItem value="in_app">
-              {zh ? "Echo 应用内" : "Inside Echo"}
+              {zh ? "ECHO AI 应用内" : "Inside ECHO AI"}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -565,11 +574,12 @@ export function DesktopAutomationSettingsPage() {
             : "Let Echo read the screen and operate local apps. The connected desktop executor performs native permission checks."
         }
       />
+      <AutomationPluginCard pluginId="computer_control" />
       <CapabilitySwitchCard
         title={zh ? "允许桌面操作" : "Allow desktop actions"}
         description={
           zh
-            ? "关闭后，电脑操控工具不会进入 Agent 的可用工具目录。长任务豁免和现有审批规则保持不变。"
+            ? "关闭后，电脑操控工具不会进入智能体的可用工具目录。长任务豁免和现有审批规则保持不变。"
             : "When off, computer-use tools are removed from the agent tool catalog. Existing approvals remain unchanged."
         }
         checked={query.data?.desktop_automation === true}
@@ -646,10 +656,11 @@ export function DesktopAutomationSettingsPage() {
         )}
         <span>
           {zh
-            ? "系统权限与 Echo 总开关是两层控制：两者都就绪时桌面操控才可用。"
+            ? "系统权限与 ECHO AI 总开关是两层控制：两者都就绪时桌面操控才可用。"
             : "System permissions and the Echo capability switch are separate gates; both must be ready."}
         </span>
       </div>
+      <DesktopOrganizerPage embedded />
     </div>
   );
 }

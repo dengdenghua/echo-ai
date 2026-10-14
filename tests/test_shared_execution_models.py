@@ -36,10 +36,30 @@ def test_unavailable_official_service_never_uses_fallback():
 
 def test_responses_stream_announces_items_before_deltas_and_completion():
     import json
+
     from runtime.execution.codex_backend.responses_proxy import _responses_sse
-    wire = _responses_sse({"output": [{"id": "msg_test", "type": "message", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "ok", "annotations": []}]}]})
-    events = [json.loads(line[6:]) for line in wire.decode().splitlines() if line.startswith("data: ")]
+
+    wire = _responses_sse(
+        {
+            "output": [
+                {
+                    "id": "msg_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+                }
+            ]
+        }
+    )
+    events = [
+        json.loads(line[6:]) for line in wire.decode().splitlines() if line.startswith("data: ")
+    ]
     names = [event["type"] for event in events]
-    assert names.index("response.output_item.added") < names.index("response.output_text.delta") < names.index("response.output_item.done")
+    assert (
+        names.index("response.output_item.added")
+        < names.index("response.output_text.delta")
+        < names.index("response.output_item.done")
+    )
     assert names[-1] == "response.completed"
     assert [event["sequence_number"] for event in events] == list(range(len(events)))

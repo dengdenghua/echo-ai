@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from pathlib import Path
 
 import pytest
 
+from echo_runtime import safe_registry_skill_slug
 from echo_runtime.bootstrap import bootstrap_skills, read_lockfile, write_lockfile
 from echo_runtime.materialize import sync_skills
 
@@ -187,8 +189,13 @@ def test_write_lockfile_only_includes_real_safe_skill_dirs(tmp_path) -> None:
     (skills / "research-pack").mkdir(parents=True)
     (skills / "research-pack" / "SKILL.md").write_text("ok", encoding="utf-8")
     (skills / "bad/name").mkdir(parents=True)
-    (skills / "bad:name").mkdir()
-    (skills / "bad:name" / "SKILL.md").write_text("bad", encoding="utf-8")
+    with pytest.raises(ValueError):
+        safe_registry_skill_slug("bad:name")
+    if os.name == "posix":
+        # ':' is not a legal file-name character on Windows, so such a
+        # directory can only exist on POSIX filesystems.
+        (skills / "bad:name").mkdir()
+        (skills / "bad:name" / "SKILL.md").write_text("bad", encoding="utf-8")
     (skills / "not-a-skill").mkdir()
     (skills / "plain-file").write_text("not a dir", encoding="utf-8")
     outside = tmp_path / "outside"

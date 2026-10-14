@@ -175,6 +175,7 @@ def test_implicit_without_environment_keeps_dot_echo_layout(
     monkeypatch.delenv("ECHO_DATA_DIR", raising=False)
     monkeypatch.delenv("ECHO_HOME", raising=False)
     monkeypatch.setenv("HOME", str(user_home))
+    monkeypatch.setenv("USERPROFILE", str(user_home))  # Windows "~"
 
     artifact = tmp_path / "legacy-story.tar.gz"
     report = BackupManager().backup(output=artifact, components=["narrative_studio"])

@@ -775,6 +775,48 @@ async def test_exact_thread_not_found_replaces_binding_but_other_error_does_not(
 
 
 @pytest.mark.asyncio
+async def test_resume_refused_by_windows_sandbox_starts_a_fresh_host_tools_thread(
+    tmp_path: Path,
+) -> None:
+    refusal = RemoteError(
+        -32603,
+        "error resuming thread: Fatal error: Session data under C:\\codex-home\\sessions "
+        "looks corrupt or unreadable. (underlying error: failed to load AGENTS.md "
+        "instructions for environment `local`: failed to prepare fs sandbox: failed to "
+        "prepare windows sandbox wrapper: windows unelevated restricted-token sandbox "
+        "cannot enforce split filesystem read restrictions directly; refusing to run "
+        "unsandboxed)",
+    )
+    session, security, _context, _factory, client = _make_session(
+        tmp_path,
+        binding=_binding(),
+    )
+    session.request = replace(session.request, host_tools_only=True)
+    client.resume_error = refusal
+
+    await session.start()
+
+    assert session.resumed is False
+    assert session.inner_thread_id == "inner-new"
+    assert security.writes == [("inner-new", "server", True)]
+    start = next(value for name, value in client.calls if name == "thread/start")
+    assert start["extra_params"]["environments"] == []
+    await session.close()
+
+    # Without the host-tools-only empty environment the refusal is a real error.
+    native_path = tmp_path / "native-tools"
+    native_path.mkdir()
+    native, native_security, _ctx, _f, native_client = _make_session(
+        native_path,
+        binding=_binding(),
+    )
+    native_client.resume_error = refusal
+    with pytest.raises(RemoteError):
+        await native.start()
+    assert native_security.writes == []
+
+
+@pytest.mark.asyncio
 async def test_binding_mismatch_is_security_failure_not_unavailable(tmp_path: Path) -> None:
     session, security, context, _factory, client = _make_session(tmp_path)
     security.read_error = CodexSecurityError("binding identity mismatch")

@@ -10,6 +10,9 @@ import {
 } from "lucide-react";
 import type { Translations } from "./types";
 import { workspaceComputerZhCN } from "./workspace-computer";
+import { workLocationZhCN } from "./work-location";
+import { aboutPageZhCN } from "./about-page";
+import { attentionNotificationsZhCN } from "./attention-notifications";
 import { agentOperatorZhCN } from "./agent-operator";
 
 export const zhCN: Translations = {
@@ -83,12 +86,13 @@ export const zhCN: Translations = {
   // Welcome
   welcome: {
     greeting: "你好，我是 {name}",
-    description: "多智能体 AI · 直接说需求，或切到 Agent 模式深入处理。",
+    description: "多智能体 AI · 直接说需求，或切到智能体模式深入处理。",
     echoTagline: "多智能体协作 · 一个输入框，直接解决问题",
 
-    createYourOwnSkill: "创建你自己的 Agent Skill",
+    brandLine: "每一次交互，都留下回响。",
+    createYourOwnSkill: "创建你自己的智能体技能",
     createYourOwnSkillDescription:
-      "创建自定义 Agent Skill 是 Echo 的核心功能之一,Echo\n会根据你的描述自动生成代码,你可以随时修改和优化\n这个 Skill,让它更好地为你服务。",
+      "创建自定义智能体技能是 ECHO AI 的核心功能之一,Echo\n会根据你的描述自动生成代码,你可以随时修改和优化\n这个技能,让它更好地为你服务。",
 
     scenes: {
       daily: "日常办公",
@@ -96,7 +100,7 @@ export const zhCN: Translations = {
       design: "设计创意",
       data: "数据分析",
       doc: "文档处理",
-      agent: "Agent 编排",
+      agent: "智能体编排",
     },
   },
 
@@ -115,7 +119,7 @@ export const zhCN: Translations = {
     flashMode: "对话",
     flashModeDescription: "快速响应",
     chatModeDescription: "只聊想法，暂不执行",
-    reactMode: "Agent",
+    reactMode: "智能体",
     reactModeDescription: "自主执行与工具自动化",
     ephemeralMode: "临时对话",
     ephemeralModeDescription: "本次对话不读取、不写入长期记忆(阅后即焚)",
@@ -206,10 +210,10 @@ export const zhCN: Translations = {
     toolCalls: "操作记录",
     todoAndContext: "待办与上下文",
     expandable: "可展开",
-    agentCluster: "Agent 集群",
+    agentCluster: "智能体集群",
     agentProgressSummary: (total, completed, errors) =>
       [
-        `${total} 个子 Agent`,
+        `${total} 个子智能体`,
         completed > 0 ? `${completed} 已完成` : "",
         errors > 0 ? `${errors} 异常` : "",
       ]
@@ -231,7 +235,7 @@ export const zhCN: Translations = {
     statusResponded: "已回应",
     statusError: "异常",
     statusWaiting: "等待中",
-    assistant: "Assistant",
+    assistant: "助手",
     turnLabel: (n: number) => `第 ${n} 轮对话`,
     turnNumberLabel: (n: number, label: string) => `第 ${n} 轮：${label}`,
     turnLocator: "对话定位",
@@ -242,6 +246,8 @@ export const zhCN: Translations = {
     newUpdates: () => "有新内容",
     timeoutWarning: (seconds: number) =>
       `已 ${seconds} 秒没有新进展，可能卡住了`,
+    stallHint: (seconds: number) =>
+      `仍在执行，已 ${seconds} 秒没有新输出`,
     thinkingPlan: "思考计划",
     thinkingPlanSourceCheck: "资料检查",
     thinkingPlanCoworkFit: "团队协作",
@@ -307,7 +313,7 @@ export const zhCN: Translations = {
     reject: "拒绝",
     accepted: "已接受",
     rejected: "已撤销",
-    useTopicInAgent: "在 Agent 中使用该主题",
+    useTopicInAgent: "在智能体中使用该主题",
     actionLabel: (action: string) => `Action: ${action}`,
     attachmentFallback: "附件",
     imageAttachment: "图片附件",
@@ -369,7 +375,7 @@ export const zhCN: Translations = {
     collaboratorsCountUnit: "人",
     collaboratorsHelp:
       "默认只由被 @ 的 AI 回复；加入协作者后可选择分工协作或并行共创。",
-    collaboratorsSearchPlaceholder: "搜索 Agent / 已安装能力",
+    collaboratorsSearchPlaceholder: "搜索智能体 / 已安装能力",
     collaboratorsTaskFallback: "团队任务",
     collaboratorsCoreGroup: "白幽灵小队",
     collaboratorsOnDemandGroup: "按需能力",
@@ -418,7 +424,7 @@ export const zhCN: Translations = {
     insertChromeSurface: "插入 Chrome 标识",
     workflow: "工作流",
     deepResearchConfig: "调研设置",
-    roles: "子 Agent",
+    roles: "子智能体",
     materials: "材料",
     collapse: "收起",
     materialNote: "材料备注",
@@ -464,15 +470,17 @@ export const zhCN: Translations = {
     stop: "停止",
     stopping: "正在停止…",
     restoringConnection: "正在恢复连接…草稿已保留。",
+    connectingConversation: "正在连接…可继续编辑。",
+    syncingConversation: "正在同步会话…可继续编辑。",
     connectionRecoveryFailed: "连接恢复失败。",
     retryConnection: "重试",
     projectModeLabel: "项目已绑定",
     projectModeHint:
       "已绑定本地目录，当前对话会读取项目上下文并按代码任务执行。",
     projectStatusTitle: "项目已绑定",
-    projectStatusDescUnlocked: "当前 Agent 可读取、修改并验证该项目。",
+    projectStatusDescUnlocked: "当前智能体可读取、修改并验证该项目。",
     projectStatusDescLocked:
-      "当前 Agent 可使用项目上下文；如需写入项目，请切换到具备项目写权限的角色。",
+      "当前智能体可使用项目上下文；如需写入项目，请切换到具备项目写权限的角色。",
     projectWriteAccess: "项目写入",
     projectReadOnly: "只读项目",
     permissionFullAccess: "完全访问",
@@ -497,7 +505,7 @@ export const zhCN: Translations = {
     automationReconnecting: "正在重连",
     automationDesktop: "桌面控制",
     automationIdle: "待命",
-    automationRunning: "Agent 正在控制",
+    automationRunning: "智能体正在控制",
     automationPaused: "已暂停",
     automationPause: "暂停",
     automationResume: "继续",
@@ -608,6 +616,10 @@ export const zhCN: Translations = {
     creatorRoleLabel: "你的项目角色",
     creatorRole: "项目负责人 · 群主",
     creatorRoleDescription: "你拥有项目管理、AI 编排和真人邀请权限。",
+    aiBudgetLabel: "AI 预算上限（美元，可选）",
+    aiBudgetHint:
+      "项目所有阶段、所有成员累计的 AI 执行费用上限；留空表示不设上限。创建后需你批准立项才会开始执行。",
+    invalidAiBudget: "AI 预算上限需为不小于 0 的美元金额。",
     hint: "工作群、项目能力和右侧工作台会一次创建并自动绑定。",
     cancel: "取消",
     create: "创建项目",
@@ -668,7 +680,7 @@ export const zhCN: Translations = {
 
   // Dispatch Card
   dispatchCard: {
-    agentSwarmTitle: "Agent 协作",
+    agentSwarmTitle: "智能体协作",
     parallelTasks: (n: number) => `${n} 个并行任务`,
     done: "完成",
     researchFocus: "研究重点：",
@@ -821,9 +833,9 @@ export const zhCN: Translations = {
     memberCounter: (n: number, max: number) => `${n}/${max} 成员`,
     selectMembersTitle: "选择成员",
     memberLimitReached: "已达上限",
-    searchAgentsPlaceholder: "搜索 Agent",
+    searchAgentsPlaceholder: "搜索智能体",
     selectedBadge: "已选",
-    noMatches: "没有匹配的 Agent",
+    noMatches: "没有匹配的智能体",
     clearSelected: "清空",
     membersLabel: "成员",
     leaderLabel: "TL",
@@ -917,13 +929,13 @@ export const zhCN: Translations = {
     capabilityCollab: "协作",
     capabilityAuto: "自动",
     capabilityCollabTitle: "AI 提议、你确认 — 问答 / 计划 / 危险操作均需批准",
-    capabilityAutoTitle: "Agent 全权代理 — 规划 + 操作记录 + 自动批准",
-    capabilitySwarmsTitle: "多 Agent 并行 — 调度 + 角色分工 + 并发执行",
+    capabilityAutoTitle: "智能体全权代理 — 规划 + 操作记录 + 自动批准",
+    capabilitySwarmsTitle: "多智能体并行 — 调度 + 角色分工 + 并发执行",
     advanced: "高级",
     architectLevelTooltip:
-      "Architect 权限等级：L0 只读 / L1 仅 skills / L2 可写独立模块 / L3 可合主库",
+      "Architect 权限等级：L0 只读 / L1 仅技能 / L2 可写独立模块 / L3 可合主库",
     architectLevelL0: "一级 只读",
-    architectLevelL1: "二级 技能",
+    architectLevelL1: "二级技能",
     architectLevelL2: "三级 模块",
     architectLevelL3: "四级 合并",
     codeTab: "代码",
@@ -1031,7 +1043,7 @@ export const zhCN: Translations = {
       codeReview: "代码审查",
       checkQuality: "检查代码质量",
       parallelDev: "并行开发",
-      multiAgentCollab: "多 Agent 协同",
+      multiAgentCollab: "多智能体协同",
       frontendDev: "前端开发",
       backendDev: "后端开发",
       dbDesign: "数据库设计",
@@ -1079,7 +1091,7 @@ export const zhCN: Translations = {
       idle: "REC：录制本轮对话并学习为可复用回放技能",
     },
     replay: {
-      titleDefault: "Echo 运行回放",
+      titleDefault: "ECHO AI 运行回放",
       footer: "自包含离线回放",
     },
     composer: {
@@ -1216,6 +1228,9 @@ export const zhCN: Translations = {
   },
 
   workspaceComputer: workspaceComputerZhCN,
+  workLocation: workLocationZhCN,
+  aboutPage: aboutPageZhCN,
+  attentionNotifications: attentionNotificationsZhCN,
   agentOperator: agentOperatorZhCN,
 
   // Agent Workbench Panel
@@ -1225,20 +1240,20 @@ export const zhCN: Translations = {
     running: "执行任务中…",
     newTaskTitle: "新任务",
     closeTitle: "关闭",
-    emptyNoAgents: "还没有正在运行的 Agent 协作任务",
+    emptyNoAgents: "还没有正在运行的智能体协作任务",
     startNewTaskButton: "启动新任务",
     composerHint: "在上方输入任务后提交，需要并行协作时会在这里显示工作进度",
     taskListView: "任务列表",
     computerView: "电脑视图",
     executionView: "执行画面",
     reportView: "报告",
-    traceFeedEmpty: "Agent 尚未开始工作",
+    traceFeedEmpty: "智能体尚未开始工作",
     liveEventStream: "实时事件流",
     eventsCount: (count) => `${count} 个事件`,
-    computerViewEmpty: "Agent 暂未打开网页",
+    computerViewEmpty: "智能体暂未打开网页",
     browsingTrail: (emoji: string) => `Agent ${emoji} 的浏览痕迹`,
     reportPending: "报告尚未生成",
-    agentRunning: "Agent 执行中…",
+    agentRunning: "智能体执行中…",
     durationSeconds: (s: string) => `用时 ${s}s`,
     agentComputer: "看板",
     agentNames: [
@@ -1286,7 +1301,7 @@ export const zhCN: Translations = {
     kindRead: "读取",
     kindFile: "文件",
     kindTodos: "任务",
-    kindAgent: "Agent",
+    kindAgent: "智能体",
     request: "请求",
     response: "响应",
     phase: "阶段",
@@ -1307,8 +1322,8 @@ export const zhCN: Translations = {
     useAsDraft: "作为草稿使用",
     resumeFromLatestCheckpoint: "从最新检查点恢复",
     resumeFromPhase: (phase: string) => `从 ${phase} 恢复`,
-    restorePhase: (phase: string) => `将 Agent 恢复到 ${phase}。`,
-    restoreLatestPhase: "将 Agent 恢复到最新记录阶段。",
+    restorePhase: (phase: string) => `将智能体恢复到 ${phase}。`,
+    restoreLatestPhase: "将智能体恢复到最新记录阶段。",
     continueFromIteration: (iteration: number) => `从第 ${iteration} 轮继续。`,
     rehydrateWorkingSetFiles: (count: number) =>
       `重建 ${count} 个工作集文件，并忽略原始消息快照。`,
@@ -1321,7 +1336,7 @@ export const zhCN: Translations = {
     phaseLabel: (phase: string) => `阶段：${phase}`,
     workingSetFilesLabel: (count: number) => `工作集文件：${count}`,
     rawCheckpointExcluded: "原始检查点状态和消息快照已被有意排除。",
-    resumeDraftIntro: "从选定的持久化检查点恢复这次 Agent 运行。",
+    resumeDraftIntro: "从选定的持久化检查点恢复这次智能体运行。",
     resumeTitleLabel: (title: string) => `恢复标题：${title}`,
     progressLabel: (progress: string) => `进度：${progress}`,
     safetyRequirements: "安全要求：",
@@ -1359,9 +1374,9 @@ export const zhCN: Translations = {
     statusWaitingApproval: "待确认",
     statusError: "异常",
     statusDone: "已完成",
-    progress: "进展",
+    progress: "任务进展",
     currentObjective: "当前目标",
-    currentObjectiveHint: "Agent 正在处理这一项，完成后会自动生成结果回执。",
+    currentObjectiveHint: "智能体正在处理这一项，完成后会自动生成结果回执。",
     resultReceipt: "结果回执",
     resultReceiptDescription:
       "把已完成事项、产物和异常收口到一处，便于快速验收。",
@@ -1392,9 +1407,9 @@ export const zhCN: Translations = {
     inputs: "输入",
     inputsUploadedFiles: (count) => `上传文件 ${count} 个`,
     inputsAttachments: (count) => `附件 ${count} 个`,
-    context: "上下文",
+    context: "参考资料",
     contextCompress: "压缩",
-    contextDescription: "当前对话中 AI 获取的上下文",
+    contextDescription: "本轮任务查阅的网页、文件和其他资料",
     contextUsed: (percentage, limit) =>
       `已占用 ${percentage}%（上限 ${limit}）`,
     observableThisRound: "本轮可观测",
@@ -1406,7 +1421,7 @@ export const zhCN: Translations = {
     noObservableReferences: "本轮暂无可确认的上下文引用",
     dashboardOverview: "看板概览",
     dashboardOverviewDescription:
-      "Agent 开始工作后，这里会显示进展、产物和本轮可确认上下文",
+      "智能体开始工作后，这里会显示进展、产物和本轮可确认上下文",
     noSubagentsObservedDescription:
       "暂未观测到子智能体。触发 call_agent_parallel 后，这里会按父任务聚合每个 subagent 的状态、工具、黑板写入和文件改动。",
     metricRunning: "运行中",
@@ -1427,7 +1442,7 @@ export const zhCN: Translations = {
     errorLabel: "错误",
     noneYet: "暂无",
     eventsCount: (count) => `${count} 条`,
-    agentClusterCreateAssistant: "Agent 集群 - 创建助手",
+    agentClusterCreateAssistant: "智能体集群 - 创建助手",
     roleCard: "角色卡",
     backToRoleCard: "返回角色卡",
     roleDescription: "角色说明",
@@ -1435,11 +1450,11 @@ export const zhCN: Translations = {
     defaultMotto: "我会负责这一路任务，并把进展同步回主控。",
     iterationRound: (count) => `${count} 轮`,
     noWorkDirDescription:
-      "还没有定位到工作目录。Agent 读取或写入文件后，这里会自动关联项目文件。",
+      "还没有定位到工作目录。智能体读取或写入文件后，这里会自动关联项目文件。",
     noDiffEntriesDescription:
       "还没有捕获到可展示的 diff。文件编辑工具返回补丁后会显示在这里。",
     filesTab: "文件",
-    diffTab: "Diff",
+    diffTab: "差异",
     terminalTab: "终端",
     browserTab: "预览",
     projectTab: "项目",
@@ -1472,7 +1487,7 @@ export const zhCN: Translations = {
     agentStatusDone: "已结束",
     agentStatusPending: "等待中",
     mainComputer: "主电脑",
-    filterByAgent: "按 Agent 过滤",
+    filterByAgent: "按智能体过滤",
     filterChipMain: "主进程",
     mainController: "主控",
     subComputer: "子电脑",
@@ -1495,7 +1510,7 @@ export const zhCN: Translations = {
       "当该成员启动独立进程后，过程记录会显示在这里。",
     switchToMainComputer: "切回主电脑",
     viewAgentProcess: (label) => `查看 ${label} 独立进程`,
-    agentClusterIndependentProcess: "Agent 集群 - 独立进程",
+    agentClusterIndependentProcess: "智能体集群 - 独立进程",
     subAgent: "子智能体",
     noTaskDescription: "暂无任务说明。",
     waitingForSubagentOutput: "等待子智能体开始输出",
@@ -1610,7 +1625,7 @@ export const zhCN: Translations = {
     domesticProfiles: "国产 Profile",
     requiredProfilesPresent: "必要 Profile 齐全",
     missingProfiles: "缺失 Profile",
-    profileIds: "Profile ID",
+    profileIds: "配置 ID",
     apiSurface: "API 路由面",
     routeCount: "路由数量",
     requiredRoutesPresent: "必要路由齐全",
@@ -1742,7 +1757,7 @@ export const zhCN: Translations = {
     refreshButton: "刷新",
     feature1Title: "集中管理插件能力",
     feature1Desc:
-      "查看插件启用状态、能力清单和异常信息，统一扩展 Agent 的行为边界。",
+      "查看插件启用状态、能力清单和异常信息，统一扩展智能体的行为边界。",
     feature2Title: "快速识别异常",
     feature2Desc: "通过状态和错误信息快速定位失效插件，减少工具链配置成本。",
     statTotal: "总插件数",
@@ -1755,7 +1770,7 @@ export const zhCN: Translations = {
     statusEnabled: "启用",
     statusDisabled: "禁用",
     emptyTitle: "暂无注册插件",
-    emptyHint: "安装插件以扩展 Agent 能力",
+    emptyHint: "安装插件以扩展智能体能力",
     searchPlaceholder: "搜索插件名称、描述或作者",
     filterAllAuthors: "全部作者",
     filterByAuthor: (author: string) => `作者 ${author}`,
@@ -1853,7 +1868,7 @@ export const zhCN: Translations = {
     humanSaved: "页面修改已保存",
     humanUndo: "撤销上次保存",
     humanRestored: "已恢复到保存前版本",
-    humanConflict: "Agent 已更新页面，你的修改尚未保存",
+    humanConflict: "智能体已更新页面，你的修改尚未保存",
     humanReloadLatest: "放弃并载入最新版",
     humanUnavailable: "这个 HTML 不是可写的任务产物",
     humanDiscardTitle: "放弃未保存的页面修改？",
@@ -1894,7 +1909,7 @@ export const zhCN: Translations = {
     confirmDeleteProject: (project: string) =>
       `移除项目组「${project}」？本地文件和对话都不会删除，对话将回到普通列表。`,
     confirmDeleteProjectTitle: "删除项目",
-    confirmDeleteThread: (title: string) => `删除对话「${title}」?`,
+    confirmDeleteThread: (title: string) => `将「${title}」从我的列表移除？群聊、项目、文件和其他成员的数据均保留，可在“已移除”中恢复。`,
     tools: "工具",
     navigate: "导航",
     backgroundTasks: "后台任务",
@@ -1913,7 +1928,7 @@ export const zhCN: Translations = {
     newProject: "新项目",
     // Additional fields
     appAuth: "应用授权",
-    agentSwarm: "Agent 协作",
+    agentSwarm: "智能体协作",
     // Nav items (left primary + collapsible groups)
     navChat: "对话",
     navCode: "代码",
@@ -1921,10 +1936,10 @@ export const zhCN: Translations = {
     navSwarm: "协作",
     navCompany: "工作",
     navTeam: "协作",
-    navDatabase: "本地数据库",
+    navDatabase: "资料库",
     navKnowledgeGraph: "知识库",
     navReflex: "反射规则",
-    navIntelligence: "订阅",
+    navIntelligence: "自动化",
     navAssistant: "助手",
     navPaperTrading: "模拟炒股",
     navPaperTradingDesc:
@@ -1932,12 +1947,12 @@ export const zhCN: Translations = {
     navCommunity: "发现社区",
     navMcp: "MCP",
     navEvolution: "自进化",
+    navMail: "邮箱",
     navProjects: "项目管理",
     navDesign: "设计画布",
     navNarrative: "叙事工坊",
     navPlugins: "插件",
     navHR: "HUB",
-    navComputer: "本机助手",
     navDesktopOrganizer: "桌面助手",
     navArchitecture: "架构",
     groupTools: "工具",
@@ -1960,7 +1975,7 @@ export const zhCN: Translations = {
     teamMembers: (n: number) => `${n} 成员`,
     lockedAgentTooltip: (name: string) => `此页面固定使用 ${name}`,
     adminAgentName: "管理员",
-    switchAgentLabel: "切换 Agent",
+    switchAgentLabel: "切换智能体",
     switchAgentMenuTitle: "切换智能体",
     openAgentHud: "查看角色资料",
     agentProfileAction: "资料",
@@ -1975,7 +1990,7 @@ export const zhCN: Translations = {
       admin: "系统管理",
     },
     openAgentHudFor: (name: string) => `查看 ${name} 的资料`,
-    currentAgent: "当前 Agent",
+    currentAgent: "当前智能体",
     soloChat: "单人对话",
     oneOnOneTask: "一对一任务",
     soloTasks: "单人任务",
@@ -1988,10 +2003,16 @@ export const zhCN: Translations = {
     newChatTooltip: "新对话",
     searchTooltip: "搜索 (Ctrl/⌘+K)",
     settingsTooltip: "设置",
+    notInstalledBadge: "未安装",
+    moduleInstallAction: "去安装",
+    moduleInstallByAdmin: "由管理员安装",
+    activeRoleLine: (name: string) => `角色：${name}`,
+    accountMenuLabel: (account: string, role: string) => `${account}，当前角色 ${role}`,
+    accountFallback: "我的账户",
     // Project + chat list actions
     deleteProjectTooltip: "删除项目",
     deleteProjectFailed: "删除项目失败，请重试",
-    deleteThreadTooltip: "删除对话",
+    deleteThreadTooltip: "从我的列表移除",
     actionSort: "排序",
     actionNewProject: "选择项目空间",
     projectPickerFailed: "未能打开系统文件夹选择器，请确认本地服务正在运行。",
@@ -2030,18 +2051,18 @@ export const zhCN: Translations = {
     taskStatusFailed: "异常待处理",
     taskStatusPending: "待启动",
     // Aria labels
-    ariaCollapseLocalDatabase: "收起本地数据库",
-    ariaExpandLocalDatabase: "展开本地数据库",
+    ariaCollapseLocalDatabase: "收起资料库",
+    ariaExpandLocalDatabase: "展开资料库",
     ariaResizeSidebar: "拖拽调整宽度",
-    ariaResizeWorkbench: "调整 Agent 工作台宽度",
+    ariaResizeWorkbench: "调整智能体工作台宽度",
     ariaChatWorkspace: "对话工作区",
     ariaUtilityPanel: "产物、计划与研究面板",
-    ariaAgentWorkbench: "Agent 工作台",
+    ariaAgentWorkbench: "智能体工作台",
     expandWorkbench: "展开工作台",
     restoreWorkbenchSplit: "恢复分栏",
     compactComposer: "收起输入框",
     showComposer: "继续对话",
-    ariaToggleWorkbenchDrawer: "展开或收起 Agent 工作台抽屉",
+    ariaToggleWorkbenchDrawer: "展开或收起智能体工作台抽屉",
     // Storage library labels
     libraryApps: "应用",
     libraryDocs: "文档",
@@ -2155,7 +2176,7 @@ export const zhCN: Translations = {
     saveConfig: "保存配置",
     configSaved: "配置已保存",
     installExtensionTitle: "安装 Echo Browser Relay",
-    installExtensionDesc: "安装扩展以将浏览器连接到 Echo。",
+    installExtensionDesc: "安装扩展以将浏览器连接到 ECHO AI。",
     step1Title: "打开 Chrome 扩展管理页面并启用开发者模式",
     step1Desc: "在浏览器地址栏输入并打开扩展管理页面",
     step1Action: "打开 chrome://extensions",
@@ -2171,7 +2192,7 @@ export const zhCN: Translations = {
     relayDisconnected: "扩展未连接",
     relayVersion: "版本",
     compareTitle: "选择连接方式",
-    compareDesc: "两种方式均可将浏览器连接到 Echo，选择最适合你的方案。",
+    compareDesc: "两种方式均可将浏览器连接到 ECHO AI，选择最适合你的方案。",
     compareFeature: "功能",
     compareExtension: "扩展方式",
     compareCdp: "CDP 直连",
@@ -2188,7 +2209,7 @@ export const zhCN: Translations = {
     compareStabilityExt: "高",
     compareStabilityCdp: "中",
     compareInstall: "需要安装",
-    compareInstallExt: "Yes",
+    compareInstallExt: "是",
     compareInstallCdp: "No",
     comparePrompt: "自动化提示",
     comparePromptExt: "扩展调试提示",
@@ -2196,7 +2217,7 @@ export const zhCN: Translations = {
     useExtension: "使用扩展方式（推荐）",
     useCdp: "使用 CDP 直连",
     recommended: "推荐",
-    beta: "Beta",
+    beta: "测试版",
     high: "高",
     medium: "中",
     auto: "自动",
@@ -2204,7 +2225,7 @@ export const zhCN: Translations = {
     allVersions: "所有版本",
     // Page Agent integration
     pageAgentDesc:
-      "Page Agent 是阿里巴巴开源的 GUI Agent 框架，通过文本 DOM 操作控制网页，无需截图或多模态模型。通过 MCP 协议集成到 Echo。",
+      "Page Agent 是阿里巴巴开源的 GUI Agent 框架，通过文本 DOM 操作控制网页，无需截图或多模态模型。通过 MCP 协议集成到 ECHO AI。",
     pageAgentDocs: "查看文档",
     pageAgentFeature1: "页内 JS 集成",
     pageAgentFeature1Desc: "无需 Python、无需 headless 浏览器，纯前端注入。",
@@ -2220,7 +2241,7 @@ export const zhCN: Translations = {
     pageAgentCmpControl: "控制方式",
     pageAgentCmpControlPA: "DOM 级操作",
     pageAgentCmpControlRelay: "CDP 协议",
-    pageAgentCmpProtocol: "Agent 协议",
+    pageAgentCmpProtocol: "智能体协议",
     pageAgentCmpLogin: "登录态",
     pageAgentCmpLoginPA: "使用用户真实浏览器",
     pageAgentCmpLoginRelay: "隔离 headless 环境",
@@ -2230,13 +2251,13 @@ export const zhCN: Translations = {
     pageAgentEnabled: "Page Agent MCP 已启用",
     pageAgentDisabled: "Page Agent MCP 未启用",
     pageAgentEnabledDesc:
-      "Agent 可通过 MCP 协议调用 Page Agent 的浏览器操作工具。",
+      "智能体可通过 MCP 协议调用 Page Agent 的浏览器操作工具。",
     pageAgentDisabledDesc:
-      "启用后，Page Agent 将作为 MCP server 注册，Agent 可直接调用。",
+      "启用后，Page Agent 将作为 MCP server 注册，智能体可直接调用。",
     pageAgentEnable: "启用",
     pageAgentDisable: "停用",
     pageAgentEnableSuccess:
-      "Page Agent MCP server 已启用，Agent 现在可以使用浏览器操作工具。",
+      "Page Agent MCP server 已启用，智能体现在可以使用浏览器操作工具。",
     systemArchitecture: "系统架构",
     step3DragHint:
       "将 echo-browser-relay 文件夹拖拽到 chrome://extensions 页面，Chrome 会立即安装。",
@@ -2246,7 +2267,7 @@ export const zhCN: Translations = {
     extConNeedExtension: "需要安装一个 Chrome 扩展。",
     cdpProNoExtension: "无需安装任何扩展。",
     cdpProChrome144: "Chrome 144+ 即可用。",
-    cdpConReAuth: "每次重启 Echo 后需重新授权。",
+    cdpConReAuth: "每次重启 ECHO AI 后需重新授权。",
     cdpConChrome144Only: "仅支持 Chrome 144+。",
   },
 
@@ -2257,7 +2278,7 @@ export const zhCN: Translations = {
     connectionCenterDesc:
       "统一管理模型上下文协议服务，把外部工具、浏览器和数据源接入工作区。",
     toolExtension: "工具扩展",
-    toolExtensionDesc: "接入本地或远程 MCP 服务，让 Agent 能调用更多外部能力。",
+    toolExtensionDesc: "接入本地或远程 MCP 服务，让智能体能调用更多外部能力。",
     configGovernance: "配置治理",
     configGovernanceDesc:
       "用统一页面维护服务状态、参数与启用范围，降低接入复杂度。",
@@ -2391,7 +2412,7 @@ export const zhCN: Translations = {
     unassignConfirmTitle: "解绑响应对象",
     unassignConfirmDescription:
       "解绑后该渠道将恢复默认消息处理方式，可随时重新绑定。",
-    howToSetup: "如何接入?",
+    howToSetup: "如何接入？",
     clickToChangeAgent: "点击更换响应对象",
     handlingMessages: "正在处理此渠道消息",
     handlingMessagesAsTeam: "成员并行协作并汇总回复",
@@ -2487,13 +2508,13 @@ export const zhCN: Translations = {
   },
   armsDialog: {
     titlePrefix: "Arms ·",
-    description: "编辑此 agent 可用的 arm(能力组)· 保存后后端热重载,无需重启",
+    description: "编辑此智能体可用的 arm(能力组)· 保存后后端热重载,无需重启",
     wrenchTitle: "Arms · 编辑能力",
   },
   agentConfig: {
-    dialogTitle: "Agent 配置档案",
-    title: "Agent 配置",
-    subtitle: "ARM / Skill 白名单 / 权限范围 / Runtime",
+    dialogTitle: "智能体配置档案",
+    title: "智能体配置",
+    subtitle: "ARM / 技能白名单 / 权限范围 / Runtime",
     configBadge: "配置",
     uidLabel: "UID",
     back: "返回",
@@ -2502,9 +2523,9 @@ export const zhCN: Translations = {
     active: "运行中",
     ready: "配置就绪",
     loadoutReady: "能力已接入",
-    saved: "Agent 配置已保存",
+    saved: "智能体配置已保存",
     saveFailed: (msg) => `保存失败：${msg}`,
-    officialFaction: "Echo 指挥部",
+    officialFaction: "ECHO 指挥部",
     authorFaction: (author) => `${author} Lab`,
     categoryRoles: {
       assistant: "支援",
@@ -2518,22 +2539,22 @@ export const zhCN: Translations = {
     categoryTypes: {
       assistant: "AI 载体",
       automation: "自动化单元",
-      coder: "代码 Agent",
-      creative: "创作 Agent",
-      researcher: "研究 Agent",
-      specialist: "核心 Agent",
-      financial: "金融 Agent",
+      coder: "代码智能体",
+      creative: "创作智能体",
+      researcher: "研究智能体",
+      specialist: "核心智能体",
+      financial: "金融智能体",
     },
     factionLabel: "阵营",
     armCountLabel: "ARM",
     armCount: (count) => `${count} 个启用`,
-    skillCountLabel: "Skill",
+    skillCountLabel: "技能",
     skillCount: (count) => `${count} 项`,
     permissionLabel: "权限",
     guarded: "受控",
     permissionCount: (enabled, total) => `${enabled}/${total} 已启用`,
     visualTitle: "二维三视图",
-    visualSubtitle: "Agent 设定图预览",
+    visualSubtitle: "智能体设定图预览",
     visualStatus: "参考图在线",
     visualWatermark: "CHARACTER",
     visualLoadoutLabel: "专属装备",
@@ -2561,7 +2582,7 @@ export const zhCN: Translations = {
     emptyArmSlot: "空 ARM 槽位",
     skillTitle: "SKILL 白名单",
     skillSubtitle: "私有技能与路由",
-    privateSkillsLabel: "私有 skill 白名单",
+    privateSkillsLabel: "私有技能白名单",
     privateSkillsPlaceholder: "skill-a, skill-b",
     characterFileLabel: "角色档案",
     characterBackgroundLabel: "背景档案",
@@ -2645,16 +2666,16 @@ export const zhCN: Translations = {
       financial: ["剪裁西装", "低饱和配色", "金属腕表", "顾问气质"],
     },
     keySkillsLabel: "关键技能",
-    browseSkillWhitelist: "浏览 Skill 白名单",
+    browseSkillWhitelist: "浏览技能白名单",
     availableSkillPoolLabel: "完整技能池",
     availableSkillPoolCount: (selected, total) =>
       `${selected}/${total} 已默认装配`,
     availableSkillPoolHint:
-      "这里只是源包里可继续加入白名单的 Skill，不会默认全放开。",
+      "这里只是源包里可继续加入白名单的技能，不会默认全放开。",
     skillSlotHint: "已选技能槽",
-    allSkillsWildcard: "全部 Skill",
-    emptySkillSlot: "空 Skill 槽位",
-    moreSkills: (count) => `还有 ${count} 个 Skill，点击查看全部`,
+    allSkillsWildcard: "全部技能",
+    emptySkillSlot: "空技能槽位",
+    moreSkills: (count) => `还有 ${count} 个技能，点击查看全部`,
     extraAffinityLabel: "额外亲和词",
     extraAffinityPlaceholder: "代码, 重构, 调试",
     commaHint: "逗号或换行分隔",
@@ -2662,20 +2683,20 @@ export const zhCN: Translations = {
     promptSubtitle: "Soul 与规则",
     soulPlaceholder: "智能体灵魂 / 系统指令",
     loadoutCheckTitle: "装配预检",
-    loadoutCheckSubtitle: "LOADOUT CHECK",
+    loadoutCheckSubtitle: "配置检查",
     loadoutOk: "配置健康，可执行装配已就绪",
-    checkNoArms: "未启用 ARM，Agent 缺少能力来源",
-    checkNoPrivateSkills: "Skill 白名单为空，将仅依赖 ARM 默认 skill",
-    checkBlockedSkills: (count) => `${count} 个 Skill 被权限组阻断`,
-    checkNoExecutableSkills: "可执行 Skill 为 0，Agent 当前基本不可用",
+    checkNoArms: "未启用 ARM，智能体缺少能力来源",
+    checkNoPrivateSkills: "技能白名单为空，将仅依赖 ARM 默认技能",
+    checkBlockedSkills: (count) => `${count} 个技能被权限组阻断`,
+    checkNoExecutableSkills: "可执行技能为 0，智能体当前基本不可用",
     checkUnsavedChanges: "存在未保存变更，保存后才会生效",
     configDockTitle: "能力配置",
     configureProfileAction: "编辑基础与 Prompt",
     configureProfileHint: "描述、模型与 Soul Prompt",
     configureArmAction: "配置 ARM",
     configureArmHint: "能力模块调用范围",
-    configureSkillsAction: "打开 Skill 商城",
-    configureSkillsHint: "私有 Skill 白名单",
+    configureSkillsAction: "打开技能商城",
+    configureSkillsHint: "私有技能白名单",
     configurePermissionsAction: "调整权限",
     configurePermissionsHint: "高风险能力限制",
     routingConfig: "路由与预算",
@@ -2780,19 +2801,19 @@ export const zhCN: Translations = {
     saveHint: "你可以继续与智能体对话来完善它的功能,或者现在就开始使用",
     saveCommandMessage:
       "如果你想修改智能体的配置,可以直接编辑工作目录中的文件。系统提示词存储在 SOUL.md 中,你可以使用 setup_agent 命令来更新配置",
-    agentCreatedPendingRefresh: "智能体已创建,Echo 正在刷新以应用更改",
+    agentCreatedPendingRefresh: "智能体已创建,ECHO AI 正在刷新以应用更改",
     more: "更多操作",
     agentCreated: "智能体创建成功!",
     startChatting: "开始对话",
     backToGallery: "返回 Gallery",
     agentNew: {
-      pageTitle: "新建 Agent",
-      pageSubtitle: "一句话描述目标，Agent Generator 自动补全配置",
+      pageTitle: "新建智能体",
+      pageSubtitle: "一句话描述目标，智能体生成器自动补全配置",
       placeholder:
         "例如：帮我做竞品调研，每周输出机会点、风险提醒和下一步行动。",
       buttons: {
         checking: "检查中...",
-        generate: "生成 Agent",
+        generate: "生成智能体",
         back: "返回",
         autoConfig: "一键配置生成",
         generateConfig: "生成配置描述",
@@ -3004,13 +3025,13 @@ export const zhCN: Translations = {
 
   // Workspace
   workspace: {
-    officialWebsite: "访问 Echo 官网",
-    githubTooltip: "查看 Echo 的 Github 仓库",
+    officialWebsite: "访问 ECHO AI 官网",
+    githubTooltip: "查看 ECHO AI 的 Github 仓库",
     settingsAndMore: "设置和更多",
-    visitGithub: "在 Github 上关注 Echo",
+    visitGithub: "在 Github 上关注 ECHO AI",
     reportIssue: "报告问题",
     contactUs: "联系我们",
-    about: "关于 Echo",
+    about: "关于 ECHO AI",
     modes: {
       chat: "对话",
       team: "团队",
@@ -3022,7 +3043,7 @@ export const zhCN: Translations = {
       badge: "Agent OS 控制中心",
       headline: "赋予智能体目标，然后监督工作。",
       description:
-        "Echo 将目标转化为计划，在限定运行时中执行工具，记录轨迹，并为下一次运行保留有用的记忆。",
+        "ECHO AI 将目标转化为计划，在限定运行时中执行工具，记录轨迹，并为下一次运行保留有用的记忆。",
       newTask: "新任务",
       codeTask: "代码任务",
       systemLoop: {
@@ -3103,6 +3124,8 @@ export const zhCN: Translations = {
     messageSendFailed: "发送失败",
     previousMessagePending: "上一条消息仍在发送，请等待确认后重试",
     steeringTurnUnavailable: "原任务已不再运行，请重新发送为一条新消息",
+    removeQuote: "取消引用",
+    quoteMessage: "引用",
     editResend: "编辑并重发",
     regenerateResponse: "重新生成回复",
     forkFromHere: "从这里派生新会话",
@@ -3142,7 +3165,7 @@ export const zhCN: Translations = {
 
   // Page titles (document title)
   pages: {
-    appName: "Echo",
+    appName: "ECHO AI",
     chats: "对话",
     newChat: "新对话",
     untitled: "未命名",
@@ -3167,7 +3190,7 @@ export const zhCN: Translations = {
     writeFile: "写入文件",
     clickToViewContent: "点击查看内容",
     writeTodos: "创建 To-do 列表",
-    skillInstallTooltip: "点击安装此技能到 Echo 工作区",
+    skillInstallTooltip: "点击安装此技能到 ECHO AI 工作区",
     toastSkillInstallFailed: "安装技能失败",
     toastExportConversationFailed: "导出对话失败",
   },
@@ -3186,13 +3209,13 @@ export const zhCN: Translations = {
     thoughtProcess: "实时工作日志",
     connectionLost: "本次回复已中断，可继续发送消息或重试。",
     networkLost:
-      "模型连接中断；已完成的步骤和子 Agent 结果已保留，重试即可继续。",
+      "模型连接中断；已完成的步骤和子智能体结果已保留，重试即可继续。",
     modelAuthRequiredTitle: "模型登录已失效",
     modelAuthRequired:
       "当前模型凭据无效或尚未登录。请在模型设置中重新登录，或切换到其他可用模型。",
-    subagentCapabilityMismatchTitle: "子 Agent 能力不匹配",
+    subagentCapabilityMismatchTitle: "子智能体能力不匹配",
     subagentCapabilityMismatch:
-      "所选子 Agent 不具备这项任务所需的能力，因此没有执行。请更换合适的 Agent 后重试。",
+      "所选子智能体不具备这项任务所需的能力，因此没有执行。请更换合适的智能体后重试。",
     modelRateLimitedTitle: "模型暂时限流",
     modelRateLimited:
       "当前模型请求过多或额度已达上限。可稍后重试，或切换到其他可用模型继续。",
@@ -3214,7 +3237,7 @@ export const zhCN: Translations = {
     environmentBlockedAuthorizeFull: "授权完整网络并重试",
     blockedOnUser: "任务需要你的输入才能继续。",
     streamEndpointUnavailable:
-      "当前后端未启用或暂不可用对话/团队流接口，请启动完整 Echo 后端或检查前端代理。",
+      "当前后端未启用或暂不可用对话/团队流接口，请启动完整 ECHO AI 后端或检查前端代理。",
     iteration: (count: number) => `第 ${count} 轮`,
     toolCalls: (count: number) => `${count} 次调用`,
     generating: "生成中…",
@@ -3311,7 +3334,7 @@ export const zhCN: Translations = {
     noResults: "没有找到匹配的操作",
     actions: "操作",
     keyboardShortcuts: "键盘快捷键",
-    keyboardShortcutsDescription: "使用键盘快捷键更高效地使用 Echo",
+    keyboardShortcutsDescription: "使用键盘快捷键更高效地使用 ECHO AI",
     openCommandPalette: "打开命令面板",
     commandPaletteDescription: "搜索要执行的命令...",
     toggleSidebar: "切换侧边栏",
@@ -3364,6 +3387,8 @@ export const zhCN: Translations = {
       project_phase: "阶段执行与组队",
       project_budget: "调整项目预算",
       remote_trigger: "Webhook",
+      web_read: "读取网页",
+      web_search: "搜索网页",
     },
   },
 
@@ -3401,7 +3426,7 @@ export const zhCN: Translations = {
   // Settings
   settings: {
     title: "设置",
-    description: "管理你的 Echo 账户和偏好设置",
+    description: "管理你的 ECHO 账户和偏好设置",
     sections: {
       account: "账户",
       subscription: "订阅与用量",
@@ -3423,35 +3448,34 @@ export const zhCN: Translations = {
     automation: {
       title: "执行与权限",
       description:
-        "系统级能力开关 · 控制 Agent 能不能调用浏览器、桌面等高风险自动化能力。侧边栏「自动化」用于查看订阅、定时任务和运行结果，这里只管理它们能否被执行。",
+        "系统级能力开关 · 控制智能体能不能调用浏览器、桌面等高风险自动化能力。侧边栏「自动化」用于查看订阅、定时任务和运行结果，这里只管理它们能否被执行。",
       restartRequiredTitle: "改动需要重启后端才能生效",
       restartRequiredBody:
-        "skill registry 只在启动时构造。保存后请手动重启后端进程。",
+        "技能 registry 只在启动时构造。保存后请手动重启后端进程。",
       browserTitle: "允许浏览器操作",
       browserDesc:
-        "启用后两组浏览器 skill 会注册：headless Playwright（browser_get / browser_click / browser_type / browser_extract / browser_screenshot 等）以及 Electron 桌面端的 live bridge（live_browser_click / live_browser_type / live_browser_navigate / live_browser_execute_js 等，直接操作你当前登录态的浏览器 Tab）。关闭后两组对所有 agent 不可用。",
+        "启用后两组浏览器技能会注册：headless Playwright（browser_get / browser_click / browser_type / browser_extract / browser_screenshot 等）以及 Electron 桌面端的 live bridge（live_browser_click / live_browser_type / live_browser_navigate / live_browser_execute_js 等，直接操作你当前登录态的浏览器 Tab）。关闭后两组对所有智能体不可用。",
       desktopTitle: "允许桌面操作",
       desktopDesc:
-        "启用后 screen_capture / screen_info / mouse_click / mouse_move / keyboard_type / keyboard_press 等 skill 会注册 · agent 能真实截屏 + 操控鼠标键盘。关闭后这些 skill 对所有 agent 不可用。",
+        "启用后 screen_capture / screen_info / mouse_click / mouse_move / keyboard_type / keyboard_press 等技能会注册 · 智能体能真实截屏 + 操控鼠标键盘。关闭后这些技能对所有智能体不可用。",
       localToolsTitle: "本地工具",
       localToolsDesc:
-        "低频的本机连接、桌面整理和设备级操作收在这里，主侧栏只保留核心工作流入口。",
+        "打开桌面助手，整理桌面文件。",
       groupLabel: "群组：",
       reset: "重置",
       save: "保存",
       saveSuccess: "执行能力设置已保存",
       saveFailed: "保存失败，原有设置没有被更改。",
       saveDescription:
-        "重启后端后新配置才会生效 — 新启动的 skill registry 会读这份文件。",
+        "重启后端后新配置才会生效 — 新启动的技能 registry 会读这份文件。",
       nextStepSaveTitle: "下一步：保存变更",
       nextStepVerifyTitle: "下一步：验证自动化是否可用",
       nextStepSaveHint:
         "保存后按提示重启，让新的浏览器/电脑自动化开关在下一轮生效。",
       nextStepVerifyHint:
-        "开关已同步。进入电脑自动化页观察屏幕、生成计划，确认本机能力可执行。",
+        "开关已同步。新建对话，描述需要操作的应用和任务，即可使用自动化能力。",
       nextStepDisabledTitle: "浏览器和桌面操作均已关闭",
       nextStepDisabledHint: "如需使用本机自动化，请先开启至少一项能力并保存。",
-      openComputerTool: "打开电脑自动化",
       loading: "加载自动化能力配置...",
       loadFailed: "加载失败",
       restartConfirmTitle: "重启后端以生效",
@@ -3562,7 +3586,7 @@ export const zhCN: Translations = {
       importConfirmTitle: "确认导入记忆？",
       importConfirmDescription: "导入的记忆将覆盖现有的记忆数据",
       importFileLabel: "选择记忆文件",
-      importInvalidFile: "文件格式无效，请选择由 Echo 导出的 JSON 记忆文件",
+      importInvalidFile: "文件格式无效，请选择由 ECHO AI 导出的 JSON 记忆文件",
       importFileTooLarge: "记忆文件不能超过 5 MB",
       importSuccess: "记忆导入成功",
       manualFactSource: "手动添加",
@@ -3653,6 +3677,8 @@ export const zhCN: Translations = {
       darkDescription: "深色界面,减轻眼睛疲劳",
       paletteTitle: "配色风格",
       paletteDescription: "中性底色，细腻点缀。找到适合你的经典配色。",
+      paletteEcho: "ECHO 石墨",
+      paletteEchoDescription: "家族默认配色：石墨与雪白，只亮一点青色核心",
       paletteRose: "樱花粉",
       paletteRoseDescription: "樱花般的柔粉，搭配轻盈奶白",
       paletteSteel: "经典蓝",
@@ -3711,14 +3737,14 @@ export const zhCN: Translations = {
     },
     skills: {
       title: "技能",
-      description: "管理 Agent Skill 的安装和配置",
+      description: "管理智能体技能的安装和配置",
       createSkill: "创建技能",
       emptyTitle: "还没有自定义技能",
       emptyDescription:
-        "自定义 Agent Skill 可以放在 Echo 工作区的 `/skills/custom` 目录中",
+        "自定义智能体技能可以放在 ECHO AI 工作区的 `/skills/custom` 目录中",
       emptyButton: "了解如何创建技能",
       enabledDescription:
-        "已启用的技能会进入 Agent 可用工具目录；关闭后模型不可见，也不能执行。",
+        "已启用的技能会进入智能体可用工具目录；关闭后模型不可见，也不能执行。",
       noMatch: (query) => `没有与「${query}」匹配的技能`,
       searchPlaceholder: "搜索技能...",
       tabMarket: "技能",
@@ -3727,7 +3753,7 @@ export const zhCN: Translations = {
       capabilities: "能力中心",
       skillsCenter: "技能中心",
       skillsCenterDesc:
-        "浏览、安装、管理和评估技能，把通用 Agent 运行时扩展成具体业务能力。",
+        "浏览、安装、管理和评估技能，把通用智能体运行时扩展成具体业务能力。",
       skillMarket: "技能",
       skillMarketDesc: "集中查看可用技能和安装状态，快速扩展当前工作区能力。",
       runPerformance: "运行表现",
@@ -3738,16 +3764,16 @@ export const zhCN: Translations = {
     notification: {
       title: "通知",
       description:
-        "窗口不在前台时，Echo 会在任务完成后提醒你，适合需要切换去处理其他工作的长任务。",
+        "窗口不在前台时，ECHO AI 会在任务完成后提醒你，适合需要切换去处理其他工作的长任务。",
       enableNotification: "启用通知",
       permissionGranted: "权限已允许",
       permissionPrompt: "需要授权",
       permissionDenied: "权限被拒绝",
       requestPermission: "请求通知权限",
       deniedHint:
-        "通知权限已被拒绝，请前往系统或浏览器的通知设置，为 Echo 开启通知。",
+        "通知权限已被拒绝，请前往系统或浏览器的通知设置，为 ECHO AI 开启通知。",
       testButton: "发送测试通知",
-      testTitle: "Echo",
+      testTitle: "ECHO AI",
       testBody: "这是一条测试通知。",
       testSent: "测试通知已发送",
       requestFailed: "无法请求通知权限",
@@ -4003,7 +4029,7 @@ export const zhCN: Translations = {
         "选 2+ 个模型作为 proposer(各自独立起草、无工具),再选一个 aggregator 综合出最终答案。聊天里选 “Echo Mix” 即走此配置;proposer 留空则用默认模型 × 数量。",
       proposersLabel: "Proposers(参与起草的模型)",
       noCandidates: "暂无可选模型",
-      aggregatorLabel: "Aggregator",
+      aggregatorLabel: "聚合器",
       aggregatorDefault: "默认",
       nLabel: "无池时数量",
       saveButton: "保存",
@@ -4208,7 +4234,7 @@ export const zhCN: Translations = {
     hybridDescription: "混合搜索结合关键词和语义匹配",
     emptyStateTitle: "知识库为空",
     emptyStateHint:
-      "KG 尚未抽取出实体 · 让 agent 读几条文档 / 跑完几次任务后 · 提取器会在后台写入实体和关系 · 这里自动刷新。",
+      "KG 尚未抽取出实体 · 让智能体读几条文档 / 跑完几次任务后 · 提取器会在后台写入实体和关系 · 这里自动刷新。",
     totalEntities: "实体总数",
     totalRelationships: "关系总数",
     entityTypesCount: "实体类型",
@@ -4256,7 +4282,7 @@ export const zhCN: Translations = {
     loadFailed: "后台任务加载失败，请稍后重试。",
     retry: "重试",
     activeCount: (count) => `${count} 个进行中`,
-    agentLabel: "Agent",
+    agentLabel: "智能体",
     threadLabel: "对话",
     durationLabel: "耗时",
     taskFinished: (status) => `任务状态：${status}`,
@@ -4271,10 +4297,10 @@ export const zhCN: Translations = {
 
   unifiedStore: {
     title: "市场",
-    subtitle: "Agent、插件和技能集中管理",
+    subtitle: "智能体、插件和技能集中管理",
     systemStatus: "装配就绪",
     tabs: {
-      agents: "Agent",
+      agents: "智能体",
       apps: "应用",
       plugins: "插件",
       skills: "技能",
@@ -4291,7 +4317,7 @@ export const zhCN: Translations = {
       listFailed: "插件列表读取失败",
       installFailed: "插件安装失败",
       statusFailed: "插件状态更新失败",
-      removeConfirm: "从 Echo 移除此插件？本地文件不会被删除。",
+      removeConfirm: "从 ECHO AI 移除此插件？本地文件不会被删除。",
       removeFailed: "插件移除失败",
       enabled: "启用",
       disabled: "停用",
@@ -4301,13 +4327,13 @@ export const zhCN: Translations = {
       emptyWeb: "当前 localhost 预览无法访问 Electron 插件接口。",
       placeholderTitle: "插件目录占位",
       placeholderDesc:
-        "本地预览不能访问桌面端插件接口，但这里会展示 Echo 支持的插件类型。",
+        "本地预览不能访问桌面端插件接口，但这里会展示 ECHO AI 支持的插件类型。",
       placeholderBrowserTitle: "浏览器插件",
       placeholderBrowserDesc:
-        "Chrome / Edge 扩展，让 Agent 能读取页面、点击控件和截图。",
+        "Chrome / Edge 扩展，让智能体能读取页面、点击控件和截图。",
       placeholderSkillTitle: "本地技能包",
       placeholderSkillDesc:
-        "从本地目录加载的可复用任务技能，作为能力暴露给 Agent。",
+        "从本地目录加载的可复用任务技能，作为能力暴露给智能体。",
       placeholderMcpTitle: "工具连接器",
       placeholderMcpDesc: "类 MCP 的外部工具、数据源、自动化和企业系统集成。",
     },
@@ -4317,7 +4343,7 @@ export const zhCN: Translations = {
       marketTab: "在线市场",
       localTitle: "本地技能目录",
       localDesc:
-        "这里只显示本地技能目录总量，不等于默认分配给单个 Agent 的技能数。",
+        "这里只显示本地技能目录总量，不等于默认分配给单个智能体的技能数。",
       catalogCount: (count) => `目录 ${count}`,
       searchAria: "搜索本地技能",
       searchPlaceholder: "搜索技能、描述或标签",
@@ -4391,8 +4417,8 @@ export const zhCN: Translations = {
     noAgentsFound: "未找到智能体",
     noFeatured: "暂无精选",
     noPopular: "暂无热门",
-    title: "Agent Hub",
-    description: "浏览、配置和召唤可协作的 Agent",
+    title: "智能体中心",
+    description: "浏览、配置和召唤可协作的智能体",
     pageOf: (page: number, total: number) => `第 ${page} 页 / 共 ${total} 页`,
     by: "作者",
     agentInstalled: "已加入",
@@ -4425,7 +4451,7 @@ export const zhCN: Translations = {
     addAgentButton: "添加智能体",
     roleLibrary: "智能体库",
     roleLibraryDescription:
-      "挑选可直接出场的 Agent；每张卡片代表它的职责、语气和可调用能力。",
+      "挑选可直接出场的智能体；每张卡片代表它的职责、语气和可调用能力。",
     installedLabel: "已加入",
     installableLabel: "可加入",
     installAllButton: "批量加入",
@@ -4517,7 +4543,7 @@ export const zhCN: Translations = {
       "可以在外部浏览器打开，或切换到桌面浏览器模式继续。",
     assistant: {
       stopAgent: "停止",
-      stopAgentTooltip: "停止 agent 自动操作",
+      stopAgentTooltip: "停止智能体自动操作",
       autoBrowseOnTooltip: "AI 可自动操作当前页面 · 点击关闭",
       autoBrowseOffTooltip: "AI 仅回答 · 点击开启操作",
       summarizePage: "总结此页",
@@ -4540,9 +4566,9 @@ export const zhCN: Translations = {
       confirmSubmitForm: "可能提交当前表单",
       confirmSensitiveClick: "点击目标看起来像敏感操作",
       confirmSensitiveAction: "页面语义动作看起来像敏感操作",
-      stopAgentMessage: "[用户已手动停止 agent · 不再继续自动操作]",
+      stopAgentMessage: "[用户已手动停止智能体 · 不再继续自动操作]",
       maxLoopReached: (count) =>
-        `[已达到最大 agent 循环 ${count} 次,自动停止防止失控]`,
+        `[已达到最大智能体循环 ${count} 次,自动停止防止失控]`,
       webviewNotReadyError:
         "[执行失败:webview 没准备好(可能在浏览器里跑而不是 Electron)]",
       confirmedRiskyOperation: "[用户已确认高风险操作]",
@@ -4603,70 +4629,20 @@ export const zhCN: Translations = {
         "- 对需要登录、上传、提交、付费的动作单独确认。",
       unknownPlatform: "页面",
     },
-    extensionMarketplace: {
-      title: "拓展",
-      subtitle: "管理 Echo 浏览器拓展能力",
-      installLocal: "安装本地拓展",
-      refreshAriaLabel: "刷新拓展",
-      closeAriaLabel: "关闭拓展",
-      searchPlaceholder: "搜索拓展",
-      installedExtensions: "已安装拓展",
-      electronSupported: "支持本地解压后的 Chromium 拓展目录",
-      webPreviewOnly: "桌面端 Electron 才能安装第三方拓展",
-      webPreview: "Web 预览",
-      enabled: "启用",
-      disabled: "停用",
-      removeAriaLabel: (name: string) => `移除 ${name}`,
-      noExtensionsElectron: "还没有安装第三方拓展。",
-      noExtensionsWeb: "当前 localhost 预览无法访问 Electron 拓展接口。",
-      comingSoonBadge: "预告",
-      installedBadge: "已安装",
-      installableBadge: "可安装",
-      install: "安装",
-      rating: "评分",
-      installs: "安装量",
-      status: "状态",
-      capabilityTags: "能力标签",
-      errorListFailed: "拓展列表读取失败",
-      errorInstallFailed: "拓展安装失败",
-      errorStatusFailed: "拓展状态更新失败",
-      errorRemoveFailed: "拓展移除失败",
-      confirmRemove: "从 Echo 移除此拓展？本地文件不会被删除。",
-      categoryFeatured: "精选",
-      categoryEfficiency: "效率",
-      categoryResearch: "研究",
-      categorySecurity: "安全",
-      categoryDevelopment: "开发",
-      categoryComingSoon: "即将推出",
-      taglinePageAgent: "把当前网页变成可执行任务上下文",
-      taglineResearchClipper: "收集网页片段、来源和截图",
-      taglineShieldLite: "轻量拦截干扰元素和追踪脚本",
-      taglineCookieVault: "为测试账号保存隔离会话",
-      taglineTranslatorLens: "悬浮翻译选中文本和页面区域",
-      taglineDomInspector: "直接查看元素、选择器和可访问树",
-      taglineVisualRecorder: "录制点击路径并生成自动化步骤",
-      tagsPageAgent: ["自动化", "网页操作", "AI"],
-      tagsResearchClipper: ["资料库", "引用", "截图"],
-      tagsShieldLite: ["隐私", "拦截", "安全"],
-      tagsCookieVault: ["会话", "测试", "隔离"],
-      tagsTranslatorLens: ["翻译", "阅读", "悬浮窗"],
-      tagsDomInspector: ["调试", "选择器", "可访问性"],
-      tagsVisualRecorder: ["录制", "回放", "流程"],
-    },
     webviewTab: {
       extPluginButton: "外部浏览器插件",
       openDirectory: "打开目录",
       extPluginTitle: "外部浏览器插件",
       extPluginDesc:
-        "给 Chrome / Edge 使用。插件连接本机 Echo，让外部网页也能被 Agent 读取和操作。",
+        "给 Chrome / Edge 使用。插件连接本机 ECHO AI，让外部网页也能被智能体读取和操作。",
       dragToBookmarks: "拖到书签栏",
       dragToBookmarksDesc: "轻量 Page Agent 模式，适合临时连接当前网页。",
       dragToBookmarksTitle: "拖到 Chrome/Edge 书签栏",
       step1Temporary:
-        "1. 临时使用：把上面的 Echo Agent 拖到书签栏，在目标网页点击它。",
+        "1. 临时使用：把上面的 ECHO AI 按钮拖到书签栏，在目标网页点击它。",
       step2LongTerm:
         '2. 长期使用：打开 Chrome/Edge 扩展管理页，启用"开发者模式"。',
-      step3LoadExtension: '3. 点击"加载已解压的扩展程序"，选择 Echo 插件目录。',
+      step3LoadExtension: '3. 点击"加载已解压的扩展程序"，选择 ECHO AI 插件目录。',
       pluginDirectory: "插件目录",
       pluginDirectoryOpened: (path: string) => `插件目录已打开: ${path}`,
       pluginPathCopied: "插件目录路径已复制",
@@ -4675,6 +4651,7 @@ export const zhCN: Translations = {
       copyPath: "复制路径",
       openPluginDirectory: "打开插件目录",
       connectingPlugin: "正在连接浏览器插件/MCP 控制会话",
+      pageInteractiveHint: "网页（点击或输入会发送到页面）",
       connectingPluginDesc:
         "非 Electron 模式会通过后端浏览器接口启动并控制本机 Chromium 浏览器，然后把截图回传到这里。",
       searchPlaceholder: "输入搜索内容",
@@ -4829,6 +4806,39 @@ export const zhCN: Translations = {
       newTab: "新标签页 · Ctrl+T",
       homeTabShort: "主页",
     },
+    pageTranslate: {
+      button: "翻译此页",
+      title: "网页翻译",
+      detected: (language) => `检测到${language}网页`,
+      languages: {
+        zh: "中文",
+        ja: "日文",
+        ko: "韩文",
+        ru: "俄文",
+        en: "英文",
+        fr: "法文",
+        de: "德文",
+        es: "西班牙文",
+        latin: "外文",
+        unknown: "外文",
+      },
+      translated: "译文",
+      bilingual: "双语对照",
+      original: "原文",
+      translating: "正在翻译…",
+      skipped: (count) => `${count} 段未能翻译`,
+      model: "翻译模型",
+      modelAuto: "自动（经济档模型）",
+      modelAutoUsing: (model) => `自动（当前：${model}）`,
+      selectionTitle: "译文",
+      copy: "复制",
+      copied: "已复制",
+      close: "关闭",
+      selectionFailed: "没能翻译这段文字，请重试。",
+      alwaysSite: "总是翻译此网站",
+      retry: "重试",
+      privacy: "屏幕上的段落会发送给你配置的模型翻译，滚动到哪里翻译到哪里。",
+    },
     urlBar: {
       back: "后退",
       forward: "前进",
@@ -4837,7 +4847,7 @@ export const zhCN: Translations = {
       searchOrUrl: "搜索或输入网址",
       siteInfo: "站点信息",
       siteInfoDesc:
-        "登录态、Cookie 和本地数据会保留在 Echo 浏览器中，并在标签页之间共享。",
+        "登录态、Cookie 和本地数据会保留在 ECHO AI 浏览器中，并在标签页之间共享。",
       clearData: "清除数据",
       openExternally: "外部打开",
       confirmClearSiteData:
@@ -5577,7 +5587,7 @@ export const zhCN: Translations = {
       taskTitleLabel: "任务标题",
       descriptionLabel: "补充说明",
       sopLabel: "能力包 / SOP",
-      assigneeLabel: "指派 Agent",
+      assigneeLabel: "指派智能体",
       titlePlaceholder: "例如：调研一个值得进入的细分赛道",
       descriptionPlaceholder: "范围、输出格式、约束、已有资料...",
       autoMatchFreeform: "自动匹配或自由执行",
@@ -5586,19 +5596,19 @@ export const zhCN: Translations = {
       create: "创建",
     },
     inviteAgents: {
-      toastAdded: (count: number) => `已添加 ${count} 个 Agent`,
-      toastFailed: "添加 Agent 失败",
+      toastAdded: (count: number) => `已添加 ${count} 个智能体`,
+      toastFailed: "添加智能体失败",
       roleMember: "成员",
       roleMemberDesc: "可发起 AI 任务和参与协作",
       roleViewer: "旁观",
       roleViewerDesc: "可看进展和留言，不启动任务",
-      addAgentTitle: "添加 Agent",
+      addAgentTitle: "添加智能体",
       countText: (inTeam: number, available: number) =>
         `已有 ${inTeam} 个 · 可选 ${available} 个`,
       addFiltered: "添加当前筛选",
-      searchPlaceholder: "搜索 Agent 或角色",
-      loadingAgents: "加载 Agent 中...",
-      noMatches: "没有匹配的 Agent",
+      searchPlaceholder: "搜索智能体或角色",
+      loadingAgents: "加载智能体中...",
+      noMatches: "没有匹配的智能体",
       inTeam: "已在 Team",
       add: "添加",
     },
@@ -5742,7 +5752,7 @@ export const zhCN: Translations = {
     revokeConfirmDescription: (name: string) =>
       `将撤销「${name}」的 MCP 信任，相关工具调用将失败。此操作可重新信任。`,
     unapprovedHint:
-      "未审批 · 启用后此服务的工具不会注册到 skill catalog · 点击「信任」后生效",
+      "未审批 · 启用后此服务的工具不会注册到技能 catalog · 点击「信任」后生效",
     noServers: "暂无 MCP 服务。请在 extensions_config.json 中添加。",
     toastLoadConfigFailed: "加载 MCP 配置失败",
     toastTrustSuccess: (name: string) => `已信任 MCP 服务 ${name}`,
@@ -5808,7 +5818,7 @@ export const zhCN: Translations = {
     addButton: "添加",
     noSubscriptionsHint: (keywordExample: string) =>
       `暂无订阅。添加一个主题后，系统会定期追踪并生成报告。（例：${keywordExample}）`,
-    exampleKeyword: "多 agent 编排",
+    exampleKeyword: "多智能体编排",
     keywordsPrefix: "关键词:",
     lastRunPrefix: (date: string) => `上次运行: ${date}`,
     neverRun: "未运行",
@@ -5845,13 +5855,13 @@ export const zhCN: Translations = {
     disableSubscription: (name: string) => `停用订阅：${name}`,
     deleteSubscriptionNamed: (name: string) => `删除订阅：${name}`,
     source: "来源",
-    web: "web",
+    web: "网页",
     // Automation tabs
     configuredTip: "自动化任务会按设定频率运行并消耗积分。",
     configuredTipToggle: "不再提示",
     configuredEmptyTitle: "暂无自动化任务",
     configuredEmptyDescription:
-      "从任务模板中选择一个，或在对话中让 Agent 为你创建。",
+      "从任务模板中选择一个，或在对话中让智能体为你创建。",
     createCustomTask: "自定义任务",
     useTemplate: "使用模板",
     // Create automation dialog
@@ -5883,13 +5893,13 @@ export const zhCN: Translations = {
 
   intelligencePanel: {
     examplePrompts: [
-      "每天跟踪 Echo Agent 相关 GitHub release、issue 和竞品动态，只保留和产品决策有关的变化",
-      "每周汇总 AI Agent、浏览器自动化、多智能体框架的新论文和开源项目，过滤重复新闻",
+      "每天跟踪 ECHO AI 相关 GitHub release、issue 和竞品动态，只保留和产品决策有关的变化",
+      "每周汇总 AI 智能体、浏览器自动化、多智能体框架的新论文和开源项目，过滤重复新闻",
       "关注三个竞品的价格、插件生态、企业版功能变化，发现重要更新时提醒我",
     ],
     goalLabel: "描述你想持续追踪的内容",
     goalPlaceholder:
-      "例如：每天跟踪 Echo Agent、browser-use 和 OpenAI Agent SDK 的 release、issue 与重要讨论，只保留影响产品路线的变化。",
+      "例如：每天跟踪 ECHO AI、browser-use 和 OpenAI Agent SDK 的 release、issue 与重要讨论，只保留影响产品路线的变化。",
     subscriptionName: "订阅名称",
     keywords: "关键词（用逗号分隔）",
     cadence: "执行频率",
@@ -5973,6 +5983,8 @@ export const zhCN: Translations = {
     processing: "正在处理",
     ttftLabel: "首字",
     ttftHint: "本回合从请求发出到首个 token 到达的延迟",
+    resend: "重新发送",
+    resendHint: "停止这一轮，把你的消息再发一次",
   },
 
   // Evolution Dashboard
@@ -6186,10 +6198,10 @@ export const zhCN: Translations = {
   // Onboarding
   onboarding: {
     title: "新手引导",
-    welcomeToEcho: "欢迎使用 Echo",
+    welcomeToEcho: "欢迎使用 ECHO AI",
     yourAIPlatform: "你的 AI 智能体平台",
     welcomeDesc:
-      "Echo 是一个开源的超级智能体平台，可以编排子智能体、记忆和沙箱来完成几乎任何事情 \u2014 由可扩展的技能驱动。",
+      "ECHO AI 是一个开源的超级智能体平台，可以编排子智能体、记忆和沙箱来完成几乎任何事情 \u2014 由可扩展的技能驱动。",
     chatModes: "任务能力",
     chatModesDesc: "从一个任务开始，按需要接入能力和协作者",
     modeChat: "对话",
@@ -6200,8 +6212,8 @@ export const zhCN: Translations = {
     modeTeamDesc: "在当前任务里添加协作者",
     keyFeatures: "核心功能",
     keyFeaturesDesc: "构建 AI 智能体所需的一切",
-    featureAgentWorld: "Agent 市场",
-    featureAgentWorldDesc: "浏览、配置和部署 Agent",
+    featureAgentWorld: "智能体市场",
+    featureAgentWorldDesc: "浏览、配置和部署智能体",
     featureWorkflows: "工作流",
     featureWorkflowsDesc: "可视化智能体编排",
     featureSkillsMarket: "技能",
@@ -6272,6 +6284,7 @@ export const zhCN: Translations = {
   },
 
   liveToolTimeline: {
+    statusInterrupted: "已停止",
     searchingWeb: "正在搜索网页",
     searchingQuery: (query) => `检索：${query}`,
     searchedPages: (count) => `已搜索到 ${count ?? "若干"} 个网页`,
@@ -6290,14 +6303,14 @@ export const zhCN: Translations = {
       `并行子任务已返回${count ? ` · ${count} 个` : ""}`,
     rolesWithNextStep: (roles) =>
       `角色：${roles}。接下来会读取黑板结果、合并冲突并进入质量审查。`,
-    subtaskAggregation: "子任务结果会先汇总到主 Agent，再统一合成最终交付物。",
-    callSubAgent: (role) => `调用子 Agent：${role}`,
-    callSubAgentShort: "调用子 Agent",
-    focusedDelegation: "这是一次聚焦委派；完成后主 Agent 会继续整合结果。",
+    subtaskAggregation: "子任务结果会先汇总到主智能体，再统一合成最终交付物。",
+    callSubAgent: (role) => `调用子智能体：${role}`,
+    callSubAgentShort: "调用子智能体",
+    focusedDelegation: "这是一次聚焦委派；完成后主智能体会继续整合结果。",
     writeBlackboard: (key) => `写入协作黑板：${key}`,
     writeBlackboardShort: "写入协作黑板",
     saveBlackboardFinding:
-      "保存阶段性发现，供主 Agent 或并行子 Agent 合并引用。",
+      "保存阶段性发现，供主智能体或并行子智能体合并引用。",
     readBlackboardDirectory: "读取协作黑板目录",
     readBlackboard: (key) => `读取协作黑板：${key}`,
     readBlackboardShort: "读取协作黑板",
@@ -6403,7 +6416,7 @@ export const zhCN: Translations = {
     },
     technicalDetails: "技术细节",
     createPluginPrompt:
-      "使用 $plugin-creator 创建一个新的 Echo 插件。\n请先询问插件名称、用途、是否包含 skills/apps/MCP，然后 scaffold 到个人插件目录，补齐 manifest，并验证插件可被市场识别。",
+      "使用 $plugin-creator 创建一个新的 ECHO AI 插件。\n请先询问插件名称、用途、是否包含 skills/apps/MCP，然后 scaffold 到个人插件目录，补齐 manifest，并验证插件可被市场识别。",
   },
 
   // Local skill directory panel
@@ -6427,6 +6440,8 @@ export const zhCN: Translations = {
 
   // Annotations
   annotations: {
+    deleteForbidden: "只有作者或房间管理员可删除这条批注。",
+    deleteFailed: "删除批注失败，请重试。",
     resolve: "标记解决",
     unresolve: "取消解决",
     delete: "删除",
@@ -6458,6 +6473,7 @@ export const zhCN: Translations = {
     navigate: "导航",
     select: "选择",
     close: "关闭",
+    skillPack: (skills: string) => `技能组：${skills}`,
   },
 
   // Follow-up Suggestions
@@ -6535,9 +6551,9 @@ export const zhCN: Translations = {
     assigneeHint: "选择本次任务先由谁执行，后续仍可加人",
     assigneeMenuTitle: "本次任务先交给谁",
     clearAssignee: "清空选择，交给全员判断",
-    localFileAgent: "本地数据库",
+    localFileAgent: "资料库",
     localFileAgentHint:
-      "召唤本地数据库：只检索本机授权资料，确认后再带入任务上下文",
+      "召唤资料库：只检索本机授权资料，确认后再带入任务上下文",
   },
 
   // Mobile
@@ -6566,7 +6582,7 @@ export const zhCN: Translations = {
   // Bundle Info
   bundleInfo: {
     title: "构建信息",
-    appVersion: "Echo 版本",
+    appVersion: "ECHO AI 版本",
     license: "开源许可",
     environment: "环境",
     vite: "Vite",
@@ -6580,6 +6596,10 @@ export const zhCN: Translations = {
     tabCustom: "自定义",
     addModel: "添加模型",
     noCustomModels: "没有自定义模型",
+    openCodeZenEmpty: "还没有连接 OpenCode Zen。未选模型时，OpenCode 会用 Zen 的免费模型；连接后可在这里选更多模型。",
+    openCodeGoEmpty: "还没有连接 OpenCode Go 套餐。连接后，这里会列出套餐里的模型。",
+    officialEmpty: "没有可用的官方模型。",
+    connectOpenCode: "连接 OpenCode",
     officialDisabled: "未启用官方模型。请在配置中开启官方模型服务。",
     loginRequired: "登录后可用",
     enabling: "启用中…",
@@ -6635,7 +6655,7 @@ export const zhCN: Translations = {
     confirmDelete: "确认删除",
     factoryResetTitle: "恢复出厂设置",
     factoryResetDescription:
-      "清除本地对话、工作区、记忆、安装状态和浏览器侧 Echo 缓存，保留源码与内置角色。",
+      "清除本地对话、工作区、记忆、安装状态和浏览器侧 ECHO AI 缓存，保留源码与内置角色。",
     factoryResetDialogDescription:
       "这会删除本机运行数据和本地缓存，操作后需要重启或刷新应用。源码、内置角色目录不会被删除。",
     factoryResetTypeToConfirm: "输入 RESET ECHO 确认",
@@ -6660,8 +6680,8 @@ export const zhCN: Translations = {
 
   // Subscription Settings
   subscriptionSettings: {
-    upgradeTitle: "升级您的智能体验",
-    upgradeDesc: "一个 7×24 小时全场景个人助理 Agent，帮你搞定各种任务",
+    upgradeTitle: "升级你的智能体验",
+    upgradeDesc: "一个 7×24 小时全场景个人助理智能体，帮你搞定各种任务",
     currentPlan: "当前计划",
     upgradeNow: "立即升级",
     contactUs: "联系我们：",
@@ -6670,7 +6690,10 @@ export const zhCN: Translations = {
     totalCredits: (total) => `共 ${total} 积分`,
     billingUnavailableTitle: "套餐暂时不可用",
     billingUnavailableDescription:
-      "当前 Echo 账号已登录，但计费服务尚未连接。请重试刷新账号关联与可购买套餐。",
+      "当前 ECHO 账户已登录，但计费服务尚未连接。请重试刷新账号关联与可购买套餐。",
+    localAccountBillingTitle: "本机账户无需订阅",
+    localAccountBillingDescription:
+      "你可以直接使用 ECHO AI。套餐和积分属于 ECHO 账户，用邮箱登录 ECHO 账户后可以在这里查看和购买。",
     subscriptionUnavailable: "订阅信息暂时无法加载。",
     plansUnavailable: "套餐加载失败。",
     noPlans: "当前暂无可购买的套餐。",
@@ -6730,10 +6753,10 @@ export const zhCN: Translations = {
 
   // Swarm Panel
   swarmPanel: {
-    title: "Agent 协作",
+    title: "智能体协作",
     collapse: "收起视窗",
     noActiveTasks: "暂无活跃任务",
-    emptyHint: "发送消息后，Agent 将自动拆解任务并并行分配给专业子代理执行",
+    emptyHint: "发送消息后，智能体将自动拆解任务并并行分配给专业子代理执行",
     viewing: "查看中",
     backToLatest: "返回最新",
     taskWaiting: "等待启动...",
@@ -6792,8 +6815,8 @@ export const zhCN: Translations = {
     deliveryActionUsePrimary: "采纳主视角继续",
     deliveryActionUsePrimaryAndRetry: "采纳主视角并补看失败成员",
     deliveryActionAskMembers: "请成员补充展开",
-    deliveryActionRetryOrFallback: "重试成员或回退单 Agent",
-    deliveryActionFallback: "回退单 Agent",
+    deliveryActionRetryOrFallback: "重试成员或回退单智能体",
+    deliveryActionFallback: "回退单智能体",
     rhythmActive: (name) => `${name} 正在处理`,
     rhythmWorking: "协作运行中",
     rhythmDelivered: "协作已交付",
@@ -6804,7 +6827,7 @@ export const zhCN: Translations = {
     taskListHeader: "任务列表",
     noSwarmTasksTitle: "暂无并行任务",
     noSwarmTasksHint:
-      "当任务足够复杂、需要多人并行时，Agent 会按需拆分并在这里显示实时状态。",
+      "当任务足够复杂、需要多人并行时，智能体会按需拆分并在这里显示实时状态。",
     loadFailed: "加载失败",
     taskComplete: "任务已结束",
     replayTeamWork: "回放团队工作",
@@ -6819,17 +6842,17 @@ export const zhCN: Translations = {
 
   // Dispatch Composer
   dispatchComposer: {
-    title: "启动新的 Agent 协作任务",
+    title: "启动新的智能体协作任务",
     connectedBatch: (id: string) => `已连接 batch ${id.slice(0, 8)}`,
     placeholder:
-      "描述一个复杂任务，系统会自动拆分给多个 agent 并行研究... (⌘/Ctrl + Enter 提交)",
+      "描述一个复杂任务，系统会自动拆分给多个智能体并行研究... (⌘/Ctrl + Enter 提交)",
     concurrency: "并发度",
     autoSplit: "自动拆分",
     model: "模型",
     splitting: "正在拆分…",
     dispatching: "分派中…",
     processing: "处理中…",
-    dispatchButton: "启动 Agent 协作",
+    dispatchButton: "启动智能体协作",
     dispatchFailed:
       "分派失败 — 后端返回空或未认证。查看控制台 Network 看详情。",
   },
@@ -6980,7 +7003,44 @@ export const zhCN: Translations = {
   changesPanel: {
     title: "变更",
     empty: "暂无文件变更",
-    emptyHint: "Agent 修改文件后变更会显示在这里",
+    emptyHint: "智能体修改文件后变更会显示在这里",
+  },
+
+  workspaceNote: {
+    menuTitle: "环境与来源",
+    sourcesTitle: "来源",
+    viewAllSources: "查看全部",
+    title: "概要便签",
+    collapse: "收起便签",
+    refresh: "刷新",
+    more: "更多选项",
+    gitToolsTitle: "Git 工具",
+    commitOrPush: "提交或推送",
+    environmentSection: "环境信息",
+    changesLabel: "变更",
+    clean: "无未提交变更",
+    filesCount: (count) => `${count} 个文件`,
+    branchLabel: "分支",
+    detachedHead: "游离 HEAD",
+    localEnv: "本地",
+    worktreeEnv: "Worktree",
+    envHandoffHint:
+      "本地检出是前台工作区；Worktree 是后台并行副本，聊天可通过 Handoff 在两者间迁移（echo 暂未接入迁移，此处仅显示当前环境）。",
+    detachedHint:
+      "当前处于游离 HEAD（新建 Worktree 默认如此）。在这个检出上创建分支后即可正常提交。",
+
+    aheadBehind: (ahead, behind) => `领先 ${ahead} / 落后 ${behind}`,
+    pullRequestLabel: "Pull Request 状态",
+    pullRequestUnavailable: "无法获取 Pull Request 状态",
+    pullRequestHint:
+      "echo 还没接入 Pull Request 数据源；接上 gh 或托管平台 API 后这里会显示真实状态。",
+    trackedOnly: "行数只统计已跟踪文件。",
+    diffUnavailable: "差异比对失败，无法统计行数。",
+    unavailable: "读取工作区状态失败，显示的是上次结果。",
+    unavailableFresh: "读取工作区状态失败，请刷新重试。",
+    processSection: "进程",
+    processProgress: (current, total) => `${current}/${total}`,
+    processEmpty: "本轮还没有步骤清单。",
   },
 
   codeWelcome: {
@@ -6998,7 +7058,7 @@ export const zhCN: Translations = {
     explainCodePrompt: "帮我理解这个代码库。先从项目结构和核心模块概览开始。",
     optimize: "性能优化",
     optimizePrompt: "帮我优化这个项目的性能。分析代码库并找出瓶颈。",
-    hint: "描述一个任务或点击上方快捷操作。Agent 会自动规划、执行并验证。",
+    hint: "描述一个任务或点击上方快捷操作。智能体会自动规划、执行并验证。",
   },
 
   workingSet: {
@@ -7012,11 +7072,17 @@ export const zhCN: Translations = {
   },
 
   contextWindow: {
-    title: "上下文窗口",
+    title: "上下文用量",
     system: "系统",
     tools: "工具",
     memory: "记忆",
     history: "历史",
+    messages: "消息",
+    mcpTools: "MCP 工具",
+    systemTools: "系统工具",
+    skills: "技能",
+    systemPrompt: "系统提示",
+    freeSpace: "剩余空间",
   },
 
   contextCompressor: {
@@ -7352,6 +7418,7 @@ export const zhCN: Translations = {
       noPendingReview: "无待核对项",
       refreshAriaLabel: "刷新外部动作回执",
       backendLabel: "后端",
+      backendDisabled: "未启用",
       sharedAcrossHosts: "跨节点共享",
       localCoordination: "本机协调",
       committedLabel: "已提交",
@@ -7378,7 +7445,7 @@ export const zhCN: Translations = {
         retryAuthorized: "已放行一次",
       },
     },
-    swarmCardTitle: "Agent 协作会话 · 实时技能调用",
+    swarmCardTitle: "智能体协作会话 · 实时技能调用",
     noConcurrentTasks: "暂无并发任务",
     noConcurrentTasksHint:
       "启动需要并行协作的对话后，这里会实时显示子智能体的技能调用。",
@@ -7705,7 +7772,7 @@ export const zhCN: Translations = {
       "开启时 · 模型回复里的厂家 / 型号名（Claude / Kimi / Anthropic / 月之暗面 等）会被替换成 Echo · 用户看到的永远是产品身份。关闭后进入开发模式 · LLM 真身会原样显示 · 方便调 prompt / 验证路由。",
     lockedTag: "LOCKED",
     unlockedTag: "UNLOCKED",
-    sourceLabel: "source",
+    sourceLabel: "来源",
     restoreDefault: "恢复默认（跟随环境变量）",
     profileTitle: "宪法档位 · Constitution Profile",
     profileDescPrefix:
@@ -7750,14 +7817,14 @@ export const zhCN: Translations = {
     toastAiModeSwitchFailed: (msg: string) => `切换 AI 模式失败：${msg}`,
     // 路径黑名单
     pathDenyTitle: "不可读取文件夹",
-    pathDenyDesc: "添加后，Agent 将拒绝读取或写入这些路径下的任何文件。",
+    pathDenyDesc: "添加后，智能体将拒绝读取或写入这些路径下的任何文件。",
     addPathButton: "添加不可读取文件夹",
     pathDenyEmpty: "暂无 — 默认黑名单（.vscode / AppData / .cache 等）已生效",
     pathActionAria: (path: string) => `操作 ${path}`,
     pathDeleteButton: "删除",
     addPathDialogTitle: "新增不可读取文件夹",
     addPathDialogDesc:
-      "输入绝对路径（例如 C:\\Users\\you\\secrets 或 /home/you/.ssh）。Agent 将拒绝读写该目录下的任何文件。",
+      "输入绝对路径（例如 C:\\Users\\you\\secrets 或 /home/you/.ssh）。智能体将拒绝读写该目录下的任何文件。",
     pathLabel: "路径",
     toastInvalidPath: "请输入有效路径",
     toastPathAdded: (path: string) => `已添加：${path}`,
@@ -7877,7 +7944,7 @@ export const zhCN: Translations = {
 
   // Login page
   loginPage: {
-    appSubtitle: "登录使用 agent + 官方大模型",
+    appSubtitle: "登录使用智能体 + 官方大模型",
     checkingProviders: "检查登录方式…",
     noProvidersTitle: "⚠️ 服务端没开启任何登录方式",
     noProvidersHint: "请启用账号登录或本地账号登录",
@@ -7913,13 +7980,13 @@ export const zhCN: Translations = {
   // Register page
   registerPage: {
     loadingText: "加载中...",
-    badgeText: "创建你的 Echo 账户",
+    badgeText: "创建你的 ECHO 账户",
     heroTitleLine1: "加入后立即开始",
     heroTitleLine2: "多智能体工作流",
     heroDescription:
       "建立自己的工作区，接入技能、工具和模型，把研究、协作与自动化任务统一到一个平台里。",
     cardTitle: "创建账户",
-    cardDescription: "加入 Echo 开始你的智能体之旅",
+    cardDescription: "加入 ECHO AI 开始你的智能体之旅",
     usernameLabel: "用户名",
     usernamePlaceholder: "至少 3 个字符",
     emailLabel: "邮箱（可选）",
@@ -8000,7 +8067,7 @@ export const zhCN: Translations = {
       privacyPolicy: "隐私政策",
     },
     page: {
-      title: "安全访问你的 Echo 工作区",
+      title: "安全访问你的 ECHO AI 工作区",
       subtitle: "登录后继续你的",
       description:
         "继续你的研究、编码、协作与自动化任务，在统一工作区里管理上下文、技能与执行结果。",
@@ -8040,7 +8107,7 @@ export const zhCN: Translations = {
     cancelInstall: "取消",
     phaseDownload: "下载 bundle…",
     phaseUnpack: "解压校验…",
-    phaseImport: "导入为本地 Agent…",
+    phaseImport: "导入为本地智能体…",
     installSuccess: (name: string) => `已添加专家「${name}」`,
     installFailed: (name: string, reason: string) =>
       `添加专家「${name}」失败:${reason}`,
@@ -8144,10 +8211,28 @@ export const zhCN: Translations = {
   },
 
   hero: {
-    releaseBadge: "Echo 2.0 已发布",
+    releaseBadge: "ECHO AI 预览版",
     withEcho: "与 Echo 一起",
     heroDescription:
-      "一个开源的 SuperAgent 框架，能做研究、写代码、产内容。借助沙箱、记忆、工具、技能和子智能体，它可以处理从几分钟到几小时不等的不同层级任务。",
+      "开源的智能体运行时，能做研究、写代码、产内容。借助沙箱、记忆、工具、技能和子智能体，处理从几分钟到几小时的各类任务。",
+    getStarted: "开始使用",
+    starOnGitHub: "在 GitHub 上标星",
+    rotatingWords: [
+      "深度研究",
+      "收集数据",
+      "分析数据",
+      "生成网页",
+      "氛围编程",
+      "制作幻灯片",
+      "生成图片",
+      "制作播客",
+      "生成视频",
+      "创作歌曲",
+      "整理邮件",
+      "做任何事",
+      "学任何东西",
+    ],
+    withEchoFirst: true,
   },
 
   channelPairings: {
@@ -8298,7 +8383,7 @@ export const zhCN: Translations = {
   },
 
   scopeSettings: {
-    codeModeDisabled: "此 agent 没有项目写权限 · 写入范围固定为自己工作区",
+    codeModeDisabled: "此智能体没有项目写权限 · 写入范围固定为自己工作区",
     authorizeWorkspaces: "授权额外项目目录",
     noAuthorized: "尚未授权额外目录 · 默认使用已绑定项目和当前对话工作区",
     writeScopeTitle: "写入范围",
@@ -8321,7 +8406,7 @@ export const zhCN: Translations = {
     description: "管理真实协作者的权限；AI 成员仍在团队配置中维护。",
     ownerDesc: "管理成员、邀请和任务权限",
     memberDesc: "可发起 AI 任务并参与协作",
-    viewerDesc: "可查看进展和发送留言",
+    viewerDesc: "只读成员：可查看消息和进展",
     permissionsUpdated: "成员权限已更新",
     updatePermissionsFailed: "更新成员权限失败",
     memberRemoved: "成员已移除",
@@ -8385,7 +8470,7 @@ export const zhCN: Translations = {
   },
 
   teamJoin: {
-    missingToken: "邀请链接缺少 token。",
+    missingToken: "邀请链接不完整，缺少邀请凭证。",
     invalidInvite: "邀请链接无效或已失效。",
     joinSuccess: (name) => `已加入 ${name}`,
     joinFailed: "加入协作失败",
@@ -8427,7 +8512,7 @@ export const zhCN: Translations = {
 
   evolutionExplain: {
     fitnessTitle: "适应度",
-    noAgentSelected: "请选择 Agent 查看适应度",
+    noAgentSelected: "请选择智能体查看适应度",
     loading: "加载中...",
     noFitnessData: "暂无适应度数据",
     driftTitle: "漂移检测",
@@ -8448,9 +8533,9 @@ export const zhCN: Translations = {
     loading: "加载 arms...",
     loadFailed: (msg) => `加载失败: ${msg}`,
     description:
-      "勾选这个 agent 能使用的 arm · 每个 arm 附带一组 skill(白名单) · 原子层 skill 对所有 agent 默认放行,不受此处控制。",
+      "勾选这个智能体能使用的 arm · 每个 arm 附带一组技能(白名单) · 原子层技能对所有智能体默认放行,不受此处控制。",
     armsTab: "ARM 能力臂",
-    skillsTab: "Skill 白名单",
+    skillsTab: "技能白名单",
     permissionsTab: "权限",
     routingTab: "路由与预算",
     availableArmsLabel: "可用 ARM",
@@ -8466,10 +8551,10 @@ export const zhCN: Translations = {
     extraAffinityPlaceholder: "代码, 重构, 调试",
     privateSkillsLabel: "private_skills",
     privateSkillsHint:
-      "浏览所有 ARM 暴露的 skill，并按需加入此 Agent 的私有白名单。",
+      "浏览所有 ARM 暴露的技能，并按需加入此智能体的私有白名单。",
     selectedSkillsCount: (count) => `${count} 个已选择`,
-    skillSearchPlaceholder: "搜索 skill",
-    skillMarketplaceLabel: "Skill 商城",
+    skillSearchPlaceholder: "搜索技能",
+    skillMarketplaceLabel: "技能商城",
     skillCategoryAll: "全部来源",
     skillCategoryCustom: "自定义",
     enableAllSkills: "启用全部",
@@ -8478,26 +8563,26 @@ export const zhCN: Translations = {
     disableVisibleSkills: "禁用当前",
     visibleSkillsCount: (visible, total) => `${visible}/${total} 个可见`,
     skillSource: (source) => `来自 ${source}`,
-    customSkillSource: "自定义 skill",
-    noSkillsFound: "没有匹配的 skill",
+    customSkillSource: "自定义技能",
+    noSkillsFound: "没有匹配的技能",
     permissionsLabel: "运行时权限",
-    permissionsHint: "分开展示全局总闸、Agent 授权和最终实际生效权限。",
+    permissionsHint: "分开展示全局总闸、智能体授权和最终实际生效权限。",
     permissionEffectiveCount: (enabled, total) => `${enabled}/${total} 生效`,
     permissionGlobalGate: "全局总闸",
-    permissionAgentGrant: "Agent 授权",
+    permissionAgentGrant: "智能体授权",
     permissionEffective: "实际生效",
     permissionEnabled: "已启用",
     permissionDisabled: "已禁用",
     permissionAvailable: "可用",
     permissionUnavailable: "未注册",
     permissionAgentDefault: "默认放行",
-    permissionAgentGranted: "Agent 已授权",
-    permissionAgentDenied: "Agent 未授权",
-    permissionEffectiveHint: "全局总闸开启，且此 Agent 拥有该能力，可执行。",
+    permissionAgentGranted: "智能体已授权",
+    permissionAgentDenied: "智能体未授权",
+    permissionEffectiveHint: "全局总闸开启，且此智能体拥有该能力，可执行。",
     permissionBlockedByGlobal: "被全局能力总闸拦截。",
     permissionBlockedByAgent:
-      "全局总闸已开启，但此 Agent 的能力臂或技能白名单未授权。",
-    permissionDefaultGrantHint: "原子/默认能力，对所有 Agent 放行。",
+      "全局总闸已开启，但此智能体的能力臂或技能白名单未授权。",
+    permissionDefaultGrantHint: "原子/默认能力，对所有智能体放行。",
     permissionUpdateFailed: (msg) => `权限更新失败: ${msg}`,
     budgetLabel: "预算",
     budgetOverride: "已覆盖",
@@ -8808,14 +8893,14 @@ export const zhCN: Translations = {
     done: "完成",
     error: "异常",
     completed: "已完成",
-    agentCollaboration: "个 Agent 协作",
+    agentCollaboration: "个智能体协作",
     viewMachine: "查看机器",
     viewResult: "查看结果",
     readyToReadEditVerify: "准备读取、编辑并验证代码",
     readyToBreakdownAndGather: "准备拆解问题并收集证据",
     readyToExecuteTask: "准备执行任务",
     readyToHandleCodeTask: "准备处理代码任务",
-    readyForAgentCollaboration: "准备 Agent 协作",
+    readyForAgentCollaboration: "准备智能体协作",
     readyForDeepTask: "准备深度任务",
     readyToExecute: "准备执行",
     awaitingConfirmation: "等待确认",
@@ -8830,8 +8915,8 @@ export const zhCN: Translations = {
     artifactsModified: "已修改产物",
     runningVerification: "正在执行验证",
     verificationDone: "已执行验证",
-    coordinatingAgents: "正在协调 Agent",
-    agentsCoordinated: "已协调 Agent",
+    coordinatingAgents: "正在协调智能体",
+    agentsCoordinated: "已协调智能体",
     processingTask: "正在处理任务",
     organizingResults: "正在整理结果",
   },
@@ -8874,13 +8959,13 @@ export const zhCN: Translations = {
   desktop: {
     disabledTitle: "桌面助手未开启",
     disabledDescription:
-      "Echo 默认进入欢迎、登录与工作区。需要处理系统桌面文件时，可以单独开启透明桌面助手。",
+      "ECHO AI 默认进入欢迎、登录与工作区。需要处理系统桌面文件时，可以单独开启透明桌面助手。",
     enableButton: "开启桌面助手",
     pluginSettingsButton: "打开插件设置",
     backToWorkspaceButton: "回到工作区",
     header: {
       workspaceTooltip: "打开工作台",
-      brand: "Echo",
+      brand: "ECHO AI",
       accountModels: "官方模型",
       desktopAssistant: "桌面助手",
       desktopCount: (count) => `桌面 ${count || "--"}`,
@@ -9030,10 +9115,10 @@ export const zhCN: Translations = {
       portLabel: "端口",
       identityFileLabel: "身份文件",
       endpointUrlLabel: "端点 URL",
-      bucketLabel: "Bucket",
-      accessKeyLabel: "Access Key",
-      secretKeyLabel: "Secret Key",
-      regionLabel: "Region",
+      bucketLabel: "存储桶",
+      accessKeyLabel: "访问密钥 ID",
+      secretKeyLabel: "私有访问密钥",
+      regionLabel: "区域",
       testConnection: "测试连接",
       testing: "测试中…",
       testOk: "连接正常",
@@ -9081,23 +9166,23 @@ export const zhCN: Translations = {
 
   // Deep Research Panel
   deepResearchPanel: {
-    title: "Agent",
-    cancelAgentRunTitle: "取消 Agent 运行",
-    cancelRunConfirmTitle: "取消 Agent 运行？",
+    title: "智能体",
+    cancelAgentRunTitle: "取消智能体运行",
+    cancelRunConfirmTitle: "取消智能体运行？",
     cancelRunConfirmDescription: (count) =>
-      `这将取消 ${count} 个进行中的 Agent 任务，部分进度将被丢弃。`,
+      `这将取消 ${count} 个进行中的智能体任务，部分进度将被丢弃。`,
     cancelRunConfirmLabel: "取消运行",
     copyReportFailedToast: "复制报告失败",
     metricRoles: "角色",
     metricSources: "来源",
     metricMaterials: "素材",
-    agentBudget: "Agent 预算",
+    agentBudget: "智能体预算",
     searchesCount: (n) => `${n} 次搜索`,
     batchProgress: (completed, total) => `${completed}/${total} 已完成`,
     batchFailedCancelled: (failed, cancelled) =>
       `${failed} 失败 · ${cancelled} 已取消`,
     batchIdLabel: (id) => `批次 ${id}`,
-    liveAgentStream: "实时 Agent 流",
+    liveAgentStream: "实时智能体流",
     eventsCount: (n) => `${n} 个事件`,
     prefetch: "预取",
     prefetchStats: (runs, evidence) => `${runs} 次运行 · ${evidence} 条证据`,
@@ -9209,7 +9294,7 @@ export const zhCN: Translations = {
     defaultQuery: "找我上周写的嵌入式技术笔记",
     libraries: {
       overviewLabel: "全部",
-      overviewDetail: "本地数据库",
+      overviewDetail: "资料库",
       appsLabel: "应用",
       appsDetail: "软件与动作",
       docsLabel: "文档",
@@ -9226,10 +9311,14 @@ export const zhCN: Translations = {
     service: {
       credentialsExpired: "本地知识库已启动，但连接凭据已失效。正在重新连接…",
       notFound:
-        "未找到 echo-storage，请安装本地知识库服务，或设置 ECHO_STORAGE_CMD 后重试。",
+        "本机还没有安装本地知识库服务（echo-storage）。它是可选服务，不影响对话；安装后点「重新连接」即可使用。",
       startFailed: "本地知识库服务启动失败，请检查后端日志后重试。",
       notConnected: "本地知识库服务仍未连接：{url}",
       networkError: "无法连接到本地知识库服务，请确认服务已启动后重试。",
+      unavailable:
+        "本地知识库服务暂时没有响应，可能还没启动。它是可选服务，不影响对话；需要检索本机文件时，点「重新连接」启动它。",
+      directoryUnavailable:
+        "本地知识库服务没有响应，目录还没读取。",
     },
     toolbar: {
       authorize: "授权",
@@ -9257,7 +9346,7 @@ export const zhCN: Translations = {
       indexingTitle: "索引持续构建中",
       indexingDesc: "新增文件会自动进入主题、来源和全文搜索。",
       aggregateDesc: "聚合文档、图片、应用和本机目录，本地索引优先。",
-      localDatabaseBadge: "本地数据库",
+      localDatabaseBadge: "资料库",
       previewTitle: "本地小脑索引",
       previewSubtitle:
         "文件解析、OCR、向量化在本机执行；问答可按隐私策略切换。",
@@ -9363,9 +9452,9 @@ export const zhCN: Translations = {
       colType: "类型",
       colItems: "项目",
       footerOnline:
-        "常用位置与 Echo NAS 已接入。本地数据库只保存路径、缩略图、OCR 文本和向量索引。",
+        "常用位置与 ECHO NAS 已接入。资料库只保存路径、缩略图、OCR 文本和向量索引。",
       footerOffline:
-        "常用位置可直接浏览；Echo NAS 正等待连接。本地数据库只保存路径、缩略图、OCR 文本和向量索引。",
+        "常用位置可直接浏览；ECHO NAS 正等待连接。资料库只保存路径、缩略图、OCR 文本和向量索引。",
       folderType: "文件夹",
     },
     sources: {
@@ -9388,7 +9477,7 @@ export const zhCN: Translations = {
       emptyTitleOnline: "选择一个本机文件夹开始建索引",
       emptyTitleOffline: "先恢复本地服务，再添加文件夹",
       emptyDescOnline:
-        "本地数据库会在本机解析文件、OCR 图片并生成向量索引。原文件不上传；只有你确认引用的片段会进入任务上下文。",
+        "资料库会在本机解析文件、OCR 图片并生成向量索引。原文件不上传；只有你确认引用的片段会进入任务上下文。",
       emptyDescOffline:
         "离线时可以浏览常用位置，但无法扫描新目录。重新连接后再添加文件夹，索引会在本机生成。",
       addFolder: "添加文件夹",

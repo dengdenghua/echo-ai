@@ -66,6 +66,7 @@ export function ReasoningEffortPicker({
             "hover:border-border-default hover:bg-muted/60 hover:text-foreground",
             "data-[state=open]:bg-muted data-[state=open]:text-foreground",
             "disabled:cursor-not-allowed disabled:opacity-45",
+            "focus-visible:ring-2 focus-visible:ring-ring/50",
           )}
         >
           <BrainCircuitIcon className="size-3.5 shrink-0" />

@@ -1,6 +1,14 @@
 import "@testing-library/jest-dom";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
+
+// Testing Library defaults async waits (waitFor/findBy) to 1000ms. Under a
+// full-suite run — ~490 files sharing the machine — async work such as
+// CodeMirror measuring or a dynamic `import("sonner")` can exceed that purely
+// because of scheduling contention, producing red builds that pass on rerun.
+// 3000ms absorbs the contention while a genuinely broken assertion still
+// fails (it just takes 3s to say so).
+configure({ asyncUtilTimeout: 3000 });
 
 // Cleanup after each test
 afterEach(() => {

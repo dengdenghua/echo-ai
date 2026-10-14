@@ -15,6 +15,11 @@ import posixpath
 from pathlib import Path
 from typing import Any
 
+from runtime.sensing.server._ssh_host_keys import (
+    configure_host_key_verification,
+    host_key_error_hint,
+    normalize_fingerprint,
+)
 from runtime.sensing.server._ssh_security import paramiko_disabled_algorithms
 
 from ._mount_backend_errors import BackendUnavailableError
@@ -41,8 +46,11 @@ class SftpMountBackend(MountBackend):
         password: str | None = None,
         root_path: str = "/",
         connect_timeout: int = 10,
-        strict_host_key_checking: bool = False,
+        strict_host_key_checking: bool = True,
         known_hosts_file: str | Path | None = None,
+        trust_on_first_use: bool = False,
+        host_key_fingerprint: str | None = None,
+        managed_known_hosts_file: str | Path | None = None,
     ) -> None:
         if not host:
             raise ValueError("host required")
@@ -57,6 +65,16 @@ class SftpMountBackend(MountBackend):
         self.connect_timeout = connect_timeout
         self.strict_host_key_checking = strict_host_key_checking
         self.known_hosts_file = Path(known_hosts_file) if known_hosts_file else None
+        # Unknown hosts are rejected unless the caller explicitly opts in.
+        # ``strict_host_key_checking=False`` is the legacy spelling of that
+        # opt-in and now means trust-on-first-use (persisted, then enforced).
+        self.trust_on_first_use = bool(trust_on_first_use) or not strict_host_key_checking
+        self.host_key_fingerprint = (
+            normalize_fingerprint(host_key_fingerprint) if host_key_fingerprint else None
+        )
+        self.managed_known_hosts_file = (
+            Path(managed_known_hosts_file) if managed_known_hosts_file else None
+        )
         self._sftp: Any = None
         self._client: Any = None  # underlying SSHClient
         self._lock = asyncio.Lock()
@@ -90,16 +108,16 @@ class SftpMountBackend(MountBackend):
         import paramiko
 
         client = paramiko.SSHClient()
-        if self.strict_host_key_checking:
-            if self.known_hosts_file is not None:
-                client.load_host_keys(str(self.known_hosts_file))
-            else:
-                client.load_system_host_keys()
-            client.set_missing_host_key_policy(paramiko.RejectPolicy())
-        else:
-            if self.known_hosts_file is not None:
-                client.load_host_keys(str(self.known_hosts_file))
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
+        configure_host_key_verification(
+            client,
+            paramiko,
+            host=self.host,
+            port=self.port,
+            known_hosts_file=self.known_hosts_file,
+            trust_on_first_use=self.trust_on_first_use,
+            fingerprint=self.host_key_fingerprint,
+            managed_known_hosts_file=self.managed_known_hosts_file,
+        )
         connect_kwargs: dict[str, Any] = {
             "hostname": self.host,
             "port": self.port,
@@ -114,7 +132,15 @@ class SftpMountBackend(MountBackend):
             connect_kwargs["key_filename"] = str(self.identity_file)
         if self.password is not None:
             connect_kwargs["password"] = self.password
-        client.connect(**connect_kwargs)
+        try:
+            client.connect(**connect_kwargs)
+        except Exception as exc:
+            hint = host_key_error_hint(exc, host=self.host, port=self.port)
+            with contextlib.suppress(Exception):
+                client.close()
+            if hint is not None:
+                raise paramiko.SSHException(hint) from exc
+            raise
         self._client = client
         self._sftp = client.open_sftp()
 

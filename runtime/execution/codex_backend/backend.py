@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -96,10 +97,13 @@ class CodexExecutionRequest:
     execution: ExecutionRequest | None = field(default=None, repr=False)
     fresh_thread_prompt: str | None = field(default=None, repr=False)
     tool_free: bool = False
+    host_tools_only: bool = False
 
     def __post_init__(self) -> None:
         if type(self.tool_free) is not bool:
             raise ValueError("tool_free must be a boolean")
+        if type(self.host_tools_only) is not bool:
+            raise ValueError("host_tools_only must be a boolean")
         if self.tool_free and (
             self.dynamic_tools
             or self.dynamic_tool_handler is not None
@@ -302,6 +306,7 @@ class CodexExecutionSession:
         if self._start_attempted:
             raise CodexBackendStateError("Codex execution session can only be started once")
         self._start_attempted = True
+        startup_at = time.perf_counter()
         try:
             process_backend = self._effective_process_backend()
             context = self._security.prepare(
@@ -322,6 +327,9 @@ class CodexExecutionSession:
                 approval_reviewer=self.request.approval_reviewer,
                 provider_profile=self.request.provider_profile,
                 selected_app_ids=self.request.selected_app_ids,
+                # Locks off newer default-on features only where this build
+                # defines them; see feature_support.
+                codex_executable=self.request.command[0],
                 # This attestation is derived from the effective BackendChoice
                 # that will actually wrap the process, never from a
                 # caller-owned bool or a bypassed nested-incompatible backend.
@@ -333,6 +341,7 @@ class CodexExecutionSession:
                 host_env=self.request.host_env,
             )
             self._context = context
+            prepared_at = time.perf_counter()
             if self.request.source_codex_home is not None:
                 self._auth_seeded = self._security.seed_auth_from_codex_home(
                     context,
@@ -368,6 +377,7 @@ class CodexExecutionSession:
                 client_kwargs["dynamic_tool_handler"] = self.request.dynamic_tool_handler
             self._client = self._client_factory(config, **client_kwargs)
             await self._start_client()
+            client_ready_at = time.perf_counter()
 
             config_response = await self._request_pre_turn(
                 "config/read",
@@ -376,6 +386,7 @@ class CodexExecutionSession:
             if not isinstance(config_response, Mapping):
                 raise ProtocolError("config/read response must be a JSON object")
             context.validate_effective_config(cast(Mapping[str, object], config_response))
+            config_ready_at = time.perf_counter()
 
             binding = self._security.read_server_binding(
                 context,
@@ -383,9 +394,10 @@ class CodexExecutionSession:
             )
             inner_thread_id = await self._restore_or_create_thread(context, binding)
             self._inner_thread_id = inner_thread_id
+            thread_ready_at = time.perf_counter()
 
             turn_params = _turn_extra_params(context.turn_start_security_overrides())
-            if self.request.tool_free:
+            if self.request.tool_free or self.request.host_tools_only:
                 turn_params["environments"] = []
             turn_params["approvalPolicy"] = self.request.approval_policy
             if self.request.model is not None:
@@ -424,6 +436,19 @@ class CodexExecutionSession:
             )
             if callable(bind_dynamic_scope):
                 bind_dynamic_scope(thread_id=inner_thread_id, turn_id=inner_turn_id)
+            turn_ready_at = time.perf_counter()
+            _logger.info(
+                "Codex startup timing thread_id=%s turn_id=%s prepare_ms=%.1f "
+                "client_ms=%.1f config_ms=%.1f thread_ms=%.1f turn_ms=%.1f total_ms=%.1f",
+                self.request.outer_thread_id,
+                self.request.outer_turn_id,
+                (prepared_at - startup_at) * 1000,
+                (client_ready_at - prepared_at) * 1000,
+                (config_ready_at - client_ready_at) * 1000,
+                (thread_ready_at - config_ready_at) * 1000,
+                (turn_ready_at - thread_ready_at) * 1000,
+                (turn_ready_at - startup_at) * 1000,
+            )
             return self
         except BaseException:
             await self._release(suppress_errors=True)
@@ -519,6 +544,15 @@ class CodexExecutionSession:
             except RemoteError as exc:
                 if _thread_not_found(exc, binding.inner_thread_id):
                     return await self._create_thread(context, replace_binding=True)
+                if (
+                    self.request.tool_free or self.request.host_tools_only
+                ) and _environment_sandbox_refused(exc):
+                    # thread/resume cannot carry the empty ``environments`` that
+                    # thread/start accepts, so Codex reloads the default local
+                    # environment and the Windows unelevated sandbox refuses it.
+                    # A fresh thread gets the empty list again; Echo replays the
+                    # conversation through ``fresh_thread_prompt``.
+                    return await self._create_thread(context, replace_binding=True)
                 if _unsupported_api(exc):
                     raise CodexBackendUnavailable(
                         "required Codex App Server thread/resume API is unavailable"
@@ -547,7 +581,7 @@ class CodexExecutionSession:
         # Reassert the exact current-turn catalog, including an explicit empty
         # list when Echo revoked every tool since the previous turn.
         params["dynamicTools"] = [dict(spec) for spec in self.request.dynamic_tools]
-        if self.request.tool_free:
+        if self.request.tool_free or self.request.host_tools_only:
             params["environments"] = []
         if self.request.developer_instructions is not None:
             params["developerInstructions"] = self.request.developer_instructions
@@ -572,7 +606,7 @@ class CodexExecutionSession:
         permissions = _permission_profile(overrides)
         params = _thread_extra_params(overrides, resume=False)
         params["dynamicTools"] = [dict(spec) for spec in self.request.dynamic_tools]
-        if self.request.tool_free:
+        if self.request.tool_free or self.request.host_tools_only:
             params["environments"] = []
         if self.request.developer_instructions is not None:
             params["developerInstructions"] = self.request.developer_instructions
@@ -819,6 +853,11 @@ def _unsupported_api(error: RemoteError) -> bool:
 
 def _thread_not_found(error: RemoteError, thread_id: str) -> bool:
     return error.code == _INVALID_REQUEST and error.message == f"thread not found: {thread_id}"
+
+
+def _environment_sandbox_refused(error: RemoteError) -> bool:
+    """Resume failed only because the default local environment's sandbox could not start."""
+    return "failed to prepare fs sandbox" in error.message
 
 
 def _notification_matches(

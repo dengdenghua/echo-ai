@@ -125,11 +125,73 @@ def test_lock_scopes_read_and_discovery_tools_to_worktree(_session):
     assert glob_call.input["sandbox_dir"] == "/wt"
 
 
-def test_lock_does_not_override_preset_sandbox_dir(_session):
+def test_lock_overrides_model_supplied_sandbox_dir(_session):
+    """The locked root IS the confinement boundary: a model-supplied
+    ``sandbox_dir`` must never widen it (it used to be kept verbatim, so a
+    sub-agent could pass ``sandbox_dir='/'`` and write anywhere)."""
     _session({"_locked_write_root": "/wt"})
     call = _Call("write_text_file", {"path": "a", "sandbox_dir": "/preset"})
-    _ephemeral_write_confine_block(call, _Skill(_writer))
-    assert call.input["sandbox_dir"] == "/preset"
+    assert _ephemeral_write_confine_block(call, _Skill(_writer)) is None
+    assert call.input["sandbox_dir"] == "/wt"
+
+
+def test_lock_rejects_cwd_outside_locked_root(tmp_path, _session):
+    locked = tmp_path / "wt"
+    locked.mkdir()
+    _session({"_locked_write_root": str(locked)})
+
+    def _reader(path: str = "", *, cwd: str | None = None, sandbox_dir: str | None = None):
+        return None
+
+    outside = tmp_path / "main-tree"
+    call = _Call("read_file", {"path": "a.txt", "cwd": str(outside)})
+    block = _ephemeral_write_confine_block(call, _Skill(_reader, ["file", "io"]))
+    assert block is not None
+    assert "escapes the locked worktree" in block
+
+    traversal = _Call("read_file", {"path": "a.txt", "cwd": "../main-tree"})
+    block = _ephemeral_write_confine_block(traversal, _Skill(_reader, ["file", "io"]))
+    assert block is not None
+
+    inside = _Call("read_file", {"path": "a.txt", "cwd": "sub"})
+    assert _ephemeral_write_confine_block(inside, _Skill(_reader, ["file", "io"])) is None
+    assert Path(inside.input["cwd"]) == locked / "sub"
+    assert inside.input["sandbox_dir"] == str(locked)
+
+
+def test_lock_rejects_absolute_path_and_root_outside_locked_root(tmp_path, _session):
+    locked = tmp_path / "wt"
+    locked.mkdir()
+    _session({"_locked_write_root": str(locked)})
+
+    escape = _Call("write_text_file", {"path": str(tmp_path / "evil.txt"), "content": "x"})
+    block = _ephemeral_write_confine_block(escape, _Skill(_writer))
+    assert block is not None
+    assert "path=" in block
+
+    def _glob(pattern: str = "*", root: str = ".", *, sandbox_dir: str | None = None):
+        return None
+
+    root_escape = _Call("glob_files", {"pattern": "*", "root": str(tmp_path)})
+    assert _ephemeral_write_confine_block(root_escape, _Skill(_glob, ["file", "io"])) is not None
+
+    ok = _Call("write_text_file", {"path": str(locked / "ok.txt"), "content": "x"})
+    assert _ephemeral_write_confine_block(ok, _Skill(_writer)) is None
+
+
+def test_lock_confines_scope_param_handler_without_file_affinity(tmp_path, _session):
+    """A handler taking ``sandbox_dir`` is scope-bearing even when its
+    affinity does not say ``file`` (e.g. media generators)."""
+    locked = tmp_path / "wt"
+    locked.mkdir()
+    _session({"_locked_write_root": str(locked)})
+
+    def _media(prompt: str = "", *, sandbox_dir: str | None = None, **_k: Any):
+        return None
+
+    call = _Call("generate_thing", {"prompt": "p", "sandbox_dir": str(tmp_path)})
+    assert _ephemeral_write_confine_block(call, _Skill(_media, ["media"])) is None
+    assert call.input["sandbox_dir"] == str(locked)
 
 
 def test_write_detected_by_affinity(_session):

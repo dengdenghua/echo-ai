@@ -1,5 +1,4 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders } from "@/core/auth/api";
+import { untypedApi, type ApiFailure } from "@/core/api/request";
 
 export interface CreatedPublicThreadShare {
   token: string;
@@ -102,38 +101,30 @@ function cachePublicThreadShare(
   }
 }
 
-async function errorMessage(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as {
+/** A string ``detail`` / ``error`` / ``message`` from the body, else by status. */
+function shareErrorMessage(status: number, body: unknown): string {
+  if (body && typeof body === "object") {
+    const fields = body as {
       detail?: unknown;
       error?: unknown;
       message?: unknown;
     };
-    for (const value of [body.detail, body.error, body.message]) {
+    for (const value of [fields.detail, fields.error, fields.message]) {
       if (typeof value === "string" && value.trim()) return value.trim();
     }
-  } catch {
-    // The status-based fallback below is stable for non-JSON gateway errors.
   }
-  if (response.status === 404) return "分享内容不存在或已被取消";
-  return `分享请求失败（${response.status}）`;
+  // The status-based fallback is stable for non-JSON gateway errors.
+  if (status === 404) return "分享内容不存在或已被取消";
+  return `分享请求失败（${status}）`;
 }
 
-async function request<T>(
-  path: string,
-  init?: RequestInit,
-  baseURL = getBackendBaseURL(),
-): Promise<T> {
-  const headers = new Headers(init?.headers);
-  if (!headers.has("Accept")) headers.set("Accept", "application/json");
-  const response = await fetch(`${baseURL}${path}`, {
-    ...init,
-    headers,
-  });
-  if (!response.ok) throw new Error(await errorMessage(response));
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
-}
+/** Owner-side share management: authenticated, JSON accepted. */
+const OWNER_CALL = {
+  reason: "the thread-share routes are not in the OpenAPI snapshot",
+  headers: { Accept: "application/json" },
+  errorMessage: (failure: ApiFailure) =>
+    shareErrorMessage(failure.status, failure.payload),
+};
 
 /** Capture a privacy-bounded, immutable snapshot of the current thread. */
 export function createPublicThreadShare(
@@ -141,13 +132,29 @@ export function createPublicThreadShare(
 ): Promise<CreatedPublicThreadShare> {
   const id = threadId.trim();
   if (!id) return Promise.reject(new Error("缺少要分享的任务"));
-  return request<CreatedPublicThreadShare>(
-    `/api/threads/${encodeURIComponent(id)}/shares`,
-    { method: "POST", headers: authHeaders() },
-  ).then((share) => {
-    cachePublicThreadShare(id, share);
-    return share;
-  });
+  return untypedApi
+    .post<CreatedPublicThreadShare>(
+      `/api/threads/${encodeURIComponent(id)}/shares`,
+      OWNER_CALL,
+    )
+    .then((share) => {
+      cachePublicThreadShare(id, share);
+      return share;
+    });
+}
+
+/** Unauthenticated JSON request against the origin that served the page. */
+async function publicRequest<T>(path: string, init: RequestInit): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
+  // raw fetch: deliberately origin-relative and sent without auth/CSRF headers (public capability token)
+  const response = await fetch(path, { ...init, headers });
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => undefined);
+    throw new Error(shareErrorMessage(response.status, body));
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
 /** Read a public snapshot by capability token. This endpoint needs no login. */
@@ -159,27 +166,20 @@ export function getPublicThreadShare(
   // A public capability belongs to the origin that served its share page.
   // Ignore desktop/debug backend overrides here so a stale or attacker-set
   // echoBackend value cannot forward the capability to another host.
-  return request<PublicThreadShare>(
-    "/api/public/thread-shares/resolve",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: value }),
-    },
-    "",
-  );
+  return publicRequest<PublicThreadShare>("/api/public/thread-shares/resolve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: value }),
+  });
 }
 
 /** Revoke a previously-created public snapshot owned by the current account. */
 export function revokePublicThreadShare(shareId: string): Promise<void> {
   const value = shareId.trim();
   if (!value) return Promise.reject(new Error("分享链接无效"));
-  return request<void>(
+  return untypedApi.delete<void>(
     `/api/thread-shares/by-id/${encodeURIComponent(value)}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(),
-    },
+    OWNER_CALL,
   );
 }
 

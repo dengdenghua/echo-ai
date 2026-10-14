@@ -1,5 +1,12 @@
+import {
+  apiDelete,
+  apiGet,
+  apiPost,
+  failureDetail,
+  isApiErrorStatus,
+  type ApiFailure,
+} from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { openSseStream } from "@/core/streaming/sse";
 
 import type {
@@ -10,6 +17,23 @@ import type {
   TelemetryStats,
   TraceSummary,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import { isRecord } from "@/core/utils/guards";
+import {
+  hasDropped,
+  hasSuccess,
+  isActiveAlertList,
+  isAlertRule,
+  isAlertRuleList,
+  isEvolutionStatus,
+  isMetricsSummary,
+  isReflectionReport,
+  isSpanList,
+  isTelemetryStats,
+  isToolEffectAuthorizationResponse,
+  isToolEffectsSnapshot,
+  isTraceSummaryList,
+} from "./guards";
 
 /**
  * Process-global observability is intentionally separate from tenant-scoped
@@ -36,6 +60,15 @@ export function globalControlPlaneUrl(path: string): string {
   return `${getBackendBaseURL()}${path}${separator}cross_tenant=true`;
 }
 
+/**
+ * A view that has both forms: the caller's own tenant/owner partition, or
+ * the process-global one for an account holding the cross-tenant scope. The
+ * knowledge graph is one; an ordinary account must still see its own graph.
+ */
+export function scopedControlPlaneUrl(path: string, global: boolean): string {
+  return global ? globalControlPlaneUrl(path) : `${getBackendBaseURL()}${path}`;
+}
+
 export async function requireGlobalControlPlaneResponse(
   response: Response,
   fallback: string,
@@ -50,103 +83,134 @@ export async function requireGlobalControlPlaneResponse(
   throw new Error(payload.detail ?? `${fallback}: ${response.status}`);
 }
 
+/** ``"<label>: <statusText>"`` — this module's historical error wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/** The body's ``detail`` when present, else ``fallback(failure)``. */
+function detailOr(fallback: (failure: ApiFailure) => string) {
+  return (failure: ApiFailure): string => {
+    const detail = failureDetail(failure);
+    return detail === undefined || detail === null
+      ? fallback(failure)
+      : String(detail);
+  };
+}
+
+/**
+ * Typed counterpart of ``requireGlobalControlPlaneResponse`` for calls made
+ * with ``cross_tenant: true``: 403 becomes ``GlobalControlPlaneAccessError``,
+ * anything else keeps the ``detail`` / ``"<fallback>: <status>"`` wording.
+ */
+async function globalControlPlane<T>(
+  fallback: string,
+  request: (errorMessage: (failure: ApiFailure) => string) => Promise<T>,
+): Promise<T> {
+  try {
+    return await request(detailOr((f) => `${fallback}: ${f.status}`));
+  } catch (error) {
+    if (isApiErrorStatus(error, 403)) throw new GlobalControlPlaneAccessError();
+    throw error;
+  }
+}
+
 export async function getMetrics(): Promise<Record<string, unknown>> {
-  const res = await fetch(`${getBackendBaseURL()}/api/metrics`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get metrics: ${res.statusText}`);
-  return (await res.json()) as Record<string, unknown>;
+  return looseBody(
+    await apiGet("/api/metrics", {
+      errorMessage: failed("Failed to get metrics"),
+    }),
+    isRecord,
+  );
 }
 
 export async function getMetricsSummary(): Promise<MetricsSummary> {
-  const res = await fetch(`${getBackendBaseURL()}/api/metrics/summary`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get metrics summary: ${res.statusText}`);
-  return (await res.json()) as MetricsSummary;
+  return looseBody(
+    await apiGet("/api/metrics/summary", {
+      errorMessage: failed("Failed to get metrics summary"),
+    }),
+    isMetricsSummary,
+  );
 }
 
 export async function getTraces(limit = 100): Promise<TraceSummary[]> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/trace/recent?limit=${limit}`,
-    {
-      headers: authHeaders(),
-    },
+  return looseBody(
+    await apiGet("/api/trace/recent", {
+      query: { limit },
+      errorMessage: failed("Failed to get traces"),
+    }),
+    isTraceSummaryList,
   );
-  if (!res.ok) throw new Error(`Failed to get traces: ${res.statusText}`);
-  return (await res.json()) as TraceSummary[];
 }
 
 export async function getTrace(traceId: string): Promise<Span[]> {
-  const res = await fetch(`${getBackendBaseURL()}/api/trace/${traceId}`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get trace: ${res.statusText}`);
-  return (await res.json()) as Span[];
+  return looseBody(
+    await apiGet("/api/trace/{trace_id}", {
+      path: { trace_id: traceId },
+      errorMessage: failed("Failed to get trace"),
+    }),
+    isSpanList,
+  );
 }
 
 export async function getAlerts(): Promise<ActiveAlert[]> {
-  const res = await fetch(`${getBackendBaseURL()}/api/alerts`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get alerts: ${res.statusText}`);
-  return (await res.json()) as ActiveAlert[];
+  return looseBody(
+    await apiGet("/api/alerts", {
+      errorMessage: failed("Failed to get alerts"),
+    }),
+    isActiveAlertList,
+  );
 }
 
 export async function getAlertRules(): Promise<AlertRule[]> {
-  const res = await fetch(`${getBackendBaseURL()}/api/alerts/rules`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get alert rules: ${res.statusText}`);
-  return (await res.json()) as AlertRule[];
+  return looseBody(
+    await apiGet("/api/alerts/rules", {
+      errorMessage: failed("Failed to get alert rules"),
+    }),
+    isAlertRuleList,
+  );
 }
 
 export async function createAlertRule(rule: AlertRule): Promise<AlertRule> {
-  const res = await fetch(`${getBackendBaseURL()}/api/alerts/rules`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(rule),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to create alert rule: ${res.statusText}`,
-    );
-  }
-  return (await res.json()) as AlertRule;
+  return looseBody(
+    await apiPost("/api/alerts/rules", {
+      body: rule,
+      errorMessage: detailOr(failed("Failed to create alert rule")),
+    }),
+    isAlertRule,
+  );
 }
 
 export async function deleteAlertRule(
   name: string,
 ): Promise<{ success: boolean; name: string }> {
-  const res = await fetch(`${getBackendBaseURL()}/api/alerts/rules/${name}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to delete alert rule: ${res.statusText}`);
-  return (await res.json()) as { success: boolean; name: string };
+  return looseBody(
+    await apiDelete("/api/alerts/rules/{name}", {
+      path: { name },
+      errorMessage: failed("Failed to delete alert rule"),
+    }),
+    hasSuccess,
+  );
 }
 
 export async function getTelemetryStats(): Promise<TelemetryStats> {
-  const res = await fetch(`${getBackendBaseURL()}/api/telemetry/stats`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get telemetry stats: ${res.statusText}`);
-  return (await res.json()) as TelemetryStats;
+  return looseBody(
+    await apiGet("/api/telemetry/stats", {
+      errorMessage: failed("Failed to get telemetry stats"),
+    }),
+    isTelemetryStats,
+  );
 }
 
 export async function getObservabilityHealth(): Promise<
   Record<string, unknown>
 > {
-  const res = await fetch(`${getBackendBaseURL()}/api/observability/health`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to get observability health: ${res.statusText}`);
-  return (await res.json()) as Record<string, unknown>;
+  return looseBody(
+    await apiGet("/api/observability/health", {
+      errorMessage: failed("Failed to get observability health"),
+    }),
+    isRecord,
+  );
 }
 
 export type ToolEffectState =
@@ -198,39 +262,39 @@ export async function getToolEffectsSnapshot({
   signal?: AbortSignal;
 } = {}): Promise<ToolEffectsSnapshot> {
   const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 500));
-  const res = await fetch(
-    globalControlPlaneUrl(`/api/tool-effects?limit=${safeLimit}`),
-    { headers: authHeaders(), signal },
+  return globalControlPlane(
+    "Failed to load tool effects",
+    async (errorMessage) =>
+      looseBody(
+        await apiGet("/api/tool-effects", {
+          query: { limit: safeLimit, cross_tenant: true },
+          signal,
+          errorMessage,
+        }),
+        isToolEffectsSnapshot,
+      ),
   );
-  await requireGlobalControlPlaneResponse(res, "Failed to load tool effects");
-  return (await res.json()) as ToolEffectsSnapshot;
 }
 
 export async function authorizeToolEffectRetry(
   receipt: ToolEffectReceipt,
   reason: string,
 ): Promise<ToolEffectAuthorizationResponse> {
-  const path = encodeURIComponent(receipt.effect_key);
-  const res = await fetch(
-    globalControlPlaneUrl(`/api/tool-effects/${path}/authorize-retry`),
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({
-        confirm: "AUTHORIZE RETRY",
-        fencing_token: receipt.fencing_token,
-        reason,
+  return globalControlPlane("Failed to authorize retry", async (errorMessage) =>
+    looseBody(
+      await apiPost("/api/tool-effects/{effect_key}/authorize-retry", {
+        path: { effect_key: receipt.effect_key },
+        query: { cross_tenant: true },
+        body: {
+          confirm: "AUTHORIZE RETRY",
+          fencing_token: receipt.fencing_token,
+          reason,
+        },
+        errorMessage,
       }),
-    },
+      isToolEffectAuthorizationResponse,
+    ),
   );
-  if (!res.ok) {
-    if (res.status === 403) {
-      throw new GlobalControlPlaneAccessError();
-    }
-    const error = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(error.detail ?? `Failed to authorize retry: ${res.status}`);
-  }
-  return (await res.json()) as ToolEffectAuthorizationResponse;
 }
 
 // Implementation note.
@@ -267,15 +331,18 @@ export interface ReActVariantStat {
 export async function getEvolutionStatus(
   signal?: AbortSignal,
 ): Promise<EvolutionStatus> {
-  const res = await fetch(globalControlPlaneUrl("/api/evolution/status"), {
-    headers: authHeaders(),
-    signal,
-  });
-  await requireGlobalControlPlaneResponse(
-    res,
+  return globalControlPlane(
     "Failed to get evolution status",
+    async (errorMessage) =>
+      looseBody(
+        await apiGet("/api/evolution/status", {
+          query: { cross_tenant: true },
+          signal,
+          errorMessage,
+        }),
+        isEvolutionStatus,
+      ),
   );
-  return (await res.json()) as EvolutionStatus;
 }
 
 export interface ReflectionReport {
@@ -290,35 +357,42 @@ export interface ReflectionReport {
 
 /* Implementation note. */
 export async function kickReflection(): Promise<ReflectionReport> {
-  const res = await fetch(`${getBackendBaseURL()}/api/reflect`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to kick reflection: ${res.statusText}`);
-  }
-  return (await res.json()) as ReflectionReport;
+  return looseBody(
+    await apiGet("/api/reflect", {
+      errorMessage: failed("Failed to kick reflection"),
+    }),
+    isReflectionReport,
+  );
 }
 
 export async function forgetRule(
   index: number,
 ): Promise<{ dropped: string; remaining: number }> {
-  const res = await fetch(
-    globalControlPlaneUrl(`/api/evolution/rules/${index}`),
-    { method: "DELETE", headers: authHeaders() },
+  return globalControlPlane("Failed to delete rule", async (errorMessage) =>
+    looseBody(
+      await apiDelete("/api/evolution/rules/{index}", {
+        path: { index },
+        query: { cross_tenant: true },
+        errorMessage,
+      }),
+      hasDropped,
+    ),
   );
-  await requireGlobalControlPlaneResponse(res, "Failed to delete rule");
-  return (await res.json()) as { dropped: string; remaining: number };
 }
 
 export async function forgetMemory(
   index: number,
 ): Promise<{ dropped: string; remaining: number }> {
-  const res = await fetch(
-    globalControlPlaneUrl(`/api/evolution/memories/${index}`),
-    { method: "DELETE", headers: authHeaders() },
+  return globalControlPlane("Failed to delete memory", async (errorMessage) =>
+    looseBody(
+      await apiDelete("/api/evolution/memories/{index}", {
+        path: { index },
+        query: { cross_tenant: true },
+        errorMessage,
+      }),
+      hasDropped,
+    ),
   );
-  await requireGlobalControlPlaneResponse(res, "Failed to delete memory");
-  return (await res.json()) as { dropped: string; remaining: number };
 }
 
 // Implementation note.

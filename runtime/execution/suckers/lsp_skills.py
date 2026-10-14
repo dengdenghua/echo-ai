@@ -355,7 +355,7 @@ class _LSPClient:
                         {"jsonrpc": "2.0", "id": -1, "method": "shutdown", "params": None}
                     )
                     self._send_raw({"jsonrpc": "2.0", "method": "exit"})
-                except OSError:  # noqa: BLE001 — shutdown is best-effort
+                except (OSError, _LSPTransportError):  # noqa: BLE001 — best-effort; a dead pipe raises EINVAL on Windows
                     pass
                 try:
                     proc.wait(timeout=1.0)

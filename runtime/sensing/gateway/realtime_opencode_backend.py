@@ -12,13 +12,12 @@ import httpx
 
 from runtime.execution.opencode_backend import (
     OpenCodeError,
-    resolve_zen_model,
     model_selection_id,
+    resolve_zen_model,
     zen_catalog,
 )
 from runtime.execution.opencode_roles import stream_role
 from runtime.execution.request import current_execution_request
-from runtime.platform.models.custom_model_selection import custom_model_selection_id
 from runtime.platform.process.session import current_session
 from runtime.protocol import ServerMethod, TurnStatus
 from runtime.safety.auth.scope import TenantScope
@@ -60,9 +59,7 @@ async def drive_opencode(
     if provider is not None and provider is not request.task.approval_provider:
         request = replace(request, task=replace(request.task, approval_provider=provider))
     model = resolve_zen_model(turn.params.model, zen_catalog())
-    turn.params = turn.params.model_copy(
-        update={"model": model_selection_id(model)}
-    )
+    turn.params = turn.params.model_copy(update={"model": model_selection_id(model)})
     if turn.execution is not None:
         log.turn_updated(
             turn.thread_id,

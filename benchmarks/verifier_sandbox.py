@@ -397,7 +397,13 @@ def _read_bounded_wrapper_source(path: Path) -> tuple[bytes, tuple[int, ...]]:
         metadata = path.lstat()
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
             raise OSError("not a non-symlink regular file")
-        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        # O_CLOEXEC/O_NOFOLLOW are POSIX-only; on Windows the lstat/fstat
+        # identity comparison below still rejects a path swapped mid-open,
+        # and O_BINARY keeps the digest over the exact on-disk bytes.
+        flags = os.O_RDONLY
+        for name in ("O_BINARY", "O_CLOEXEC", "O_NOFOLLOW"):
+            flags |= getattr(os, name, 0)
+        descriptor = os.open(path, flags)
         try:
             before = os.fstat(descriptor)
             source = bytearray()
@@ -419,35 +425,29 @@ def _read_bounded_wrapper_source(path: Path) -> tuple[bytes, tuple[int, ...]]:
         raise FixtureInfrastructureError(
             f"hidden verifier infrastructure is invalid: wrapper source is unsafe: {exc}"
         ) from exc
-    path_identity = (
-        metadata.st_dev,
-        metadata.st_ino,
-        metadata.st_mode,
-        metadata.st_size,
-        metadata.st_mtime_ns,
-        metadata.st_ctime_ns,
-    )
-    before_identity = (
-        before.st_dev,
-        before.st_ino,
-        before.st_mode,
-        before.st_size,
-        before.st_mtime_ns,
-        before.st_ctime_ns,
-    )
-    after_identity = (
-        after.st_dev,
-        after.st_ino,
-        after.st_mode,
-        after.st_size,
-        after.st_mtime_ns,
-        after.st_ctime_ns,
-    )
+    path_identity = _wrapper_source_identity(metadata)
+    before_identity = _wrapper_source_identity(before)
+    after_identity = _wrapper_source_identity(after)
     if path_identity != before_identity or before_identity != after_identity:
         raise FixtureInfrastructureError(
             "hidden verifier infrastructure is invalid: wrapper source drifted while read"
         )
     return bytes(source), before_identity
+
+
+def _wrapper_source_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    # Windows path stat and descriptor stat can expose different ctime values.
+    # Use birthtime when available, retaining inode, mode, size and mtime checks;
+    # POSIX keeps ctime to catch metadata/content changes during the read.
+    timestamp = getattr(metadata, "st_birthtime_ns", 0) if os.name == "nt" else metadata.st_ctime_ns
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        timestamp,
+    )
 
 
 def _configured_hardened_runner() -> Any:

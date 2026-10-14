@@ -237,9 +237,7 @@ function DetailDialog({
           {asset.origin ? (
             <div className="flex flex-col gap-1">
               <dt className="text-muted-foreground">位置</dt>
-              <dd className="break-all font-mono text-[11px]">
-                {asset.origin}
-              </dd>
+              <dd className="break-all font-mono text-xs">{asset.origin}</dd>
             </div>
           ) : null}
         </dl>
@@ -335,8 +333,7 @@ export function UnifiedAssetsPanel({
   }, [load, kind, source, searchQuery]);
 
   const counts = summary?.counts ?? {};
-  const totalForKind =
-    kind === "team" ? counts.team : (counts[kind] as number | undefined);
+  const totalForKind = kind === "team" ? counts.team : counts[kind];
 
   const onSync = async () => {
     setSyncing(true);

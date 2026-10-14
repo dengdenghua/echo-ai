@@ -16,7 +16,10 @@ whose demanded evidence physically cannot exist. These tests pin the cure:
 
 from __future__ import annotations
 
+import sys
 from uuid import uuid4
+
+import pytest
 
 from runtime.core.cerebrum import env_health
 from runtime.core.cerebrum.react_execution_receipts import _execution_receipt_trust
@@ -49,6 +52,13 @@ from runtime.platform.models import (
     TaskId,
 )
 from runtime.safety.auth import TrustEngine
+
+
+@pytest.fixture(autouse=True)
+def isolated_execution_canary(monkeypatch):
+    """Trajectory cases start unknown; startup-canary cases set their own verdict."""
+    monkeypatch.setattr(env_health, "_CANARY_DEGRADED", None)
+
 
 # An observation exactly as the dispatcher renders an environment-blocked
 # exec (sandbox-exec EPERM): the marker the detector matches on.
@@ -115,7 +125,7 @@ def _run_canonical_exec(*, hooks: HookManager | None = None):
         step_id=1,
         node_id="provenance",
         sucker_id=SkillId("exec_shell"),
-        args={"command": "true"},
+        args={"command": f'"{sys.executable}" -c pass'},
         caller="arms/test",
         task_id=task_id,
         arm_id=ArmId("test"),

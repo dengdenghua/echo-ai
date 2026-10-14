@@ -28,6 +28,7 @@ import {
 import { withAgentAvatarVersion } from "@/core/agents/avatar";
 import { useDeleteAgent } from "@/core/agents";
 import type { Agent } from "@/core/agents";
+import { isEchoAgentId, PersonaGlyph } from "@/components/brand/persona-glyph";
 import { useI18n } from "@/core/i18n/hooks";
 import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
 import {
@@ -73,7 +74,7 @@ export function AgentCard({
 
   function handleChat() {
     if (isPrimaryIdentity) {
-      navigate(taskWorkspaceRoute({ agentId: agent.name }));
+      void navigate(taskWorkspaceRoute({ agentId: agent.name }));
       return;
     }
     const leaderId = isPrimaryPersonaAgentId(activeAgentId)
@@ -86,7 +87,7 @@ export function AgentCard({
       label: agent.display_name || agent.name,
       openPicker: true,
     });
-    navigate(taskCollaboratorRouteForLeader(leaderId));
+    void navigate(taskCollaboratorRouteForLeader(leaderId));
   }
 
   async function handleDelete() {
@@ -123,30 +124,20 @@ export function AgentCard({
           <CardHeader className="px-4 pb-2 pt-3.5">
             <div className="flex items-start gap-3">
               <div className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-muted text-base leading-none">
-                {agent.avatar_url ? (
+                {agent.avatar_url && !isEchoAgentId(agent.name) ? (
                   <AuthenticatedImage
                     src={withAgentAvatarVersion(agent.avatar_url)}
                     alt={displayName}
                     className="h-full w-full bg-muted object-cover [image-rendering:pixelated]"
                     fallback={
-                      agent.icon ? (
-                        <span className="flex h-full w-full items-center justify-center rounded-lg bg-muted text-foreground/80">
-                          {agent.icon}
-                        </span>
-                      ) : (
-                        <span className="flex h-full w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                          <BotIcon className="h-4 w-4" />
-                        </span>
-                      )
+                      <span className="flex h-full w-full items-center justify-center rounded-lg bg-muted text-sm">
+                        <PersonaGlyph agentId={agent.name} name={displayName} />
+                      </span>
                     }
                   />
-                ) : agent.icon ? (
-                  <span className="flex h-full w-full items-center justify-center rounded-lg bg-muted text-foreground/80">
-                    {agent.icon}
-                  </span>
                 ) : (
-                  <span className="flex h-full w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                    <BotIcon className="h-4 w-4" />
+                  <span className="flex h-full w-full items-center justify-center rounded-lg bg-muted text-sm">
+                    <PersonaGlyph agentId={agent.name} name={displayName} />
                   </span>
                 )}
               </div>
@@ -171,7 +162,7 @@ export function AgentCard({
                 {talentTags.map((tag) => (
                   <span
                     key={tag}
-                    className="max-w-32 truncate rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-normal text-muted-foreground"
+                    className="max-w-32 truncate rounded-md bg-muted/60 px-2 py-0.5 text-xs font-normal text-muted-foreground"
                   >
                     {tag}
                   </span>

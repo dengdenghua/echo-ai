@@ -315,7 +315,7 @@ export function useCachedWorkbenchSnapshot(
   useEffect(() => {
     let cancelled = false;
 
-    cache.current.load(threadId, turnId).then((cached) => {
+    void cache.current.load(threadId, turnId).then((cached) => {
       if (cancelled) return;
 
       if (cached) {
@@ -335,7 +335,7 @@ export function useCachedWorkbenchSnapshot(
   // 保存到缓存
   useEffect(() => {
     if (computedSnapshot && !isLoadingFromCache) {
-      cache.current.save(threadId, turnId, computedSnapshot, events);
+      void cache.current.save(threadId, turnId, computedSnapshot, events);
     }
   }, [threadId, turnId, computedSnapshot, events, isLoadingFromCache]);
 
@@ -353,11 +353,9 @@ export function useWorkbenchCacheCleanup(intervalMs = 60_000) {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      cache.current.clearExpired().then((count) => {
-        if (count > 0) {
-          console.log(`[WorkbenchCache] Cleared ${count} expired snapshots`);
-        }
-      });
+      // clearExpired never rejects — it catches and warns internally — so the
+      // count is only of interest to a debugger, not to the running app.
+      void cache.current.clearExpired();
     }, intervalMs);
 
     return () => clearInterval(timer);

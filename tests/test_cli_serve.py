@@ -257,6 +257,58 @@ class TestServeBasics:
         )
         assert captured["allow_local_workspace_access"] is False
 
+    @pytest.mark.parametrize(
+        "desktop,mode,installed",
+        [("1", "local", True), (None, "local", False), ("1", "production", False)],
+    )
+    def test_desktop_owner_token_leaves_the_environment_and_is_gated(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        desktop,
+        mode,
+        installed,
+    ) -> None:
+        from fastapi import FastAPI
+
+        import runtime.cli_serve as cli_serve
+        import runtime.platform.ui as ui_module
+        from runtime.adapters.integrations.local_auth import config as local_auth_config
+
+        token = "Od9-desktop-owner-token-0123456789abcdef"
+        seen_at_create_app: list[str | None] = []
+
+        def spy_create_app(**kwargs):
+            seen_at_create_app.append(os.environ.get("ECHO_DESKTOP_OWNER_TOKEN"))
+            return FastAPI()
+
+        monkeypatch.setenv("ECHO_DESKTOP_OWNER_TOKEN", token)
+        if desktop is None:
+            monkeypatch.delenv("ECHO_DESKTOP", raising=False)
+        else:
+            monkeypatch.setenv("ECHO_DESKTOP", desktop)
+        monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", mode)
+        monkeypatch.setattr(cli_serve, "_prepare_execution_security", lambda _cfg: (None, {}))
+        monkeypatch.setattr(ui_module, "create_app", spy_create_app)
+        monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: None)
+
+        try:
+            assert (
+                cli_serve.run_serve(
+                    config_path=_write_cfg(tmp_path),
+                    host="127.0.0.1",
+                    port=9094,
+                    learn_interval_s=0,
+                    color=False,
+                )
+                == 0
+            )
+            assert seen_at_create_app == [None]
+            assert "ECHO_DESKTOP_OWNER_TOKEN" not in os.environ
+            assert local_auth_config.desktop_owner_token() == (token if installed else None)
+        finally:
+            local_auth_config.configure_desktop_owner_token(None)
+
     def test_missing_config_returns_2(self, tmp_path: Path, capsys):
         from runtime.cli import run_serve
 
@@ -813,3 +865,49 @@ class TestCronSchedulerDecoupling:
         # Idempotent lifespan + CLI-finally invocation, and no post-stop submit.
         shutdown_callbacks[0]()
         captured["callback"]()
+
+
+class TestCronTenantScope:
+    """The serve scheduler is the trusted global cron caller.
+
+    Without ``allow_cross_tenant=True`` the executor filters out every owned
+    job, so a tenant's schedule never fires and its crashed run is never
+    reclaimed — only legacy-unowned rows would ever run.
+    """
+
+    def test_tick_and_startup_sweep_cover_every_tenant(self, monkeypatch) -> None:
+        import threading
+
+        import runtime.cli_serve as cli_serve
+        import runtime.execution.cron_executor as cron_exec
+
+        captured: dict = {}
+
+        class _FakeRunner:
+            def add_periodic(self, name, *, interval_s, callback, jitter_s, run_on_start):
+                captured["callback"] = callback
+
+        monkeypatch.setenv("ECHO_CRON_EXECUTOR", "1")
+        monkeypatch.setenv("ECHO_CRON_EXECUTOR_POLL_SECONDS", "30")
+
+        recover_kwargs: list[dict] = []
+        tick_kwargs: list[dict] = []
+        ran = threading.Event()
+
+        def _fake_recover(*_args, **kwargs):
+            recover_kwargs.append(kwargs)
+            return {"ok": True, "interrupted": 0, "jobs": []}
+
+        def _fake_run_due(**kwargs):
+            tick_kwargs.append(kwargs)
+            ran.set()
+
+        monkeypatch.setattr(cron_exec, "recover_interrupted_cron_jobs", _fake_recover)
+        monkeypatch.setattr(cron_exec, "run_due_cron_jobs", _fake_run_due)
+
+        cli_serve.register_cron_executor_task(_FakeRunner(), [])
+        captured["callback"]()
+        assert ran.wait(5), "tick never ran"
+
+        assert [kw.get("allow_cross_tenant") for kw in recover_kwargs] == [True]
+        assert [kw.get("allow_cross_tenant") for kw in tick_kwargs] == [True]

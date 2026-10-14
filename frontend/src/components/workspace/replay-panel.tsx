@@ -40,7 +40,7 @@ export function StatusDot({ status }: { status?: string | null }) {
 
 export function priorityClass(priority: string) {
   if (priority === "P0") return "bg-destructive text-destructive-foreground";
-  if (priority === "P1") return "bg-warning text-white";
+  if (priority === "P1") return "bg-warning text-primary-foreground";
   return "bg-muted text-muted-foreground";
 }
 

@@ -44,6 +44,7 @@ import type {
   MemoryVisibility,
 } from "@/core/memory/types";
 import { cn } from "@/lib/utils";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 const LAYERS: Array<{ value: "" | MemoryLayer; label: string; hint: string }> =
   [
@@ -69,7 +70,7 @@ const VISIBILITY_LABELS: Record<MemoryVisibility, string> = {
   private: "仅自己",
   team: "团队",
   restricted: "指定成员",
-  agent: "指定 Agent",
+  agent: "指定智能体",
 };
 
 function LayerMark({ layer }: { layer: MemoryLayer }) {
@@ -77,7 +78,7 @@ function LayerMark({ layer }: { layer: MemoryLayer }) {
     <div
       className={cn(
         "grid size-9 shrink-0 place-items-center rounded-lg border text-mini font-semibold",
-        layer === "L0" && "border-slate-200 bg-slate-50 text-slate-600",
+        layer === "L0" && "border-border bg-background text-muted-foreground",
         layer === "L1" && "border-info bg-info text-info",
         layer === "L2" && "border-success/30 bg-success/5 text-success",
         layer === "L3" && "border-chart-1/30 bg-chart-1/10 text-chart-1",
@@ -191,7 +192,7 @@ function AssetDetail({
               <DetailLine label="所有者" value={asset.owner} />
               <DetailLine label="团队" value={asset.team_id} />
               <DetailLine
-                label="Agent"
+                label="智能体"
                 value={[asset.agent_id, ...asset.allowed_agents]
                   .filter(Boolean)
                   .join("、")}
@@ -372,9 +373,11 @@ export function MemoryAssetsPanel() {
         </div>
 
         {assets.isLoading ? (
-          <div className="flex min-h-48 items-center justify-center text-muted-foreground">
-            <Loader2Icon className="size-5 animate-spin" />
-          </div>
+          <BrandLoadingPanel
+            label="正在读取记忆资产…"
+            hideLabel
+            className="min-h-48"
+          />
         ) : assets.isError ? (
           <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-center">
             <CircleGaugeIcon className="size-5 text-muted-foreground" />

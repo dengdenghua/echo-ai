@@ -174,19 +174,27 @@ class TestTriggerTokensDerivation:
         assert compaction_trigger_tokens(None) == 230_400
         assert compaction_trigger_tokens("auto") == 230_400
 
-    def test_known_model_families_use_name_heuristics(self) -> None:
+    def test_known_model_families_use_name_heuristics(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "runtime.platform.models.custom_model_flags.model_context_window", lambda _model: None
+        )
         # Non-custom models skip operator config and land in the
         # resolver's family heuristics: 200k claude → 150k budget,
         # 256k glm/deepseek → 230.4k budget.
         assert compaction_trigger_tokens("claude-sonnet-4-5") == 150_000
         assert compaction_trigger_tokens("glm-5.2") == 230_400
 
-    def test_trigger_scales_with_window(self) -> None:
+    def test_trigger_scales_with_window(self, monkeypatch) -> None:
+        windows = {"small-model": 128_000, "large-model": 1_000_000}
+        monkeypatch.setattr(
+            "runtime.platform.models.custom_model_flags.model_context_window", windows.get
+        )
         # The whole point: a 1M-window model gets ~8x the headroom of
         # a 128k one instead of a shared flat threshold.
-        small = compaction_trigger_tokens("claude-sonnet-4-5")
-        large = compaction_trigger_tokens("glm-5.2")
-        assert large > small * 1.5
+        small = compaction_trigger_tokens("small-model")
+        large = compaction_trigger_tokens("large-model")
+        assert small == 115_200
+        assert large == 900_000
 
 
 class TestCompact:

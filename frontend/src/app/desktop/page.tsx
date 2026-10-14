@@ -14,6 +14,7 @@ import {
   BotIcon,
   CpuIcon,
   ExternalLinkIcon,
+  FileArchiveIcon,
   FileTextIcon,
   FolderIcon,
   FolderInputIcon,
@@ -34,6 +35,7 @@ import {
 import { toast } from "sonner";
 
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EchoAppTile } from "@/components/ui/echo-app-tile";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks";
 import { useI18n } from "@/core/i18n/hooks";
@@ -184,7 +186,7 @@ export default function DesktopShellPage() {
       window.open(desktopWindowURL(app.route), windowName);
       return;
     }
-    navigate(app.route);
+    void navigate(app.route);
   };
 
   useEffect(() => {
@@ -291,8 +293,8 @@ export default function DesktopShellPage() {
         }
       } catch {}
     };
-    poll();
-    const id = setInterval(poll, 3000);
+    void poll();
+    const id = setInterval(() => void poll(), 3000);
     return () => {
       alive = false;
       clearInterval(id);
@@ -454,10 +456,7 @@ export default function DesktopShellPage() {
         const folderName = t.desktop.categories[category];
         if (!folderName || !desktopPath) return;
         const destDir = desktopPath + "\\" + folderName;
-        const result = await window.echo.desktop.moveItem(
-          item.path,
-          destDir,
-        );
+        const result = await window.echo.desktop.moveItem(item.path, destDir);
         if (result.ok) {
           refreshDesktopItems();
           toast.success(t.desktop.toasts.fileArchived(item.name, folderName));
@@ -504,7 +503,7 @@ export default function DesktopShellPage() {
       openApp(app);
       return;
     }
-    navigate(
+    void navigate(
       `${BROWSER_WORKSPACE_ROUTE}?q=${encodeURIComponent(query.trim())}`,
     );
   };
@@ -563,30 +562,24 @@ export default function DesktopShellPage() {
               桌面应用
             </p>
             <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
-              {desktopLaunchers.map((app) => {
-                const Icon = app.icon;
-                return (
-                  <button
-                    key={app.id}
-                    type="button"
-                    onClick={() => openApp(app)}
-                    title={`${app.name} · ${app.subtitle}`}
-                    className="group flex min-w-0 flex-col items-center gap-1.5 rounded-xl p-2 text-center transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info"
-                  >
-                    <span
-                      className={cn(
-                        "grid size-10 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm ring-1 ring-white/30 transition group-hover:-translate-y-0.5",
-                        app.color,
-                      )}
-                    >
-                      <Icon className="size-5" />
-                    </span>
-                    <span className="line-clamp-2 max-w-20 text-[10px] font-medium leading-tight text-foreground">
-                      {app.name}
-                    </span>
-                  </button>
-                );
-              })}
+              {desktopLaunchers.map((app) => (
+                <button
+                  key={app.id}
+                  type="button"
+                  onClick={() => openApp(app)}
+                  title={`${app.name} · ${app.subtitle}`}
+                  className="group flex min-w-0 flex-col items-center gap-1.5 rounded-xl p-2 text-center transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <EchoAppTile
+                    icon={app.icon}
+                    className="size-10 rounded-xl transition group-hover:-translate-y-0.5"
+                    iconClassName="size-5"
+                  />
+                  <span className="line-clamp-2 max-w-20 text-xs font-medium leading-tight text-foreground">
+                    {app.name}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </section>
@@ -705,30 +698,24 @@ export default function DesktopShellPage() {
 
           <div className="mx-auto flex h-full max-w-[760px] flex-col items-center justify-center pb-12">
             <div className="mb-8 grid w-full grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7">
-              {desktopLaunchers.map((app) => {
-                const Icon = app.icon;
-                return (
-                  <button
-                    key={app.id}
-                    type="button"
-                    onClick={() => openApp(app)}
-                    title={`${app.name} · ${app.subtitle}`}
-                    className="group flex min-w-0 flex-col items-center gap-2 rounded-2xl px-1.5 py-2 text-center transition hover:bg-white/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                  >
-                    <span
-                      className={cn(
-                        "grid size-12 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-[var(--shadow-md)] shadow-black/20 ring-1 ring-white/30 transition duration-fast group-hover:-translate-y-1 group-hover:scale-105",
-                        app.color,
-                      )}
-                    >
-                      <Icon className="size-6" />
-                    </span>
-                    <span className="line-clamp-2 max-w-24 text-[11px] font-medium leading-tight text-white/90">
-                      {app.name}
-                    </span>
-                  </button>
-                );
-              })}
+              {desktopLaunchers.map((app) => (
+                <button
+                  key={app.id}
+                  type="button"
+                  onClick={() => openApp(app)}
+                  title={`${app.name} · ${app.subtitle}`}
+                  className="group flex min-w-0 flex-col items-center gap-2 rounded-2xl px-1.5 py-2 text-center transition hover:bg-white/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                >
+                  <EchoAppTile
+                    icon={app.icon}
+                    className="size-12 rounded-2xl transition duration-fast group-hover:-translate-y-1"
+                    iconClassName="size-6"
+                  />
+                  <span className="line-clamp-2 max-w-24 text-xs font-medium leading-tight text-white/90">
+                    {app.name}
+                  </span>
+                </button>
+              ))}
             </div>
             <div
               data-desktop-interactive
@@ -741,7 +728,7 @@ export default function DesktopShellPage() {
                 onKeyDown={onKeyDown}
                 placeholder={t.desktop.searchPlaceholder}
                 aria-label={t.desktop.searchPlaceholder}
-                className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground/70"
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
               />
               <button
                 type="button"
@@ -859,19 +846,19 @@ export default function DesktopShellPage() {
             {!itemsError && (
               <>
                 <div className="mt-4 flex items-center gap-2 rounded-2xl border border-white/45 bg-background/60 px-3 py-2">
-                  <SearchIcon className="size-4 shrink-0 text-muted-foreground/70" />
+                  <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
                   <input
                     value={desktopSearch}
                     onChange={(event) => setDesktopSearch(event.target.value)}
                     placeholder={t.desktop.drawer.searchPlaceholder}
                     aria-label={t.desktop.drawer.searchPlaceholder}
-                    className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                   />
                   {desktopSearch && (
                     <button
                       type="button"
                       onClick={() => setDesktopSearch("")}
-                      className="grid size-4 place-items-center rounded-full text-muted-foreground/70 transition hover:text-muted-foreground"
+                      className="grid size-4 place-items-center rounded-full text-muted-foreground transition hover:text-muted-foreground"
                     >
                       <XIcon className="size-3" />
                     </button>
@@ -942,7 +929,7 @@ export default function DesktopShellPage() {
                   {loadingItems ? (
                     <div className="grid h-56 place-items-center">
                       <div className="text-center">
-                        <Loader2Icon className="mx-auto size-8 animate-spin text-muted-foreground/70" />
+                        <Loader2Icon className="mx-auto size-8 animate-spin text-muted-foreground" />
                         <p className="mt-3 text-sm font-medium text-muted-foreground">
                           {t.desktop.loadingItems}
                         </p>
@@ -977,7 +964,9 @@ export default function DesktopShellPage() {
                                     ? AppWindowIcon
                                     : category === "image"
                                       ? ImageIcon
-                                      : FileTextIcon;
+                                      : category === "package"
+                                        ? FileArchiveIcon
+                                        : FileTextIcon;
                               return (
                                 <button
                                   key={item.path}
@@ -1002,24 +991,10 @@ export default function DesktopShellPage() {
                                   title={item.path}
                                   className="group flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-2xl p-2 text-center transition hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info focus-visible:ring-offset-2"
                                 >
-                                  <span
-                                    className={cn(
-                                      "grid size-12 place-items-center rounded-xl text-white shadow-[var(--shadow-md)] shadow-black/12 ring-1 ring-white/35 transition-transform duration-fast group-hover:scale-105",
-                                      category === "folder"
-                                        ? "bg-gradient-to-br from-warning to-orange-500"
-                                        : category === "app"
-                                          ? "bg-gradient-to-br from-violet-500 to-fuchsia-500"
-                                          : category === "image"
-                                            ? "bg-gradient-to-br from-cyan-400 to-blue-500"
-                                            : category === "document"
-                                              ? "bg-gradient-to-br from-blue-500 to-indigo-500"
-                                              : category === "package"
-                                                ? "bg-gradient-to-br from-destructive to-orange-500"
-                                                : "bg-gradient-to-br from-muted-foreground to-muted-foreground/70",
-                                    )}
-                                  >
-                                    <Icon className="size-6" />
-                                  </span>
+                                  <EchoAppTile
+                                    icon={Icon}
+                                    className="size-12 transition-transform duration-fast group-hover:scale-105"
+                                  />
                                   <span className="line-clamp-2 max-w-24 text-mini font-medium leading-tight text-foreground">
                                     {item.name}
                                   </span>
@@ -1033,7 +1008,7 @@ export default function DesktopShellPage() {
                   ) : (
                     <div className="grid h-56 place-items-center rounded-3xl border border-dashed border-border-strong bg-muted/50 text-center">
                       <div>
-                        <SearchIcon className="mx-auto size-8 text-muted-foreground/70" />
+                        <SearchIcon className="mx-auto size-8 text-muted-foreground" />
                         <p className="mt-3 text-sm font-medium text-muted-foreground">
                           {desktopSearch.trim()
                             ? t.desktop.empty.noSearchResults
@@ -1041,7 +1016,7 @@ export default function DesktopShellPage() {
                               ? t.desktop.empty.noDesktopFiles
                               : t.desktop.empty.noFilesInCategory}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground/70">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           {desktopSearch.trim()
                             ? t.desktop.empty.tryAnotherKeyword
                             : t.desktop.empty.dropFilesHere}
@@ -1102,41 +1077,37 @@ export default function DesktopShellPage() {
           data-desktop-interactive
           className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-end gap-2.5 rounded-4xl border border-white/38 bg-card/50 px-3.5 py-2.5 shadow-2xl shadow-black/22 "
         >
-          {dockApps.map((app) => {
-            const Icon = app.icon;
-            return (
-              <button
-                key={app.id}
-                type="button"
-                onClick={() => openApp(app)}
-                title={app.name}
-                className={cn(
-                  "grid size-[54px] place-items-center rounded-2xl bg-gradient-to-br text-white shadow-[var(--shadow-md)] shadow-black/18 ring-1 ring-white/25 transition hover:-translate-y-2 hover:scale-110",
-                  app.color,
-                )}
-              >
-                <Icon className="size-6" />
-              </button>
-            );
-          })}
+          {dockApps.map((app) => (
+            <button
+              key={app.id}
+              type="button"
+              onClick={() => openApp(app)}
+              title={app.name}
+              className="group rounded-2xl transition hover:-translate-y-2 focus-visible:outline-none"
+            >
+              <EchoAppTile
+                icon={app.icon}
+                className="size-[54px] rounded-2xl"
+                iconClassName="size-6"
+              />
+            </button>
+          ))}
           <span className="mx-1 h-10 w-px bg-foreground/15" />
-          {localApps.map((app) => {
-            const Icon = app.icon;
-            return (
-              <button
-                key={app.id}
-                type="button"
-                onClick={() => openApp(app)}
-                title={`${app.name} · ${app.subtitle}`}
-                className={cn(
-                  "grid size-[54px] place-items-center rounded-2xl bg-gradient-to-br shadow-[var(--shadow-md)] shadow-black/12 ring-1 ring-white/25 transition hover:-translate-y-2 hover:scale-110",
-                  app.color,
-                )}
-              >
-                <Icon className="size-6" />
-              </button>
-            );
-          })}
+          {localApps.map((app) => (
+            <button
+              key={app.id}
+              type="button"
+              onClick={() => openApp(app)}
+              title={`${app.name} · ${app.subtitle}`}
+              className="group rounded-2xl transition hover:-translate-y-2 focus-visible:outline-none"
+            >
+              <EchoAppTile
+                icon={app.icon}
+                className="size-[54px] rounded-2xl"
+                iconClassName="size-6"
+              />
+            </button>
+          ))}
           <span className="mx-1 h-10 w-px bg-foreground/15" />
           <button
             type="button"
@@ -1180,7 +1151,7 @@ export default function DesktopShellPage() {
               <button
                 type="button"
                 onClick={() => setShowWidget(false)}
-                className="grid size-5 place-items-center rounded-full text-muted-foreground/70 transition hover:bg-muted hover:text-muted-foreground"
+                className="grid size-5 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-muted-foreground"
               >
                 <XIcon className="size-3" />
               </button>
@@ -1206,7 +1177,7 @@ export default function DesktopShellPage() {
                     style={{ width: `${systemInfo.cpu.usage}%` }}
                   />
                 </div>
-                <div className="mt-0.5 text-micro text-muted-foreground/70">
+                <div className="mt-0.5 text-micro text-muted-foreground">
                   {systemInfo.cpu.model.split(" ").slice(0, 3).join(" ")} ·{" "}
                   {systemInfo.cpu.cores} {t.desktop.systemWidget.cores}
                 </div>
@@ -1234,11 +1205,11 @@ export default function DesktopShellPage() {
                     style={{ width: `${systemInfo.memory.percent}%` }}
                   />
                 </div>
-                <div className="mt-0.5 text-micro text-muted-foreground/70">
+                <div className="mt-0.5 text-micro text-muted-foreground">
                   {systemInfo.memory.used} / {systemInfo.memory.total} GB
                 </div>
               </div>
-              <div className="text-micro text-muted-foreground/70">
+              <div className="text-micro text-muted-foreground">
                 {t.desktop.systemWidget.uptime(
                   Math.floor(systemInfo.uptime / 60),
                   systemInfo.uptime % 60,

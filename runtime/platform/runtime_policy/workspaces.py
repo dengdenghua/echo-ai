@@ -57,6 +57,8 @@ PROTECTED_WORKSPACE_METADATA_KEYS = frozenset(
     {
         "workspace_path",
         "extra_workspaces",
+        "shared_workspace_ids",
+        "shared_sync_baselines",
         "personal_workspace_path",
         "allowed_write_paths",
         "attachment_read_roots",

@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   },
   logout: vi.fn(),
   credits: 999 as number | undefined,
+  evolution: null as { learning_events: number } | null,
 }));
 
 vi.mock("@/core/agents", () => ({
@@ -38,7 +39,7 @@ vi.mock("@/core/oct/hooks", () => ({
 }));
 
 vi.mock("@/core/evolution/hooks", () => ({
-  useEvolutionOverview: () => ({ data: null }),
+  useEvolutionOverview: () => ({ data: mocks.evolution }),
 }));
 
 vi.mock("@/components/workspace/credits-center", () => ({
@@ -62,6 +63,7 @@ beforeEach(() => {
   mocks.agentState.refetch.mockReset();
   mocks.logout.mockReset();
   mocks.credits = 999;
+  mocks.evolution = null;
   window.localStorage.clear();
 });
 
@@ -85,7 +87,7 @@ describe("AgentAvatar", () => {
     );
   });
 
-  it("falls back to the agent icon when a remote avatar fails", () => {
+  it("falls back to a monogram, never the emoji icon, when a remote avatar fails", () => {
     const agent: Agent = {
       name: "remote_researcher",
       display_name: "Remote Researcher",
@@ -102,11 +104,65 @@ describe("AgentAvatar", () => {
     fireEvent.error(image!);
 
     expect(container.querySelector("img")).not.toBeInTheDocument();
-    expect(screen.getByText("🟦")).toBeInTheDocument();
+    expect(screen.queryByText("🟦")).not.toBeInTheDocument();
+    expect(screen.getByText("R")).toBeInTheDocument();
+  });
+
+  it("draws the default Echo agent with the ECHO mark, not its portrait", () => {
+    const agent: Agent = {
+      name: "echo",
+      display_name: "Echo",
+      description: "",
+      avatar_url: "/api/agents/echo/avatar",
+      icon: "🤖",
+      model: null,
+      tool_groups: null,
+    };
+
+    const { container } = render(<AgentAvatar agent={agent} />);
+    expect(container.querySelector("img")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-echo-core]")).toBeInTheDocument();
+    expect(screen.queryByText("🤖")).not.toBeInTheDocument();
+  });
+
+  it("retries a built-in persona's own avatar route when avatar_url fails", () => {
+    const agent: Agent = {
+      name: "noah",
+      display_name: "Noah",
+      description: "",
+      avatar_url: "https://cdn.invalid/noah.png",
+      icon: "E",
+      model: null,
+      tool_groups: null,
+    };
+
+    const { container } = render(<AgentAvatar agent={agent} />);
+    const first = container.querySelector("img");
+    expect(first?.getAttribute("src")).toBe("https://cdn.invalid/noah.png");
+    fireEvent.error(first!);
+    const second = container.querySelector("img");
+    expect(second?.getAttribute("src")).toContain("/api/agents/noah/avatar");
+    expect(screen.getByText("N")).toBeInTheDocument();
+    expect(screen.queryByText("E")).not.toBeInTheDocument();
   });
 });
 
 describe("AgentFooter roster states", () => {
+  it("opens organization management from the account menu", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <AgentFooter />
+        <RouteProbe />
+      </>,
+      { locale: "zh-CN" },
+    );
+    await user.click(screen.getByRole("button", { name: /当前角色/ }));
+    await user.click(screen.getByRole("menuitem", { name: "组织管理" }));
+    expect(screen.getByTestId("route")).toHaveTextContent(
+      "/workspace/organizations",
+    );
+  });
   it.each([undefined, 0])(
     "keeps the account entry usable with credits %s",
     async (credits) => {
@@ -125,9 +181,7 @@ describe("AgentFooter roster states", () => {
         initialRoute: "/workspace/realtime/new",
         locale: "zh-CN",
       });
-      await user.click(
-        screen.getByRole("button", { name: "Eve", exact: true }),
-      );
+      await user.click(screen.getByRole("button", { name: /当前角色 Eve$/ }));
       expect(screen.getByText("办公统筹")).toBeVisible();
       const account = screen.getByRole("menuitem", {
         name: /user@example.com/,
@@ -168,9 +222,7 @@ describe("AgentFooter roster states", () => {
           locale: "zh-CN",
         },
       );
-      await user.click(
-        screen.getByRole("button", { name: "Eve", exact: true }),
-      );
+      await user.click(screen.getByRole("button", { name: /当前角色 Eve$/ }));
       const profileButton = screen.getByRole("button", {
         name: "查看 Kane 的资料",
       });
@@ -201,7 +253,7 @@ describe("AgentFooter roster states", () => {
     });
 
     expect(
-      screen.getByRole("button", { name: "正在加载智能体…" }),
+      screen.getByRole("button", { name: /当前角色 正在加载智能体…$/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText("?")).not.toBeInTheDocument();
     expect(screen.queryByText("EchoAI")).not.toBeInTheDocument();
@@ -217,7 +269,7 @@ describe("AgentFooter roster states", () => {
     });
 
     await user.click(
-      screen.getByRole("button", { name: "智能体列表加载失败" }),
+      screen.getByRole("button", { name: /当前角色 智能体列表加载失败$/ }),
     );
     expect(screen.getAllByText("智能体列表加载失败")).toHaveLength(2);
 
@@ -243,7 +295,35 @@ describe("AgentFooter roster states", () => {
       locale: "zh-CN",
     });
 
-    expect(screen.getByRole("button", { name: "Eve" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /当前角色 Eve$/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("EchoAI")).not.toBeInTheDocument();
+  });
+
+  it("keeps the role line at the caption size and draws stars as icons", () => {
+    mocks.evolution = { learning_events: 15 };
+    mocks.agentState.agents = [
+      {
+        name: "general",
+        display_name: "Eve",
+        description: "通用智能助理",
+        avatar_url: "/api/agents/general/avatar",
+        icon: "",
+        model: null,
+        tool_groups: [],
+      },
+    ];
+
+    renderWithProviders(<AgentFooter />, {
+      initialRoute: "/workspace/realtime/thread-1",
+      locale: "zh-CN",
+    });
+
+    const roleLine = screen.getByText(/Lv\.2/).parentElement as HTMLElement;
+    // A custom size next to a text colour must survive tailwind-merge.
+    expect(roleLine).toHaveClass("text-xs", "text-muted-foreground");
+    expect(roleLine.textContent).not.toMatch(/⭐/u);
+    expect(roleLine.querySelectorAll("svg.lucide-star")).toHaveLength(1);
   });
 });

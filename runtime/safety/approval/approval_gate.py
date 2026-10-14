@@ -21,12 +21,22 @@ emitter is the provider (see :class:`RpcConnection.request_approval`).
 
 from __future__ import annotations
 
+import dataclasses
 import fnmatch
 import logging
 import threading
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
+
+from runtime.safety.approval.network_denial import (
+    NETWORK_RISK_CATEGORIES,
+    NetworkDenialMemory,
+    is_network_risk,
+    network_targets,
+)
+from runtime.safety.approval.permission_modes import canonical_permission_mode
 
 _logger = logging.getLogger(__name__)
 
@@ -68,6 +78,9 @@ class ApprovalRisk:
         }
 
 
+_RISK_ACTION_ORDER: dict[str, int] = {"allow": 0, "audit": 1, "ask": 2, "confirm": 3, "deny": 4}
+
+
 @dataclass(frozen=True, slots=True)
 class ApprovalRiskPolicy:
     """Risk-level policy matrix for tool approval routing."""
@@ -76,29 +89,44 @@ class ApprovalRiskPolicy:
     medium: ApprovalRiskAction = "ask"
     high: ApprovalRiskAction = "ask"
     critical: ApprovalRiskAction = "confirm"
+    # Optional floor for network-reaching calls (``NETWORK_RISK_CATEGORIES``),
+    # applied on top of the level action. ``None`` keeps the level matrix
+    # alone. ``resolve_approval_risk_policy`` sets ``"ask"`` for the "询问审批"
+    # and "自动审批" permission modes, so every network call is reviewed (by
+    # the user or the review agent) whatever its level.
+    network: ApprovalRiskAction | None = None
 
     def action_for(self, risk: ApprovalRisk) -> ApprovalRiskAction:
-        return getattr(self, risk.level)
+        action: ApprovalRiskAction = getattr(self, risk.level)
+        if (
+            self.network is not None
+            and NETWORK_RISK_CATEGORIES.intersection(risk.categories)
+            and _RISK_ACTION_ORDER[self.network] > _RISK_ACTION_ORDER[action]
+        ):
+            return self.network
+        return action
 
     @classmethod
     def from_mapping(cls, value: object) -> ApprovalRiskPolicy:
         if not isinstance(value, dict):
             return cls()
-        allowed = {"allow", "audit", "ask", "confirm", "deny"}
         data: dict[str, ApprovalRiskAction] = {}
-        for level in ("low", "medium", "high", "critical"):
+        for level in ("low", "medium", "high", "critical", "network"):
             raw = value.get(level)
-            if isinstance(raw, str) and raw in allowed:
+            if isinstance(raw, str) and raw in _RISK_ACTION_ORDER:
                 data[level] = raw  # type: ignore[assignment]
         return cls(**data)
 
     def to_dict(self) -> dict[str, ApprovalRiskAction]:
-        return {
+        data: dict[str, ApprovalRiskAction] = {
             "low": self.low,
             "medium": self.medium,
             "high": self.high,
             "critical": self.critical,
         }
+        if self.network is not None:
+            data["network"] = self.network
+        return data
 
 
 # Heuristic catalog of tool names that require explicit approval when no
@@ -178,6 +206,47 @@ def is_dangerous_tool(tool_name: str) -> bool:
     return any(tool_name.startswith(prefix) for prefix in DANGEROUS_PREFIXES)
 
 
+# Tools that execute model-authored code without being named like a shell.
+_CODE_EXECUTION_TOOLS: frozenset[str] = frozenset({"ipython", "workflow"})
+# Meta-skills that dispatch to a model-chosen inner tool.
+_META_DISPATCH_TOOLS: frozenset[str] = frozenset({"use_capability", "execute_skill"})
+# Media generators that write output files to the workspace.
+_MEDIA_GENERATION_TOOLS: frozenset[str] = frozenset(
+    {"generate_image", "generate_video", "generate_speech", "generate_sound_effects"}
+)
+# Network reads with no other risk signal stay ``low`` but are tagged
+# ``network_read`` so an ``ApprovalRiskPolicy.network`` floor routes them to
+# review. ``fetch_url``/``web_fetch``/``platform_read`` all GET a model-chosen
+# URL: whatever level each one has, all three must carry a network category,
+# or rejecting one leaves the same request open through another.
+_NETWORK_READ_TOOLS: frozenset[str] = frozenset(
+    {
+        "crawl_site",
+        "deep_research_answer",
+        "platform_collect",
+        "platform_monitor",
+        "platform_read",
+        "platform_search",
+        "reach_doctor",
+        "research_answer",
+        "screenshot_web_full_page",
+        "search_image_by_image",
+        "search_image_by_text",
+        "web_fetch",
+        "web_search",
+    }
+)
+_NETWORK_READ_PREFIXES: tuple[str, ...] = (
+    "web_",
+    "crawl_",
+    "platform_",
+    # Browser automation loads pages too; it is ``high`` already, but the
+    # category lets a refused target stay refused through a browser tool.
+    "browser_",
+    "live_browser_",
+)
+
+
 def assess_approval_risk(
     tool_name: str,
     args_preview: str = "",
@@ -214,6 +283,8 @@ def assess_approval_risk(
         )
     ):
         bump("medium", "network_or_egress")
+    if name in _NETWORK_READ_TOOLS or name.startswith(_NETWORK_READ_PREFIXES):
+        bump("low", "network_read")
     if name.startswith(("write_", "append_", "edit_", "delete_")) or name in DANGEROUS_TOOLS:
         bump("high", "filesystem_write")
     if name.startswith(
@@ -227,6 +298,19 @@ def assess_approval_risk(
     # Command execution — incl. background / renamed aliases that the
     # bare ``exec_shell`` check missed (a prompt-injected agent can route
     # a shell through any of these).
+    if name in _CODE_EXECUTION_TOOLS:
+        # Not shells, but they run model-authored code: ``ipython`` executes
+        # Python in-process; ``workflow`` runs a model-written orchestration
+        # script in a worker subprocess.
+        bump("high", "code_execution")
+    if name in _META_DISPATCH_TOOLS:
+        # Meta-skills dispatch to an arbitrary inner tool chosen by the
+        # model. The inner target can't be resolved reliably from a
+        # truncated, model-controlled args preview, so the outer call is
+        # rated as dangerous as the worst thing it can dispatch.
+        bump("high", "meta_dispatch")
+    if name in _MEDIA_GENERATION_TOOLS:
+        bump("medium", "media_generation_write")
     if name in {
         "exec_shell",
         "shell_command",
@@ -457,18 +541,51 @@ def needs_approval_for_chain(tool_names: list[str], auto_approve: bool = False) 
     return any(assess_approval_risk(name).requires_approval for name in tool_names)
 
 
-def approval_action_for_tool(
-    tool_name: str,
-    args_preview: str = "",
+# Permission modes that review every network-reaching call. "询问审批"
+# (``default``) promises to ask before network access; "自动审批"
+# (``acceptEdits``) keeps the same boundary and hands each crossing to the
+# review agent instead of the user.
+_NETWORK_REVIEW_MODES: frozenset[str] = frozenset({"default", "acceptEdits"})
+
+
+def resolve_approval_risk_policy(
+    policy: ApprovalRiskPolicy | Mapping[str, Any] | None = None,
     *,
-    policy: ApprovalRiskPolicy | dict[str, str] | None = None,
-) -> tuple[ApprovalRisk, ApprovalRiskAction, ApprovalRiskPolicy]:
-    risk = assess_approval_risk(tool_name, args_preview)
-    resolved_policy = (
+    permission_mode: object = None,
+) -> ApprovalRiskPolicy:
+    """The risk policy a turn runs under, including its permission mode.
+
+    An explicit "询问审批" or "自动审批" mode floors every network-reaching
+    call at ``ask``, whatever its level: the user or the review agent decides,
+    per the mode. A missing mode keeps the policy as configured: headless
+    callers (cron, channels, tests) never chose that contract, and realtime
+    turns always stamp a mode.
+    """
+
+    resolved = (
         policy
         if isinstance(policy, ApprovalRiskPolicy)
         else ApprovalRiskPolicy.from_mapping(policy)
     )
+    if (
+        resolved.network is None
+        and isinstance(permission_mode, str)
+        and permission_mode.strip()
+        and canonical_permission_mode(permission_mode) in _NETWORK_REVIEW_MODES
+    ):
+        resolved = dataclasses.replace(resolved, network="ask")
+    return resolved
+
+
+def approval_action_for_tool(
+    tool_name: str,
+    args_preview: str = "",
+    *,
+    policy: ApprovalRiskPolicy | Mapping[str, Any] | None = None,
+    permission_mode: object = None,
+) -> tuple[ApprovalRisk, ApprovalRiskAction, ApprovalRiskPolicy]:
+    risk = assess_approval_risk(tool_name, args_preview)
+    resolved_policy = resolve_approval_risk_policy(policy, permission_mode=permission_mode)
     return risk, resolved_policy.action_for(risk), resolved_policy
 
 
@@ -663,12 +780,17 @@ __all__ = [
     "AutoDenyProvider",
     "DANGEROUS_PREFIXES",
     "DANGEROUS_TOOLS",
+    "NETWORK_RISK_CATEGORIES",
+    "NetworkDenialMemory",
     "RuleBasedProvider",
     "approval_action_for_tool",
     "assess_approval_risk",
     "is_dangerous_tool",
+    "is_network_risk",
     "needs_approval",
     "needs_approval_for_chain",
+    "network_targets",
+    "resolve_approval_risk_policy",
     "DenialCircuitBreaker",
 ]
 

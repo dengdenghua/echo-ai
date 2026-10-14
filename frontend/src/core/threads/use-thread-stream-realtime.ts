@@ -15,6 +15,8 @@ import {
   conversationToAgentThreadState,
 } from "@/core/threads/realtime-adapter";
 import { swallow } from "@/core/utils/log";
+import { STEER_RECEIPT_EVENT } from "./task-interaction";
+import { queuesGroupInput } from "./group-turn-policy";
 import { toast } from "sonner";
 import { useI18n } from "@/core/i18n/hooks";
 import {
@@ -71,6 +73,7 @@ import {
 import {
   RETRY_PENDING_MESSAGE_EVENT,
   acknowledgedClientMessageIds,
+  newClientMessageId,
   mergeOptimisticHumanMessages,
   optimisticMessageReducer,
   type OptimisticMessageAction,
@@ -90,6 +93,7 @@ type ExposedRealtimeThread = Omit<BaseStream<AgentThreadState>, "stop"> & {
   stop: () => Promise<void>;
   connectionPhase: ThreadConnectionPhase;
   readyForMutations: boolean;
+  lastTurnStatus?: Turn["status"];
 };
 
 type SendMessageFn = (
@@ -117,14 +121,6 @@ function isSameThreadEpoch(left: ThreadEpoch, right: ThreadEpoch): boolean {
   );
 }
 
-function newClientMessageId(): string {
-  const suffix =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  return `itm_user_${suffix}`;
-}
-
 export type UseThreadStreamRealtimeResult = readonly [
   ExposedRealtimeThread & { vitals: StreamVitals },
   SendMessageFn,
@@ -133,7 +129,12 @@ export type UseThreadStreamRealtimeResult = readonly [
   LiveToolEvent[],
   {
     pendingApprovals: PendingApproval[];
-    resolveApproval: (requestId: string | number, accept: boolean, preparedRoles?: Record<string, string>) => void;
+    loadedItemIds: string[];
+    resolveApproval: (
+      requestId: string | number,
+      accept: boolean,
+      preparedRoles?: Record<string, string>,
+    ) => void;
     hasMoreTurns: boolean;
     loadOlderTurns: () => Promise<void>;
   },
@@ -218,7 +219,8 @@ function toOptionalMillis(
 
 function liveStatus(status: Item["status"]): LiveToolEvent["status"] {
   if (status === "inProgress") return "running";
-  if (status === "completed" || status === "interrupted") return "done";
+  if (status === "completed") return "done";
+  if (status === "interrupted") return "interrupted";
   return "error";
 }
 
@@ -311,7 +313,7 @@ function mcpItemToLiveEvent(
   // panel can render a tile from the spawn moment instead of waiting
   // for the first ``sub_tool_*`` event.
   if (item.tool === "__subagent_spawned__") {
-    const args = (item.arguments ?? {}) as Record<string, unknown>;
+    const args = item.arguments ?? {};
     const codename =
       typeof args.codename === "string" ? args.codename : undefined;
     const avatar = typeof args.avatar === "string" ? args.avatar : undefined;
@@ -356,7 +358,7 @@ function mcpItemToLiveEvent(
     };
   }
   if (item.tool === "__subagent_finished__") {
-    const args = (item.arguments ?? {}) as Record<string, unknown>;
+    const args = item.arguments ?? {};
     const result = (item.result ?? {}) as Record<string, unknown>;
     const codename =
       typeof result.codename === "string" ? result.codename : undefined;
@@ -434,7 +436,7 @@ function mcpItemToLiveEvent(
     };
   }
   if (item.tool === "__subagent_progress__") {
-    const args = (item.arguments ?? {}) as Record<string, unknown>;
+    const args = item.arguments ?? {};
     const preview = item.progress?.preview;
     return {
       id: item.id,
@@ -477,7 +479,7 @@ function mcpItemToLiveEvent(
       ...finishFields(status, startedAt, turn, item.durationMs),
     };
   }
-  const args = (item.arguments ?? {}) as Record<string, unknown>;
+  const args = item.arguments ?? {};
   const isSubagentTool = item.server === "subagent";
   const childRole =
     typeof args.sub_agent_role === "string"
@@ -1126,12 +1128,7 @@ function approvalToLiveEvent(
   approval: PendingApproval,
   iteration: number,
 ): LiveToolEvent {
-  const params = approval.params as {
-    itemId?: unknown;
-    tool?: unknown;
-    argsPreview?: unknown;
-    detail?: unknown;
-  };
+  const params = approval.params;
   const tool =
     typeof params.tool === "string" && params.tool
       ? params.tool
@@ -1164,7 +1161,7 @@ export function useThreadStreamRealtime(
     onToolEnd,
     context,
   } = opts;
-
+  const queuesGroup = queuesGroupInput(context);
   const realtime = useRealtimeThread({ threadId });
   const {
     state,
@@ -1383,6 +1380,11 @@ export function useThreadStreamRealtime(
   const approvalControls = useMemo(
     () => ({
       pendingApprovals: state.pendingApprovals,
+      // Include items folded into process replay or coalesced by the adapter:
+      // their room projections must not reappear as separate chat bubbles.
+      loadedItemIds: state.turns.flatMap((turn) =>
+        turn.items.map((item) => item.id),
+      ),
       resolveApproval,
       // Backwards pagination — thread/resume returns the newest window
       // for large threads; older history pages in on demand.
@@ -1391,6 +1393,7 @@ export function useThreadStreamRealtime(
     }),
     [
       state.pendingApprovals,
+      state.turns,
       resolveApproval,
       state.hasMoreTurns,
       loadOlderTurns,
@@ -1585,35 +1588,35 @@ export function useThreadStreamRealtime(
   const stop = useCallback(() => stopRef.current(), []);
 
   const refresh = useCallback(() => resume(), [resume]);
+  const lastTurnStatus = state.turns.at(-1)?.status;
 
-  const exposedThread = useMemo(
-    () =>
-      ({
-        messages: visibleMessages,
-        streamingMessage,
-        subgraphStreams: {},
-        values: mapped,
-        isLoading: isUiLoading,
-        isThreadLoading,
-        error,
-        stop,
-        refresh,
-        submit: () => {
-          // ``submit`` is only called by the stream consumer's
-          // internal plumbing; the realtime path routes through
-          // ``sendMessage`` -> ``startTurn`` instead. Providing a no-op
-          // keeps the BaseStream contract satisfied for the few places
-          // that might introspect the shape.
-        },
-        threadId: activeThreadId || null,
-        compact,
-        vitals,
-        connectionPhase,
-        readyForMutations,
-      }) as ExposedRealtimeThread & {
-        compact: typeof compact;
-        vitals: typeof vitals;
+  const exposedThread = useMemo<
+    ExposedRealtimeThread & { compact: typeof compact; vitals: typeof vitals }
+  >(
+    () => ({
+      messages: visibleMessages,
+      streamingMessage,
+      subgraphStreams: {},
+      values: mapped,
+      isLoading: isUiLoading,
+      isThreadLoading,
+      error,
+      stop,
+      refresh,
+      submit: () => {
+        // ``submit`` is only called by the stream consumer's
+        // internal plumbing; the realtime path routes through
+        // ``sendMessage`` -> ``startTurn`` instead. Providing a no-op
+        // keeps the BaseStream contract satisfied for the few places
+        // that might introspect the shape.
       },
+      threadId: activeThreadId || null,
+      compact,
+      vitals,
+      connectionPhase,
+      readyForMutations,
+      lastTurnStatus,
+    }),
     [
       mapped,
       visibleMessages,
@@ -1628,6 +1631,7 @@ export function useThreadStreamRealtime(
       compact,
       connectionPhase,
       readyForMutations,
+      lastTurnStatus,
     ],
   );
 
@@ -1660,9 +1664,17 @@ export function useThreadStreamRealtime(
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
           await steer({ input: text, itemId: outbound.clientMessageId });
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
+          window.dispatchEvent(
+            new CustomEvent(STEER_RECEIPT_EVENT, {
+              detail: {
+                threadId: outbound.threadId,
+                clientMessageId: outbound.clientMessageId,
+              },
+            }),
+          );
           return;
         }
-        if (isLoading) {
+        if (isLoading && !queuesGroup) {
           throw new Error(t.conversation.previousMessagePending);
         }
         setUploadingForEpoch(deliveryEpoch, hasFileUploads);
@@ -1740,7 +1752,7 @@ export function useThreadStreamRealtime(
             ...(topologyId ? { topologyId } : {}),
             metadata: {
               context: metadataContext,
-            } as Record<string, unknown>,
+            },
           });
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
         } finally {
@@ -1800,6 +1812,7 @@ export function useThreadStreamRealtime(
       effectiveSandboxPolicy,
       model,
       context,
+      queuesGroup,
       threadEpoch,
       permissionRuntime.mode,
       permissionRuntime.approvalReviewer,
@@ -1825,8 +1838,7 @@ export function useThreadStreamRealtime(
     const queued = pending.messages.filter(
       (message) => message.deliveryState === "queued",
     );
-    // Normal UI flow permits only one unacknowledged start. Keep this loop so
-    // restored steering rows still preserve FIFO if a reconnect races them.
+    // Restored group starts and steering rows preserve their submission order.
     for (const outbound of queued) {
       deliverOutbound(outbound);
     }
@@ -1857,14 +1869,14 @@ export function useThreadStreamRealtime(
           message.clientMessageId !== clientMessageId &&
           message.deliveryState !== "failed",
       );
-      if (waitingForFirstTurnReceipt) {
+      if (waitingForFirstTurnReceipt && !queuesGroup) {
         setSendErrorForEpoch(
           threadEpoch,
           t.conversation.previousMessagePending,
         );
         return;
       }
-      if (pending.intent === "start" && isLoading) {
+      if (pending.intent === "start" && isLoading && !queuesGroup) {
         setSendErrorForEpoch(
           threadEpoch,
           t.conversation.previousMessagePending,
@@ -1898,6 +1910,7 @@ export function useThreadStreamRealtime(
     isCurrentThreadEpoch,
     isLoading,
     runningTurnId,
+    queuesGroup,
     setSendErrorForEpoch,
     t.conversation.previousMessagePending,
     t.conversation.steeringTurnUnavailable,
@@ -1917,10 +1930,10 @@ export function useThreadStreamRealtime(
       const effectiveThreadId =
         _threadId && _threadId !== "new" ? _threadId : threadId;
       const outbound: PendingOutboundMessage = {
-        clientMessageId: newClientMessageId(),
+        clientMessageId: newClientMessageId(message.clientMessageId),
         threadId: effectiveThreadId,
-        intent: runningTurnId ? "steer" : "start",
-        ...(runningTurnId ? { targetTurnId: runningTurnId } : {}),
+        intent: runningTurnId && !queuesGroup ? "steer" : "start",
+        ...(runningTurnId && !queuesGroup ? { targetTurnId: runningTurnId } : {}),
         message: { text: rawText, files },
         displayText,
         createdAt: new Date().toISOString(),
@@ -1933,7 +1946,7 @@ export function useThreadStreamRealtime(
       const waitingForFirstTurnReceipt =
         !isLoading &&
         pendingMessages.some((pending) => pending.deliveryState !== "failed");
-      if (waitingForFirstTurnReceipt) {
+      if (waitingForFirstTurnReceipt && !queuesGroup) {
         const errorMessage = t.conversation.previousMessagePending;
         const failed = {
           ...outbound,
@@ -1972,6 +1985,7 @@ export function useThreadStreamRealtime(
       isCurrentThreadEpoch,
       isLoading,
       runningTurnId,
+      queuesGroup,
       setSendErrorForEpoch,
       t.conversation.previousMessagePending,
       threadEpoch,

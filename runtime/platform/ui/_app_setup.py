@@ -55,6 +55,33 @@ class _SecurityHeadersMiddleware:
         await self.app(scope, receive, _send)
 
 
+def _publish_websocket_auth(
+    app: Any,
+    *,
+    identity_store: Any,
+    require_auth: bool,
+    jwt: tuple[str | None, str | None, str | None],
+) -> None:
+    """Share the HTTP identity/JWT settings with every WebSocket endpoint.
+
+    WebSocket handshakes bypass the HTTP auth middleware; publishing the same
+    settings lets ``authenticate_websocket`` (used by every WS route,
+    plugin-mounted ones included) verify exactly as ``resolve_principal``
+    does for HTTP.
+    """
+    from runtime.safety.auth.websocket_auth import APP_STATE_ATTR, WebSocketAuthConfig
+
+    secret, issuer, audience = jwt
+    config = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=bool(require_auth),
+        jwt_secret=secret,
+        jwt_issuer=issuer,
+        jwt_audience=audience,
+    )
+    setattr(app.state, APP_STATE_ATTR, config)
+
+
 def setup_app(
     *,
     journal_path: Any,
@@ -179,19 +206,42 @@ def setup_app(
         except AttributeError:
             local_auth_runtime_config = local_auth_config
     if cocoloop_identity_store is None and auth_enabled:
-        from runtime.safety.auth.identity import IdentityStore
+        # Durable on purpose: an in-memory store made every backend restart
+        # invalidate all outstanding JWTs (verify_jwt requires the subject to
+        # be registered), leaving open clients stuck in an endless realtime
+        # reconnect loop. The durable mirror keeps pre-restart tokens valid
+        # until they actually expire.
+        from runtime.platform.process.paths import app_paths
+        from runtime.safety.auth.identity import DurableIdentityStore
 
-        cocoloop_identity_store = IdentityStore()
-    if (
-        local_auth_config is not None
-        and getattr(local_auth_config, "enabled", False)
-        and getattr(local_auth_config, "allow_any_username", False)
-    ):
+        cocoloop_identity_store = DurableIdentityStore(app_paths().identity_store_path)
+    from runtime.adapters.integrations.local_auth.config import development_login_enabled
+
+    # Outside development any-username is ignored (owner account / desktop).
+    if development_login_enabled(local_auth_config) and local_auth_config.allow_any_username:
         logging.getLogger(__name__).warning(
             "local auth allow_any_username=true accepts arbitrary usernames; "
             "use only for trusted local development"
         )
 
+    # Internal loopback callers (e.g. the computer-automation bridge skill)
+    # call the local gateway back over 127.0.0.1 and must carry a valid token
+    # when require_auth is on. Install the same signer the gateway uses so
+    # those self-calls authenticate as the authenticated session actor.
+    from runtime.safety.auth.internal_token import configure_internal_token_signer
+
+    configure_internal_token_signer(
+        secret=cocoloop_jwt_secret,
+        issuer=cocoloop_jwt_issuer,
+        audience=cocoloop_jwt_audience,
+    )
+
+    _publish_websocket_auth(
+        app,
+        identity_store=cocoloop_identity_store,
+        require_auth=cocoloop_require_auth,
+        jwt=(cocoloop_jwt_secret, cocoloop_jwt_issuer, cocoloop_jwt_audience),
+    )
     _install_legacy_control_plane_auth(
         app,
         identity_store=cocoloop_identity_store,
@@ -200,8 +250,13 @@ def setup_app(
         jwt_issuer=cocoloop_jwt_issuer,
         jwt_audience=cocoloop_jwt_audience,
     )
+    # Browser cookies authenticate some HTTP and WebSocket routes too: Origin
+    # checks must remain active after login, not just in no-auth local mode.
+    from runtime.platform.ui.local_origin_guard import LocalOriginGuardMiddleware
+
+    app.add_middleware(LocalOriginGuardMiddleware, require_local_host=not cocoloop_require_auth)
     # Install last so these headers also wrap early 401/403 responses emitted
-    # by the legacy control-plane auth middleware.
+    # by the legacy control-plane auth middleware and the local origin guard.
     app.add_middleware(_SecurityHeadersMiddleware)
 
     return AppContext(

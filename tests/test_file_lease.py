@@ -66,6 +66,25 @@ def test_acquire_conflict(tmp_path: Path) -> None:
     assert other.holder_id == "bob"
 
 
+def test_independent_stores_cannot_both_acquire_same_file(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    stores = [_store(tmp_path), _store(tmp_path)]
+    gate = Barrier(2)
+
+    def acquire(index):
+        gate.wait(timeout=3)
+        try:
+            stores[index].acquire("workspace", "file", f"writer-{index}")
+            return True
+        except LeaseConflictError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(acquire, range(2))) == [False, True]
+
+
 def test_acquire_same_holder_renew(tmp_path: Path) -> None:
     store = _store(tmp_path)
     first = store.acquire("ws1", "src/main.py", "alice", ttl_seconds=60)

@@ -236,12 +236,13 @@ def test_put_refuses_a_spawn_that_stopped_early(marker: str) -> None:
     assert cache.get("k") is None
 
 
-def test_real_parallel_path_stores_and_replays(monkeypatch: Any) -> None:
+def test_real_parallel_path_stores_and_replays(monkeypatch: Any, installed_hub_roles: Any) -> None:
     """End-to-end through the REAL ``_call_agent_parallel``, stubbing only
     ``call_subagent``. The 12 tests above all stub the whole parallel call, so
     none of them exercise the envelope shape the cache is actually handed -
     which is how the production miss survived a green suite.
     """
+    installed_hub_roles("researcher")  # graph nodes default to this HUB role
     spawns = {"n": 0}
 
     def fake_sub(agent_id: str = "", prompt: str = "", **_kw: Any) -> dict[str, Any]:

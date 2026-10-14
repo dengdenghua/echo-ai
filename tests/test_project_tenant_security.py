@@ -7,12 +7,15 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from runtime.memory.cowork.group_store import GroupStore
+from runtime.memory.cowork.service import invite_member
 from runtime.projectos.model import Milestone, Project
 from runtime.projectos.store import ProjectStore
 from runtime.safety.auth import Identity, IdentityStore
 from runtime.safety.auth.scope import TenantScope
 from runtime.sensing.gateway.projects_router import create_projects_router
 from runtime.sensing.gateway.thread_workspace import managed_workspace_metadata
+from tests.project_governance_utils import run_governed_to_done
 
 
 def _client(tmp_path):
@@ -166,10 +169,13 @@ def test_authenticated_run_uses_verified_managed_thread_workspace(
         return original_run(self, *args, **kwargs)
 
     monkeypatch.setattr(ProjectEngine, "run", observed_run)
+    groups = GroupStore(base_dir=tmp_path / "cowork")
+    invite_member(groups, "thread-managed", actor="alice", target_id="coder", kind="agent")
     app = FastAPI()
     app.include_router(
         create_projects_router(
             store=store,
+            group_store=groups,
             thread_store=_Threads(),
             workspace_root=workspace_root,
             logs_root=tmp_path / "logs",
@@ -193,14 +199,15 @@ def test_authenticated_run_uses_verified_managed_thread_workspace(
         == 200
     )
 
-    response = client.post(
+    unapproved = client.post(
         f"/api/projects/{project_id}/run",
         headers=headers,
         json={"max_ticks": 20},
     )
+    assert unapproved.status_code == 409
+    assert unapproved.json()["detail"]["code"] == "INITIATION_APPROVAL_REQUIRED"
 
-    assert response.status_code == 200
-    assert response.json()["final_status"] == "done"
+    assert run_governed_to_done(client, project_id, headers=headers)["final_status"] == "done"
     from runtime.execution.artifact_contracts import HandoffRecorder
     from runtime.execution.subagents.execution_context import parent_execution_task
 

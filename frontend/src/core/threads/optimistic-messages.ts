@@ -168,3 +168,12 @@ export function mergeOptimisticHumanMessages(
     ? serverMessages
     : [...serverMessages, ...optimistic];
 }
+
+export function newClientMessageId(candidate?: string): string {
+  if (candidate && /^ui-[a-zA-Z0-9-]{1,80}$/.test(candidate)) return candidate;
+  const suffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  return `itm_user_${suffix}`;
+}

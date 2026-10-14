@@ -20,10 +20,159 @@ from runtime.platform.process.paths import app_paths
 from ._app_context import AppContext
 
 
+def _mark_interrupted_projects(project_store: Any, task_supervisor: Any) -> None:
+    try:
+        from runtime.projectos.restart_sweep import sweep_projects_interrupted_by_restart
+
+        interrupted_projects = sweep_projects_interrupted_by_restart(
+            project_store, task_supervisor=task_supervisor
+        )
+        if interrupted_projects:
+            logging.getLogger(__name__).warning(
+                "projectos: %d project(s) were left running by a previous process "
+                "and are awaiting an explicit continue: %s",
+                len(interrupted_projects),
+                ", ".join(item["project_id"] for item in interrupted_projects),
+            )
+    except Exception:  # noqa: BLE001 - the sweep must never block app wiring
+        logging.getLogger(__name__).debug("project restart sweep failed", exc_info=True)
+
+
+def _initialize_project_store(ctx: AppContext) -> Any:
+    from runtime.projectos.store import ProjectStore
+
+    from ._app_project_patrol import mount_project_patrol
+
+    store = ProjectStore()
+    ctx.app.state.project_store = store
+    _mark_interrupted_projects(store, getattr(ctx.state, "task_supervisor", None))
+    mount_project_patrol(ctx.app, store)
+    return store
+
+
 def _workspaces_router_root(ctx: AppContext) -> Any:
     """Use the same workspace root as turn execution and thread storage."""
 
     return ctx.thread_workspace_root or (app_paths().data_dir / "workspaces")
+
+
+def _mount_thread_workspace_router(ctx: AppContext) -> None:
+    try:
+        from runtime.sensing.gateway.workspaces_router import create_workspaces_router
+
+        ctx.app.include_router(
+            create_workspaces_router(
+                # The execution stack derives this root from the active
+                # journal. Artifact listing/preview must read from that exact
+                # location; app_paths() may point at an appliance data dir
+                # while turns are writing into a project-local journal.
+                workspace_root=_workspaces_router_root(ctx),
+                include_legacy_info_route=False,
+                thread_store=ctx.thread_store,
+                identity_store=ctx.identity_store,
+                require_auth=ctx.require_auth,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+            )
+        )
+    except Exception as _workspace_exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "workspaces router failed to mount: %s",
+            _workspace_exc,
+        )
+
+
+def _project_collaboration_services(ctx: AppContext) -> dict[str, Any]:
+    """Keep project endpoints on the application collaboration transport/stores."""
+    return {
+        "group_store": getattr(ctx.cowork_runtime, "group_store", None),
+        "collaboration_store": getattr(ctx.cowork_runtime, "collaboration_store", None),
+        "team_rooms_router": ctx.team_rooms_router,
+        "thread_store": ctx.thread_store,
+        "shared_bus": ctx.shared_realtime,
+    }
+
+
+def _mount_visuals_router(ctx: AppContext) -> None:
+    from runtime.sensing.gateway.visuals_router import create_visuals_router
+
+    ctx.app.include_router(
+        create_visuals_router(
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+
+
+def _mount_assistant_activity_router(ctx: AppContext, collaboration_store: Any) -> None:
+    try:
+        from runtime.sensing.gateway.task_runs_router import create_task_runs_router
+
+        ctx.app.include_router(
+            create_task_runs_router(
+                supervisor=getattr(ctx.state, "task_supervisor", None),
+                identity_store=ctx.identity_store,
+                require_auth=ctx.require_auth,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+            )
+        )
+    except Exception as _task_runs_exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "task runs router failed to mount: %s",
+            _task_runs_exc,
+        )
+
+    from runtime.sensing.gateway.assistant_activity_router import create_assistant_activity_router
+
+    ctx.app.include_router(
+        create_assistant_activity_router(
+            supervisor=getattr(ctx.state, "task_supervisor", None),
+            project_store=ctx.project_store,
+            collaboration_store=collaboration_store,
+            thread_store=ctx.thread_store,
+            group_store=getattr(ctx.cowork_runtime, "group_store", None),
+            team_rooms_router=ctx.team_rooms_router,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+
+
+def _mount_fs_router(ctx: AppContext) -> None:
+    # Local loopback users can choose a directory before creating a thread.
+    # Shared deployments keep the authenticated, managed-thread boundary.
+    from runtime.sensing.gateway.fs_router import create_fs_router
+
+    from ._app_workspace_services import ensure_workspace_services
+
+    ensure_workspace_services(ctx)
+
+    ctx.app.include_router(
+        create_fs_router(
+            thread_store=ctx.thread_store,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            allow_local_workspace_access=ctx.allow_local_workspace_access,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+            workspace_root=ctx.thread_workspace_root,
+            workspace_store=ctx.workspace_store,
+            lease_store=ctx.workspace_leases,
+            mount_registry=ctx.workspace_mounts,
+            file_updates=ctx.workspace_updates,
+            require_remote_flag=True,
+        )
+    )
 
 
 def mount_routers_a(
@@ -36,12 +185,45 @@ def mount_routers_a(
     stack = ctx.stack
     state = ctx.state
 
+    from runtime.execution.lifecycle import (
+        ExecutionLifecycle,
+        get_execution_lifecycle,
+        set_execution_lifecycle,
+    )
+    from runtime.execution.node_worker import mount_execution_node_worker
+    from runtime.platform.ui._app_agents import _collaboration_store_for_app
+    from runtime.sensing.gateway.execution_nodes_router import create_execution_nodes_router
     from runtime.sensing.gateway.system_router import create_system_router
+
+    collaboration_store = _collaboration_store_for_app(ctx)
+    app.include_router(
+        create_execution_nodes_router(
+            collaboration_store=collaboration_store,
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+    lifecycle = ExecutionLifecycle(collaboration_store)
+    app.router.add_event_handler("startup", lambda: set_execution_lifecycle(lifecycle))
+
+    def stop_lifecycle():
+        if get_execution_lifecycle() is lifecycle:
+            set_execution_lifecycle(None)
+
+    app.router.add_event_handler("shutdown", stop_lifecycle)
+    mount_execution_node_worker(ctx)
 
     def _reset_runtime_memory() -> None:
         clear_threads = getattr(ctx.thread_store, "clear", None)
         if callable(clear_threads):
             clear_threads()
+        # The reset deletes data/ next; release search.db so Windows allows it.
+        close_threads = getattr(ctx.thread_store, "close", None)
+        if callable(close_threads):
+            close_threads()
         clear_teams = getattr(ctx.team_rooms_router, "reset_state", None)
         if callable(clear_teams):
             clear_teams()
@@ -57,6 +239,8 @@ def mount_routers_a(
             jwt_audience=ctx.jwt_audience,
         )
     )
+
+    _mount_visuals_router(ctx)
 
     # Unified control plane for browser / Chrome / webview / computer sessions.
     from runtime.sensing.gateway.control_sessions_router import create_control_sessions_router
@@ -114,15 +298,13 @@ def mount_routers_a(
     # ─── Project OS store · shared by the project-mode auto-bind below and the
     # projects_router, so a project created by switching a thread to project
     # mode is the same store the workbench 项目 tab reads from.
-    from runtime.projectos.store import ProjectStore
     from runtime.sensing.gateway.projects_router import create_projects_router
 
-    project_store = ProjectStore()
-    app.state.project_store = project_store
+    project_store = _initialize_project_store(ctx)
     bind_team_project_store = getattr(ctx.team_rooms_router, "bind_project_store", None)
     if callable(bind_team_project_store):
         bind_team_project_store(project_store)
-    project_model_router, _ = native_model_services(stack)
+    project_model_router, project_planning_model = native_model_services(stack)
 
     # ─── Cowork thread-group · WeChat-style membership + mode + blackboard ──
     # GET /api/cowork/{thread} (public) + POST/DELETE members/mode/blackboard
@@ -165,21 +347,12 @@ def mount_routers_a(
     app.include_router(
         create_projects_router(
             store=project_store,
-            group_store=(
-                getattr(ctx.cowork_runtime, "group_store", None)
-                if ctx.cowork_runtime is not None
-                else None
-            ),
-            collaboration_store=(
-                getattr(ctx.cowork_runtime, "collaboration_store", None)
-                if ctx.cowork_runtime is not None
-                else None
-            ),
-            team_rooms_router=ctx.team_rooms_router,
-            thread_store=ctx.thread_store,
+            **_project_collaboration_services(ctx),
             workspace_root=ctx.thread_workspace_root,
             logs_root=(ctx.paths.data_dir / "threads" if ctx.paths is not None else None),
+            task_supervisor=getattr(ctx.state, "task_supervisor", None),
             model_router=project_model_router,
+            planning_model=project_planning_model,
             subagent_runner=ctx.subagent_runner,
             identity_store=ctx.identity_store,
             require_auth=ctx.require_auth,
@@ -192,22 +365,7 @@ def mount_routers_a(
     ctx.project_model_router = project_model_router
 
     # ─── FS router · extracted to fs_router.py ─────────
-    # Local loopback users can choose a directory before creating a thread.
-    # Shared deployments keep the authenticated, managed-thread boundary.
-    from runtime.sensing.gateway.fs_router import create_fs_router
-
-    app.include_router(
-        create_fs_router(
-            thread_store=ctx.thread_store,
-            identity_store=ctx.identity_store,
-            require_auth=ctx.require_auth,
-            allow_local_workspace_access=ctx.allow_local_workspace_access,
-            jwt_secret=ctx.jwt_secret,
-            jwt_issuer=ctx.jwt_issuer,
-            jwt_audience=ctx.jwt_audience,
-            workspace_root=ctx.thread_workspace_root,
-        )
-    )
+    _mount_fs_router(ctx)
 
     from runtime.sensing.gateway.agent_modes_router import create_agent_modes_router
 
@@ -222,29 +380,7 @@ def mount_routers_a(
         )
     )
 
-    try:
-        from runtime.sensing.gateway.workspaces_router import create_workspaces_router
-
-        app.include_router(
-            create_workspaces_router(
-                # The execution stack derives this root from the active
-                # journal. Artifact listing/preview must read from that exact
-                # location; app_paths() may point at an appliance data dir
-                # while turns are writing into a project-local journal.
-                workspace_root=_workspaces_router_root(ctx),
-                thread_store=ctx.thread_store,
-                identity_store=ctx.identity_store,
-                require_auth=ctx.require_auth,
-                jwt_secret=ctx.jwt_secret,
-                jwt_issuer=ctx.jwt_issuer,
-                jwt_audience=ctx.jwt_audience,
-            )
-        )
-    except Exception as _workspace_exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "workspaces router failed to mount: %s",
-            _workspace_exc,
-        )
+    _mount_thread_workspace_router(ctx)
 
     try:
         from runtime.sensing.gateway.org_router import create_org_router
@@ -360,25 +496,7 @@ def mount_routers_a(
             _loop_exc,
         )
 
-    try:
-        from runtime.sensing.gateway.task_runs_router import create_task_runs_router
-
-        app.include_router(
-            create_task_runs_router(
-                supervisor=getattr(state, "task_supervisor", None),
-                identity_store=ctx.identity_store,
-                require_auth=ctx.require_auth,
-                jwt_secret=ctx.jwt_secret,
-                jwt_issuer=ctx.jwt_issuer,
-                jwt_audience=ctx.jwt_audience,
-            )
-        )
-    except Exception as _task_runs_exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "task runs router failed to mount: %s",
-            _task_runs_exc,
-        )
-
+    _mount_assistant_activity_router(ctx, collaboration_store)
     from runtime.sensing.gateway.verify_router import create_verify_router
 
     app.include_router(
@@ -445,6 +563,19 @@ def mount_routers_a(
 
     app.include_router(
         create_android_router(
+            identity_store=ctx.identity_store,
+            require_auth=ctx.require_auth,
+            jwt_secret=ctx.jwt_secret,
+            jwt_issuer=ctx.jwt_issuer,
+            jwt_audience=ctx.jwt_audience,
+        )
+    )
+
+    from runtime.sensing.gateway.mailbox_router import create_mailbox_router
+
+    app.include_router(
+        create_mailbox_router(
+            stack=stack,
             identity_store=ctx.identity_store,
             require_auth=ctx.require_auth,
             jwt_secret=ctx.jwt_secret,

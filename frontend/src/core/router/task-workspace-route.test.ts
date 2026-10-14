@@ -8,6 +8,13 @@ describe("task workspace route", () => {
     expect(taskWorkspaceRoute({ agentId: "general" })).toBe(
       "/workspace/realtime/new",
     );
+    // Callers that already normalized through `primaryPersonaAgentIdOrDefault`
+    // hand us the canonical persona instead of the legacy runtime id. Both must
+    // collapse to the bare route, otherwise the default persona leaks into the
+    // URL as `?agent=eve`.
+    expect(taskWorkspaceRoute({ agentId: "eve" })).toBe(
+      "/workspace/realtime/new",
+    );
   });
 
   test("carries non-default agent and prompt through query params", () => {

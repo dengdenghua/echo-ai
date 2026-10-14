@@ -192,9 +192,8 @@ class StructuredFormatter(logging.Formatter):
     Parameters
     ----------
     redact:
-        When True, pipe the final ``msg`` string through the
-        module-level ``Redactor`` before writing. Cheap insurance
-        against a ``logger.info(api_key)`` leaking a secret.
+        When True, redact all string fields, including nested extras,
+        correlation context and exception tracebacks, before writing.
     """
 
     def __init__(self, *, redact: bool = False) -> None:
@@ -202,12 +201,9 @@ class StructuredFormatter(logging.Formatter):
         self._redact = redact
         self._redactor: Any = None
         if redact:
-            try:
-                from runtime.platform.observability.redactor import Redactor
+            from runtime.platform.observability.redactor import Redactor
 
-                self._redactor = Redactor()
-            except ImportError:  # noqa: BLE001
-                self._redactor = None
+            self._redactor = Redactor()
 
     def format(self, record: logging.LogRecord) -> str:
         # Base fields.
@@ -232,8 +228,8 @@ class StructuredFormatter(logging.Formatter):
         if record.exc_info:
             payload["exc"] = "".join(traceback.format_exception(*record.exc_info)).rstrip()
 
-        if self._redactor is not None and isinstance(payload.get("msg"), str):
-            payload["msg"] = self._redactor.redact(payload["msg"])
+        if self._redactor is not None:
+            payload = _redact_json_fields(_coerce_for_json(payload), self._redactor)
 
         try:
             return json.dumps(payload, ensure_ascii=False, default=str)
@@ -244,6 +240,18 @@ class StructuredFormatter(logging.Formatter):
 
 
 # ── Helpers ────────────────────────────────────────────────────
+
+
+def _redact_json_fields(value: Any, redactor: Any) -> Any:
+    if isinstance(value, str):
+        return redactor.redact(value)
+    if isinstance(value, list):
+        return [_redact_json_fields(item, redactor) for item in value]
+    if isinstance(value, dict):
+        return {
+            redactor.redact(key): _redact_json_fields(item, redactor) for key, item in value.items()
+        }
+    return value
 
 
 def _format_ts(epoch_seconds: float) -> str:

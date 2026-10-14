@@ -1,5 +1,4 @@
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { apiGet, apiPatch, apiPost, type ApiFailure } from "@/core/api/request";
 
 export type ControlSurface =
   | "browser"
@@ -182,10 +181,6 @@ function compactRecord(
   );
 }
 
-function controlBaseURL() {
-  return `${getBackendBaseURL()}/api/control-sessions`;
-}
-
 function canSyncBackend(control?: ControlSessionOptions): boolean {
   return Boolean(control?.sessionId && control.backendSync !== false);
 }
@@ -200,24 +195,11 @@ function controlActionId(control: ControlSessionOptions, actionType: string) {
     .slice(0, 220);
 }
 
-async function fetchControlJson<T>(
-  path: string,
-  init: RequestInit,
-): Promise<T> {
-  const response = await fetch(`${controlBaseURL()}${path}`, {
-    ...init,
-    headers: {
-      ...(init.body ? jsonAuthHeaders() : authHeaders()),
-      ...(init.headers || {}),
-    },
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(
-      `control session request failed: ${response.status}${text ? ` ${text}` : ""}`,
-    );
-  }
-  return (await response.json()) as T;
+/** This module's historical error wording. */
+function controlFailed(failure: ApiFailure): string {
+  return `control session request failed: ${failure.status}${
+    failure.text ? ` ${failure.text}` : ""
+  }`;
 }
 
 async function bestEffort<T>(fn: () => Promise<T>): Promise<T | null> {
@@ -234,22 +216,23 @@ export async function ensureControlSession(
   metadata: Record<string, unknown> = {},
 ): Promise<ControlSessionRecord | null> {
   if (!canSyncBackend(control)) return null;
-  const data = await bestEffort(() =>
-    fetchControlJson<{ session: ControlSessionRecord }>("", {
-      method: "POST",
-      body: JSON.stringify({
-        session_id: control.sessionId,
-        owner_id: control.ownerId || control.ownerLabel || "agent",
-        owner_label: control.ownerLabel || control.ownerId || "Agent",
-        surface: control.surface || "browser",
-        target_id:
-          control.targetId === undefined || control.targetId === null
-            ? "default"
-            : String(control.targetId),
-        status,
-        metadata,
-      }),
-    }),
+  const data = await bestEffort(
+    async () =>
+      (await apiPost("/api/control-sessions", {
+        body: {
+          session_id: control.sessionId,
+          owner_id: control.ownerId || control.ownerLabel || "agent",
+          owner_label: control.ownerLabel || control.ownerId || "Agent",
+          surface: control.surface || "browser",
+          target_id:
+            control.targetId === undefined || control.targetId === null
+              ? "default"
+              : String(control.targetId),
+          status,
+          metadata,
+        },
+        errorMessage: controlFailed,
+      })) as { session: ControlSessionRecord },
   );
   return data?.session ?? null;
 }
@@ -262,12 +245,11 @@ export async function appendControlSessionAction(
 ): Promise<ControlActionRecord | null> {
   if (!canSyncBackend(control)) return null;
   const actionType = getControlActionType(action);
-  const data = await bestEffort(() =>
-    fetchControlJson<{ action: ControlActionRecord }>(
-      `/${encodeURIComponent(String(control.sessionId))}/actions`,
-      {
-        method: "POST",
-        body: JSON.stringify({
+  const data = await bestEffort(
+    async () =>
+      (await apiPost("/api/control-sessions/{session_id}/actions", {
+        path: { session_id: String(control.sessionId) },
+        body: {
           action_id: actionId,
           action_type: actionType,
           status,
@@ -280,9 +262,9 @@ export async function appendControlSessionAction(
             typeof action === "string"
               ? { type: action }
               : { ...action, type: actionType },
-        }),
-      },
-    ),
+        },
+        errorMessage: controlFailed,
+      })) as { action: ControlActionRecord },
   );
   return data?.action ?? null;
 }
@@ -295,16 +277,16 @@ export async function updateControlSessionAction(
   error = "",
 ): Promise<ControlActionRecord | null> {
   if (!canSyncBackend(control) || !actionId) return null;
-  const data = await bestEffort(() =>
-    fetchControlJson<{ action: ControlActionRecord }>(
-      `/${encodeURIComponent(String(control.sessionId))}/actions/${encodeURIComponent(
-        actionId,
-      )}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status, result, error }),
-      },
-    ),
+  const data = await bestEffort(
+    async () =>
+      (await apiPatch(
+        "/api/control-sessions/{session_id}/actions/{action_id}",
+        {
+          path: { session_id: String(control.sessionId), action_id: actionId },
+          body: { status, result, error },
+          errorMessage: controlFailed,
+        },
+      )) as { action: ControlActionRecord },
   );
   return data?.action ?? null;
 }
@@ -315,35 +297,33 @@ export async function appendControlSessionEvidence(
 ): Promise<void> {
   if (!canSyncBackend(control)) return;
   await bestEffort(() =>
-    fetchControlJson<{ ok: boolean }>(
-      `/${encodeURIComponent(String(control.sessionId))}/evidence`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          evidence_id: evidence.id,
-          action_id: evidence.actionId || "",
-          kind: evidence.kind,
-          action: evidence.action || "",
-          ok: evidence.ok,
-          summary: evidence.summary || "",
-          detail:
-            evidence.detail && typeof evidence.detail === "object"
-              ? (evidence.detail as Record<string, unknown>)
-              : { value: evidence.detail },
-          created_at: evidence.at ? evidence.at / 1000 : undefined,
-        }),
+    apiPost("/api/control-sessions/{session_id}/evidence", {
+      path: { session_id: String(control.sessionId) },
+      body: {
+        evidence_id: evidence.id,
+        action_id: evidence.actionId || "",
+        kind: evidence.kind,
+        action: evidence.action || "",
+        ok: evidence.ok,
+        summary: evidence.summary || "",
+        detail:
+          evidence.detail && typeof evidence.detail === "object"
+            ? (evidence.detail as Record<string, unknown>)
+            : { value: evidence.detail },
+        created_at: evidence.at ? evidence.at / 1000 : undefined,
       },
-    ),
+      errorMessage: controlFailed,
+    }),
   );
 }
 
 export async function getControlSessionReplay(
   sessionId: string,
 ): Promise<ControlSessionReplay> {
-  return fetchControlJson<ControlSessionReplay>(
-    `/${encodeURIComponent(sessionId)}/replay`,
-    { method: "GET" },
-  );
+  return (await apiGet("/api/control-sessions/{session_id}/replay", {
+    path: { session_id: sessionId },
+    errorMessage: controlFailed,
+  })) as ControlSessionReplay;
 }
 
 export async function setControlSessionState(
@@ -351,13 +331,11 @@ export async function setControlSessionState(
   action: "pause" | "resume" | "stop" | "takeover",
   reason: string,
 ): Promise<ControlSessionRecord> {
-  const data = await fetchControlJson<{ session: ControlSessionRecord }>(
-    `/${encodeURIComponent(sessionId)}/${action}`,
-    {
-      method: "POST",
-      body: JSON.stringify({ reason }),
-    },
-  );
+  const data = (await apiPost(`/api/control-sessions/{session_id}/${action}`, {
+    path: { session_id: sessionId },
+    body: { reason },
+    errorMessage: controlFailed,
+  })) as { session: ControlSessionRecord };
   return data.session;
 }
 
@@ -365,16 +343,15 @@ export async function getControlSessionTimeline(
   sessionId: string,
   options: { after?: number; afterCursor?: string; limit?: number } = {},
 ): Promise<ControlSessionReplayTimeline> {
-  const params = new URLSearchParams();
-  if (options.limit !== undefined) params.set("limit", String(options.limit));
-  if (options.after !== undefined) params.set("after", String(options.after));
-  if (options.afterCursor !== undefined)
-    params.set("after_cursor", options.afterCursor);
-  const query = params.toString();
-  return fetchControlJson<ControlSessionReplayTimeline>(
-    `/${encodeURIComponent(sessionId)}/timeline${query ? `?${query}` : ""}`,
-    { method: "GET" },
-  );
+  return (await apiGet("/api/control-sessions/{session_id}/timeline", {
+    path: { session_id: sessionId },
+    query: {
+      limit: options.limit,
+      after: options.after,
+      after_cursor: options.afterCursor,
+    },
+    errorMessage: controlFailed,
+  })) as ControlSessionReplayTimeline;
 }
 
 function controlTimelineItemKey(
@@ -445,12 +422,13 @@ export async function getControlSessionEvidenceDetail(
   sessionId: string,
   evidenceId: string,
 ): Promise<ControlSessionEvidenceDetail> {
-  return fetchControlJson<ControlSessionEvidenceDetail>(
-    `/${encodeURIComponent(sessionId)}/evidence/${encodeURIComponent(
-      evidenceId,
-    )}/detail`,
-    { method: "GET" },
-  );
+  return (await apiGet(
+    "/api/control-sessions/{session_id}/evidence/{evidence_id}/detail",
+    {
+      path: { session_id: sessionId, evidence_id: evidenceId },
+      errorMessage: controlFailed,
+    },
+  )) as ControlSessionEvidenceDetail;
 }
 
 export async function runControlSessionAction<T>(

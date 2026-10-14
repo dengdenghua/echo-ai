@@ -399,7 +399,11 @@ class LLMPlanner:
                         routing_key=_conv_id,
                     )
                 )
-            except (OSError, ImportError, ValueError):
+            except (
+                OSError,
+                ImportError,
+                ValueError,
+            ):  # intentional: Use the base prompt when candidate recipe lookup fails.
                 pass
 
             _global_section = _candidate_global_content or load_global()

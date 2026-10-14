@@ -41,6 +41,9 @@ def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCata
     )
 
     plugin_root = tmp_path / "data" / "plugins"
+    # Install from the fixture's local sources. Without this opt-in a source
+    # checkout downloads the published content pack from GitHub instead.
+    monkeypatch.setenv("ECHO_MARKETPLACE_DEV_SOURCES", "1")
     monkeypatch.setattr(cloud_catalog, "REPO", tmp_path)
     monkeypatch.setattr(CloudCatalog, "PLUGIN_INSTALL_ROOT", plugin_root)
     monkeypatch.setattr(CloudCatalog, "SKILLS_ROOT", tmp_path / "data" / "skills")

@@ -1,20 +1,43 @@
 #!/bin/sh
-# Audit A-11: wire the pre-commit framework (ruff, bandit, invariant lint,
-# trailing-whitespace, ...) into the husky chain.
+# 1. .pre-commit-config.yaml on the files of this commit (Audit A-11).
+# 2. tools/hooks/commit_tree_gates.py: the CI ratchets (god files, function
+#    length, inline locale, exception audit, kernel pins, docs/auto, frontend
+#    type assertions, OpenAPI snapshot) on a snapshot of the committed tree.
 #
-# pre-commit is an optional dev dependency; when it is not installed the
-# hook skips gracefully — the CI gates still enforce the same checks.
-# Install once with:  pip install pre-commit
-if ! command -v pre-commit >/dev/null 2>&1; then
-  echo "husky(pre-commit): 'pre-commit' not found — skipping (pip install pre-commit)" >&2
-  exit 0
-fi
+# Install pre-commit once:  uv tool install pre-commit
+# Without it step 1 is skipped; CI still enforces the same checks.
 
-# No pre-commit config checked in yet — nothing to run; keep the tree
-# committable until a .pre-commit-config.yaml lands.
+# Git runs hooks from the top of the working tree. Git for Windows reports it
+# as E:/..., whose colon would split the PATH entry below: use the /e/... form.
+repo_root="$(pwd)"
+if command -v cygpath >/dev/null 2>&1; then repo_root="$(cygpath -u "$repo_root")"; fi
+# The locked .venv first, so `python`, `ruff` and `bandit` are the CI ones
+# (on Windows `python` is otherwise the Microsoft Store stub).
+for venv_bin in "$repo_root/.venv/Scripts" "$repo_root/.venv/bin"; do
+  [ -d "$venv_bin" ] && PATH="$venv_bin:$PATH"
+done
+export PATH
+status=0
+
 if [ ! -f .pre-commit-config.yaml ]; then
   echo "husky(pre-commit): '.pre-commit-config.yaml' not found — skipping" >&2
-  exit 0
+elif ! command -v pre-commit >/dev/null 2>&1; then
+  echo "husky(pre-commit): 'pre-commit' not found — skipping (uv tool install pre-commit)" >&2
+else
+  # --files (rather than pre-commit's default) stops it from stashing
+  # unstaged changes: other sessions share this working tree and a stash
+  # would revert their files while the hooks run. git diff --cached honours
+  # the temporary index of `git commit -- <paths>`. Deleted paths are passed
+  # too; pre-commit skips files that do not exist.
+  git diff --cached --name-only -z |
+    xargs -0 -r pre-commit run --hook-stage pre-commit --files || status=1
 fi
 
-exec pre-commit run --hook-stage commit
+# Outside pre-commit on purpose: pre-commit fails a hook when any tracked file
+# changes while it runs, and concurrent sessions edit this tree all the time.
+if python -c "" >/dev/null 2>&1; then
+  python "$repo_root/tools/hooks/commit_tree_gates.py" || status=1
+else
+  echo "husky(pre-commit): no usable python (uv sync creates .venv) — skipping tree gates" >&2
+fi
+exit $status

@@ -338,7 +338,9 @@ def _turn_id_state_locked(path: Path, proposed: TurnScore) -> str:
 
 
 def _sync_score_file_locked(path: Path) -> None:
-    flags = os.O_RDONLY
+    # Windows ``fsync`` (``_commit``) needs write access; a read-only handle
+    # fails with EBADF. Opening read-write neither truncates nor writes.
+    flags = os.O_RDONLY if os.name == "posix" else os.O_RDWR
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     fd = os.open(path, flags)

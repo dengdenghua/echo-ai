@@ -1,0 +1,50 @@
+# Echo desktop · full offline installer (electron-builder).
+#
+# The standard installer (build.yml) ships no execution engines: people
+# install Codex and OpenCode from HUB 应用 when they need them. This variant
+# is for computers that cannot download them: it is build.yml plus the pinned
+# engines that extras/desktop/prepare-codex-*.cjs and prepare-opencode.py
+# materialize first. The packaged app verifies a bundled engine before it
+# starts (frontend/electron/backend-runtime.cjs) and refuses to run a
+# tampered one.
+#
+# `extends` resolves from frontend/, like every path here, and
+# electron-builder appends these extraResources to build.yml's.
+
+extends: ../packaging/desktop/build.yml
+
+mac:
+  artifactName: "${productName}-Offline-${version}-${arch}.${ext}"
+  extraResources:
+    - from: ../extras/desktop/build/codex
+      to: codex
+      filter:
+        - "**/*"
+    - from: ../extras/desktop/build/opencode
+      to: opencode
+      filter:
+        - "**/*"
+
+win:
+  artifactName: "${productName}-Setup-Offline-${version}-${env.GITHUB_SHA}.${ext}"
+  extraResources:
+    - from: ../extras/desktop/build/codex
+      to: codex
+      filter:
+        - "**/*"
+    - from: ../extras/desktop/build/opencode
+      to: opencode
+      filter:
+        - "**/*"
+
+linux:
+  artifactName: "${productName}-Setup-Linux-Offline-${version}-${env.GITHUB_SHA}.${ext}"
+  extraResources:
+    - from: ../extras/desktop/build/codex
+      to: codex
+      filter:
+        - "**/*"
+    - from: ../extras/desktop/build/opencode
+      to: opencode
+      filter:
+        - "**/*"

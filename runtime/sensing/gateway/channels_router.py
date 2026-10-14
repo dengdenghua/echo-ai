@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import json
 import logging
 import os
@@ -34,6 +35,7 @@ from ._channels_persist import (
     _MAX_ASSIGNMENTS,  # noqa: F401 — re-exported for backward compat (tests read them)
     _MAX_PAIRINGS_PER_CHANNEL,  # noqa: F401 — re-exported for backward compat (tests read them)
     _MAX_STATE_FILE_BYTES,  # noqa: F401 — re-exported for backward compat (tests read them)
+    _default_channel_state_path,
     _load_state,
     _pairings,
     _sanitize_credentials_body,
@@ -44,6 +46,8 @@ logger = logging.getLogger(__name__)
 
 try:
     from fastapi import APIRouter, HTTPException, Request
+
+    from .channels_lifecycle_router import create_channels_lifecycle_router
 
     FASTAPI_AVAILABLE = True
 except ImportError:  # pragma: no cover
@@ -140,7 +144,7 @@ def create_channels_router(
         manager = LocalChannelManager()
 
     if state_path is None:
-        state_path = os.environ.get("ECHO_CHANNEL_STATE") or "data/channel_state.json"
+        state_path = os.environ.get("ECHO_CHANNEL_STATE") or _default_channel_state_path()
     _state_file: Path | None = Path(state_path) if state_path else None
     _creds_file: Path | None = (
         _state_file.with_name(
@@ -170,10 +174,11 @@ def create_channels_router(
         """Resolve full Identity for role checks. None when auth disabled."""
         if not require_auth or identity_store is None:
             return None
-        auth_header = request.headers.get("Authorization") or ""
-        if not auth_header.lower().startswith("bearer "):
+        from runtime.safety.auth.credential import request_credential
+
+        token = request_credential(request)
+        if not token:
             return None
-        token = auth_header[7:].strip()
         if jwt_secret and token.count(".") == 2:
             with contextlib.suppress(Exception):
                 identity = identity_store.verify_jwt(
@@ -206,8 +211,7 @@ def create_channels_router(
         if "admin" not in {str(r).lower() for r in roles}:
             raise HTTPException(403, "admin role required for channel configuration")
 
-    #
-    #
+    router.include_router(create_channels_lifecycle_router(manager, _require_admin))
 
     @router.get("/api/channels")
     def list_channels(request: Request) -> list[dict[str, Any]]:
@@ -293,7 +297,9 @@ def create_channels_router(
 
     @router.get("/api/channels/{channel_id}/diagnostics")
     def get_channel_diagnostics(channel_id: str, request: Request) -> dict[str, Any]:
-        _auth(request)  # AUTH-OK: credential-free operational state
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; credential-free operational diagnostics; probes require admin
         safe_channel_id = _normalize_channel_id(channel_id)
         if safe_channel_id is None:
             raise HTTPException(400, "invalid channel_id")
@@ -734,9 +740,15 @@ def create_channels_router(
             raise HTTPException(400, f"body read failed: {e}") from e
 
         headers = {k.lower(): v for k, v in request.headers.items()}
+        webhook_kwargs: dict[str, Any] = {"body": body, "headers": headers}
+        # Platforms that cannot sign webhooks may carry an operator shared
+        # secret on the URL; only adapters that opt in receive the query.
+        with contextlib.suppress(TypeError, ValueError):
+            if "query" in inspect.signature(channel.handle_webhook).parameters:
+                webhook_kwargs["query"] = dict(request.query_params)
 
         try:
-            result = channel.handle_webhook(body=body, headers=headers)
+            result = channel.handle_webhook(**webhook_kwargs)
         except NotImplementedError as e:
             raise HTTPException(400, str(e)) from e
         except ValueError as e:

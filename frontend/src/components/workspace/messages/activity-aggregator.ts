@@ -167,7 +167,7 @@ export function aggregateSimilarToolCalls(
       currentGroup.length > 0 &&
       (currentKind === kind || options.groupMixedKinds) &&
       currentGroup[0] &&
-      (options.groupAcrossPhases || samePhase(currentGroup[0]!, toolItem))
+      (options.groupAcrossPhases || samePhase(currentGroup[0], toolItem))
     ) {
       currentGroup.push(toolItem);
       if (currentKind !== kind) currentKind = "other";

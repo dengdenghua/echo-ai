@@ -9,6 +9,7 @@ import {
   type Subtask,
   type SubtaskStatus,
 } from "@/core/tasks/types";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 import {
   agentRunHue,
@@ -86,7 +87,7 @@ const MiniSubtaskRow = memo(function MiniSubtaskRow({
 
   if (!task) return null;
 
-  const rawLabel = t.subagents[task.status as keyof typeof t.subagents];
+  const rawLabel = t.subagents[task.status];
   const statusLabel = typeof rawLabel === "string" ? rawLabel : task.status;
   const progress = subtaskProgress(task);
   const percent = subtaskProgressPercent(task);
@@ -156,16 +157,11 @@ const MiniSubtaskRow = memo(function MiniSubtaskRow({
         {task.avatarEmoji && (
           <span
             className={cn(
-              "flex shrink-0 items-center justify-center rounded-lg",
+              "flex shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted",
               compact ? "size-5 text-xs" : "size-6 text-xs"
             )}
-            style={
-              task.hue != null
-                ? { background: `hsl(${task.hue} 70% 92%)` }
-                : undefined
-            }
           >
-            {task.avatarEmoji}
+            <PersonaGlyph name={task.name ?? task.description} />
           </span>
         )}
         <div className="min-w-0 flex-1">
@@ -238,7 +234,7 @@ const MiniSubtaskRow = memo(function MiniSubtaskRow({
               type="button"
               onClick={handleToggleIdentity}
               aria-expanded={showIdentity}
-              className="relative z-10 shrink-0 rounded px-1 py-0.5 text-xs font-medium text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
+              className="relative z-10 shrink-0 rounded px-1 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
               title={t.agentWorkbenchPages.roleDescription}
             >
               {showIdentity
@@ -507,7 +503,7 @@ function AgentIdentityCard({
       {/* 角色说明 */}
       {brief && (
         <div className="border-t border-border-subtle px-3 py-2">
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/60">
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {t.agentWorkbenchPages.roleDescription}
           </div>
           <div className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-5 text-foreground/80">

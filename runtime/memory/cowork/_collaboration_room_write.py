@@ -6,6 +6,7 @@ import sqlite3
 import threading
 from typing import Any, Protocol
 
+from runtime.memory.cowork._collaboration_room_messages import move_room_messages
 from runtime.memory.cowork.ids import require_cowork_id
 
 
@@ -19,7 +20,13 @@ class ProjectRoomVersionConflict(RuntimeError):
     """A generic room write attempted to replace Project OS-owned state."""
 
 
-def upsert_room(store: _RoomStore, session_id: str, room: dict[str, Any]) -> dict[str, Any]:
+def upsert_room(
+    store: _RoomStore,
+    session_id: str,
+    room: dict[str, Any],
+    *,
+    expected_team_binding: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Merge ordinary room fields without moving a generation-owned room."""
 
     from runtime.memory.cowork.collaboration_store import (
@@ -41,6 +48,10 @@ def upsert_room(store: _RoomStore, session_id: str, room: dict[str, Any]) -> dic
     now = _now()
     with store._lock, store._connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        if expected_team_binding is not None:
+            from runtime.memory.cowork._collaboration_team_transfer import check_transfer_binding
+
+            check_transfer_binding(conn, room_id, expected_team_binding)
         row = conn.execute(
             "SELECT room_id, room_json, created_at FROM collaboration_rooms WHERE session_id=?",
             (session_id,),
@@ -93,14 +104,17 @@ def upsert_room(store: _RoomStore, session_id: str, room: dict[str, Any]) -> dic
         payload.setdefault("created_at", created_at)
         payload["updated_at"] = str(payload.get("updated_at") or now)
         if existing_room and str(existing_room[0]) != session_id:
-            conn.execute(
-                "UPDATE collaboration_tasks SET session_id=? WHERE room_id=?",
-                (session_id, room_id),
-            )
-            conn.execute(
-                "UPDATE collaboration_messages SET session_id=? WHERE room_id=?",
-                (session_id, room_id),
-            )
+            if expected_team_binding is None:
+                conn.execute(
+                    "UPDATE collaboration_tasks SET session_id=? WHERE room_id=?",
+                    (session_id, room_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE collaboration_tasks SET session_id=? WHERE room_id=? AND task_authority!='team'",
+                    (session_id, room_id),
+                )
+            move_room_messages(conn, room_id, session_id)
             conn.execute("DELETE FROM collaboration_rooms WHERE room_id=?", (room_id,))
         if row is not None and str(row[0]) != room_id:
             conn.execute(
@@ -133,6 +147,10 @@ def upsert_room(store: _RoomStore, session_id: str, room: dict[str, Any]) -> dic
             "generation=excluded.generation",
             (room_id, session_id, owner_project, owner_generation),
         )
+        if expected_team_binding is not None:
+            from runtime.memory.cowork._collaboration_team_transfer import transfer_team_rows
+
+            transfer_team_rows(conn, room_id, session_id, expected_team_binding, now)
     return payload
 
 
@@ -253,10 +271,7 @@ def upsert_project_room(
                 "UPDATE collaboration_tasks SET session_id=? WHERE room_id=?",
                 (session_id, room_id),
             )
-            conn.execute(
-                "UPDATE collaboration_messages SET session_id=? WHERE room_id=?",
-                (session_id, room_id),
-            )
+            move_room_messages(conn, room_id, session_id)
             conn.execute("DELETE FROM collaboration_rooms WHERE room_id=?", (room_id,))
         conn.execute(
             "INSERT INTO collaboration_rooms(session_id, room_id, room_json, created_at, updated_at) "

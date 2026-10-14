@@ -4,14 +4,40 @@ import { getBackendBaseURL } from "@/core/config";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { requireArray, serviceErrorMessage } from "@/core/utils/service-error";
 import {
+  BellIcon,
+  BellRingIcon,
+  BotIcon,
+  BriefcaseIcon,
   CheckIcon,
   ChevronRightIcon,
+  FeatherIcon,
+  Gamepad2Icon,
+  GemIcon,
+  GlobeIcon,
+  Grid3x3Icon,
+  HashIcon,
+  HouseIcon,
+  KeyRoundIcon,
+  LockIcon,
+  type LucideIcon,
+  MailIcon,
   MessageCircleIcon,
+  MessageSquareIcon,
+  MessageSquareTextIcon,
+  MessagesSquareIcon,
+  PhoneIcon,
+  PlugIcon,
   PlusIcon,
+  RadioTowerIcon,
   RefreshCwIcon,
   SearchIcon,
+  SendIcon,
   SettingsIcon,
+  SmartphoneIcon,
+  TerminalIcon,
+  TvIcon,
   UsersIcon,
+  WebhookIcon,
   XIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -98,66 +124,37 @@ type GroupLite = {
 
 type ChannelFilter = "all" | "connected" | "unlinked";
 
-// Implementation note.
-const PLATFORM_COLORS: Record<string, string> = {
-  wechat: "bg-[#07c160] text-white",
-  dingtalk: "bg-[#1677ff] text-white",
-  feishu: "bg-[#3370ff] text-white",
-  telegram: "bg-[#26a5e4] text-white",
-  slack: "bg-[#4a154b] text-white",
-  discord: "bg-[#5865f2] text-white",
-  signal: "bg-[#3a76f0] text-white",
-  whatsapp: "bg-[#25d366] text-white",
-  email: "bg-[#ea4335] text-white",
-  sms: "bg-[#f22f46] text-white",
-  mattermost: "bg-[#0058cc] text-white",
-  matrix: "bg-[#0dbd8b] text-white",
-  wecom: "bg-[#07c160] text-white",
-  qqbot: "bg-[#12b7f5] text-white",
-  teams: "bg-[#6264a7] text-white",
-  line: "bg-[#06c755] text-white",
-  homeassistant: "bg-[#41bdf5] text-white",
-  bluebubbles: "bg-[#34c759] text-white",
-  ntfy: "bg-[#317f6e] text-white",
-  webhooks: "bg-[#f59e0b] text-white",
-  google_chat: "bg-[#00ac47] text-white",
-  simplex: "bg-[#f76b1c] text-white",
-  open_webui: "bg-[#8b5cf6] text-white",
-  yuanbao: "bg-[#006eff] text-white",
-  irc: "bg-[#2563eb] text-white",
-  twitch: "bg-[#9146ff] text-white",
-  other: "bg-muted/70 text-muted-foreground",
-};
-
-// Implementation note.
-const PLATFORM_ICONS: Record<string, string> = {
-  wechat: "💬",
-  dingtalk: "📌",
-  feishu: "🐦",
-  telegram: "✈️",
-  slack: "#",
-  discord: "🎮",
-  signal: "🔒",
-  whatsapp: "📱",
-  email: "✉️",
-  sms: "📩",
-  mattermost: "📡",
-  matrix: "🟢",
-  wecom: "💼",
-  qqbot: "🐧",
-  teams: "👥",
-  line: "💬",
-  homeassistant: "🏠",
-  bluebubbles: "🔵",
-  ntfy: "🔔",
-  webhooks: "🪝",
-  google_chat: "💬",
-  simplex: "🔐",
-  open_webui: "🌐",
-  yuanbao: "💎",
-  irc: "⌁",
-  twitch: "🟣",
-  other: "•",
+// Platform glyphs: lucide line icons on one neutral tile (BRAND.md: no
+// emoji as icons, no per-platform brand colours). Connection state is
+// carried by the status badge and the top rule, not by the tile.
+const PLATFORM_ICONS: Record<string, LucideIcon> = {
+  wechat: MessageCircleIcon,
+  dingtalk: BellRingIcon,
+  feishu: FeatherIcon,
+  telegram: SendIcon,
+  slack: HashIcon,
+  discord: Gamepad2Icon,
+  signal: LockIcon,
+  whatsapp: PhoneIcon,
+  email: MailIcon,
+  sms: MessageSquareTextIcon,
+  mattermost: RadioTowerIcon,
+  matrix: Grid3x3Icon,
+  wecom: BriefcaseIcon,
+  qqbot: BotIcon,
+  teams: UsersIcon,
+  line: MessagesSquareIcon,
+  homeassistant: HouseIcon,
+  bluebubbles: SmartphoneIcon,
+  ntfy: BellIcon,
+  webhooks: WebhookIcon,
+  google_chat: MessageSquareIcon,
+  simplex: KeyRoundIcon,
+  open_webui: GlobeIcon,
+  yuanbao: GemIcon,
+  irc: TerminalIcon,
+  twitch: TvIcon,
+  other: PlugIcon,
 };
 
 const PLATFORM_CATEGORIES: Record<string, string> = {
@@ -199,7 +196,11 @@ const PLATFORM_CATEGORY_MAP: Record<string, string> = {
 
 const CATEGORY_ORDER = ["im", "china", "email_sms", "smart_home", "dev_tools"];
 
-export default function ChannelsPage() {
+export default function ChannelsPage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<ChannelRow[]>([]);
@@ -459,7 +460,11 @@ export default function ChannelsPage() {
   }, [filteredRows, t.channels.categoryOther]);
 
   return (
-    <WorkspaceContainer mobileNavigation>
+    <WorkspaceContainer
+      mobileNavigation={!embedded}
+      className={embedded ? "h-full min-h-0 !px-0 !pb-0" : undefined}
+      style={embedded ? { height: "100%" } : undefined}
+    >
       <WorkspaceBody className="px-4 pb-4">
         <div className="ui-density-stack mx-auto flex w-full max-w-6xl flex-col">
           {confirmDialog}
@@ -472,9 +477,6 @@ export default function ChannelsPage() {
                     <MessageCircleIcon className="size-5" />
                   </div>
                   <div>
-                    <div className="text-muted-foreground text-xs font-medium uppercase tracking-eyebrow">
-                      Channel Ops
-                    </div>
                     <h1 className="text-xl font-semibold tracking-tight">
                       {t.channels.title}
                     </h1>
@@ -865,10 +867,7 @@ function ChannelCard({
   probing: boolean;
 }) {
   const { t } = useI18n();
-  const colorCls = row.connected
-    ? (PLATFORM_COLORS[row.platform] ?? PLATFORM_COLORS.other)
-    : "bg-muted/70 text-muted-foreground";
-  const icon = PLATFORM_ICONS[row.platform] ?? "•";
+  const PlatformIcon = PLATFORM_ICONS[row.platform] ?? PlugIcon;
   const assignedAgent = agents.find((a) => a.id === row.assigned_agent_id);
   const assignedGroup = groups.find(
     (group) => group.group_id === row.assigned_group_id,
@@ -893,12 +892,14 @@ function ChannelCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div
+            aria-hidden="true"
+            data-platform-icon={row.platform}
             className={cn(
-              "flex size-11 items-center justify-center rounded-lg text-lg shadow-[var(--shadow-xs)] ring-1 ring-black/[0.04] dark:ring-white/[0.06]",
-              colorCls,
+              "flex size-11 shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted/60",
+              row.connected ? "text-foreground" : "text-muted-foreground",
             )}
           >
-            <span>{icon}</span>
+            <PlatformIcon className="size-5" strokeWidth={1.5} />
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold leading-5">
@@ -910,7 +911,7 @@ function ChannelCard({
                 <RoutedWebLink
                   href={row.help_url}
                   openTargetSource="channel-help"
-                  className="ml-1 text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer"
+                  className="ml-1 whitespace-nowrap text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer"
                   onClick={(e) => {
                     if (!row.help_url || row.help_url === "#") {
                       e.preventDefault();

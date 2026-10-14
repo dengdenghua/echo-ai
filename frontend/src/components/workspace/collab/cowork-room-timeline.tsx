@@ -1,10 +1,12 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Link2Icon, PinIcon, SmilePlusIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MemberProfilePopover } from "@/components/workspace/member-profile-popover";
 import {
   senderAttribution,
+  useSetCoworkMemberDriver,
   type CoworkRoomEntityRef,
   type CoworkRoomMessage,
   type CoworkRoomParticipant,
@@ -52,18 +54,22 @@ export interface CoworkRoomTimelineEntryProps {
 }
 
 /**
- * Remove canonical-thread mirrors and repeated producer messages before room
+ * Remove already-visible thread mirrors and repeated producer messages before room
  * events are mixed into the main conversation timeline. Project OS cards use
  * their own `project-action:*` source ids, so they remain visible.
  */
 export function dedupeCoworkRoomMessages(
   messages: readonly CoworkRoomMessage[],
+  visibleThreadMessageIds: readonly string[] = [],
 ): CoworkRoomMessage[] {
+  const visibleThreadSources = new Set(visibleThreadMessageIds.flatMap(id => [
+    `thread:${id}`, `thread:agent:${id}`, `thread:error:${id}`,
+  ]));
   const seenSourceIds = new Set<string>();
   return messages.filter((message) => {
     const sourceId = message.metadata?.source_message_id?.trim() ?? "";
     if (!sourceId) return true;
-    if (sourceId.startsWith("thread:")) return false;
+    if (visibleThreadSources.has(sourceId)) return false;
     if (seenSourceIds.has(sourceId)) return false;
     seenSourceIds.add(sourceId);
     return true;
@@ -179,7 +185,7 @@ function EntityReferences({
           <button
             type="button"
             key={`${ref.kind}:${ref.id}:${index}`}
-            className="inline-flex max-w-56 items-center gap-1 truncate rounded-md border border-border-subtle bg-background/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground outline-none hover:border-primary/30 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex max-w-56 items-center gap-1 truncate rounded-md border border-border-subtle bg-background/70 px-1.5 py-0.5 text-xs font-medium text-muted-foreground outline-none hover:border-primary/30 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onEntityClick(ref)}
           >
             <Link2Icon className="size-2.5 shrink-0" />
@@ -188,7 +194,7 @@ function EntityReferences({
         ) : (
           <span
             key={`${ref.kind}:${ref.id}:${index}`}
-            className="inline-flex max-w-56 items-center gap-1 truncate rounded-md border border-border-subtle bg-background/70 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            className="inline-flex max-w-56 items-center gap-1 truncate rounded-md border border-border-subtle bg-background/70 px-1.5 py-0.5 text-xs text-muted-foreground"
           >
             <Link2Icon className="size-2.5 shrink-0" />
             <span className="truncate">{label}</span>
@@ -217,12 +223,12 @@ function ReplyReference({
   const preview = reply.text?.replace(/\s+/g, " ").trim();
   if (!preview && !reply.seq) return null;
   return (
-    <div className="mb-2 flex max-w-full items-start gap-1.5 rounded-md border-l-2 border-primary/35 bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+    <div className="mb-2 flex max-w-full items-start gap-1.5 rounded-md border-l-2 border-primary/35 bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
       <span className="shrink-0 font-medium text-foreground/70">
         回复 {author}
       </span>
       {reply.seq ? (
-        <span className="shrink-0 text-muted-foreground/70">
+        <span className="shrink-0 text-muted-foreground">
           · #{reply.seq}
         </span>
       ) : null}
@@ -253,6 +259,9 @@ function CoworkRoomTimelineEntryContent({
   const collab = useOptionalCollab();
   const [showAnnotations, setShowAnnotations] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  // Must run before the system-message early return below: a hook called after
+  // a conditional return breaks the fixed hook order the renderer relies on.
+  const setDriverMutation = useSetCoworkMemberDriver();
   const refs = message.metadata?.entity_refs ?? [];
   if (isCoworkRoomSystemMessage(message)) {
     const card = getCoworkRoomSystemCard(message) ?? {
@@ -273,8 +282,9 @@ function CoworkRoomTimelineEntryContent({
   const participant = message.participant_id
     ? participantById.get(message.participant_id)
     : undefined;
+  const suppliedName = message.display_name?.trim();
   const displayName =
-    message.display_name?.trim() ||
+    (suppliedName && !/^(none|null|undefined)$/i.test(suppliedName) ? suppliedName : "") ||
     participantLabel(participant, message.participant_id || "协作成员");
   const own = Boolean(
     currentParticipantId && message.participant_id === currentParticipantId,
@@ -301,6 +311,36 @@ function CoworkRoomTimelineEntryContent({
       (pin) => pin.message_id === annotationMessageId,
     ),
   );
+
+  const threadId = message.room_id || "";
+  const isDigitalRole =
+    participant?.kind === "role" || Boolean(participant?.accountable_owner);
+  const isTakeover = participant?.driver === "human";
+  const actionLabel = isDigitalRole
+    ? isTakeover
+      ? "交还 AI 自动托管"
+      : "接管此角色 (真人驾驶)"
+    : undefined;
+
+  const handleTakeoverToggle = () => {
+    if (!participant?.id || !threadId) return;
+    const nextDriver = isTakeover ? "ai" : "human";
+    setDriverMutation.mutate(
+      { threadId, memberId: participant.id, driver: nextDriver },
+      {
+        onSuccess: () => {
+          toast.success(
+            nextDriver === "human"
+              ? `已接管【${displayName}】，AI 已暂停自动应答`
+              : `已将【${displayName}】交还 AI 自动托管`,
+          );
+        },
+        onError: (err) => {
+          toast.error(`切换失败: ${String(err)}`);
+        },
+      },
+    );
+  };
 
   return (
     <article
@@ -343,6 +383,30 @@ function CoworkRoomTimelineEntryContent({
               ? "正在参与当前协作。"
               : "该成员正在参与当前对话。")
         }
+        details={[
+          {
+            label: "主体类别",
+            value:
+              participant?.kind === "role"
+                ? "数字员工 (具身岗位)"
+                : participant?.kind === "agent"
+                  ? "AI 助手 (平台算力)"
+                  : "真人用户",
+          },
+          ...(participant?.accountable_owner
+            ? [{ label: "责任人", value: participant.accountable_owner }]
+            : []),
+          ...(isDigitalRole
+            ? [
+                {
+                  label: "驾驶状态",
+                  value: isTakeover ? "真人接管中 (AI停手)" : "AI 自动托管中",
+                },
+              ]
+            : []),
+        ]}
+        actionLabel={actionLabel}
+        onAction={isDigitalRole && threadId ? handleTakeoverToggle : undefined}
         trigger={
           <button
             type="button"
@@ -353,7 +417,7 @@ function CoworkRoomTimelineEntryContent({
               {avatarUrl ? (
                 <AvatarImage src={avatarUrl} alt={displayName} />
               ) : null}
-              <AvatarFallback className="rounded-lg text-[10px] font-semibold">
+              <AvatarFallback className="rounded-lg text-xs font-semibold">
                 {initials(displayName)}
               </AvatarFallback>
             </Avatar>
@@ -368,7 +432,7 @@ function CoworkRoomTimelineEntryContent({
       >
         <div
           className={cn(
-            "mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground",
+            "mb-1 flex items-center gap-1.5 text-xs text-muted-foreground",
             own && "flex-row-reverse",
           )}
         >
@@ -385,10 +449,10 @@ function CoworkRoomTimelineEntryContent({
               <span
                 title={badge.label}
                 className={cn(
-                  "shrink-0 rounded px-1 py-px text-[9px] font-medium",
+                  "shrink-0 rounded px-1 py-px text-micro font-medium",
                   badge.takeover
-                    ? "bg-amber-500/15 text-amber-700"
-                    : "bg-violet-500/10 text-violet-600",
+                    ? "bg-warning/15 text-warning"
+                    : "bg-core/10 text-core",
                 )}
               >
                 {badge.label}
@@ -422,7 +486,7 @@ function CoworkRoomTimelineEntryContent({
         {isPinned ? (
           <div
             className={cn(
-              "mt-1 flex items-center gap-1 text-[11px] text-muted-foreground",
+              "mt-1 flex items-center gap-1 text-xs text-muted-foreground",
               own && "flex-row-reverse",
             )}
           >
@@ -444,6 +508,7 @@ function CoworkRoomTimelineEntryContent({
                   key={`${reaction.message_id}:${reaction.emoji}`}
                   type="button"
                   aria-label={`${reaction.emoji} ${reaction.count} 人回应`}
+                  disabled={collab?.canWrite === false}
                   onClick={() =>
                     void collab
                       ?.toggleMessageReaction(
@@ -477,6 +542,7 @@ function CoworkRoomTimelineEntryContent({
             <button
               type="button"
               aria-label="添加消息回应"
+              disabled={collab.canWrite === false}
               aria-expanded={showReactionPicker}
               onClick={() => setShowReactionPicker((current) => !current)}
               className="rounded p-1 text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover/msg:opacity-100 focus-visible:opacity-100"
@@ -486,6 +552,7 @@ function CoworkRoomTimelineEntryContent({
             <button
               type="button"
               aria-label={isPinned ? "取消置顶消息" : "置顶消息"}
+              disabled={collab.canWrite === false}
               onClick={() =>
                 void collab
                   .togglePinnedMessage(annotationMessageId)

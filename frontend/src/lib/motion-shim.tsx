@@ -57,7 +57,7 @@ function stripMotionProps(props: MotionProps) {
     whileTap,
     onAnimationComplete,
     ...rest
-  } = props as MotionProps & Record<string, unknown>;
+  } = props;
   void animate;
   void exit;
   void initial;
@@ -99,9 +99,7 @@ function createMotionComponent(tag: ElementType | string) {
       ref,
       style: {
         ...styleFromMotionProps(props),
-        ...(props.style && typeof props.style === "object"
-          ? (props.style as CSSProperties)
-          : {}),
+        ...(props.style && typeof props.style === "object" ? props.style : {}),
       },
     });
   });
@@ -192,6 +190,10 @@ type MotionFactory = {
   span: MotionComponent;
 } & Record<string, MotionComponent>;
 
+// Double cast on purpose: the Proxy answers every tag name (`motion.section`,
+// `motion.p`, ...), which no object type can express next to `create`.
+// MotionFactory is the call-site contract; the target only holds the
+// eagerly built members.
 export const motion = new Proxy(
   {
     create: (component: ElementType) => createMotionComponent(component),
@@ -206,4 +208,4 @@ export const motion = new Proxy(
       return createMotionComponent(prop as string);
     },
   },
-) as MotionFactory;
+);

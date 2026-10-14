@@ -11,12 +11,64 @@ from runtime.execution.suckers.ask_user_question import (
     register_ask_user_question_skill,
 )
 from runtime.execution.suckers.registry import SkillRegistry
+from runtime.execution.tool_spec_builder import _input_schema_from_handler
 
 
 def test_empty_question_invalid() -> None:
     out = _ask_user_question(question="", options=["a", "b"])
     assert out["ok"] is False
     assert out["error_type"] == "invalid_argument"
+
+
+def test_dynamic_questionnaire_supports_multiple_and_free_text():
+    result = _ask_user_question(
+        questions=[
+            {"title": "优先功能？", "options": ["温控", "监测"], "multiple": True},
+            {"title": "其他约束？", "options": []},
+        ]
+    )
+    assert result["type"] == "clarification_questionnaire"
+    assert result["yield_turn"] is True
+    assert result["questions"][0]["multiple"] is True
+    assert result["questions"][1]["options"] == []
+    assert "answer" not in result
+
+
+def test_json_encoded_arguments_are_unwrapped() -> None:
+    """Engines that stringify structured tool arguments (observed as
+    ``options must be a list`` / ``questions must contain 1..3 questions``
+    failures in the wild) still get a working questionnaire."""
+    out = _ask_user_question(
+        questions='[{"title": "\u65b9\u5411\uff1f", "options": "[\\"a\\", \\"b\\"]", "multiple": true}]'
+    )
+    assert out["ok"] is True
+    assert out["type"] == "clarification_questionnaire"
+    assert out["questions"][0]["options"] == ["a", "b"]
+    assert out["questions"][0]["multiple"] is True
+
+    single = _ask_user_question(question="pick", options='["a", "b"]')  # type: ignore[arg-type]
+    assert single["ok"] is True
+    assert single["options"] == ["a", "b"]
+
+
+def test_non_json_string_arguments_still_invalid() -> None:
+    out = _ask_user_question(questions="not json")  # type: ignore[arg-type]
+    assert out["ok"] is False
+    out = _ask_user_question(question="pick", options="a,b,c")  # type: ignore[arg-type]
+    assert out["ok"] is False
+
+
+def test_questionnaire_schema_declares_arrays() -> None:
+    schema = _input_schema_from_handler(_ask_user_question)[0]
+    assert schema["properties"]["questions"]["type"] == "array"
+    assert schema["properties"]["options"]["type"] == "array"
+
+
+@pytest.mark.parametrize(
+    "questions", [[], [{}], [{"title": "Test", "options": ["one"]}], [{"title": "Test"}] * 4]
+)
+def test_invalid_questionnaire_is_rejected(questions):
+    assert _ask_user_question(questions=questions)["ok"] is False
 
 
 def test_no_options_invalid() -> None:

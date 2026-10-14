@@ -128,14 +128,14 @@ function EngineCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          <div className="text-xs font-medium text-muted-foreground">
             {label}
           </div>
           <h3 className="mt-1 text-sm font-semibold">{name}</h3>
         </div>
         <span
           className={cn(
-            "font-mono text-[10px]",
+            "font-mono text-xs",
             tone === "cyan"
               ? "text-cyan-600 dark:text-cyan-300"
               : "text-violet-600 dark:text-violet-300",
@@ -173,7 +173,7 @@ function EvidenceLoadAlert({
         <p className="text-xs font-medium text-destructive">
           部分进化证据暂时无法加载
         </p>
-        <p className="mt-0.5 text-[10px] text-muted-foreground">
+        <p className="mt-0.5 text-xs text-muted-foreground">
           缺失指标将显示为“—”，不会用零值或健康状态代替。
         </p>
       </div>
@@ -258,7 +258,7 @@ function CandidateControlView({
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             {mode === "candidates"
-              ? "Prompt、Skill、路由、工作流和角色共用同一套证据门禁。"
+              ? "Prompt、技能、路由、工作流和角色共用同一套证据门禁。"
               : "只展示已经通过影子验证、正在灰度或已经上线的候选。"}
           </p>
         </div>
@@ -292,7 +292,7 @@ function CandidateControlView({
                 />
                 <span className="truncate font-medium">{row.scope}</span>
               </div>
-              <div className="mt-1 truncate pl-3.5 text-[10px] text-muted-foreground">
+              <div className="mt-1 truncate pl-3.5 text-xs text-muted-foreground">
                 {row.candidate_id} · {row.proposer}
               </div>
             </div>
@@ -301,11 +301,11 @@ function CandidateControlView({
             </div>
             <div>
               {STATUS_LABELS[row.status] ?? row.status}
-              <span className="ml-1 text-[10px] text-muted-foreground">
+              <span className="ml-1 text-xs text-muted-foreground">
                 · {row.hard_gate_passed ? "门禁通过" : "证据未齐"}
               </span>
               {row.canary ? (
-                <div className="mt-1 text-[10px] text-muted-foreground">
+                <div className="mt-1 text-xs text-muted-foreground">
                   {CANARY_PHASE_LABELS[row.canary.phase] ?? row.canary.phase}
                   {row.canary.sample_count > 0
                     ? ` · ${row.canary.sample_count} 次 · ${percent(row.canary.current_rate)}`
@@ -327,7 +327,7 @@ function CandidateControlView({
                 </Button>
               ) : null}
               {row.status === "shadow" && !row.runtime_consumer_ready ? (
-                <span className="px-2 text-[10px] text-muted-foreground">
+                <span className="px-2 text-xs text-muted-foreground">
                   待接入运行时
                 </span>
               ) : null}
@@ -585,7 +585,7 @@ export function DualHelixEvolutionPanel({
                 key={String(label)}
                 className="border-b px-3 py-2.5 last:border-b-0 sm:border-r xl:border-b-0"
               >
-                <div className="text-[11px] text-muted-foreground">{label}</div>
+                <div className="text-xs text-muted-foreground">{label}</div>
                 <div className="mt-1 font-mono text-lg font-semibold">
                   {value}
                 </div>
@@ -607,7 +607,7 @@ export function DualHelixEvolutionPanel({
                     <div className="truncate text-xs font-medium">
                       {pair.goal}
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span>{pair.case_id}</span>
                       <span>· 第 {pair.trial_index + 1} 次</span>
                       <span className="ml-auto">
@@ -637,14 +637,14 @@ export function DualHelixEvolutionPanel({
                         <div className="truncate text-xs font-medium">
                           {run.goal}
                         </div>
-                        <div className="mt-1 text-[10px] text-muted-foreground">
+                        <div className="mt-1 text-xs text-muted-foreground">
                           {run.primary_engine} → {run.shadow_engine} ·
                           只读隔离副本
                         </div>
                       </div>
                       <span
                         className={cn(
-                          "shrink-0 rounded-full px-2 py-0.5 text-[10px]",
+                          "shrink-0 rounded-full px-2 py-0.5 text-xs",
                           run.status === "completed"
                             ? "bg-success/10 text-success"
                             : run.status === "failed"
@@ -656,7 +656,7 @@ export function DualHelixEvolutionPanel({
                       </span>
                     </div>
                     {run.result || run.error ? (
-                      <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-muted-foreground">
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
                         {run.result || run.error}
                       </p>
                     ) : null}
@@ -685,7 +685,7 @@ export function DualHelixEvolutionPanel({
                 <span className="min-w-0 flex-1 truncate">
                   {formatLedgerDescription(record.description, zh)}
                 </span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
+                <span className="shrink-0 text-xs text-muted-foreground">
                   {record.status}
                 </span>
               </div>
@@ -726,7 +726,7 @@ export function DualHelixEvolutionPanel({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span
                 className={cn(
                   "size-1.5 rounded-full",
@@ -861,7 +861,7 @@ export function DualHelixEvolutionPanel({
                   key={`${action}-${index}`}
                   className="flex gap-2 px-1 py-2 text-xs"
                 >
-                  <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-[9px] text-primary">
+                  <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-micro text-primary">
                     {index + 1}
                   </span>
                   <span className="leading-5">
@@ -912,7 +912,7 @@ export function DualHelixEvolutionPanel({
                     <div className="truncate">
                       {formatLedgerDescription(record.description, zh)}
                     </div>
-                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    <div className="mt-0.5 text-xs text-muted-foreground">
                       {codex ? "Codex" : "Echo"} ·{" "}
                       {zh && record.status === "proposed"
                         ? "候选"
@@ -937,7 +937,7 @@ export function DualHelixEvolutionPanel({
         </article>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t px-1 pt-3 text-[10px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 border-t px-1 pt-3 text-xs text-muted-foreground">
         {[
           zh ? "观察" : "Observe",
           zh ? "双引擎对照" : "Compare",
@@ -983,7 +983,7 @@ export function DualHelixEvolutionPanel({
         </span>
       </div>
 
-      <p className="px-1 text-[10px] text-muted-foreground">
+      <p className="px-1 text-xs text-muted-foreground">
         {shadow.data?.enabled
           ? zh
             ? "影子模式已授权：仅在明确提交影子任务时运行，使用隔离快照和只读权限。"

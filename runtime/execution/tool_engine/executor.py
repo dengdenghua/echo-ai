@@ -51,12 +51,13 @@ from runtime.execution.tool_engine.effect_receipts import (
     EffectResolution,
     ToolEffectReceiptIndex,
     build_server_effect_receipt,
-    indeterminate_step,
     is_side_effecting,
+    recovered_effect_step,
 )
 from runtime.execution.tool_engine.effect_store import EffectStore, SQLiteEffectStore
 from runtime.execution.tool_engine.skill_gate import (
     antigen_for,
+    canonical_tool_path,
     file_safety_target,
     use_trust_engine,
 )
@@ -267,6 +268,7 @@ class ToolExecutor:
         predicted_cost: CostEntry | None = None,
         actor: str | None = None,
         trusted_browser_loopback: bool = False,
+        effect_attempt: str | None = None,
     ) -> Step:
         with trace_stage(
             "beak.execute_step",
@@ -415,6 +417,15 @@ class ToolExecutor:
             from runtime.platform.process.session import current_session
 
             _policy_session = current_session()
+            from runtime.execution.request import current_execution_request
+
+            _host_request = current_execution_request()
+            if (
+                _host_request is not None
+                and _host_request.task.allowed_tools is not None
+                and str(sucker_id) not in _host_request.task.allowed_tools
+            ):
+                return _reject_step("failed", "tool is outside the host execution contract")
             _policy_context = getattr(_policy_session, "metadata", None) or {}
             _audit_denial = audit_read_only_tool_denial(
                 sucker_id,
@@ -717,6 +728,7 @@ class ToolExecutor:
                             sucker_id=sucker_id,
                             args=args,
                             side_effecting=_effect_side,
+                            attempt=effect_attempt,
                         )
                         if _effect_resolution.kind != "execute":
                             budget.commit(reservation, CostEntry())
@@ -726,23 +738,17 @@ class ToolExecutor:
                                 actor=actor,
                                 cost=CostEntry(),
                             )
-                            if _effect_resolution.kind == "replay":
-                                assert _effect_resolution.step is not None
-                                replayed = _effect_resolution.step
-                                self.journal.write_step(task_id, arm_id, replayed, actor=actor)
-                                span.set_attribute("echo.effect.replayed", True)
-                                return replayed
-                            uncertain = indeterminate_step(
+                            return recovered_effect_step(
+                                _effect_resolution,
                                 step_id=step_id,
                                 node_id=node_id,
                                 call=call,
-                                effect_key=_effect_resolution.key,
-                                fencing_token=_effect_resolution.fencing_token,
-                                reason=_effect_resolution.reason,
+                                journal=self.journal,
+                                task_id=task_id,
+                                arm_id=arm_id,
+                                actor=actor,
+                                span=span,
                             )
-                            self.journal.write_step(task_id, arm_id, uncertain, actor=actor)
-                            span.set_attribute("echo.effect.indeterminate", True)
-                            return uncertain
                     _lease_target = _file_write_lease_target(skill, args)
                     if _lease_target is not None:
                         from runtime.platform.process.session import current_session
@@ -788,8 +794,27 @@ class ToolExecutor:
                     # skill_gate.gate_inner_dispatch.
                     def _invoke_captured_handler(**handler_args: Any) -> Any:
                         nonlocal _handler_executed
-                        _handler_executed = True
-                        return skill.handler(**handler_args)
+                        from runtime.execution.tool_engine.coordination_guard import (
+                            coordinated_resource,
+                            coordination_scope,
+                        )
+
+                        # Hold inside the actual worker: a timeout must not release
+                        # a device while the timed-out handler is still operating it.
+                        service = getattr(self, "coordination", None)
+                        from runtime.platform.io.file_coordination import coordinate_file_mutations
+
+                        with (
+                            coordination_scope(service),
+                            coordinated_resource(service, skill),
+                            coordinate_file_mutations([_lease_target] if _lease_target else []),
+                        ):
+                            # Recheck after entering the physical mutation boundary:
+                            # a sync/editor write could race the earlier inspection.
+                            if _lease_target is not None:
+                                verify_file_unchanged_since_read(_write_session, _lease_target)
+                            _handler_executed = True
+                            return skill.handler(**handler_args)
 
                     with use_trust_engine(self.immunity):
                         output, retry_tags = _call_handler_with_transient_retry(
@@ -832,7 +857,27 @@ class ToolExecutor:
                                 str(ve),
                             )
                 except ReadBeforeWriteRequired as e:
-                    output = {"error": str(e)}
+                    read_tool = {
+                        "documents.replace_text": "documents.extract_text",
+                        "spreadsheets.update_cells": "spreadsheets.read_sheet",
+                        "presentations.replace_text": "presentations.extract_text",
+                    }.get(str(sucker_id), "read_file")
+                    output = {
+                        "error": str(e),
+                        "error_type": "read_before_write_required",
+                        "retryable": True,
+                        "blocked_operation": str(sucker_id),
+                        "recovery": {
+                            "tool": read_tool,
+                            "arguments": {"path": str(canonical_tool_path(args))},
+                            "then": "review_current_content_and_retry",
+                            "message": (
+                                "Read this file in the current turn, review its current contents, "
+                                "adjust the edit if needed, then retry the file edit. "
+                                "This precondition does not require broader permissions."
+                            ),
+                        },
+                    }
                     status = "failed"
                     error_type = "read_before_write_required"
                     stderr_tags = [error_type, str(e)]

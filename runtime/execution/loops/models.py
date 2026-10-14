@@ -5,7 +5,9 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from runtime.safety.approval.permission_modes import canonical_permission_mode
 
 
 def _now_iso() -> str:
@@ -33,6 +35,12 @@ class LoopRunStatus(StrEnum):
     # run was in flight. Terminal (nothing is driving it after a
     # restart) but resumable — attempts are preserved.
     INTERRUPTED = "interrupted"
+    # The ReAct attempt stopped at a checkpointed pause (budget limit,
+    # an approval nobody could answer, wall-time cap, operator pause).
+    # Not a failure: nothing is driving the run, ``pause_reason`` says
+    # why, and ``resume`` (optionally with a raised budget / different
+    # permission policy) or ``cancel`` decides what happens next.
+    PAUSED = "paused"
 
 
 class LoopMode(StrEnum):
@@ -50,17 +58,36 @@ class LoopPolicy(BaseModel):
     goal_mode: bool = False
     max_tokens_budget: int = Field(default=100_000, ge=1, le=2_000_000)
     max_usd_budget: float = Field(default=1.0, ge=0.0, le=100.0)
-    # Keep controller-launched work consistent with direct ReAct turns:
-    # accounting budgets are telemetry unless the user explicitly opts into
-    # an automatic pause. A controller entry point must not silently turn a
-    # recoverable long task into a "budget near limit" interruption.
-    budget_auto_pause: bool = False
+    # Unattended background work stops at the budget instead of spending
+    # past it. The controller turns that stop into a resumable ``paused``
+    # run (with the reason), never a failure; resume with a higher budget.
+    budget_auto_pause: bool = True
     verifier_profile: str = "auto"
-    auto_approve: bool = True
+    # Default permission contract for background loops: Codex-style
+    # automatic review (``acceptEdits`` == "approve for me" in this repo).
+    # Boundary-crossing tool calls are judged by the auto-reviewer instead
+    # of being pre-approved; an approval nobody can answer pauses the run.
+    # ``sandbox_mode="full"`` here only means "write in place inside the
+    # loop workspace" — ``"sandbox"`` would redirect writes to
+    # ``.echo-work/<thread>`` where the verifier never looks. Writable roots
+    # widen to the whole filesystem only for an explicit
+    # ``bypassPermissions`` + ``execution_environment="local"`` policy.
+    auto_approve: bool = False
     sandbox_mode: str = "full"
-    permission_mode: str = "bypassPermissions"
+    permission_mode: str = "acceptEdits"
     execution_environment: str = "local"
     model: str | None = None
+
+    @model_validator(mode="after")
+    def _bypass_implies_auto_approve(self) -> LoopPolicy:
+        # ``bypassPermissions`` is the full-access contract (the realtime
+        # gateway pairs it with approval_policy="never" as well). The ReAct
+        # approval gate only reads ``auto_approve``, so an explicit bypass
+        # policy that left it at the new ``False`` default would otherwise
+        # stall on every gated tool.
+        if canonical_permission_mode(self.permission_mode) == "bypassPermissions":
+            self.auto_approve = True
+        return self
 
 
 class VerifierFinding(BaseModel):
@@ -129,6 +156,12 @@ class LoopRun(BaseModel):
     last_evolution_candidate_result: dict[str, Any] | None = None
     cancel_requested_at: str | None = None
     cancel_reason: str = ""
+    # Set while ``status == paused``: machine-readable reason
+    # (``budget_near_limit`` / ``approval_required`` / ``external`` / ...)
+    # plus the human-readable note the ReAct pause recorded.
+    pause_reason: str = ""
+    pause_detail: str = ""
+    paused_at: str | None = None
     last_error: str = ""
     created_at: str = Field(default_factory=_now_iso)
     updated_at: str = Field(default_factory=_now_iso)
@@ -213,6 +246,8 @@ class LoopRunRuntimeStateResponse(BaseModel):
     is_running: bool = False
     attempt_count: int = 0
     last_error: str = ""
+    pause_reason: str = ""
+    pause_detail: str = ""
     workspace_path: str | None = None
     started_at: str | None = None
     completed_at: str | None = None

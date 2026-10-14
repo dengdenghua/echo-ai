@@ -57,16 +57,24 @@ class TestDesktopOperatorArm:
 
 
 class TestDesktopOperatorAgent:
+    # The persona migration (8bd8b024) renamed agents/desktop_operator/ to
+    # agents/raven/. ``desktop_operator`` survives only as a legacy alias that
+    # the factory resolves, so the loaded agent reports the canonical id.
     def test_agent_constructs(self):
         agent = make_desktop_operator_agent(_rt())
-        assert agent.agent_id == "desktop_operator"
+        assert agent.agent_id == "raven"
         assert agent.display_name == "Raven"
         assert agent.icon == "🖥️"
         assert "desktop" in agent.extra_affinity
 
-    def test_agent_has_one_arm(self):
+    def test_agent_has_one_bundled_arm(self):
+        # One bundled arm, plus the per-agent arm the loader synthesizes for
+        # the persona's ``private_skills`` (tool-registry.jsonc).
         agent = make_desktop_operator_agent(_rt())
-        assert len(agent.arms) == 1
+        assert [str(a.arm_id) for a in agent.arms] == [
+            "desktop_operator_arm",
+            "raven_private_arm",
+        ]
 
     def test_agent_can_use_core_desktop_skills(self):
         agent = make_desktop_operator_agent(_rt())
@@ -81,9 +89,10 @@ class TestDesktopOperatorAgent:
     def test_is_part_of_default_preset_list(self):
         """desktop_operator is a first-class persona since #22 (CUA productization)."""
         from runtime.execution.agents import make_all_agent_presets
+        from runtime.execution.agents.aliases import canonical_agent_id
 
         roster_ids = {getattr(a, "agent_id", None) for a in make_all_agent_presets(_rt())}
-        assert "desktop_operator" in roster_ids
+        assert canonical_agent_id("desktop_operator") in roster_ids
 
     def test_general_agent_has_desktop_arm(self):
         """Implementation note."""
@@ -103,6 +112,7 @@ fastapi = pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from runtime.platform.ui import create_app  # noqa: E402
+from runtime.release_identity import public_kernel_identity  # noqa: E402
 
 
 class TestHealthEndpoint:
@@ -120,8 +130,10 @@ class TestHealthEndpoint:
         assert isinstance(data["channels"], list)
         assert data["runtime"] == {
             "name": "echo-ai-runtime",
+            "product": "Echo",
             "version": "0.2.0",
             "verifiedBundle": False,
+            "kernel": public_kernel_identity("ai"),
         }
 
     def test_reports_only_a_launcher_verified_clean_source(
@@ -138,9 +150,11 @@ class TestHealthEndpoint:
 
         assert runtime == {
             "name": "echo-ai-runtime",
+            "product": "Echo",
             "version": "0.2.0",
             "sourceId": source_id,
             "verifiedBundle": True,
+            "kernel": public_kernel_identity("ai"),
         }
 
     @pytest.mark.parametrize(

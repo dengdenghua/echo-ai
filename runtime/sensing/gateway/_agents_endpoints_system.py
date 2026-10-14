@@ -41,6 +41,11 @@ def _reconcile_automation_registry(registry: Any, caps: Any) -> dict[str, list[s
     """
 
     from runtime.execution.all_skills import register_group, skills_in_group
+    from runtime.platform.plugins.automation import reconcile_automation_plugins
+
+    managed = reconcile_automation_plugins(registry, caps)
+    if managed is not None:
+        return managed
 
     disabled = caps.disabled_skill_groups()
     removed: list[str] = []

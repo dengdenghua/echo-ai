@@ -90,7 +90,7 @@ def _openai_reasoning_effort(value: Any) -> str:
     return _OPENAI_REASONING_EFFORT.get(normalize_reasoning_effort(value) or "high", "high")
 
 
-def _model_might_think(model: str) -> bool:
+def _model_might_think(model: str, base_url: str | None = None) -> bool:
     """Whether ``model`` may spend output tokens reasoning before it writes.
 
     Two sources, deliberately OR'ed rather than ranked: the operator's own
@@ -98,8 +98,12 @@ def _model_might_think(model: str) -> bool:
     Either saying yes is enough, because the cost of a false positive is a
     slightly larger output floor while the cost of a false negative is a
     response with no content in it.
+
+    ``base_url`` anchors the operator lookup on the endpoint actually being
+    called. The models.dev side stays name-based on purpose: it is knowledge
+    about the upstream family, not about any one operator endpoint.
     """
-    return custom_model_supports_thinking(model) or model_is_reasoning(model)
+    return custom_model_supports_thinking(model, base_url) or model_is_reasoning(model)
 
 
 def _compat_payload_fingerprint(payload: dict[str, Any]) -> str:
@@ -147,7 +151,15 @@ class OpenAIModelRouter(Provider, ModelRouter):
         self.default_model = default_model
         self.timeout_seconds = timeout_seconds
         self.pricing_per_1k = pricing_per_1k or {}
-        self.extra_headers = dict(extra_headers or {})
+        # OpenCode's Zen/Go endpoints answer 400 ``MissingSessionID`` unless the
+        # client identifies a session, and their free tier is gated on the caller
+        # looking like OpenCode. Merge those headers here instead of at each
+        # construction site so the planner, the gateway and the fallback builder
+        # all send them; headers passed in by the entry still win.
+        self.extra_headers = {
+            **_opencode_session_headers(self.base_url),
+            **dict(extra_headers or {}),
+        }
         # A routed selection_id already resolved one exact endpoint entry.
         # Bind that metadata so entries sharing the same upstream model cannot
         # borrow each other's capability or compatibility flags after rewrite.
@@ -516,7 +528,7 @@ class OpenAIModelRouter(Provider, ModelRouter):
         omits_sampling = (
             bool(self._custom_model_entry.get("omit_sampling_parameters"))
             if self._custom_model_entry is not None
-            else model_omits_sampling_parameters(model)
+            else model_omits_sampling_parameters(model, self.base_url)
         )
         if not omits_sampling and not model_rejects_temperature(model):
             payload["temperature"] = request.temperature
@@ -534,7 +546,7 @@ class OpenAIModelRouter(Provider, ModelRouter):
                 or (
                     bool(self._custom_model_entry.get("supports_thinking"))
                     if self._custom_model_entry is not None
-                    else _model_might_think(model)
+                    else _model_might_think(model, self.base_url)
                 )
             )
             and max_tokens is not None
@@ -559,7 +571,7 @@ class OpenAIModelRouter(Provider, ModelRouter):
         supports_tool_use = (
             self._custom_model_entry.get("supports_tool_use") is not False
             if self._custom_model_entry is not None
-            else model_supports_tool_use(model)
+            else model_supports_tool_use(model, self.base_url)
         )
         if request.tools and supports_tool_use:
             payload["tools"] = [
@@ -606,9 +618,23 @@ class OpenAIModelRouter(Provider, ModelRouter):
         if profile.id == "openai_compat" and self._can_fall_back_to_entry_profile(model):
             profile = self._provider_profile
         return apply_custom_openai_compat_profile(
-            self._custom_model_entry or custom_model_entry_for(model),
+            self._entry_for_model(model),
             base_profile=profile,
         )
+
+    def _entry_for_model(self, model: str) -> dict[str, Any] | None:
+        """The operator entry governing ``model`` on *this* endpoint.
+
+        An entry handed to the constructor already resolved one exact row, so
+        it wins outright. Otherwise the reverse lookup is anchored on
+        ``self.base_url``: a relay serves many vendors behind one URL, and a
+        model-name-only match let a sibling entry's ``compat_profile`` and
+        capability flags cross vendor lines.
+        """
+
+        if self._custom_model_entry is not None:
+            return self._custom_model_entry
+        return custom_model_entry_for(model, self.base_url)
 
     def _can_fall_back_to_entry_profile(self, model: str) -> bool:
         """Whether the entry-level profile may stand in for this model.
@@ -853,9 +879,13 @@ def build_fallback_router_from_custom_models(prefer: str | None = None) -> Any:
     )
     if not primary:
         return None
+    api_key = str(entry.get("api_key") or "")
+    if not api_key:
+        api_key = _resolve_credential_ref(entry)
     provider = str(entry.get("provider") or "openai").lower()
     headers = entry.get("default_headers")
     headers = headers if isinstance(headers, dict) else {}
+    headers = {**_opencode_session_headers(base_url), **headers}
     # Slow reasoning models (e.g. agnes-2.0-flash spends 60–120s on hidden
     # reasoning before answering) blow past the 60s default and raise
     # ReadTimeout. Let an entry declare its own ceiling via ``timeout`` /
@@ -870,7 +900,7 @@ def build_fallback_router_from_custom_models(prefer: str | None = None) -> Any:
             from runtime.sensing.model_router.anthropic_router import AnthropicModelRouter
 
             return AnthropicModelRouter(
-                api_key=entry.get("api_key") or "",
+                api_key=api_key,
                 default_model=primary,
                 base_url=(base_url or None),
             )
@@ -878,20 +908,45 @@ def build_fallback_router_from_custom_models(prefer: str | None = None) -> Any:
             from runtime.sensing.model_router.gemini_router import GeminiModelRouter
 
             return GeminiModelRouter(
-                api_key=entry.get("api_key") or "",
+                api_key=api_key,
                 default_model=primary,
                 base_url=base_url,
                 extra_headers=headers,
             )
         return OpenAIModelRouter(
             base_url=base_url,
-            api_key=entry.get("api_key") or "dummy",
+            api_key=api_key or "dummy",
             default_model=primary,
             extra_headers=headers,
             timeout_seconds=timeout_seconds,
         )
     except Exception:  # noqa: BLE001 — keep the existing fallback if the entry is malformed
         return None
+
+
+def _resolve_credential_ref(entry: dict[str, Any]) -> str:
+    """Resolve a ``connector:<id>:<key>`` reference to a plaintext secret."""
+    reference = str(entry.get("credential_ref") or "")
+    parts = reference.split(":", 2)
+    if len(parts) != 3 or parts[0] != "connector" or not parts[1] or not parts[2]:
+        return ""
+    try:
+        from runtime.platform.connectors.credential_store import CredentialStore
+
+        store = CredentialStore()
+        return str(store.get_secret(parts[1], parts[2]) or "")
+    except Exception:  # noqa: BLE001 — best-effort; fall back to no key
+        return ""
+
+
+def _opencode_session_headers(base_url: str) -> dict[str, str]:
+    """Identify as an OpenCode client so free-tier models accept the call."""
+    if "opencode.ai/zen" not in base_url:
+        return {}
+    import hashlib
+
+    session = hashlib.sha256(str(os.getcwd()).encode()).hexdigest()
+    return {"x-opencode-session": session, "User-Agent": "Echo/1.0"}
 
 
 def _redact_error_text(text: str) -> str:
@@ -936,6 +991,16 @@ def _format_openai_http_error(
         return _append_compatibility_retry_summary(
             f"http_{status_code}: 模型账户余额不足，请充值当前模型供应商账户，"
             "或在模型选择里切换到可用模型。",
+            compatibility_events,
+        )
+    if status_code == 403 and ("freetiererror" in lower or "free tier can only be used" in lower):
+        # OpenCode answers this for its free catalog when the caller is not the
+        # OpenCode client itself. Saying "invalid API key" here sent operators
+        # hunting for a credential problem that does not exist.
+        return _append_compatibility_retry_summary(
+            "http_403: OpenCode 免费模型只能在 OpenCode 客户端内调用，"
+            "第三方客户端无法使用该渠道的免费模型；"
+            "请改用 OpenCode Go 渠道的同名模型，或在模型选择里换一个可用模型。",
             compatibility_events,
         )
     if status_code in (401, 403):

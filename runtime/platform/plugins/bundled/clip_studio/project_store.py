@@ -770,23 +770,32 @@ def _compatible_track(
     return track
 
 
+def _id_matches(ids: list[str], wanted: str) -> list[int]:
+    """Indexes of ``ids`` that ``wanted`` names: the exact id, else unique prefixes.
+
+    Prefixes let a caller abbreviate random ids, but an exact id must win:
+    the fixed ``track-video-1`` is also a prefix of an added
+    ``track-video-1f3a...``, which made it "ambiguous" one time in sixteen.
+    """
+    exact = [index for index, value in enumerate(ids) if value == wanted]
+    return exact or [index for index, value in enumerate(ids) if value.startswith(wanted)]
+
+
 def _find(items: list[dict[str, Any]], item_id: str, label: str) -> dict[str, Any]:
-    matches = [item for item in items if str(item.get("id", "")).startswith(str(item_id))]
+    matches = _id_matches([str(item.get("id", "")) for item in items], str(item_id))
     if len(matches) != 1:
         raise ValueError(f"{label} not found or ambiguous: {item_id}")
-    return matches[0]
+    return items[matches[0]]
 
 
 def _find_clip(project: dict[str, Any], clip_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    matches = [
-        (track, clip)
-        for track in project.get("tracks", [])
-        for clip in track.get("clips", [])
-        if str(clip.get("id", "")).startswith(str(clip_id))
+    pairs = [
+        (track, clip) for track in project.get("tracks", []) for clip in track.get("clips", [])
     ]
+    matches = _id_matches([str(clip.get("id", "")) for _, clip in pairs], str(clip_id))
     if len(matches) != 1:
         raise ValueError(f"clip not found or ambiguous: {clip_id}")
-    return matches[0]
+    return pairs[matches[0]]
 
 
 def _without_history(project: dict[str, Any]) -> dict[str, Any]:

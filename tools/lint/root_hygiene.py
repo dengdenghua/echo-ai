@@ -127,6 +127,7 @@ ROOT_ALLOWLIST: set[str] = {
     # ── CI / git ────────────────────────────────────────────
     ".github",
     ".gitignore",
+    ".gitleaksignore",
     ".gitattributes",
     ".git-blame-ignore-revs",
     ".editorconfig",
@@ -193,6 +194,8 @@ def _git_tracked_root_entries(root: Path) -> list[str] | None:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except (subprocess.CalledProcessError, OSError):
         return None
@@ -307,11 +310,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    - {name}")
 
     total = len(extra) + len(env_leaks)
-    print(
-        "\nTotal: {} extra entr{} at root.".format(
-            total, "y" if total == 1 else "ies"
-        )
-    )
+    print("\nTotal: {} extra entr{} at root.".format(total, "y" if total == 1 else "ies"))
 
     return 1 if args.strict else 0
 

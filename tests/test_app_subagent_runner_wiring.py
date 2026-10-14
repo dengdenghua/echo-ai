@@ -11,6 +11,7 @@ from runtime.platform.ui._app_context import AppContext
 from runtime.platform.ui._app_stack import wire_persistent_subagent_runner
 from runtime.platform.ui.app import create_app
 from runtime.sensing.model_router import MockModelRouter
+from tests.project_governance_utils import run_governed_to_done
 
 
 def test_persistent_subagent_runner_is_wired_and_owned_until_shutdown(monkeypatch) -> None:
@@ -46,6 +47,25 @@ def test_persistent_subagent_runner_is_wired_and_owned_until_shutdown(monkeypatc
     assert get_sub_agent_runner() is None
 
 
+def test_runner_wiring_refreshes_call_agent_on_the_stack_skill_registry(monkeypatch) -> None:
+    """Wiring re-registers ``call_agent`` so its catalog lists current roles; a
+    stack without a skill registry (above) still gets a working runner."""
+    from runtime.execution.suckers.registry import SkillRegistry
+
+    skills = SkillRegistry()
+    stack = SimpleNamespace(executor=SimpleNamespace(registry=skills))
+    monkeypatch.setattr(
+        "runtime.execution.parallel_agents.stack_runner.make_stack_subagent_runner",
+        lambda *, stack, agent_registry: lambda *_a, **_kw: "ok",
+    )
+    app = FastAPI()
+
+    wire_persistent_subagent_runner(AppContext(app=app, stack=stack))
+
+    assert app.state.subagent_runner_ready is True
+    assert skills.has("call_agent")
+
+
 def test_persistent_subagent_runner_stays_disabled_without_stack() -> None:
     app = FastAPI()
 
@@ -75,7 +95,7 @@ def test_create_app_project_run_reaches_persistent_runner(tmp_path, monkeypatch)
 
     def model_response(request) -> str:
         prompt = request.messages[-1].content
-        if "Break the goal" in prompt:
+        if "You are a project planner" in prompt:
             return '[{"name":"Build","goal":"build","success_criteria":["done"]}]'
         if "Decompose this milestone" in prompt:
             return '[{"type":"code","goal":"implement","team_mode":"single"}]'
@@ -119,13 +139,18 @@ def test_create_app_project_run_reaches_persistent_runner(tmp_path, monkeypatch)
             json={"thread_id": "thread-project", "project_id": project_id},
         )
         assert moved.status_code == 200
+        invited = client.post(
+            "/api/cowork/thread-project/members",
+            json={"target_id": "coder", "kind": "agent"},
+        )
+        assert invited.status_code == 200, invited.json()
 
-        run = client.post(f"/api/projects/{project_id}/run", json={"max_ticks": 10})
+        run = run_governed_to_done(client, project_id, max_ticks=10)
 
-        assert run.status_code == 200
-        assert run.json()["final_status"] == "done"
+        assert run["final_status"] == "done"
         assert len(calls) == 1
-        assert calls[0]["subagent_name"] == "engineer"
+        # REST execution routes through the group's members, never a bare role.
+        assert calls[0]["subagent_name"] == "coder"
         assert calls[0]["context"]["thread_id"] == "thread-project"
         assert calls[0]["context"]["runtime_session_metadata"]["project_id"] == project_id
 
@@ -152,7 +177,7 @@ def test_two_live_apps_keep_projectos_bound_to_their_own_runner(
 
     def model_response(request) -> str:
         prompt = request.messages[-1].content
-        if "Break the goal" in prompt:
+        if "You are a project planner" in prompt:
             return '[{"name":"Build","goal":"build","success_criteria":["done"]}]'
         if "Decompose this milestone" in prompt:
             return '[{"type":"code","goal":"implement","team_mode":"single"}]'
@@ -187,9 +212,13 @@ def test_two_live_apps_keep_projectos_bound_to_their_own_runner(
             json={"thread_id": thread_id, "project_id": project_id},
         )
         assert moved.status_code == 200, moved.json()
-        result = client.post(f"/api/projects/{project_id}/run", json={"max_ticks": 10})
-        assert result.status_code == 200, result.json()
-        assert result.json()["final_status"] == "done", result.json()
+        invited = client.post(
+            f"/api/cowork/{thread_id}/members",
+            json={"target_id": "coder", "kind": "agent"},
+        )
+        assert invited.status_code == 200, invited.json()
+        result = run_governed_to_done(client, project_id, max_ticks=10)
+        assert result["final_status"] == "done", result
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
@@ -223,7 +252,7 @@ def test_two_live_apps_keep_projectos_bound_to_their_own_runner(
         run_project(client_b, "app-b")
 
     assert calls == [
-        ("app-a", "engineer", "thread-app-a"),
-        ("app-b", "engineer", "thread-app-b"),
+        ("app-a", "coder", "thread-app-a"),
+        ("app-b", "coder", "thread-app-b"),
     ]
     assert get_sub_agent_runner() is None

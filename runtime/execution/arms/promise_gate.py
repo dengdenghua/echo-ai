@@ -226,8 +226,16 @@ class SessionLock:
         """Check if a process with the given PID is running."""
         import os
 
+        if pid <= 0:
+            return False
+        if os.name == "nt":
+            from runtime.platform.process.tree import windows_pid_alive
+
+            return windows_pid_alive(pid)
         try:
             os.kill(pid, 0)
+            return True
+        except PermissionError:
             return True
         except OSError:
             return False

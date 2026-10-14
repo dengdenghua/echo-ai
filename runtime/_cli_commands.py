@@ -642,3 +642,98 @@ def run_plugins(args: argparse.Namespace, *, color: bool = True) -> int:
 
     print("  Usage: python -m runtime plugins {list|discover|load}")
     return 2
+
+
+def _default_bundle_manifest() -> Path:
+    return Path(__file__).resolve().parent / "bundle.json"
+
+
+def run_bundle(args: argparse.Namespace, *, color: bool = True) -> int:
+    """``echo-ai bundle`` — the kernel supply contract.
+
+    ``verify`` is the one an operator runs after an install; ``sync`` is the
+    one a maintainer runs after editing a skill or a prompt.  ``provision``
+    applies the contract to a target directory and is the only operation that
+    writes outside the repository.
+    """
+    from runtime.platform.provisioning import bundle as _bundle
+
+    c = _Colors(color)
+    manifest_path = Path(getattr(args, "manifest", None) or _default_bundle_manifest())
+    op = getattr(args, "bundle_op", None)
+
+    try:
+        manifest = _bundle.load_manifest(manifest_path)
+    except _bundle.BundleError as exc:
+        print(f"  {c.red('✗')} {exc}")
+        return 1
+
+    if op in (None, "show"):
+        print(c.bold(f"{manifest.bundle_id} v{manifest.version}"))
+        print(c.dim("─" * 60))
+        print(f"  manifest    : {manifest_path}")
+        print(f"  root        : {manifest.root}")
+        print(f"  schema      : {manifest.schema}")
+        print(f"  platforms   : {', '.join(manifest.platforms) or '(none)'}")
+        print(f"  runtimes    : {', '.join(f'{k}{v}' for k, v in manifest.runtimes.items())}")
+        print(f"  entrypoints : {', '.join(sorted(manifest.entrypoints)) or '(none)'}")
+        print(f"  resources   : {len(manifest.resources)}")
+        by_kind: dict[str, int] = {}
+        for resource in manifest.resources:
+            by_kind[resource.kind] = by_kind.get(resource.kind, 0) + 1
+        for kind, count in sorted(by_kind.items()):
+            print(f"    · {kind:<16s} {count}")
+        if manifest.managed_override:
+            print(f"  managed     : {', '.join(sorted(manifest.managed_override))}")
+        if manifest.retired:
+            print(f"  retired     : {', '.join(manifest.retired)}")
+        if op is None:
+            print()
+            print(c.dim("  Usage: python -m runtime bundle {show|verify|stamp|sync|provision}"))
+            return 2
+        return 0
+
+    if op == "stamp":
+        print(manifest.stamp().render())
+        return 0
+
+    if op == "verify":
+        problems = _bundle.verify_manifest(manifest)
+        if not problems:
+            print(
+                f"  {c.green('✓')} {manifest.bundle_id} v{manifest.version} · "
+                f"{len(manifest.resources)} resources intact"
+            )
+            print(f"  stamp: {manifest.stamp().render()}")
+            return 0
+        print(f"  {c.red('✗')} {len(problems)} problem(s):")
+        for problem in problems:
+            print(f"    · {problem}")
+        return 1
+
+    if op == "sync":
+        refreshed, changed = _bundle.sync_manifest(manifest_path)
+        verb = "rewrote" if changed else "left unchanged"
+        print(
+            f"  {c.green('✓')} {verb} {manifest_path.name} · "
+            f"{len(refreshed.resources)} resources hashed"
+        )
+        return 0
+
+    if op == "provision":
+        try:
+            report = _bundle.ensure_provisioned(
+                manifest_path,
+                args.target,
+                stamp_path=getattr(args, "stamp", None),
+                plan_only=bool(getattr(args, "dry_run", False)),
+                force=bool(getattr(args, "force", False)),
+            )
+        except _bundle.BundleError as exc:
+            print(f"  {c.red('✗')} {exc}")
+            return 1
+        print(report.render())
+        return 0 if not report.drifted else 0
+
+    print("  Usage: python -m runtime bundle {show|verify|stamp|sync|provision}")
+    return 2

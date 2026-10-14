@@ -32,8 +32,12 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 
-from runtime.safety.auth import resolve_principal
-from runtime.safety.auth.websocket import accepted_auth_subprotocol, websocket_bearer_token
+from runtime.safety.auth import require_operator
+from runtime.safety.auth.websocket_auth import (
+    OPERATOR_ROLES,
+    WebSocketAuthConfig,
+    authenticate_websocket,
+)
 from runtime.tentacle._dashboard_helpers import _auto_detect_vlm_config
 from runtime.tentacle._dashboard_html import _DASHBOARD_HTML
 from runtime.tentacle.base import ToolCall
@@ -67,71 +71,82 @@ def create_tentacle_router(
     # one; local callers that want the historical unauthenticated dashboard
     # opt into it by leaving ``require_auth`` disabled.
     _enforce_auth = require_auth
+    # Browser screen streams share the HTTP session/token check and Origin
+    # policy (runtime.safety.auth.websocket_auth); refusals close with 1008.
+    ws_auth = WebSocketAuthConfig(
+        identity_store=identity_store,
+        require_auth=_enforce_auth,
+        jwt_secret=jwt_secret,
+        jwt_issuer=jwt_issuer,
+        jwt_audience=jwt_audience,
+    )
+
+    @router.websocket("/device/ws")
+    async def device_socket(websocket: WebSocket) -> None:
+        from .transport.asgi import serve_device_socket
+
+        # Device credentials are verified by device/hello, not dashboard JWTs.
+        await serve_device_socket(websocket, coordinator.ws_server)
 
     def _require_http_auth(request: FastAPIRequest) -> None:
-        """FastAPI dependency: enforce auth on HTTP endpoints when enabled."""
+        """FastAPI dependency: enforce operator auth on HTTP endpoints when enabled.
+
+        Every endpoint behind this dependency controls or observes the host's
+        devices (screen capture, remote input, task dispatch), so being logged
+        in is not enough: open-signup accounts (OCT/social) are plain users.
+        Only ``admin``/``operator`` principals may use the control plane.
+
+        Credentials resolve exactly as on every other HTTP route
+        (``resolve_principal``): the ``Authorization`` header or the HttpOnly
+        session cookie, whose browser Origins ``LocalOriginGuardMiddleware``
+        polices. A browser session restored from its cookie carries no
+        header (the JWT is kept out of script-readable storage), so a
+        header-only check here refused signed-in operators.
+        """
         if not _enforce_auth:
             return
-        if identity_store is None:
-            raise HTTPException(401, "tentacle identity store unavailable")
-        token: str | None = None
-        auth_header = request.headers.get("authorization") or ""
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-        if not token:
-            raise HTTPException(401, "missing tentacle auth token")
-        if jwt_secret and token.count(".") == 2:
-            identity = identity_store.verify_jwt(
-                token,
-                secret=jwt_secret,
-                required_issuer=jwt_issuer,
-                required_audience=jwt_audience,
+        principal = require_operator(
+            request,
+            identity_store,
+            True,
+            jwt_secret=jwt_secret,
+            jwt_issuer=jwt_issuer,
+            jwt_audience=jwt_audience,
+        )
+        if principal is not None:
+            request.state.device_workspace_actor = principal.actor_id
+
+    from .mirror_api import create_mirror_router
+
+    router.include_router(
+        create_mirror_router(lambda: coordinator), dependencies=[Depends(_require_http_auth)]
+    )
+
+    from .task_workspace_api import create_task_workspace_router
+
+    router.include_router(
+        create_task_workspace_router(lambda: coordinator),
+        dependencies=[Depends(_require_http_auth)],
+    )
+
+    # Per-device credentials (invite / list / revoke / rotate) when the hub
+    # has them installed — see runtime/tentacle/device_credentials.py.
+    _device_credentials = getattr(
+        getattr(coordinator, "ws_server", None), "device_credentials", None
+    )
+    if _device_credentials is not None:
+        from .device_credentials import create_device_credentials_router, device_ws_url
+
+        router.include_router(
+            create_device_credentials_router(
+                _device_credentials,
+                ws_url_resolver=lambda _request: device_ws_url(coordinator.ws_server),
+                dependencies=[Depends(_require_http_auth)],
             )
-            if identity is not None:
-                return
-        if identity_store.verify_api_key(token) is not None:
-            return
-        raise HTTPException(401, "invalid tentacle auth token")
+        )
 
     # 任务历史记录（内存，重启清空）
     _task_history: list[dict[str, Any]] = []
-
-    def _resolve_ws_actor(ws: WebSocket) -> str | None:
-        if identity_store is None:
-            if _enforce_auth:
-                raise PermissionError("identity store required for tentacle auth")
-            return None
-        token: str | None = None
-        auth_header = ""
-        try:
-            auth_header = ws.headers.get("authorization") or ""
-        except Exception:  # noqa: BLE001
-            auth_header = ""
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-        if token is None:
-            token = websocket_bearer_token(ws)
-        if not token:
-            if _enforce_auth:
-                raise PermissionError("missing tentacle auth token")
-            return None
-        if jwt_secret and token.count(".") == 2:
-            identity = identity_store.verify_jwt(
-                token,
-                secret=jwt_secret,
-                required_issuer=jwt_issuer,
-                required_audience=jwt_audience,
-            )
-            if identity is not None:
-                return identity.actor_id
-            if _enforce_auth:
-                raise PermissionError("invalid jwt")
-        identity = identity_store.verify_api_key(token)
-        if identity is not None:
-            return identity.actor_id
-        if _enforce_auth:
-            raise PermissionError("invalid token")
-        return None
 
     # ── Dashboard HTML ──────────────────────────────────
 
@@ -167,6 +182,13 @@ def create_tentacle_router(
                 }
             )
         return result
+
+    @router.get("/discovery", dependencies=[Depends(_require_http_auth)])
+    def discovery_status() -> dict[str, Any]:
+        discovery = getattr(coordinator, "discovery", None)
+        return (
+            discovery.snapshot() if discovery else {"available": False, "error": "", "devices": []}
+        )
 
     # ── 设备详情 ────────────────────────────────────────
 
@@ -703,18 +725,15 @@ def create_tentacle_router(
 
         服务端推送二进制帧（格式同 ScreenRelay）.
         """
-        try:
-            _resolve_ws_actor(ws)
-        except PermissionError as exc:
-            with suppress(Exception):
-                await ws.close(code=4401, reason=str(exc))
+        auth = await authenticate_websocket(ws, config=ws_auth, roles=OPERATOR_ROLES)
+        if auth is None:
             return
         screen_relay = getattr(coordinator, "screen_relay", None)
         if screen_relay is None:
             await ws.close(code=1011, reason="Screen relay not available")
             return
 
-        await ws.accept(subprotocol=accepted_auth_subprotocol(ws))
+        await ws.accept(subprotocol=auth.subprotocol)
         logger.info("screen stream client connected: %s", ws.client)
 
         try:
@@ -803,18 +822,15 @@ def create_tentacle_router(
         浏览器客户端连接此端点接收 PC 屏幕画面.
         协议与设备屏幕流相同（二进制帧格式）.
         """
-        try:
-            _resolve_ws_actor(ws)
-        except PermissionError as exc:
-            with suppress(Exception):
-                await ws.close(code=4401, reason=str(exc))
+        auth = await authenticate_websocket(ws, config=ws_auth, roles=OPERATOR_ROLES)
+        if auth is None:
             return
         screen_relay = getattr(coordinator, "screen_relay", None)
         if screen_relay is None:
             await ws.close(code=1011, reason="Screen relay not available")
             return
 
-        await ws.accept(subprotocol=accepted_auth_subprotocol(ws))
+        await ws.accept(subprotocol=auth.subprotocol)
         logger.info("PC screen stream client connected: %s", ws.client)
 
         # 自动订阅 pc-host
@@ -932,7 +948,7 @@ def create_tentacle_router(
         （``Authorization`` 请求头或 ``?token=`` 查询参数）。会话会
         绑定到该账号，后续 ``/mcp/message`` 也要求同一账号凭证。
         """
-        principal = resolve_principal(
+        principal = require_operator(
             request,
             identity_store,
             require_auth,
@@ -984,7 +1000,7 @@ def create_tentacle_router(
         if not session_id:
             raise HTTPException(400, "Missing session_id parameter")
 
-        principal = resolve_principal(
+        principal = require_operator(
             request,
             identity_store,
             require_auth,

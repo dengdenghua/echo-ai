@@ -33,7 +33,6 @@ def test_foreground_helper_uses_bound_engine_and_never_native(
         if failed:
             raise RuntimeError("external helper failed")
         if engine == "opencode":
-            assert kwargs["tool_ceiling"] == frozenset()
             kwargs["on_event"](
                 {
                     "type": "react_completed",

@@ -371,6 +371,7 @@ export function statusText(
     warning: "已恢复",
     error: "执行失败",
     done: "已完成",
+    interrupted: "已停止",
   };
   return labels?.[status] || fallback[status];
 }

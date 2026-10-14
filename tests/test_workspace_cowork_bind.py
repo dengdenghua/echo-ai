@@ -23,7 +23,7 @@ from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.session import resolve_session
 from runtime.workspace import WorkspaceStore
 from runtime.workspace import crypto as crypto_mod
-from runtime.workspace.cowork_bridge import (
+from runtime.workspace.group_binding import (
     link_workspace_to_group,
     map_workspace_role,
     sync_workspace_members_to_group,

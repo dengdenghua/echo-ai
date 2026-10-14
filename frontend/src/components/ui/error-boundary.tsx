@@ -99,7 +99,7 @@ export class ErrorBoundary extends Component<
     const combined = `${err.message}\n${err.stack || ""}\n${stack}`;
     return (
       /@react-refresh|performReactRefresh|scheduleRefresh/i.test(combined) &&
-      /must be used within an|Context\.Provider/i.test(combined)
+      /must be used within an|Context\.Provider|useContext|Invalid hook call/i.test(combined)
     );
   }
 

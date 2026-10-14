@@ -20,6 +20,19 @@ import type { GroupTaskStrategy } from "./group-task-strategy";
 import type { AgentModeName } from "./mode-selector";
 
 const uploadFilesMock = vi.fn();
+it("resumes an interrupted task directly from the empty composer", () => {
+  const resume = vi.fn();
+  const submit = vi.fn();
+  renderWithProviders(<ChatInputBox mode="react" threadId="resume-test" onResume={resume} onSubmit={submit} />);
+  fireEvent.click(screen.getByTestId("chat-resume-button"));
+  expect(resume).toHaveBeenCalledOnce();
+  expect(submit).not.toHaveBeenCalled();
+});
+it("keeps normal draft submission when a resumable task has typed input", () => {
+  renderWithProviders(<ChatInputBox mode="react" threadId="resume-draft" defaultValue="new direction" onResume={vi.fn()} />);
+  expect(screen.queryByTestId("chat-resume-button")).toBeNull();
+  expect(screen.getByTestId("chat-send-button")).toBeInTheDocument();
+});
 const uploadWithProgressMock = vi.fn();
 const captureComputerAppshotMock = vi.hoisted(() => vi.fn());
 const modelCatalog = vi.hoisted(() => ({
@@ -165,6 +178,9 @@ it("keeps the plus entry visually lightweight when focused", () => {
 
   expect(screen.getByTestId("chat-tools-trigger")).toHaveClass(
     "focus-visible:outline-none",
+    // Lightweight, but keyboard focus still needs a visible core ring.
+    "focus-visible:ring-2",
+    "focus-visible:ring-ring/30",
   );
 });
 
@@ -706,7 +722,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
     expect(screen.getByTestId("composer-command-prefix")).toHaveClass(
       "font-bold",
-      "text-sky-600",
+      "text-core",
     );
     expect(onModeChange).not.toHaveBeenCalled();
 
@@ -726,7 +742,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
     expect(screen.getByTestId("composer-command-prefix")).toHaveClass(
       "font-bold",
-      "text-violet-600",
+      "text-core",
     );
     expect(screen.getByTestId("composer-long-task-indicator")).toHaveAttribute(
       "aria-label",
@@ -793,7 +809,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
     expect(screen.getByTestId("composer-command-prefix")).toHaveClass(
       "font-bold",
-      "text-rose-600",
+      "text-core",
     );
     expect(textarea()).toHaveClass("pl-[7.5rem]");
     expect(screen.getByTitle("Send")).toBeDisabled();
@@ -820,6 +836,37 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.queryByTestId("composer-command-prefix")).toBeNull();
   });
 
+  it("suggests Project OS for project-creation drafts", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-project-intent"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.change(textarea(), {
+      target: { value: "开一个智能床笠项目" },
+    });
+    expect(screen.getByTestId("project-intent-suggestion")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("project-intent-accept"));
+    expect(screen.queryByTestId("project-intent-suggestion")).toBeNull();
+    expect(textarea()).toHaveValue("开一个智能床笠项目");
+    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
+      "Milestone",
+    );
+
+    fireEvent.click(screen.getByTitle("Send"));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        text: "/project run\n开一个智能床笠项目",
+      }),
+    );
+  });
+
   it("lazily exposes plugins and skills as removable colored references", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
@@ -842,7 +889,7 @@ describe("<ChatInputBox /> cowork materials", () => {
 
     expect(
       screen.getByTestId("composer-capability-plugin-seedance"),
-    ).toHaveClass("text-violet-700");
+    ).toHaveClass("text-core");
     expect(screen.getByTitle("Send")).toBeDisabled();
 
     fireEvent.change(textarea(), { target: { value: "Create launch clip" } });
@@ -874,10 +921,10 @@ describe("<ChatInputBox /> cowork materials", () => {
 
     expect(
       screen.getByTestId("composer-capability-skill-video-generate"),
-    ).toHaveClass("text-blue-700");
+    ).toHaveClass("text-core");
     expect(
       screen.getByTestId("composer-capability-surface-browser"),
-    ).toHaveClass("text-cyan-700");
+    ).toHaveClass("text-core");
     expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
       "Goal",
     );
@@ -1208,28 +1255,27 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(onReasoningEffortChange).toHaveBeenCalledWith("xhigh");
   });
 
-  it("shows the context compressor as a persistent input control", () => {
-    const { rerender } = renderWithProviders(
+  it("shows the Claude-style context ring on the workspace status row", async () => {
+    renderWithProviders(
       <ChatInputBox
-        mode="react"
-        threadId="thread-1"
-        contextTokens={500}
-        maxContextTokens={1000}
+        mode="react" threadId="thread-context-window" workDir="D:/pod-App"
+        contextTokens={500} maxContextTokens={1_000_000}
+        contextSegments={[
+          { label: "Messages", tokens: 400, color: "bg-primary" }, { label: "MCP tools", tokens: 60, color: "bg-chart-4" }, { label: "Skills", tokens: 40, color: "bg-chart-2" },
+        ]}
       />,
     );
 
-    expect(screen.getByLabelText(/Context Usage: 50%/)).toBeInTheDocument();
-
-    rerender(
-      <ChatInputBox
-        mode="react"
-        threadId="thread-1"
-        contextTokens={600}
-        maxContextTokens={1000}
-      />,
-    );
-
-    expect(screen.getByLabelText(/Context Usage: 60%/)).toBeInTheDocument();
+    const strip = screen.getByTestId("chat-status-strip");
+    const trigger = screen.getByTestId("chat-context-window-trigger");
+    expect(strip).toContainElement(trigger);
+    expect(trigger).toHaveAttribute("aria-label", expect.stringMatching(/Context usage: 500 \/ 1M \(0%\)/));
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.click(trigger);
+    expect(await screen.findByText("Messages")).toBeInTheDocument();
+    expect(screen.getByText("MCP tools")).toBeInTheDocument();
+    expect(screen.getByText("Skills")).toBeInTheDocument();
+    expect(await screen.findByText(/Free space/i)).toBeInTheDocument();
   });
 
   it("submits only enabled URL/text materials", async () => {
@@ -1563,7 +1609,47 @@ describe("<ChatInputBox /> live steering", () => {
 });
 
 describe("<ChatInputBox /> connection recovery", () => {
-  it("keeps the draft editable and unsent until the thread is ready", () => {
+  it("quotes only this conversation while keeping the existing draft unsent", () => {
+    const onSubmit = vi.fn();
+    renderWithProviders(<ChatInputBox mode="react" threadId="quote-target" onSubmit={onSubmit} />);
+    const input = screen.getByTestId("chat-composer-input");
+    fireEvent.change(input, { target: { value: "my unfinished reply" } });
+    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "another", text: "private" } }));
+    expect(input).toHaveValue("my unfinished reply");
+    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "quote-target", text: "line one\nline two" } }));
+    expect(input).toHaveValue("my unfinished reply");
+    expect(screen.getByTestId("composer-quote")).toHaveTextContent("line one");
+    fireEvent.click(screen.getByTestId("composer-remove-quote"));
+    expect(screen.queryByTestId("composer-quote")).toBeNull();
+    expect(input).toHaveValue("my unfinished reply");
+    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "quote-target", text: "line one\nline two" } }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("chat-send-button"));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ text: "my unfinished reply\n\n> line one\n> line two" }));
+    expect(screen.queryByTestId("composer-quote")).toBeNull();
+  });
+
+  it("shows an actual reconnect immediately while preserving editing", () => {
+    renderWithProviders(
+      <ChatInputBox
+        mode="react"
+        threadId="thread-disconnected"
+        readyForMutations={false}
+        connectionPhase="reconnecting"
+      />,
+    );
+
+    expect(screen.getByTestId("chat-connection-status")).toHaveTextContent(
+      "Restoring connection… Your draft is safe.",
+    );
+    const input = screen.getByTestId("chat-composer-input");
+    fireEvent.change(input, { target: { value: "edit while reconnecting" } });
+    expect(input).toHaveValue("edit while reconnecting");
+    expect(input).not.toBeDisabled();
+    expect(screen.getByTestId("chat-send-button")).toBeDisabled();
+  });
+
+  it("keeps the draft editable and unsent until the thread is ready", async () => {
     const onSubmit = vi.fn();
     const { rerender } = renderWithProviders(
       <ChatInputBox
@@ -1579,8 +1665,9 @@ describe("<ChatInputBox /> connection recovery", () => {
     fireEvent.change(input, { target: { value: "keep this draft" } });
 
     expect(input).not.toBeDisabled();
-    expect(screen.getByTestId("chat-connection-status")).toHaveTextContent(
-      "Restoring connection… Your draft is safe.",
+    expect(screen.queryByTestId("chat-connection-status")).toBeNull();
+    expect(await screen.findByTestId("chat-connection-status")).toHaveTextContent(
+      "Syncing conversation… You can keep editing.",
     );
     expect(screen.getByTestId("chat-send-button")).toBeDisabled();
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });

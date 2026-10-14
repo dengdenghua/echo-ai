@@ -206,14 +206,46 @@ def _run_computer_use_loop(
     wait_between_ms: int,
     stop_on_error: bool,
     capture_screen: Callable[..., dict[str, Any]] | None = None,
+    cancellation_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     history: list[dict[str, Any]] = []
     screenshots_saved: list[str] = []
 
+    def cancelled() -> bool:
+        try:
+            return bool(cancellation_check and cancellation_check())
+        except Exception:
+            return True  # A broken revocation source must stop automation.
+
+    def stopped() -> dict[str, Any]:
+        return _final(
+            "cancelled",
+            goal,
+            history,
+            screenshots_saved,
+            reason="automation stopped or permission revoked",
+            iterations=len(history),
+        )
+
+    def wait_interruptibly(seconds: float) -> bool:
+        if cancellation_check is None:
+            time.sleep(seconds)
+            return True
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if cancelled():
+                return False
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+        return not cancelled()
+
+    if cancelled():
+        return stopped()
     shot_dir = Path(screenshot_dir)
     shot_dir.mkdir(parents=True, exist_ok=True)
 
     for iteration in range(max_iterations):
+        if cancelled():
+            return stopped()
         requested_shot_path = str(shot_dir / f"iter_{iteration:03d}.png")
         cap = (capture_screen or _screen_capture)(
             path=requested_shot_path,
@@ -248,6 +280,9 @@ def _run_computer_use_loop(
             )
         screenshots_saved.append(shot_path)
 
+        if cancelled():
+            return stopped()
+
         try:
             action = planner.next_action(
                 goal=goal,
@@ -263,6 +298,9 @@ def _run_computer_use_loop(
                 reason=f"planner raised: {type(e).__name__}: {e}",
                 iterations=iteration,
             )
+
+        if cancelled():
+            return stopped()
 
         if not isinstance(action, dict) or "action" not in action:
             return _final(
@@ -307,7 +345,18 @@ def _run_computer_use_loop(
                 iterations=iteration + 1,
             )
 
-        result = _dispatch_action(action)
+        if cancelled():
+            return stopped()
+        if kind == "wait" and cancellation_check is not None:
+            ms = int(action.get("ms", 0))
+            if ms < 0 or ms > 60_000:
+                result = {"error": f"wait ms out of range: {ms}"}
+            else:
+                if not wait_interruptibly(ms / 1000):
+                    return stopped()
+                result = {"waited_ms": ms}
+        else:
+            result = _dispatch_action(action)
         summary = _summarize_action_result(action, result)
         history.append(
             {
@@ -316,6 +365,9 @@ def _run_computer_use_loop(
                 "result_summary": summary,
             }
         )
+
+        if cancelled():
+            return stopped()
 
         if "error" in result and stop_on_error:
             return _final(
@@ -327,8 +379,8 @@ def _run_computer_use_loop(
                 iterations=iteration + 1,
             )
 
-        if wait_between_ms > 0:
-            time.sleep(wait_between_ms / 1000.0)
+        if wait_between_ms > 0 and not wait_interruptibly(wait_between_ms / 1000.0):
+            return stopped()
 
     return _final(
         "max_iterations",
@@ -424,6 +476,7 @@ def make_computer_use_loop_skill(
     default_max_iterations: int = 10,
     default_wait_between_ms: int = 300,
     default_stop_on_error: bool = False,
+    cancellation_check: Callable[[], bool] | None = None,
 ) -> Skill:
 
     def _handler(
@@ -450,6 +503,7 @@ def make_computer_use_loop_skill(
             max_iterations=max_iterations,
             wait_between_ms=wait_between_ms,
             stop_on_error=stop_on_error,
+            cancellation_check=cancellation_check,
         )
         # Record loop outcomes (best-effort; never break the live loop).
         # Success → a journal Trajectory SkillForge can distil into an
@@ -463,7 +517,7 @@ def make_computer_use_loop_skill(
 
             if result.get("status") == "success":
                 record_successful_loop(journal, result)
-            else:
+            elif result.get("status") != "cancelled":
                 record_failed_loop(result)
         return result
 

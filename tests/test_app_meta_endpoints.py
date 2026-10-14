@@ -76,9 +76,52 @@ def isolated_cwd(
 
 
 @pytest.fixture
+def empty_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Hide the developer's installed Codex plugins from app startup.
+
+    They live under ~/.echo (Windows resolves "~" via USERPROFILE) and, in a
+    source checkout, under the repo's own data/plugins/codex.
+    """
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
+    return home
+
+
+@pytest.fixture
 def client(isolated_cwd: Path) -> Iterator[TestClient]:
     with TestClient(create_app()) as test_client:
         yield test_client
+
+
+def test_assistant_activity_is_mounted_on_the_real_app(empty_home, isolated_cwd):
+    from runtime.projectos.model import Milestone, Project, Task
+
+    app = create_app(tentacle_enabled=False)
+    store = app.state.project_store
+    store.save_project(Project(id="activity-project", name="Activity", goal="Ship"))
+    store.save_milestone(
+        "activity-project", Milestone(id="activity-ms", name="Build", goal="Build")
+    )
+    store.save_task(
+        Task(
+            id="activity-task",
+            milestone_id="activity-ms",
+            type="code",
+            goal="Verify wiring",
+            status="blocked",
+        )
+    )
+    with TestClient(app) as client:
+        response = client.get("/api/assistant/activity")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["schema"] == "echo.assistant_activity.v1"
+    item = next(row for row in body["items"] if row["task_id"] == "activity-task")
+    assert item["project_id"] == "activity-project" and item["state"] == "attention"
 
 
 class TestSecurityHeaders:
@@ -162,6 +205,28 @@ def test_auth_me_uses_real_identity_store(secured_meta_client) -> None:
         "is_active": True,
     }
     assert client.get("/api/auth/me").status_code == 401
+
+
+def test_auth_me_reports_durable_scopes_as_permissions(isolated_cwd: Path) -> None:
+    """The client gates cross-tenant views on these; the server keeps deciding."""
+    store = IdentityStore()
+    store.add(
+        Identity(
+            actor_id="root",
+            roles=("admin",),
+            metadata={"scopes": "global:admin, tenant:cross_tenant", "permissions": ["x"]},
+        ),
+        api_key_plaintext="sk-root",
+    )
+    app = FastAPI()
+    app.include_router(
+        create_meta_router(registry=SkillRegistry(), identity_store=store, require_auth=True)
+    )
+    with TestClient(app) as client:
+        response = client.get("/api/auth/me", headers={"Authorization": "Bearer sk-root"})
+
+    assert response.status_code == 200
+    assert response.json()["permissions"] == ["x", "global:admin", "tenant:cross_tenant"]
 
 
 def test_auth_me_accepts_session_cookie_and_logout_expires_it(secured_meta_client) -> None:
@@ -364,9 +429,14 @@ class TestSkills:
 
     def test_default_app_includes_file_backed_skill_library(
         self,
-        client: TestClient,
+        isolated_cwd: Path,
+        empty_home: Path,
     ) -> None:
-        data = client.get("/api/skills").json()
+        # Startup and the catalog also read ~/.echo/plugins/codex: an
+        # installed Codex "pdf" plugin legitimately takes over the bundled
+        # skill of the same name, so build the app against an empty home.
+        with TestClient(create_app()) as client:
+            data = client.get("/api/skills").json()
         skills = {s["name"]: s for s in data["skills"]}
 
         assert "pdf" in skills
@@ -662,32 +732,28 @@ class TestAgentMarket:
         assert data["key_skills"] == ["kyc-doc-parse", "kyc-rules", "xlsx-author"]
         assert data["available_skills"] == data["key_skills"]
 
-    def test_financial_services_templates_stay_registry_only_with_local_twins(
+    def test_financial_services_and_twin_presets_stay_catalog_only(
         self,
         client: TestClient,
     ) -> None:
-        """The category may contain physical local roles, but not catalog templates.
-
-        The four digital-twin profiles are shipped under ``agents/`` and therefore
-        belong in the local store. The ten Anthropic financial-services templates
-        remain registry-only and must not leak into this list.
-        """
+        """Presets moved from active agents into the opt-in role catalog."""
         r = client.get("/api/agent-market/store?category=financial&limit=50")
         assert r.status_code == 200
 
         data = r.json()
-        assert {agent["id"] for agent in data["agents"]} == {
+        assert data["agents"] == []
+        assert data["total"] == 0
+        catalog = client.get("/api/agent-market/echo/catalog")
+        assert catalog.status_code == 200
+        financial = {
+            agent["id"] for agent in catalog.json()["agents"] if agent["category"] == "financial"
+        }
+        assert {
             "twin_audit",
             "twin_finance",
             "twin_investment",
             "twin_tax",
-        }
-        assert data["total"] == 4
-        assert all(
-            agent["author"] != "anthropics/financial-services"
-            and not agent["id"].startswith("financial_")
-            for agent in data["agents"]
-        )
+        } <= financial
 
     def test_financial_services_install_carries_key_skills(
         self,
@@ -743,6 +809,21 @@ class TestAuthProviders:
         assert "oct" in ids
         assert c.get("/api/auth/status").json()["enabled"] is True
 
+    def test_status_reports_whether_a_credential_was_presented(
+        self,
+        isolated_cwd: Path,
+    ) -> None:
+        """A signed-out browser can skip /api/auth/me (and its 401)."""
+        from runtime.adapters.integrations.oct.config import OctConfig
+
+        cfg = OctConfig(enabled=True, jwt_secret="0123456789abcdef0123456789ABCDEF!")
+        c = TestClient(create_app(oct_config=cfg))
+        assert c.get("/api/auth/status").json()["credential_present"] is False
+        headers = {"Authorization": "Bearer not-checked-here"}
+        assert c.get("/api/auth/status", headers=headers).json()["credential_present"] is True
+        c.cookies.set("echo_session", "opaque")
+        assert c.get("/api/auth/status").json()["credential_present"] is True
+
     def test_local_provider_when_configured(
         self,
         isolated_cwd: Path,
@@ -751,6 +832,9 @@ class TestAuthProviders:
             enabled = True
             users = {"alice": "x"}  # password_required=True
             allow_any_username = True
+            # Outside ECHO_ENV=development, password accounts are only
+            # advertised with a strong JWT secret (local_login_enabled).
+            jwt_secret = "0123456789abcdef0123456789ABCDEF!"
 
         app = create_app(local_auth_config=_FakeLocal())
         c = TestClient(app)

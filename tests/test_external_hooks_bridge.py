@@ -197,7 +197,7 @@ def _write_config(tmp_path: Path, hooks: dict, dialect: str = "codex") -> Path:
 
 
 def _hook_cmd(script: str) -> str:
-    return f"{sys.executable} -c {json.dumps(script)}"
+    return f"{Path(sys.executable).as_posix()} -c {json.dumps(script)}"
 
 
 def test_dispatch_user_prompt_block_via_global_registry(tmp_path: Path) -> None:
@@ -517,34 +517,35 @@ def test_hook_journal_events_registered_and_roundtrip(tmp_path: Path) -> None:
 
 
 def test_hook_project_dir_injection_is_quoted(tmp_path: Path) -> None:
-    """A project_dir containing shell metacharacters must be shlex-quoted,
-    so it cannot smuggle commands into the shell=True invocation."""
+    """Substitutions remain one literal argument in a shell-free invocation."""
     marker = tmp_path / "pwned"
-    evil_dir = f"/tmp/innocent; touch {marker}"
+    evil_dir = f"/tmp/innocent; touch {marker.as_posix()}"
     out = run_external_hook(
-        "echo ${CLAUDE_PROJECT_DIR}",
+        _hook_cmd("import sys; print(sys.argv[1])") + " ${CLAUDE_PROJECT_DIR}",
         {},
         project_dir=evil_dir,
     )
     assert not marker.exists(), "injected touch command executed"
-    assert "; touch" in out.stdout  # echoed literally, not executed
+    assert out.exit_code == 0
+    assert out.stdout.strip() == evil_dir
 
 
 def test_hook_plugin_root_injection_is_quoted(tmp_path: Path) -> None:
     marker = tmp_path / "pwned-root"
-    evil_root = f"/tmp/r; touch {marker}"
+    evil_root = f"/tmp/r; touch {marker.as_posix()}"
     out = run_external_hook(
-        "echo ${CLAUDE_PLUGIN_ROOT}",
+        _hook_cmd("import sys; print(sys.argv[1])") + " ${CLAUDE_PLUGIN_ROOT}",
         {},
         plugin_root=evil_root,
     )
     assert not marker.exists()
-    assert "; touch" in out.stdout
+    assert out.exit_code == 0
+    assert out.stdout.strip() == evil_root
 
 
 def test_hook_allowlist_refuses_non_matching_command(tmp_path: Path) -> None:
     marker = tmp_path / "ran"
-    cmd = f"touch {marker}"
+    cmd = _hook_cmd(f"from pathlib import Path; Path({str(marker)!r}).touch()")
     out = run_external_hook(cmd, {}, allowed_commands=["safe-*"])
     assert not marker.exists(), "non-allowlisted command executed"
     assert out.reason == "hook command not allowed by allowlist"
@@ -552,8 +553,8 @@ def test_hook_allowlist_refuses_non_matching_command(tmp_path: Path) -> None:
 
 def test_hook_allowlist_allows_matching_command(tmp_path: Path) -> None:
     marker = tmp_path / "ran-ok"
-    cmd = f"touch {marker}"
-    out = run_external_hook(cmd, {}, allowed_commands=["touch *"])
+    cmd = _hook_cmd(f"from pathlib import Path; Path({str(marker)!r}).touch()")
+    out = run_external_hook(cmd, {}, allowed_commands=[cmd])
     assert marker.exists()
     assert out.exit_code == 0
 

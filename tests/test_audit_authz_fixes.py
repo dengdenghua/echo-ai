@@ -309,6 +309,43 @@ def test_workspace_routes_require_auth_and_respect_thread_owner(
     assert other.status_code == 404
 
 
+def test_workspace_ownerless_legacy_thread_is_admin_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    store, keys = _store_with_actors()
+    store.add(Identity(actor_id="root", roles=("admin",)), api_key_plaintext="sk-test-root")
+    thread_store = ThreadStateStore()
+    thread_store.ensure_thread("ownerless", metadata={}, values={"title": "Legacy"})
+    thread_store.ensure_thread("legacy-owned", metadata={"actor_id": "alice"}, values={})
+    app = FastAPI()
+    app.include_router(
+        create_workspaces_router(
+            workspace_root=tmp_path / "workspaces",
+            thread_store=thread_store,
+            identity_store=store,
+            require_auth=True,
+        )
+    )
+    client = TestClient(app)
+
+    assert (
+        client.get("/api/workspaces/ownerless", headers=_bearer(keys["alice"])).status_code == 404
+    )
+    assert (
+        client.get("/api/workspaces/ownerless", headers=_bearer("sk-test-root")).status_code == 200
+    )
+    # The pre-``owner_actor_id`` field still identifies the owner.
+    assert (
+        client.get("/api/workspaces/legacy-owned", headers=_bearer(keys["alice"])).status_code
+        == 200
+    )
+    assert (
+        client.get("/api/workspaces/legacy-owned", headers=_bearer(keys["bob"])).status_code == 404
+    )
+
+
 def test_upload_routes_require_auth_and_respect_thread_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -410,6 +447,8 @@ def test_local_auth_jwt_reaches_control_and_auth_aware_routes(
 ) -> None:
     from runtime.adapters.integrations.local_auth.config import LocalAuthConfig
 
+    monkeypatch.setenv("ECHO_ENV", "development")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
     monkeypatch.chdir(tmp_path)
     app = create_app(
         cocoloop_require_auth=True,
@@ -419,7 +458,7 @@ def test_local_auth_jwt_reaches_control_and_auth_aware_routes(
             jwt_secret="0123456789abcdef0123456789ABCDEF!",
         ),
     )
-    client = TestClient(app)
+    client = TestClient(app, client=("127.0.0.1", 50000))
 
     login = client.post("/api/auth/local/login", json={"username": "alice"})
     assert login.status_code == 200
@@ -428,6 +467,52 @@ def test_local_auth_jwt_reaches_control_and_auth_aware_routes(
 
     assert client.get("/api/memory", headers=headers).status_code != 401
     assert client.get("/api/agents", headers=headers).status_code != 401
+
+
+def test_desktop_owner_login_reaches_admin_routes_without_dev_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The packaged desktop profile: oct email login plus passwordless local
+    # auth that only the shell's per-launch owner token unlocks.
+    from runtime.adapters.integrations.local_auth import config as local_auth_config
+    from runtime.adapters.integrations.oct.config import OctConfig
+
+    owner_token = "Od9-desktop-owner-token-0123456789abcdef"
+    monkeypatch.delenv("ECHO_ENV", raising=False)
+    monkeypatch.setenv("ECHO_DESKTOP", "1")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
+    monkeypatch.chdir(tmp_path)
+    local_auth_config.configure_desktop_owner_token(owner_token)
+    try:
+        app = create_app(
+            cocoloop_require_auth=True,
+            oct_config=OctConfig(enabled=True, jwt_secret=_JWT_SECRET),
+            local_auth_config=local_auth_config.LocalAuthConfig(
+                enabled=True,
+                allow_any_username=True,
+                admin_usernames=["*"],
+                jwt_secret=_JWT_SECRET,
+            ),
+        )
+        client = TestClient(app, client=("127.0.0.1", 50000))
+
+        providers = client.get("/api/auth/providers").json()["providers"]
+        assert [provider["id"] for provider in providers] == ["oct"]
+        assert client.post("/api/auth/local/login", json={"username": "owner"}).status_code == 401
+
+        login = client.post(
+            "/api/auth/local/login",
+            json={"username": "owner", "password": owner_token},
+        )
+        assert login.status_code == 200
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        whoami = client.get("/api/auth/local/whoami", headers=headers)
+        assert whoami.status_code == 200
+        assert "admin" in whoami.json()["roles"]
+        assert client.get("/api/memory", headers=headers).status_code != 401
+    finally:
+        local_auth_config.configure_desktop_owner_token(None)
 
 
 def test_local_auth_dev_mode_rejects_legacy_guest_token(
@@ -458,6 +543,8 @@ def test_local_auth_jwt_audience_is_issued_and_enforced(
 ) -> None:
     from runtime.adapters.integrations.local_auth.config import LocalAuthConfig
 
+    monkeypatch.setenv("ECHO_ENV", "development")
+    monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
     monkeypatch.chdir(tmp_path)
     app = create_app(
         cocoloop_require_auth=True,
@@ -469,7 +556,7 @@ def test_local_auth_jwt_audience_is_issued_and_enforced(
             jwt_audience="echo-local-ui",
         ),
     )
-    client = TestClient(app)
+    client = TestClient(app, client=("127.0.0.1", 50000))
 
     login = client.post("/api/auth/local/login", json={"username": "alice"})
     assert login.status_code == 200
@@ -521,7 +608,7 @@ def test_android_device_ws_requires_token_when_auth_enabled(
     app = create_app(cocoloop_require_auth=True, cocoloop_identity_store=store)
     client = TestClient(app)
 
-    # No credentials → handshake refused (closed 4401 before accept).
+    # No credentials → handshake refused (closed 1008 before accept).
     with (
         pytest.raises(WebSocketDisconnect),
         client.websocket_connect("/api/android/ws/dev1") as ws,
@@ -529,7 +616,7 @@ def test_android_device_ws_requires_token_when_auth_enabled(
         ws.receive_text()
 
     # A valid ordinary-user token is authenticated but lacks device-control
-    # authority, so the handshake closes with the distinct role code.
+    # authority, so the handshake closes with the distinct role reason.
     with (
         pytest.raises(WebSocketDisconnect) as exc_info,
         client.websocket_connect(
@@ -538,7 +625,8 @@ def test_android_device_ws_requires_token_when_auth_enabled(
         ),
     ):
         pass
-    assert exc_info.value.code == 4403
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "admin/operator role required"
 
     # Valid operator token → handshake accepted.
     with client.websocket_connect(

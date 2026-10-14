@@ -783,7 +783,7 @@ def test_creative_skill_preview_only_returns_safe_text_files(monkeypatch, tmp_pa
 
     response = _client().get("/api/design/skills/creative-preview/files")
     assert response.status_code == 200
-    assert response.json()["items"] == [
+    assert sorted(response.json()["items"], key=lambda item: item["path"]) == [
         {"path": "SKILL.md", "content": "# Preview\n"},
         {"path": "references/guide.md", "content": "safe guide"},
     ]

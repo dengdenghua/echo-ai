@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import base64
 import subprocess
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, Request
+
+from runtime.platform.process.invalidation_feed import InvalidationFeed
 
 from ._fs_router_models import TREE_IGNORED_DIRS
 from ._fs_router_paths import (
@@ -43,6 +44,8 @@ class _FsContext:
     lease_store: Any = None
     mount_registry: Any = None
     group_store: Any = None
+    file_updates: InvalidationFeed | None = None
+    require_remote_flag: bool = False
 
 
 def _resolved_path(path_value: str | Path) -> Path:
@@ -52,6 +55,55 @@ def _resolved_path(path_value: str | Path) -> Path:
 def _add_scope_root(roots: list[Path], value: Any) -> None:
     if isinstance(value, str) and value.strip():
         roots.append(_resolved_path(value.strip()))
+    elif isinstance(value, Path):
+        roots.append(_resolved_path(value))
+
+
+def _thread_artifact_workspace(
+    ctx: _FsContext,
+    *,
+    thread_id: str,
+    metadata: dict[str, Any] | None = None,
+) -> Path | None:
+    """Return the server-owned thread workspace used for uploads / outputs.
+
+    Project-mode threads keep ``metadata.workspace_path`` pointed at the
+    opened project (e.g. ``D:\\pod-App``) while Echo still writes deliverables
+    under ``<workspace_root>/<thread_id>/output/...``. Preview/read must
+    accept that second root; without it the chat file chip 403s on every
+    HTML/image deliverable even though the file exists.
+    """
+    meta = metadata if isinstance(metadata, dict) else {}
+    if ctx.workspace_root is not None:
+        managed = verified_managed_workspace(
+            ctx.workspace_root,
+            thread_id=thread_id,
+            metadata=meta,
+        )
+        if managed is not None:
+            return managed
+        try:
+            from runtime.platform.runtime_policy.workspaces import WorkspaceManager
+
+            candidate = WorkspaceManager(Path(ctx.workspace_root)).path_for(thread_id)
+            # Only expose an existing layout — never create directories from a
+            # read/preview path check.
+            if candidate.is_dir():
+                return _resolved_path(candidate)
+        except (OSError, RuntimeError, TypeError, ValueError):  # noqa: BLE001 — best effort workspace layout probe
+            pass
+
+    for key in ("_artifact_output_root", "personal_workspace_path"):
+        raw = meta.get(key)
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        candidate = _resolved_path(raw.strip())
+        # ``_artifact_output_root`` is usually ``.../output/final``; allow that
+        # leaf, and also its thread workspace parent when present.
+        if candidate.name.casefold() == "final" and candidate.parent.name.casefold() == "output":
+            return candidate.parent.parent
+        return candidate
+    return None
 
 
 def _scope_roots(
@@ -72,19 +124,20 @@ def _scope_roots(
                 thread = ctx.thread_store.get(thread_id)
             if thread is None and hasattr(ctx.thread_store, "get_state"):
                 thread = ctx.thread_store.get_state(thread_id)
-            metadata = (thread or {}).get("metadata", {}) if thread else {}
-            if not isinstance(metadata, dict):
+            thread_meta = (thread or {}).get("metadata", {}) if thread else {}
+            if not isinstance(thread_meta, dict):
                 return []
             managed = verified_managed_workspace(
                 ctx.workspace_root,
                 thread_id=thread_id,
-                metadata=metadata,
+                metadata=thread_meta,
             )
             return [managed] if managed is not None else []
         except (OSError, RuntimeError, TypeError, ValueError):
             return []
 
     roots: list[Path] = []
+    metadata: dict[str, Any] | None = None
     if ctx.thread_store is not None and thread_id:
         try:
             thread = None
@@ -92,8 +145,9 @@ def _scope_roots(
                 thread = ctx.thread_store.get(thread_id)
             if thread is None and hasattr(ctx.thread_store, "get_state"):
                 thread = ctx.thread_store.get_state(thread_id)
-            metadata = (thread or {}).get("metadata", {}) if thread else {}
-            if isinstance(metadata, dict):
+            raw_metadata = (thread or {}).get("metadata", {}) if thread else {}
+            if isinstance(raw_metadata, dict):
+                metadata = raw_metadata
                 _add_scope_root(roots, metadata.get("workspace_path"))
                 extra = metadata.get("extra_workspaces")
                 if isinstance(extra, list):
@@ -102,6 +156,14 @@ def _scope_roots(
         except (OSError, TypeError, ValueError):  # noqa: BLE001 — scope root resolution failed; fall through to workspace
             pass
     _add_scope_root(roots, workspace_path)
+    if thread_id:
+        artifact_root = _thread_artifact_workspace(
+            ctx,
+            thread_id=thread_id,
+            metadata=metadata,
+        )
+        if artifact_root is not None:
+            _add_scope_root(roots, artifact_root)
 
     deduped: list[Path] = []
     seen: set[str] = set()
@@ -329,10 +391,25 @@ def _resolve_remote_workspace(
     """
     if not workspace_id or ctx.workspace_store is None:
         return None
+    if ctx.require_remote_flag:
+        from runtime.platform import feature_flags
+
+        if not feature_flags.is_on("ui.remote_workspace"):
+            raise HTTPException(403, "remote workspace disabled")
     try:
         return ctx.workspace_store.get_workspace(workspace_id)
     except Exception:  # noqa: BLE001 — store errors fall through to local path
         return None
+
+
+def _workspace_relative_path(value: str) -> str:
+    """A workspace prefix selects the mount root, never a host absolute path."""
+    from runtime.workspace.paths import workspace_relative_path
+
+    try:
+        return workspace_relative_path(value)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 def _remote_backend_for(ctx: _FsContext, ws: Any):
@@ -417,6 +494,16 @@ def _check_acl(
             },
         )
     principal = getattr(getattr(request, "state", None), "principal", None)
+    if principal is not None:
+        from runtime.workspace.access import authorized_workspace
+
+        authorized_workspace(
+            ctx.workspace_store,
+            workspace_id,
+            principal,
+            action="write" if write else "read",
+            operator_without_membership=True,
+        )
     if principal is not None and getattr(principal, "roles", frozenset()).intersection(
         {"admin", "operator"}
     ):
@@ -459,13 +546,22 @@ def _check_lease_conflict_or_acquire(
     exists, auto-acquire (or renew) the lease so the write is
     protected against concurrent writers.
 
-    If ``lease_store`` is None or ``holder_id`` is empty, this is a
-    no-op — the write proceeds without lease protection (back-compat
-    for callers that haven't adopted leases yet).
+    A missing holder never bypasses an existing lease. Legacy writes without
+    a holder remain possible only when nobody has reserved the file.
     """
-    if ctx.lease_store is None or not holder_id:
+    if ctx.lease_store is None:
         return
-    existing = ctx.lease_store.get_by_path(workspace_id, file_path)
+    try:
+        existing = ctx.lease_store.get_by_path(workspace_id, file_path)
+        if existing is None or existing.holder_id == holder_id:
+            from runtime.workspace.paths import conflicting_workspace_lease
+
+            existing = (
+                conflicting_workspace_lease(ctx.lease_store, workspace_id, file_path, holder_id)
+                or existing
+            )
+    except Exception as exc:
+        raise HTTPException(503, "file lease service unavailable; write was not performed") from exc
     if existing is not None and existing.holder_id != holder_id:
         raise HTTPException(
             409,
@@ -478,9 +574,11 @@ def _check_lease_conflict_or_acquire(
                 "lease_id": existing.lease_id,
             },
         )
+    if not holder_id:
+        return
     # Auto-acquire (or renew-in-place for the same holder) so the
     # write is exclusive for the lease TTL window.
-    with suppress(Exception):  # noqa: BLE001 — lease acquisition must not block the write
+    try:
         ctx.lease_store.acquire(
             workspace_id=workspace_id,
             file_path=file_path,
@@ -488,6 +586,12 @@ def _check_lease_conflict_or_acquire(
             ttl_seconds=1800,
             kind="exclusive",
         )
+    except Exception as exc:
+        from runtime.platform.io.lease import LeaseConflictError
+
+        if isinstance(exc, LeaseConflictError):
+            raise HTTPException(409, "file lease is held by another writer") from exc
+        raise HTTPException(503, "file lease service unavailable; write was not performed") from exc
 
 
 def _broadcast_file_written(
@@ -500,10 +604,13 @@ def _broadcast_file_written(
     """Best-effort broadcast of a ``file_written`` event on the bound
     cowork group's blackboard. Silently skips when ``group_store`` or
     ``thread_id`` is missing."""
+    if ctx.file_updates is not None:
+        ctx.file_updates.notify(workspace_id)
+        return
     if ctx.group_store is None or not thread_id:
         return
     try:
-        from runtime.workspace.cowork_bridge import broadcast_file_written
+        from runtime.workspace.group_binding import broadcast_file_written
 
         broadcast_file_written(
             ctx.group_store,

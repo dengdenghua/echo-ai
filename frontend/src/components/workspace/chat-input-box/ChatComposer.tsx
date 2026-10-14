@@ -1,4 +1,6 @@
 import { getLocalSettings } from "@/core/settings/local";
+import { StreamingSendActions } from "./StreamingSendActions";
+import { queueFollowup } from "@/core/threads/task-interaction";
 import {
   BookOpenIcon,
   ExternalLinkIcon,
@@ -20,6 +22,7 @@ import {
   PlusIcon,
   SlidersHorizontalIcon,
   SquareIcon,
+  PlayIcon,
   XIcon,
 } from "lucide-react";
 import {
@@ -54,7 +57,6 @@ import { CoderEngineControl } from "../coder-engine-control";
 import { PreviewRefreshIndicator } from "../preview-refresh-indicator";
 import { tryLocalSlash } from "../local-slash-dispatch";
 import { useSlashTypeahead } from "../use-slash-typeahead";
-import { ContextCompressor } from "../context-compressor";
 import { PermissionIndicator } from "../permission-indicator";
 import {
   DropdownMenu,
@@ -68,6 +70,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useEvent } from "@/core/events/event-bus";
 import { normalizePermissionMode } from "@/core/permissions";
 import { captureComputerAppshot } from "@/core/computer/api";
 import { uploadFiles, useAttachmentUploads } from "@/core/uploads";
@@ -81,6 +84,7 @@ import {
   type ComposerCapabilityRef,
   type ComposerCommandMode,
 } from "@/core/threads/composer-capability-refs";
+import { detectProjectIntent } from "@/core/threads/project-intent";
 
 import type { ChatInputBoxProps } from "../chat-input-box";
 import {
@@ -133,9 +137,6 @@ export function ChatComposer({
   placeholder,
   autoFocus,
   defaultValue = "",
-  contextTokens = 0,
-  maxContextTokens = 128000,
-  isCompressingContext = false,
   onCompressContext,
   allowAgentModes = false,
   permissionMode,
@@ -150,7 +151,9 @@ export function ChatComposer({
   onModeChange,
   onDeepResearch,
   onSubmit,
+  onDraftChange,
   onStop,
+  onResume,
   isStopping = false,
   isUploading = false,
   className,
@@ -174,6 +177,16 @@ export function ChatComposer({
       // (external injection, e.g. "retry this message") wins when present.
       defaultValue || (loadComposerDraft(draftStorageKey) ?? ""),
   );
+  const quoteStorageKey = `quote:${draftStorageKey ?? "__new__"}`;
+  const [quoteState, setQuoteState] = useState(() => ({
+    key: quoteStorageKey, text: loadComposerDraft(quoteStorageKey) ?? "",
+  }));
+  const quoteText = quoteState.key === quoteStorageKey
+    ? quoteState.text : (loadComposerDraft(quoteStorageKey) ?? "");
+  const setQuoteText = useCallback((text: string) => {
+    saveComposerDraft(quoteStorageKey, text);
+    setQuoteState({ key: quoteStorageKey, text });
+  }, [quoteStorageKey]);
   // Restore the stored draft when the composer moves to a different thread
   // (the component is reused across navigation).
   const prevDraftThreadRef = useRef(draftStorageKey);
@@ -297,6 +310,7 @@ export function ChatComposer({
   }, [clearPendingImagePreviews, resetAttachmentUploads, threadId]);
 
   const parsedComposerDraft = parseComposerDraft(draft);
+  useEffect(() => { onDraftChange?.(draft); }, [draft, onDraftChange]);
   const activeComposerMode = parsedComposerDraft.mode;
   const activeLongTaskMode =
     activeComposerMode === "goal" || activeComposerMode === "project"
@@ -304,12 +318,56 @@ export function ChatComposer({
       : undefined;
   const composerRefs = parsedComposerDraft.refs;
   const visibleDraft = parsedComposerDraft.body;
+  const projectIntent = useMemo(() => detectProjectIntent(draft), [draft]);
+  const [dismissedProjectIntent, setDismissedProjectIntent] = useState<
+    string | null
+  >(null);
+  const showProjectIntentSuggestion =
+    activeComposerMode !== "project" &&
+    projectIntent !== null &&
+    projectIntent !== dismissedProjectIntent;
   const setVisibleDraft = useCallback((body: string) => {
     setDraft((current) => {
       const parsed = parseComposerDraft(current);
       return serializeComposerDraft({ ...parsed, body });
     });
   }, []);
+
+  useEvent("composer:insert-mention", ({ text, submit }) => {
+    let next = "";
+    setDraft((cur) => {
+      const p = parseComposerDraft(cur);
+      next = p.body?.trimEnd() ? `${p.body.trimEnd()} ${text} ` : `${text} `;
+      return serializeComposerDraft({ ...p, body: next });
+    });
+    window.setTimeout(() => {
+      if (submit && next.trim()) {
+        onSubmit?.({ text: next.trim() });
+        return;
+      }
+      textareaRef.current?.focus();
+      const len = textareaRef.current?.value.length ?? 0;
+      textareaRef.current?.setSelectionRange(len, len);
+    }, 10);
+  });
+
+  useEffect(() => {
+    let focusTimer: ReturnType<typeof setTimeout> | undefined;
+    const quote = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== "object") return;
+      const request = detail as { threadId?: unknown; text?: unknown };
+      if (!threadId || request.threadId !== threadId || typeof request.text !== "string" || !request.text.trim()) return;
+      setQuoteText(request.text.trim());
+      clearTimeout(focusTimer);
+      focusTimer = setTimeout(() => textareaRef.current?.focus(), 0);
+    };
+    window.addEventListener("echo:quote-message", quote);
+    return () => {
+      clearTimeout(focusTimer);
+      window.removeEventListener("echo:quote-message", quote);
+    };
+  }, [threadId, setQuoteText]);
 
   // Slash-command typeahead · shared hook (see use-slash-typeahead).
   // Returns the picker JSX + a keydown handler that we call FIRST in
@@ -407,10 +465,26 @@ export function ChatComposer({
     attachmentUploads.isUploading ||
     attachmentUploads.hasFailed;
   const submissionBlocked = !readyForMutations;
+  const [connectionWaitVisible, setConnectionWaitVisible] = useState(false);
+  useEffect(() => {
+    setConnectionWaitVisible(false);
+    if (!submissionBlocked) return;
+    const timer = setTimeout(() => setConnectionWaitVisible(true), 600);
+    return () => clearTimeout(timer);
+  }, [submissionBlocked, draftStorageKey]);
+  const showConnectionStatus = submissionBlocked && (
+    connectionWaitVisible ||
+    connectionPhase === "reconnecting" ||
+    connectionPhase === "recovery_error"
+  );
   const connectionBlockedLabel =
     connectionPhase === "recovery_error"
       ? t.chatInputBox.connectionRecoveryFailed
-      : t.chatInputBox.restoringConnection;
+      : connectionPhase === "reconnecting"
+        ? t.chatInputBox.restoringConnection
+        : connectionPhase === "resuming"
+          ? t.chatInputBox.syncingConversation
+          : t.chatInputBox.connectingConversation;
   const sendLabel = t.chatInputBox.send;
   const stopLabel = t.chatInputBox.stop;
   const activeStopLabel = isStopping ? t.chatInputBox.stopping : stopLabel;
@@ -418,12 +492,6 @@ export function ChatComposer({
     () => parseComposerUrls(researchUrlText),
     [researchUrlText],
   );
-  // Only surface the context meter once it's actually filling up — showing
-  // "0%" on an empty thread is just noise. Appears at ≥50% (when compressing
-  // starts to matter), or while a compression is running.
-  const showContextCompressor =
-    maxContextTokens > 0 &&
-    (isCompressingContext || contextTokens / maxContextTokens >= 0.5);
   const sendableDraftText = visibleDraft.trim();
   const enabledPlugins = useMemo(
     () =>
@@ -572,7 +640,7 @@ export function ChatComposer({
 
   const handleSubmit = useCallback(async () => {
     const threadScope = composerThreadScopeRef.current;
-    const text = draft.trim();
+    let text = draft.trim();
     const sendableText = parseComposerDraft(text).body.trim();
     const hasImages = pendingImages.length > 0;
     const hasFiles = pendingFiles.length > 0;
@@ -580,7 +648,7 @@ export function ChatComposer({
       (!sendableText && !hasImages && !hasFiles) ||
       submissionBlocked ||
       isBusy ||
-      (status === "streaming" && (hasImages || hasFiles))
+      (status === "streaming" && !isGroupConversation && (hasImages || hasFiles))
     ) {
       return;
     }
@@ -613,6 +681,11 @@ export function ChatComposer({
       setDraft("");
       releaseSubmitLock();
       return;
+    }
+    if (quoteText) {
+      const parsed = parseComposerDraft(text);
+      const quoted = quoteText.split(/\r?\n/).map((line) => `> ${line}`).join("\n");
+      text = serializeComposerDraft({ ...parsed, body: `${parsed.body}\n\n${quoted}` });
     }
     if (isDeepResearchMode) {
       const localFileMaterials = pendingFiles
@@ -679,6 +752,7 @@ export function ChatComposer({
       }
       if (composerThreadScopeRef.current !== threadScope) return;
       if (result !== false) {
+        setQuoteText("");
         setDraft(
           activeLongTaskMode
             ? serializeComposerDraft({
@@ -713,6 +787,7 @@ export function ChatComposer({
     // If transport readiness changed between render and click, keep every
     // part of the draft instead of optimistically clearing an unsent message.
     if (accepted === false) return;
+    setQuoteText("");
     setDraft(
       activeLongTaskMode
         ? serializeComposerDraft({
@@ -733,6 +808,8 @@ export function ChatComposer({
     }
   }, [
     draft,
+    quoteText,
+    setQuoteText,
     submissionBlocked,
     isBusy,
     status,
@@ -756,6 +833,7 @@ export function ChatComposer({
     t,
     threadId,
     activeLongTaskMode,
+    isGroupConversation,
   ]);
 
   const addMaterial = useCallback((material: Partial<ResearchMaterial>) => {
@@ -853,6 +931,16 @@ export function ChatComposer({
     setDraft((current) => setComposerDraftMode(current, mode));
     window.setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
+
+  const acceptProjectIntent = useCallback(() => {
+    setDismissedProjectIntent(projectIntent);
+    setDraft((current) => setComposerDraftMode(current, "project"));
+    window.setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [projectIntent]);
+
+  const dismissProjectIntent = useCallback(() => {
+    setDismissedProjectIntent(projectIntent);
+  }, [projectIntent]);
 
   const clearLongTaskMode = useCallback(() => {
     setDraft((current) => setComposerDraftMode(current, undefined));
@@ -1257,7 +1345,7 @@ export function ChatComposer({
         !e.defaultPrevented
       ) {
         e.preventDefault();
-        handleSubmit();
+        void handleSubmit();
       }
     },
     [
@@ -1272,18 +1360,51 @@ export function ChatComposer({
   );
 
   return (
-    <div
+    <>
+      {showProjectIntentSuggestion ? (
+        <div
+          data-testid="project-intent-suggestion"
+          className="flex items-center gap-2 px-1 pb-1 text-xs text-muted-foreground"
+        >
+          <FlagIcon
+            className="size-3.5 shrink-0 text-core"
+            aria-hidden="true"
+          />
+          <span className="truncate">
+            {t.modeIntent.suggestSwitch("Project OS")}
+          </span>
+          <span className="ml-auto flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              data-testid="project-intent-accept"
+              onClick={acceptProjectIntent}
+              className="rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              {t.modeIntent.switch}
+            </button>
+            <button
+              type="button"
+              data-testid="project-intent-ignore"
+              onClick={dismissProjectIntent}
+              className="rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              {t.modeIntent.ignore}
+            </button>
+          </span>
+        </div>
+      ) : null}
+      <div
       data-testid="chat-composer"
       className={cn(
         "group relative",
         "rounded-2xl border border-border bg-card shadow-[var(--shadow-xs)]",
         "transition-[background-color,border-color,box-shadow] duration-base ease-out",
         "hover:border-border-default",
-        "focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/8",
+        "focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 focus-within:shadow-[var(--shadow-elevated)]",
         className,
       )}
     >
-      {submissionBlocked ? (
+      {showConnectionStatus ? (
         <div
           data-testid="chat-connection-status"
           role="status"
@@ -1367,14 +1488,7 @@ export function ChatComposer({
               <span
                 key={key}
                 data-testid={`composer-capability-${ref.type}-${ref.id}`}
-                className={cn(
-                  "inline-flex h-6 max-w-48 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-semibold",
-                  isPlugin &&
-                    "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-                  isSkill && "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-                  ref.type === "surface" &&
-                    "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300",
-                )}
+                className="inline-flex h-6 max-w-48 shrink-0 items-center gap-1 rounded-md bg-core/10 px-1.5 text-xs font-semibold text-core"
               >
                 {isPlugin ? (
                   <PuzzleIcon className="size-3.5" />
@@ -1401,16 +1515,7 @@ export function ChatComposer({
         {activeComposerMode ? (
           <span
             data-testid="composer-command-prefix"
-            className={cn(
-              "pointer-events-none absolute left-3 top-2.5 z-10 inline-flex items-center gap-1 text-sm font-bold leading-snug",
-              activeComposerMode === "goal" &&
-                "text-violet-600 dark:text-violet-400",
-              activeComposerMode === "plan" && "text-sky-600 dark:text-sky-400",
-              activeComposerMode === "spec" &&
-                "text-amber-600 dark:text-amber-400",
-              activeComposerMode === "project" &&
-                "text-rose-600 dark:text-rose-400",
-            )}
+            className="pointer-events-none absolute left-3 top-2.5 z-10 inline-flex items-center gap-1 text-sm font-bold leading-snug text-core"
           >
             {activeComposerMode === "project" ? (
               <FlagIcon className="size-4" />
@@ -1462,6 +1567,16 @@ export function ChatComposer({
         />
       </div>
       </div>
+      {quoteText && (
+        <div data-testid="composer-quote" className="mx-3 mb-2 flex min-w-0 items-center gap-2 border-l-2 border-muted-foreground/20 pl-2 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate" title={quoteText}>{quoteText}</span>
+          <button type="button" data-testid="composer-remove-quote" aria-label={t.conversation.removeQuote}
+            onClick={() => setQuoteText("")}
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-full hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <XIcon className="size-3" />
+          </button>
+        </div>
+      )}
       {isDeepResearchMode && researchConfigOpen && (
         <ResearchSourcePicker
           researchUrlText={researchUrlText}
@@ -1542,7 +1657,7 @@ export function ChatComposer({
                 type="button"
                 data-testid="chat-tools-trigger"
                 disabled={isBusy || status === "streaming"}
-                className="relative flex size-[42px] items-center justify-center rounded-lg text-muted-foreground/70 outline-none transition-all duration-base hover:bg-muted/60 hover:text-foreground focus-visible:bg-muted/60 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45 sm:size-8 active:scale-95"
+                className="relative flex size-[42px] items-center justify-center rounded-lg text-muted-foreground outline-none transition-all duration-base hover:bg-muted/60 hover:text-foreground focus-visible:bg-muted/60 focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-45 sm:size-8 active:scale-95"
                 title={toolsMenuTitle}
                 aria-label={toolsMenuLabel}
               >
@@ -1749,7 +1864,7 @@ export function ChatComposer({
                         }
                         className="items-start gap-2 rounded-lg py-2 text-sm"
                       >
-                        <PuzzleIcon className="mt-0.5 size-4 text-violet-600" />
+                        <PuzzleIcon className="mt-0.5 size-4 text-muted-foreground" />
                         <span className="min-w-0">
                           <span className="block truncate font-medium">
                             {plugin.name}
@@ -1831,7 +1946,7 @@ export function ChatComposer({
                         }
                         className="items-start gap-2 rounded-lg py-2 text-sm"
                       >
-                        <BookOpenIcon className="mt-0.5 size-4 text-blue-600" />
+                        <BookOpenIcon className="mt-0.5 size-4 text-muted-foreground" />
                         <span className="min-w-0">
                           <span className="block truncate font-medium">
                             {skill.name}
@@ -1934,18 +2049,6 @@ export function ChatComposer({
               )}
             </button>
           ) : null}
-          {/* 上下文压缩指示器 */}
-          {showContextCompressor && (
-            <div className="composer-footer__secondary contents">
-              <ContextCompressor
-                currentTokens={contextTokens}
-                maxTokens={maxContextTokens}
-                isCompressing={isCompressingContext}
-                onCompress={onCompressContext}
-                disabled={isBusy || status === "streaming"}
-              />
-            </div>
-          )}
         </div>
         <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-1">
           {responseModeControl ? (
@@ -2005,17 +2108,16 @@ export function ChatComposer({
           </div>
           {status === "streaming" && sendableDraftText ? (
             <>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                data-testid="chat-steer-button"
-                disabled={isBusy || submissionBlocked}
-                className="flex size-[42px] items-center justify-center rounded-lg bg-foreground text-background transition-all duration-base hover:bg-foreground/90 active:scale-95 disabled:cursor-wait disabled:opacity-70 sm:size-8"
-                title={submissionBlocked ? connectionBlockedLabel : sendLabel}
-                aria-label={sendLabel}
-              >
-                <SendHorizontalIcon className="size-3.5" />
-              </button>
+              <StreamingSendActions group={isGroupConversation} busy={isBusy}
+                blocked={submissionBlocked} blockedLabel={connectionBlockedLabel}
+                hasAttachments={pendingImages.length > 0 || pendingFiles.length > 0}
+                onSubmit={() => { void handleSubmit(); }}
+                onQueueLater={() => {
+                  const parsed = parseComposerDraft(draft.trim());
+                  const quoted = quoteText.split(/\r?\n/).map(line => `> ${line}`).join("\n");
+                  const text = serializeComposerDraft({ ...parsed, body: quoteText ? `${parsed.body}\n\n${quoted}` : parsed.body });
+                  if (queueFollowup(threadId, text)) { setVisibleDraft(""); setQuoteText(""); }
+                }} />
               <button
                 type="button"
                 onClick={onStop}
@@ -2062,6 +2164,16 @@ export function ChatComposer({
                 />
               )}
             </button>
+          ) : onResume && !sendableDraftText && pendingImages.length === 0 && pendingFiles.length === 0 ? (
+            <button
+              type="button"
+              data-testid="chat-resume-button"
+              onClick={onResume}
+              disabled={isBusy || submissionBlocked || isStopping}
+              className="flex size-[42px] items-center justify-center rounded-lg bg-foreground text-background disabled:opacity-50 sm:size-8"
+              aria-label="继续执行"
+              title="继续当前任务，保留已有上下文；不会恢复已结束的终端进程"
+            ><PlayIcon className="size-3.5" /></button>
           ) : (
             <button
               type="button"
@@ -2079,7 +2191,7 @@ export function ChatComposer({
                 isDeepResearchMode
                   ? "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
                   : "bg-foreground text-background hover:bg-foreground/90 active:scale-95",
-                "disabled:bg-transparent disabled:text-muted-foreground/50 disabled:cursor-not-allowed disabled:hover:bg-muted/60 disabled:hover:text-muted-foreground",
+                "disabled:bg-transparent disabled:text-muted-foreground disabled:cursor-not-allowed disabled:hover:bg-muted/60 disabled:hover:text-muted-foreground",
               )}
               // A disabled send button should say why it is disabled.
               title={
@@ -2103,5 +2215,6 @@ export function ChatComposer({
         </div>
       </div>
     </div>
+    </>
   );
 }

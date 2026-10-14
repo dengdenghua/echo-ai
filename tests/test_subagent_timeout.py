@@ -170,42 +170,45 @@ def test_parent_redirect_returns_cancelled_and_fences_late_child_events():
 
     started = threading.Event()
     emitted: list[dict] = []
+    release_child = threading.Event()
+    late_emitted = threading.Event()
 
     def _late_runner(prompt, *, subagent_name, context):
         token = current_cancellation_token()
         started.set()
         while not token.is_cancelled:
             time.sleep(0.005)
-        time.sleep(0.12)
+        release_child.wait(timeout=5)
         context["event_emitter"]({"type": "sub_tool_end", "round": 9, "status": "success"})
+        late_emitted.set()
         return "late child success"
 
     _install_runner(_late_runner)
     parent = CancellationSource()
 
     def _redirect() -> None:
-        assert started.wait(timeout=1)
+        assert started.wait(timeout=5)
         parent.cancel(reason="user changed direction")
 
     thread = threading.Thread(target=_redirect)
     thread.start()
-    before = time.monotonic()
-    with scoped_cancellation(parent.token):
-        result = call_subagent(
-            agent_id="coder",
-            prompt="old task",
-            event_emitter=emitted.append,
-        )
-    elapsed = time.monotonic() - before
-    thread.join(timeout=1)
-
-    assert elapsed < 0.5
+    try:
+        with scoped_cancellation(parent.token):
+            result = call_subagent(
+                agent_id="coder",
+                prompt="old task",
+                event_emitter=emitted.append,
+            )
+        assert not late_emitted.is_set(), "cancellation must detach the unfinished child"
+    finally:
+        release_child.set()
+        thread.join(timeout=5)
+        assert late_emitted.wait(timeout=5)
     assert result["status"] == "cancelled"
     assert result["cancelled"] is True
     assert result["output"] == ""
     assert result["cancellation_reason"] == "user changed direction"
 
-    time.sleep(0.18)
     finished = [event for event in emitted if event["type"] == "subagent_finished"]
     assert len(finished) == 1
     assert finished[0]["status"] == "cancelled"

@@ -1,14 +1,20 @@
 """Local file inventory; presence does not imply runtime execution permission."""
+
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
+import threading
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from runtime.platform.process.paths import app_paths, resources_root
+
+_log = logging.getLogger(__name__)
 
 SKIP_DIRS = {".git", "node_modules", ".venv", "__pycache__", "dist", "build", "release"}
 
@@ -28,49 +34,103 @@ def skill_roots() -> list[tuple[Path, str]]:
     ]
 
 
+# SKILL.md parses keyed by resolved path and validated by (mtime_ns, size). The inventory backs
+# every HUB / automation page load and walks hundreds of skills; re-reading and YAML-parsing every
+# file each time took seconds. An edited file changes its stat and is parsed again.
+_PARSED: dict[str, tuple[int, int, dict[str, Any], str]] = {}
+
+
+def _skill_files(root: Path) -> Iterator[os.DirEntry[str]]:
+    """Yield SKILL.md entries depth-first in sorted order, the order ``os.walk`` gave before.
+
+    Symlinked files and directories are skipped, as are ``SKIP_DIRS``. ``DirEntry`` carries the
+    type and stat from the directory listing, so no extra syscall per directory.
+    """
+    stack = [str(root)]
+    while stack:
+        directory = stack.pop()
+        try:
+            with os.scandir(directory) as listing:
+                entries = list(listing)
+        except OSError:
+            continue
+        subdirs: list[str] = []
+        skill: os.DirEntry[str] | None = None
+        for entry in entries:
+            if entry.name == "SKILL.md":
+                if entry.is_file(follow_symlinks=False):
+                    skill = entry
+            elif entry.name not in SKIP_DIRS and entry.is_dir(follow_symlinks=False):
+                subdirs.append(entry.path)
+        if skill is not None:
+            yield skill
+        stack.extend(sorted(subdirs, reverse=True))
+
+
+def _parse_skill(entry: os.DirEntry[str], resolved: str) -> tuple[dict[str, Any], str] | None:
+    """Front matter and sha256 of one SKILL.md, from the cache while its stat is unchanged."""
+    try:
+        stat = entry.stat(follow_symlinks=False)
+    except OSError:
+        return None
+    cached = _PARSED.get(resolved)
+    if cached is not None and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
+        return cached[2], cached[3]
+    try:
+        content = Path(resolved).read_bytes()
+    except OSError:
+        return None
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = content.decode("gb18030", errors="replace")
+    fm: dict[str, Any] = {}
+    if text.startswith("---\n") or text.startswith("---\r\n"):
+        try:
+            parsed = yaml.safe_load(text.split("---", 2)[1])
+            if isinstance(parsed, dict):
+                fm = parsed
+        except (
+            yaml.YAMLError
+        ):  # intentional: Keep filename-derived inventory metadata for malformed YAML.
+            pass
+    sha = hashlib.sha256(content).hexdigest()
+    _PARSED[resolved] = (stat.st_mtime_ns, stat.st_size, fm, sha)
+    return fm, sha
+
+
 def scan_local_skills(roots: list[tuple[Path, str]] | None = None) -> list[dict[str, Any]]:
     by_name: dict[str, dict[str, Any]] = {}
-    visited: set[Path] = set()
+    visited: set[str] = set()
     for root, source in roots if roots is not None else skill_roots():
         if not root.is_dir():
             continue
-        for directory, dirs, files in os.walk(root, followlinks=False):
-            dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not (Path(directory) / d).is_symlink())
-            if "SKILL.md" not in files:
+        for entry in _skill_files(root):
+            resolved = os.path.realpath(entry.path)
+            if resolved in visited:
                 continue
-            md = Path(directory) / "SKILL.md"
-            if md.is_symlink() or md.resolve() in visited:
+            visited.add(resolved)
+            parsed = _parse_skill(entry, resolved)
+            if parsed is None:
                 continue
-            visited.add(md.resolve())
-            try:
-                content = md.read_bytes()
-                try:
-                    text = content.decode("utf-8-sig")
-                except UnicodeDecodeError:
-                    text = content.decode("gb18030", errors="replace")
-                fm: dict[str, Any] = {}
-                if text.startswith("---\n") or text.startswith("---\r\n"):
-                    try:
-                        parsed = yaml.safe_load(text.split("---", 2)[1])
-                        if isinstance(parsed, dict):
-                            fm = parsed
-                    except yaml.YAMLError:
-                        pass
-            except OSError:
-                continue
-            name = str(fm.get("name") or md.parent.name).strip()
+            fm, sha = parsed
+            md = Path(resolved)
+            name = str(fm.get("name") or Path(entry.path).parent.name).strip()
             metadata = fm.get("metadata") if isinstance(fm.get("metadata"), dict) else {}
             author = fm.get("author") or metadata.get("author")
             if isinstance(author, dict):
                 author = author.get("name")
             author = author.strip() if isinstance(author, str) else ""
             key = name.casefold()
-            variant = {"path": str(md.parent.resolve()), "sha256": hashlib.sha256(content).hexdigest()}
+            variant = {"path": str(md.parent), "sha256": sha}
             if key in by_name:
                 by_name[key]["variants"].append(variant)
                 continue
             by_name[key] = {
-                "id": name, "name": name, "kind": "skill", "source": source,
+                "id": name,
+                "name": name,
+                "kind": "skill",
+                "source": source,
                 "description": str(fm.get("description") or ""),
                 "author": author,
                 "version": str(fm.get("version") or "0.1.0"),
@@ -79,7 +139,30 @@ def scan_local_skills(roots: list[tuple[Path, str]] | None = None) -> list[dict[
     return [by_name[key] for key in sorted(by_name)]
 
 
-def public_skill_inventory() -> list[dict[str, Any]]:
-    return [{key: value for key, value in item.items() if key != "variants"}
-            for item in scan_local_skills()
-            if not item["name"].startswith(("android.", "ios."))]
+def warm_on_startup(app: Any) -> None:
+    """Parse every SKILL.md once, in the background, when ``app`` starts.
+
+    A cold scan reads and YAML-parses hundreds of files (about 6 s for ~600
+    skills, more with a cold disk cache); the first HUB or automation page
+    load used to pay for it. Later scans reuse the stat-validated cache.
+    """
+
+    def _warm() -> None:
+        try:
+            scan_local_skills()
+        except Exception as exc:  # noqa: BLE001 — intentional: warming is best effort
+            _log.debug("skill inventory warm-up skipped: %s", exc)
+
+    async def _start() -> None:
+        threading.Thread(target=_warm, name="skill-inventory-warm", daemon=True).start()
+
+    app.router.add_event_handler("startup", _start)
+
+
+def public_skill_inventory(rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """The inventory without file variants; pass ``rows`` to reuse a scan already made."""
+    return [
+        {key: value for key, value in item.items() if key != "variants"}
+        for item in (scan_local_skills() if rows is None else rows)
+        if not item["name"].startswith(("android.", "ios."))
+    ]

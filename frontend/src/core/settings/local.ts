@@ -4,6 +4,10 @@ import { emitSettingsChanged, eventBus } from "../events";
 export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   notification: {
     enabled: true,
+    completed: true,
+    failed: true,
+    approval: true,
+    paused: true,
   },
   context: {
     // ``auto`` is the shared sentinel for "let the backend ModelRouter pick"
@@ -62,6 +66,12 @@ export interface LocalSettings {
   notification: {
     enabled: boolean;
     only_when_unfocused?: boolean;
+    /** Per-category toggles for long-task attention notifications (see
+     * core/notification/attention.ts). Missing means on. */
+    completed?: boolean;
+    failed?: boolean;
+    approval?: boolean;
+    paused?: boolean;
   };
   context: Omit<
     AgentThreadContext,

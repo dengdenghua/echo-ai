@@ -352,13 +352,15 @@ class TestExecShell:
         r = _exec_shell(command=["no_such_binary_xyz_1234"])
         assert "error" in r
 
-    def test_stream_error_preserves_execution_policy(self, monkeypatch: pytest.MonkeyPatch):
+    def test_stream_error_preserves_execution_policy(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
         monkeypatch.setattr(
             "runtime.platform.process.streaming.stream_run",
             lambda *args, **kwargs: _stream_error_result("sandbox_violation"),
         )
 
-        r = _exec_shell(command=["blocked-tool"], sandbox_dir="/tmp")
+        r = _exec_shell(command=["blocked-tool"], sandbox_dir=str(tmp_path))
 
         assert "error" in r
         assert r["execution_policy"]["schema"] == "echo.execution_policy.v1"
@@ -393,9 +395,10 @@ class TestExecShell:
         assert "error" in r
         assert "escapes_sandbox" in r["error"]
 
-    def test_sandbox_dir_defaults_cwd_to_workspace(self, tmp_path: Path):
+    def test_sandbox_dir_defaults_cwd_to_workspace(self, tmp_path: Path, monkeypatch):
         import sys
 
+        monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
         r = _exec_shell(
             command=[
                 sys.executable,
@@ -422,6 +425,7 @@ class TestExecShell:
     ):
         import sys
 
+        monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
         monkeypatch.setenv("ECHO_TEST_SECRET", "do-not-inherit")
 
         r = _exec_shell(
@@ -629,7 +633,12 @@ def test_quality_paths_reject_scope_escape(tmp_path: Path, bad_path: str):
 
     for quality_tool in (_run_tests, _lint_check, _format_code):
         result = quality_tool(cwd=str(tmp_path), paths=bad_path)
-        assert result["error"] == f"invalid path: {bad_path}"
+        # Windows treats /tmp as drive-relative; either validation layer must
+        # reject the escape before launching a quality command.
+        assert result["error"] in {
+            f"invalid path: {bad_path}",
+            f"path escapes cwd: {bad_path}",
+        }
 
 
 # ═══════════════════════════════════════════════════════════
@@ -816,7 +825,7 @@ class TestBackgroundExec:
         monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))
         stdout_path = tmp_path / "stdout.txt"
         stderr_path = tmp_path / "stderr.txt"
-        stdout_path.write_text("partial\n", encoding="utf-8")
+        stdout_path.write_bytes(b"partial\n")
         stderr_path.write_text("", encoding="utf-8")
         monkeypatch.setattr(
             "runtime.execution.suckers.write_skills._probe_process",
@@ -993,3 +1002,92 @@ class TestEndToEnd:
         )
         assert step.success
         assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "via-agent"
+
+
+# ── handler-reported file changes (P1-9 format ownership) ────────────
+
+
+def _file_changes(result: dict[str, object]) -> list[dict[str, str]]:
+    changes = result["file_changes"]
+    assert isinstance(changes, list) and changes, result
+    return changes  # type: ignore[return-value]
+
+
+def _op(result: dict[str, object]) -> str:
+    return str(_file_changes(result)[0]["op"])
+
+
+def _reported_path(result: dict[str, object]) -> Path:
+    return Path(str(_file_changes(result)[0]["path"])).resolve()
+
+
+def test_write_text_file_reports_create_then_update(tmp_path: Path):
+    target = tmp_path / "note.md"
+
+    created = _write_text_file(path=str(target), content="one\n", sandbox_dir=str(tmp_path))
+    assert created["verified"] is True
+    assert _op(created) == "create"
+    assert _reported_path(created) == target.resolve()
+
+    updated = _write_text_file(
+        path=str(target), content="two\n", sandbox_dir=str(tmp_path), overwrite=True
+    )
+    assert _op(updated) == "update"
+    assert _reported_path(updated) == target.resolve()
+
+
+def test_append_reports_create_then_update(tmp_path: Path):
+    target = tmp_path / "log.md"
+
+    assert (
+        _op(_append_text_file(path=str(target), content="a\n", sandbox_dir=str(tmp_path)))
+        == "create"
+    )
+    assert (
+        _op(_append_text_file(path=str(target), content="b\n", sandbox_dir=str(tmp_path)))
+        == "update"
+    )
+
+
+def test_every_edit_primitive_reports_an_update(tmp_path: Path):
+    target = tmp_path / "doc.md"
+    target.write_text("alpha beta\n", encoding="utf-8")
+
+    edited = _edit_text_file(
+        path=str(target), find="beta", replace="gamma", sandbox_dir=str(tmp_path)
+    )
+    assert _op(edited) == "update"
+
+    swapped = _edit_file(
+        path=str(target), old_string="gamma", new_string="delta", sandbox_dir=str(tmp_path)
+    )
+    assert _op(swapped) == "update"
+
+    multi = _multi_edit_file(
+        path=str(target),
+        edits=[{"old_string": "delta", "new_string": "epsilon"}],
+        sandbox_dir=str(tmp_path),
+    )
+    assert _op(multi) == "update"
+    assert all(_reported_path(r) == target.resolve() for r in (edited, swapped, multi))
+
+
+def test_failed_write_claims_no_file_change(tmp_path: Path):
+    target = tmp_path / "keep.md"
+    target.write_text("original\n", encoding="utf-8")
+
+    refused = _write_text_file(path=str(target), content="clobber\n", sandbox_dir=str(tmp_path))
+    assert "error" in refused
+    assert "file_changes" not in refused
+
+
+def test_unverified_write_claims_no_file_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A read-back mismatch must not be advertised as a completed change."""
+    target = tmp_path / "ghost.md"
+
+    monkeypatch.setattr(Path, "read_bytes", lambda self: b"something else")
+
+    result = _write_text_file(path=str(target), content="payload\n", sandbox_dir=str(tmp_path))
+
+    assert "verify_error" in result
+    assert "file_changes" not in result

@@ -52,10 +52,11 @@ def create_system_router(
         """Resolve full Identity for role checks. None when auth disabled."""
         if not require_auth or identity_store is None:
             return None
-        auth = request.headers.get("Authorization") or ""
-        if not auth.lower().startswith("bearer "):
+        from runtime.safety.auth.credential import request_credential
+
+        token = request_credential(request)
+        if not token:
             return None
-        token = auth[7:].strip()
         if jwt_secret and token.count(".") == 2:
             with contextlib.suppress(Exception):
                 identity = identity_store.verify_jwt(
@@ -96,6 +97,11 @@ def create_system_router(
         from runtime.platform.lifecycle.factory_reset import perform_factory_reset
         from runtime.platform.process.paths import project_root as _project_root
 
+        # Release in-process handles (search.db, team state) before deleting
+        # files; Windows refuses to remove a database that is still open.
+        if callable(memory_reset_callback):
+            with contextlib.suppress(Exception):
+                memory_reset_callback()
         result = perform_factory_reset(
             project_root=project_root or _project_root(),
             user_home=user_home,
@@ -103,9 +109,6 @@ def create_system_router(
                 payload.get("clear_user_install_state", True),
             ),
         )
-        if callable(memory_reset_callback):
-            with contextlib.suppress(Exception):
-                memory_reset_callback()
         return {
             "ok": result.ok,
             "removed_paths": result.removed_paths,

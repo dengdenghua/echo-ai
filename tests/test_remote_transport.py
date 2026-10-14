@@ -90,6 +90,7 @@ def test_add_then_list(store_path: Path) -> None:
         "http": True,
         "realtime": True,
         "ssh_tunnel": False,
+        "wsl": False,
     }
 
 

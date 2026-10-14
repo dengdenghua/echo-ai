@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { getBackendBaseURL } from "@/core/config";
+import { isEchoAgentId, PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -12,12 +13,15 @@ interface AgentMessageHeaderProps {
 
 export function AgentAvatar({
   agentDisplayName,
+  agentId,
   avatarUrl,
-  icon,
   className = "h-6 w-6 rounded-lg",
 }: {
   agentDisplayName: string;
+  /** Lets the default Echo agent wear the ECHO mark. */
+  agentId?: string | null;
   avatarUrl?: string;
+  /** Legacy emoji icon; accepted for callers but never drawn (BRAND.md). */
   icon?: string | null;
   className?: string;
 }) {
@@ -31,17 +35,14 @@ export function AgentAvatar({
   useEffect(() => {
     setFailedAvatarUrl(null);
   }, [fullAvatarUrl]);
-  const showImage = Boolean(fullAvatarUrl && failedAvatarUrl !== fullAvatarUrl);
-  const emoji = icon?.trim() || "";
-  const initial = (agentDisplayName || "?").trim().charAt(0).toUpperCase();
+  const showImage =
+    !isEchoAgentId(agentId) &&
+    Boolean(fullAvatarUrl && failedAvatarUrl !== fullAvatarUrl);
 
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden border border-border-default bg-muted text-sm leading-none",
-        !showImage &&
-          !emoji &&
-          "text-xs font-semibold text-muted-foreground",
+        "flex shrink-0 items-center justify-center overflow-hidden border border-border-default bg-muted text-xs leading-none",
         className,
       )}
     >
@@ -52,10 +53,8 @@ export function AgentAvatar({
           className="h-full w-full object-cover"
           onError={() => setFailedAvatarUrl(fullAvatarUrl)}
         />
-      ) : emoji ? (
-        emoji
       ) : (
-        initial
+        <PersonaGlyph agentId={agentId} name={agentDisplayName} />
       )}
     </div>
   );

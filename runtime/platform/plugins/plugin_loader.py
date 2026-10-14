@@ -462,11 +462,7 @@ class PluginLoader:
             if attr_name.startswith("_"):
                 continue
             attr = getattr(mod, attr_name)
-            if (
-                isinstance(attr, type)
-                and issubclass(attr, EchoPlugin)
-                and attr is not EchoPlugin
-            ):
+            if isinstance(attr, type) and issubclass(attr, EchoPlugin) and attr is not EchoPlugin:
                 return attr
         return None
 

@@ -57,7 +57,7 @@ Octo 的优势不在模型能力，而在企业协作基础设施已成体系：
 | 权限治理 | `safety/auth/trust_engine.py`（语言级信任） | 组织级 RBAC / 数据范围 / 工具权限 / 审批 / 密钥隔离 |
 | 可审计性 | `safety/audit/audit_chain.py`（HMAC 链） | 权限变更 / 审批取证 / 数据引用溯源 / 回滚 |
 | 工程可靠性 | `core/cerebrum/react_resume.py`（断点恢复） | 消息持久化 / 幂等 / 任务接管 / 多实例高可用 |
-| 团队拓扑 | `sensing/gateway/organizations_router.py`（拓扑演进） | 从「拓扑建议」升级为「真实组织 + 权限」 |
+| 团队拓扑 | `sensing/gateway/topology_router.py`（拓扑演进） | 与 `org_router.py` 的企业组织及权限保持独立边界 |
 
 ---
 

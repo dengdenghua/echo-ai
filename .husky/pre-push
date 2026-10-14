@@ -1,0 +1,25 @@
+#!/bin/sh
+# Re-run the CI ratchets on each pushed commit, plus the slower whole-tree
+# scans (import direction, orphan modules, async lock/blocking, repo URLs).
+# tools/hooks/commit_tree_gates.py checks a snapshot of the pushed commit,
+# so uncommitted files in this shared checkout do not affect the result.
+# Top of the working tree, in the /e/... form on Windows (see pre-commit).
+repo_root="$(pwd)"
+if command -v cygpath >/dev/null 2>&1; then repo_root="$(cygpath -u "$repo_root")"; fi
+for venv_bin in "$repo_root/.venv/Scripts" "$repo_root/.venv/bin"; do
+  [ -d "$venv_bin" ] && PATH="$venv_bin:$PATH"
+done
+export PATH
+
+if ! python -c "" >/dev/null 2>&1; then
+  echo "husky(pre-push): no usable python (create .venv with uv sync) — skipping" >&2
+  exit 0
+fi
+
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue # deleting a remote branch
+  python "$repo_root/tools/hooks/commit_tree_gates.py" --push "$remote_sha" "$local_sha" || status=1
+done
+exit $status

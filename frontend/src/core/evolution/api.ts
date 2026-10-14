@@ -1,23 +1,61 @@
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  apiGet,
+  apiPost,
+  failureDetail,
+  type ApiFailure,
+} from "@/core/api/request";
+import { looseBody } from "@/core/api/response";
+import {
+  hasActiveCount,
+  hasOk,
+  hasRunId,
+  hasTotal,
+  isAgentBenchmarkReport,
+  isCandidateCanaryStatus,
+  isCodexGapReport,
+  isControlledExperimentEvidence,
+  isDriftReport,
+  isDualHelixEvidence,
+  isDualHelixShadowStatus,
+  isEvolutionCandidateList,
+  isEvolutionOverview,
+  isEvolutionStory,
+  isFitnessReport,
+  isLearningCurvePointList,
+  isMemoryGrowthPointList,
+  isRecommendationList,
+  isSkillPerformanceList,
+} from "./guards";
 
-async function evolutionFetch(
-  path: string,
-  init?: RequestInit,
-): Promise<Response> {
+const EVOLUTION_TIMEOUT_MS = 8_000;
+
+/** Run an evolution request with an 8s abort budget. */
+async function withEvolutionTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 8_000);
-  const abortFromCaller = () => controller.abort();
-  init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    EVOLUTION_TIMEOUT_MS,
+  );
   try {
-    return await fetch(`${getBackendBaseURL()}${path}`, {
-      ...init,
-      signal: controller.signal,
-    });
+    return await run(controller.signal);
   } finally {
     window.clearTimeout(timeoutId);
-    init?.signal?.removeEventListener("abort", abortFromCaller);
   }
+}
+
+/** Keep this module's historical ``"<label>: <statusText>"`` wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/** A truthy body ``detail`` wins, else ``fallback``. */
+function detailOr(fallback: (failure: ApiFailure) => string) {
+  return (failure: ApiFailure): string => {
+    const detail = failureDetail(failure);
+    return detail ? String(detail) : fallback(failure);
+  };
 }
 
 export interface EvolutionOverview {
@@ -354,121 +392,136 @@ export interface DualHelixShadowStatus {
 }
 
 export async function getEvolutionOverview(): Promise<EvolutionOverview> {
-  const res = await evolutionFetch("/api/evolution/overview", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load evolution overview: ${res.statusText}`);
-  return (await res.json()) as EvolutionOverview;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/overview", {
+        signal,
+        errorMessage: failed("Failed to load evolution overview"),
+      }),
+    ),
+    isEvolutionOverview,
+  );
 }
 
 export async function getCodexGapReport(): Promise<CodexGapReport> {
-  const res = await evolutionFetch("/api/evolution/codex-gap", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load Codex gap report: ${res.statusText}`);
-  return (await res.json()) as CodexGapReport;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/codex-gap", {
+        signal,
+        errorMessage: failed("Failed to load Codex gap report"),
+      }),
+    ),
+    isCodexGapReport,
+  );
 }
 
 export async function getAgentBenchmarkReport(): Promise<AgentBenchmarkReport> {
-  const res = await evolutionFetch("/api/evolution/agent-benchmark", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load agent benchmark: ${res.statusText}`);
-  return (await res.json()) as AgentBenchmarkReport;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/agent-benchmark", {
+        signal,
+        errorMessage: failed("Failed to load agent benchmark"),
+      }),
+    ),
+    isAgentBenchmarkReport,
+  );
 }
 
 export async function getDualHelixEvidence(): Promise<DualHelixEvidence> {
-  const res = await evolutionFetch("/api/evolution/dual-helix/evidence", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load dual-helix evidence: ${res.statusText}`);
-  return (await res.json()) as DualHelixEvidence;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/dual-helix/evidence", {
+        signal,
+        errorMessage: failed("Failed to load dual-helix evidence"),
+      }),
+    ),
+    isDualHelixEvidence,
+  );
 }
 
 export async function getControlledExperimentEvidence(): Promise<ControlledExperimentEvidence> {
-  const res = await evolutionFetch("/api/evolution/experiments/evidence", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(
-      `Failed to load controlled experiment evidence: ${res.statusText}`,
-    );
-  return (await res.json()) as ControlledExperimentEvidence;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/experiments/evidence", {
+        signal,
+        errorMessage: failed("Failed to load controlled experiment evidence"),
+      }),
+    ),
+    isControlledExperimentEvidence,
+  );
 }
 
 export async function getEvolutionCandidates(): Promise<EvolutionCandidateList> {
-  const res = await evolutionFetch("/api/evolution/candidates", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load evolution candidates: ${res.statusText}`);
-  return (await res.json()) as EvolutionCandidateList;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/candidates", {
+        signal,
+        errorMessage: failed("Failed to load evolution candidates"),
+      }),
+    ),
+    isEvolutionCandidateList,
+  );
 }
 
 export async function registerCandidateCanary(
   candidateId: string,
 ): Promise<CandidateCanaryStatus> {
-  const res = await evolutionFetch(
-    `/api/evolution/candidates/${encodeURIComponent(candidateId)}/canary/register`,
-    { method: "POST", headers: jsonAuthHeaders() },
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiPost("/api/evolution/candidates/{candidate_id}/canary/register", {
+        path: { candidate_id: candidateId },
+        // Bodiless, but the JSON content type was always sent.
+        headers: { "Content-Type": "application/json" },
+        signal,
+        errorMessage: detailOr(() => "Failed to register candidate canary"),
+      }),
+    ),
+    isCandidateCanaryStatus,
   );
-  if (!res.ok) {
-    const detail = (await res.json().catch(() => null)) as {
-      detail?: string;
-    } | null;
-    throw new Error(detail?.detail || `Failed to register candidate canary`);
-  }
-  return (await res.json()) as CandidateCanaryStatus;
 }
 
 export async function rollbackEvolutionCandidate(
   candidateId: string,
   reason = "operator rollback",
 ): Promise<CandidateCanaryStatus> {
-  const res = await evolutionFetch(
-    `/api/evolution/candidates/${encodeURIComponent(candidateId)}/rollback`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ reason }),
-    },
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiPost("/api/evolution/candidates/{candidate_id}/rollback", {
+        path: { candidate_id: candidateId },
+        body: { reason },
+        signal,
+        errorMessage: detailOr(() => "Failed to rollback candidate"),
+      }),
+    ),
+    isCandidateCanaryStatus,
   );
-  if (!res.ok) {
-    const detail = (await res.json().catch(() => null)) as {
-      detail?: string;
-    } | null;
-    throw new Error(detail?.detail || `Failed to rollback candidate`);
-  }
-  return (await res.json()) as CandidateCanaryStatus;
 }
 
 export async function getDualHelixShadowStatus(): Promise<DualHelixShadowStatus> {
-  const res = await evolutionFetch("/api/evolution/dual-helix/shadow/status", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load shadow status: ${res.statusText}`);
-  return (await res.json()) as DualHelixShadowStatus;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/dual-helix/shadow/status", {
+        signal,
+        errorMessage: failed("Failed to load shadow status"),
+      }),
+    ),
+    isDualHelixShadowStatus,
+  );
 }
 
 export async function setDualHelixShadowEnabled(
   enabled: boolean,
 ): Promise<DualHelixShadowStatus> {
-  const res = await evolutionFetch(
-    "/api/evolution/dual-helix/shadow/settings",
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify({ enabled }),
-    },
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiPost("/api/evolution/dual-helix/shadow/settings", {
+        body: { enabled },
+        signal,
+        errorMessage: failed("Failed to update shadow status"),
+      }),
+    ),
+    isDualHelixShadowStatus,
   );
-  if (!res.ok)
-    throw new Error(`Failed to update shadow status: ${res.statusText}`);
-  return (await res.json()) as DualHelixShadowStatus;
 }
 
 export interface DualHelixShadowRunRequest {
@@ -489,100 +542,107 @@ export interface DualHelixShadowRunRequest {
 export async function queueDualHelixShadowRun(
   body: DualHelixShadowRunRequest,
 ): Promise<DualHelixShadowStatus["runs"][number]> {
-  const res = await evolutionFetch("/api/evolution/dual-helix/shadow/run", {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const detail = (await res.json().catch(() => null)) as {
-      detail?: string;
-    } | null;
-    throw new Error(
-      detail?.detail || `Failed to queue shadow review: ${res.statusText}`,
-    );
-  }
-  const value = (await res.json()) as DualHelixShadowStatus["runs"][number] & {
-    ok?: boolean;
-  };
+  const value = looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiPost("/api/evolution/dual-helix/shadow/run", {
+        body,
+        signal,
+        errorMessage: detailOr(failed("Failed to queue shadow review")),
+      }),
+    ),
+    hasRunId,
+  );
   return value;
 }
 
 export async function getEvolutionStory(): Promise<EvolutionStory> {
-  const res = await evolutionFetch("/api/evolution/story", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load evolution story: ${res.statusText}`);
-  return (await res.json()) as EvolutionStory;
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/story", {
+        signal,
+        errorMessage: failed("Failed to load evolution story"),
+      }),
+    ),
+    isEvolutionStory,
+  );
 }
 
 export async function getLearningCurve(
   weeks?: number,
 ): Promise<LearningCurvePoint[]> {
-  const params = new URLSearchParams();
-  if (weeks !== undefined) params.set("weeks", String(weeks));
-  const qs = params.toString();
-  const path = `/api/evolution/learning-curve${qs ? `?${qs}` : ""}`;
-  const res = await evolutionFetch(path, { headers: authHeaders() });
-  if (!res.ok)
-    throw new Error(`Failed to load learning curve: ${res.statusText}`);
-  return (await res.json()) as LearningCurvePoint[];
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/learning-curve", {
+        query: { weeks },
+        signal,
+        errorMessage: failed("Failed to load learning curve"),
+      }),
+    ),
+    isLearningCurvePointList,
+  );
 }
 
 export async function getSkillPerformance(): Promise<SkillPerformance[]> {
-  const res = await evolutionFetch("/api/evolution/skills/performance", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load skill performance: ${res.statusText}`);
-  return (await res.json()) as SkillPerformance[];
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/skills/performance", {
+        signal,
+        errorMessage: failed("Failed to load skill performance"),
+      }),
+    ),
+    isSkillPerformanceList,
+  );
 }
 
 export async function getMemoryGrowth(
   days?: number,
 ): Promise<MemoryGrowthPoint[]> {
-  const params = new URLSearchParams();
-  if (days !== undefined) params.set("days", String(days));
-  const qs = params.toString();
-  const path = `/api/evolution/memory/growth${qs ? `?${qs}` : ""}`;
-  const res = await evolutionFetch(path, { headers: authHeaders() });
-  if (!res.ok)
-    throw new Error(`Failed to load memory growth: ${res.statusText}`);
-  return (await res.json()) as MemoryGrowthPoint[];
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/memory/growth", {
+        query: { days },
+        signal,
+        errorMessage: failed("Failed to load memory growth"),
+      }),
+    ),
+    isMemoryGrowthPointList,
+  );
 }
 
 export async function getRecommendations(): Promise<Recommendation[]> {
-  const res = await evolutionFetch("/api/evolution/recommendations", {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load recommendations: ${res.statusText}`);
-  return (await res.json()) as Recommendation[];
+  return looseBody(
+    await withEvolutionTimeout((signal) =>
+      apiGet("/api/evolution/recommendations", {
+        signal,
+        errorMessage: failed("Failed to load recommendations"),
+      }),
+    ),
+    isRecommendationList,
+  );
 }
 
 export async function getFitness(
   agentId: string,
   window?: number,
 ): Promise<FitnessReport> {
-  const params = new URLSearchParams();
-  if (window !== undefined) params.set("window", String(window));
-  const qs = params.toString();
-  const url = `${getBackendBaseURL()}/api/evolution/fitness/${encodeURIComponent(agentId)}${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok)
-    throw new Error(`Failed to load fitness report: ${res.statusText}`);
-  return (await res.json()) as FitnessReport;
+  return looseBody(
+    await apiGet("/api/evolution/fitness/{agent_id}", {
+      path: { agent_id: agentId },
+      query: { window },
+      errorMessage: failed("Failed to load fitness report"),
+    }),
+    isFitnessReport,
+  );
 }
 
 export async function getDrift(agentId: string): Promise<DriftReport> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/evolution/drift/${encodeURIComponent(agentId)}`,
-    { headers: authHeaders() },
+  return looseBody(
+    await apiGet("/api/evolution/drift/{agent_id}", {
+      path: { agent_id: agentId },
+      errorMessage: failed("Failed to load drift report"),
+    }),
+    isDriftReport,
   );
-  if (!res.ok)
-    throw new Error(`Failed to load drift report: ${res.statusText}`);
-  return (await res.json()) as DriftReport;
 }
 
 export async function getLedger(opts?: {
@@ -594,50 +654,41 @@ export async function getLedger(opts?: {
   records: LedgerRecord[];
   stats: Record<string, unknown>;
 }> {
-  const params = new URLSearchParams();
-  if (opts?.status) params.set("status", opts.status);
-  if (opts?.kind) params.set("kind", opts.kind);
-  if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
-  const qs = params.toString();
-  const url = `${getBackendBaseURL()}/api/evolution/ledger${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) throw new Error(`Failed to load ledger: ${res.statusText}`);
-  return (await res.json()) as {
-    total: number;
-    records: LedgerRecord[];
-    stats: Record<string, unknown>;
-  };
+  return looseBody(
+    await apiGet("/api/evolution/ledger", {
+      query: {
+        status: opts?.status || undefined,
+        kind: opts?.kind || undefined,
+        limit: opts?.limit,
+      },
+      errorMessage: failed("Failed to load ledger"),
+    }),
+    hasTotal,
+  );
 }
 
 export async function getCanary(): Promise<{
   active_count: number;
   canaries: CanaryState[];
 }> {
-  const res = await fetch(`${getBackendBaseURL()}/api/evolution/canary`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok)
-    throw new Error(`Failed to load canary state: ${res.statusText}`);
-  return (await res.json()) as {
-    active_count: number;
-    canaries: CanaryState[];
-  };
+  return looseBody(
+    await apiGet("/api/evolution/canary", {
+      errorMessage: failed("Failed to load canary state"),
+    }),
+    hasActiveCount,
+  );
 }
 
 export async function rollbackCanary(
   skillName: string,
 ): Promise<{ ok: boolean; skill_name: string; phase: string }> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/evolution/canary/${encodeURIComponent(skillName)}/rollback`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-    },
+  return looseBody(
+    await apiPost("/api/evolution/canary/{skill_name}/rollback", {
+      path: { skill_name: skillName },
+      // Bodiless, but the JSON content type was always sent.
+      headers: { "Content-Type": "application/json" },
+      errorMessage: failed("Failed to rollback canary"),
+    }),
+    hasOk,
   );
-  if (!res.ok) throw new Error(`Failed to rollback canary: ${res.statusText}`);
-  return (await res.json()) as {
-    ok: boolean;
-    skill_name: string;
-    phase: string;
-  };
 }

@@ -1,3 +1,4 @@
+import { canonicalAgentId } from "@/core/agents/aliases";
 /**
  * Thread-derivation logic backing the workspace sidebar: how raw
  * ``AgentThread`` records become sidebar summaries (display titles,
@@ -110,11 +111,16 @@ export function withThreadSidebarMode(
 
 export function buildThreadRunStatusByHref({
   activeTeamTasks,
+  attentionStatusByHref,
   backgroundTasks,
   liveThreadRunStatusByHref,
   threadHrefById,
 }: {
   activeTeamTasks: TeamTask[];
+  /** Unseen attention markers (failed / waiting while the user was away).
+   * They outlive the page's live status; fresher polled or live state for
+   * the same thread wins. */
+  attentionStatusByHref?: Map<string, ThreadRunStatus>;
   backgroundTasks?: TasksListResponse;
   liveThreadRunStatusByHref?: Map<string, ThreadRunStatus | "done">;
   threadHrefById: Map<string, string>;
@@ -126,6 +132,10 @@ export function buildThreadRunStatusByHref({
     const status = teamTaskRunStatus(task.status);
     if (!status) continue;
     const href = `/workspace/realtime/${encodeURIComponent(task.room_id)}`;
+    byHref.set(href, mergeThreadRunStatus(byHref.get(href), status));
+  }
+
+  for (const [href, status] of attentionStatusByHref ?? []) {
     byHref.set(href, mergeThreadRunStatus(byHref.get(href), status));
   }
 
@@ -148,6 +158,23 @@ export function buildThreadRunStatusByHref({
     } else byHref.set(href, status);
   }
 
+  return byHref;
+}
+
+/** Sidebar light for each thread whose attention marker the user has not
+ * seen yet: a failure stays red, any wait (approval, reply, pause) amber. */
+export function unseenAttentionStatusByHref(
+  entries: Iterable<{ threadId: string; kind: string; unseen: boolean }>,
+  threadHrefById: Map<string, string>,
+): Map<string, ThreadRunStatus> {
+  const byHref = new Map<string, ThreadRunStatus>();
+  for (const entry of entries) {
+    if (!entry.unseen) continue;
+    const href =
+      threadHrefById.get(entry.threadId) ??
+      `/workspace/realtime/${encodeURIComponent(entry.threadId)}`;
+    byHref.set(href, entry.kind === "failed" ? "error" : "waiting");
+  }
   return byHref;
 }
 
@@ -201,6 +228,15 @@ export function mergeThreadRunStatus(
   return priority[next] > priority[current] ? next : current;
 }
 
+/** Only hide generated task-folder labels, never a user-named project. */
+export function isGeneratedWorkspaceProject(project: string, workspacePath?: string): boolean {
+  const path = workspacePath?.replaceAll("\\", "/").replace(/\/+$/, "") ?? "";
+  const leaf = basename(path);
+  return project === leaf &&
+    /(?:^|\/)data\/workspaces\/[^/]+(?:\/[^/]+)?$/i.test(path) &&
+    /^[a-z0-9_-]{16,}$/i.test(leaf);
+}
+
 export function projectNameForThread(
   thread: Pick<ThreadSummary, "mode">,
   meta: Record<string, unknown>,
@@ -226,7 +262,7 @@ export function projectNameForThread(
 export function summarizeThreadForSidebar(thread: AgentThread): ThreadSummary {
   const mode =
     typeof thread.metadata?.["mode"] === "string"
-      ? (thread.metadata["mode"] as string)
+      ? thread.metadata["mode"]
       : "chat";
   return {
     id: thread.thread_id,
@@ -236,7 +272,7 @@ export function summarizeThreadForSidebar(thread: AgentThread): ThreadSummary {
     href: threadHref(thread),
     workspacePath:
       typeof thread.metadata?.["workspace_path"] === "string"
-        ? (thread.metadata["workspace_path"] as string)
+        ? thread.metadata["workspace_path"]
         : undefined,
     agents: deriveThreadAgents(thread),
   };
@@ -249,7 +285,7 @@ export function buildConversationThreadSummaries(
     .filter((t) => {
       const mode =
         typeof t.metadata?.["mode"] === "string"
-          ? (t.metadata["mode"] as string)
+          ? t.metadata["mode"]
           : "chat";
       return isConversationThreadMode(mode) && !t.metadata?.subagent_role;
     })
@@ -263,7 +299,7 @@ export function buildProjectThreadSummaries(
     .filter((t) => {
       const mode =
         typeof t.metadata?.["mode"] === "string"
-          ? (t.metadata["mode"] as string)
+          ? t.metadata["mode"]
           : "chat";
       return isProjectThreadMode(mode) && !t.metadata?.subagent_role;
     })
@@ -299,7 +335,7 @@ export function deriveThreadAgents(thread: {
           : null,
       )
       .filter((x): x is string => !!x);
-    if (ids.length > 0) return ids;
+    if (ids.length > 0) return ids.map(id => canonicalAgentId(id));
   }
   // 2. team_members (legacy field name · same shape)
   const members = meta["team_members"] ?? values["team_members"];
@@ -315,7 +351,7 @@ export function deriveThreadAgents(thread: {
             : null,
       )
       .filter((x): x is string => !!x);
-    if (ids.length > 0) return ids;
+    if (ids.length > 0) return ids.map(id => canonicalAgentId(id));
   }
   // 3. solo agent · the ``agent`` field is set on every chat/code
   //    thread by the compat router (cf. metadata.agent='coder')
@@ -328,7 +364,7 @@ export function deriveThreadAgents(thread: {
     values["current_speaker"],
     values["agent_name"],
   );
-  if (single) return [single];
+  if (single) return [canonicalAgentId(single)];
   return [];
 }
 

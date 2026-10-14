@@ -57,7 +57,7 @@ vi.mock("@/core/i18n/hooks", () => {
     },
     intelligencePanel: {
       examplePrompts: [
-        "每天跟踪 Echo Agent 相关 GitHub release、issue 和竞品动态",
+        "每天跟踪 ECHO AI 相关 GitHub release、issue 和竞品动态",
         "每周汇总 AI Agent、浏览器自动化、多智能体框架的新论文",
       ],
       goalPlaceholder: "描述你想持续追踪的情报目标",
@@ -114,6 +114,11 @@ vi.mock("./messages/markdown-content", () => ({
 import EvolutionDashboard from "./evolution-dashboard";
 import { IntelligencePanel } from "./intelligence-panel";
 import { KnowledgeGraphPanel } from "./knowledge-graph-panel";
+
+const access = vi.hoisted(() => ({ global: true }));
+vi.mock("@/core/auth/use-control-plane-access", () => ({
+  useGlobalControlPlaneAccess: () => access.global,
+}));
 
 // ─── Global fetch stub ───────────────────────────────────────────
 //
@@ -247,6 +252,32 @@ describe("KnowledgeGraphPanel", () => {
       expect(String(input)).toContain("cross_tenant=true");
     }
     expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows an ordinary account its own graph without the cross-tenant scope", async () => {
+    // AI-29: an account without the scope reads its own tenant partition
+    // instead of being told it needs cross-tenant admin rights.
+    access.global = false;
+    try {
+      const fetchMock = vi.mocked(globalThis.fetch);
+      fetchMock.mockClear();
+
+      render(withProviders(<KnowledgeGraphPanel />));
+
+      expect(await screen.findByText(/知识图谱为空/)).toBeInTheDocument();
+      expect(
+        screen.queryByText("crossTenantAdminRequired"),
+      ).not.toBeInTheDocument();
+      const urls = fetchMock.mock.calls.map(([input]) => String(input));
+      expect(urls.some((url) => url.includes("/api/knowledge/graph"))).toBe(
+        true,
+      );
+      for (const url of urls) {
+        expect(url).not.toContain("cross_tenant");
+      }
+    } finally {
+      access.global = true;
+    }
   });
 });
 

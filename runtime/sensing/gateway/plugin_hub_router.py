@@ -45,7 +45,7 @@ def create_plugin_hub_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; shared catalog; sensitive configuration and mutations require operator
 
     def _operator_dep(request: Request) -> None:
         from runtime.safety.auth.principal import require_operator
@@ -205,6 +205,15 @@ def create_plugin_hub_router(
         raise HTTPException(404, f"Plugin not found: {name}")
 
     # ── Single plugin detail ───────────────────────────────────
+
+    @router.get("/plugins/{name}/diagnostics", dependencies=[Depends(_operator_dep)])
+    def get_automation_diagnostics(name: str):
+        from runtime.platform.plugins.automation_diagnostics import automation_diagnostics
+
+        try:
+            return automation_diagnostics(hub, name)
+        except KeyError as exc:
+            raise HTTPException(404, "Automation plugin not found") from exc
 
     @router.get("/plugins/{name}")
     def get_plugin_detail(name: str):

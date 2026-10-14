@@ -136,6 +136,28 @@ async function submitRealtimePrompt(
   );
 }
 
+async function openNativeRuntimeThread(page: Page, origin: string) {
+  const response = await page.request.post(`${backendBase}/api/threads`, {
+    data: { metadata: { title: "Offline native runtime smoke" } },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const created = (await response.json()) as { thread_id: string };
+  expect(created.thread_id).toEqual(expect.any(String));
+  // config.e2e.yaml supplies mock/planner for the native runtime only. Use
+  // the supported per-thread preference, so this lane cannot call a user's
+  // installed OpenCode provider or depend on a paid account.
+  await page.addInitScript((threadId) => {
+    localStorage.setItem(`echo:execution-engine:local:${threadId}`, "echo");
+  }, created.thread_id);
+  await page.goto(
+    `${origin}/#/workspace/realtime/${encodeURIComponent(created.thread_id)}`,
+  );
+  await expect(page.getByTestId("chat-composer-input")).toBeVisible({
+    timeout: 20_000,
+  });
+  return created.thread_id;
+}
+
 function threadStateMessages(state: Record<string, unknown>): unknown[] {
   const values = state.values;
   if (
@@ -216,11 +238,11 @@ test.describe("Full-stack golden smoke", () => {
       const agents = await fetchFromPage(page, "/api/agents");
       expect(agents.ok).toBe(true);
       expect(Array.isArray(agents.body)).toBe(true);
-      expect(
-        agents.body.some(
-          (agent: { name?: string }) => agent.name === "general",
-        ),
-      ).toBe(true);
+      // A clean home has no implicitly installed roles. The proxy must expose
+      // exactly the same installed catalog as the backend.
+      const directAgents = await request.get(`${backendBase}/api/agents`);
+      expect(directAgents.ok()).toBe(true);
+      expect(agents.body).toEqual(await directAgents.json());
       originSnapshots.push({
         origin,
         status: proxiedStatus.body,
@@ -245,7 +267,8 @@ test.describe("Full-stack golden smoke", () => {
       await page.waitForLoadState("domcontentloaded");
       const intelligenceSurface = page.getByTestId("intelligence-panel").or(
         page.getByRole("heading", {
-          name: /订阅暂时不可用|Subscriptions unavailable/i,
+          // The workbench app was renamed 订阅 → 自动化 (f4098333).
+          name: /订阅暂时不可用|Subscriptions unavailable|安装(?:订阅|自动化)|Install (?:subscriptions|automation)/i,
         }),
       );
       await expect(intelligenceSurface).toBeVisible({ timeout: 20_000 });
@@ -288,29 +311,23 @@ test.describe("Full-stack golden smoke", () => {
     expect(agents.ok()).toBeTruthy();
     const agentsBody = await agents.json();
     expect(Array.isArray(agentsBody)).toBe(true);
-    expect(
-      agentsBody.some((agent: { name?: string }) => agent.name === "general"),
-    ).toBe(true);
+    for (const agent of agentsBody) {
+      expect(agent).toMatchObject({ name: expect.any(String) });
+    }
   });
 
-  test("realtime new thread sends, persists, and resumes after refresh", async ({
+  test("native runtime thread sends, persists, and resumes after refresh", async ({
     page,
   }) => {
     test.setTimeout(90_000);
     const origin = frontendOrigins[0];
     const prompt = `Reply directly with one short sentence: full-stack realtime smoke ${Date.now()}`;
 
-    await page.goto(`${origin}/#/workspace/realtime/new`);
-    await page.waitForLoadState("domcontentloaded");
-    const chatModeToggle = page.getByTestId("chat-mode-toggle");
-    await expect(chatModeToggle).toBeVisible({ timeout: 20_000 });
-    if ((await chatModeToggle.getAttribute("aria-pressed")) !== "true") {
-      await chatModeToggle.click();
-    }
-    await expect(chatModeToggle).toHaveAttribute("aria-pressed", "true");
+    const createdThreadId = await openNativeRuntimeThread(page, origin);
 
     await reactFill(page, '[data-testid="chat-composer-input"]', prompt);
     const threadId = await submitRealtimePrompt(page, prompt);
+    expect(threadId).toBe(createdThreadId);
 
     await waitForThreadState(page, threadId, (state) => {
       const messages = threadStateMessages(state);
@@ -334,7 +351,7 @@ test.describe("Full-stack golden smoke", () => {
     });
   });
 
-  test("long realtime task completes and replays without duplicate messages", async ({
+  test("long native runtime task completes and replays without duplicate messages", async ({
     page,
   }) => {
     test.setTimeout(150_000);
@@ -351,16 +368,11 @@ test.describe("Full-stack golden smoke", () => {
       steps,
     ].join("\n\n");
 
-    await page.goto(`${origin}/#/workspace/realtime/new`);
-    await page.waitForLoadState("domcontentloaded");
-    const chatModeToggle = page.getByTestId("chat-mode-toggle");
-    await expect(chatModeToggle).toBeVisible({ timeout: 20_000 });
-    if ((await chatModeToggle.getAttribute("aria-pressed")) !== "true") {
-      await chatModeToggle.click();
-    }
+    const createdThreadId = await openNativeRuntimeThread(page, origin);
 
     await reactFill(page, '[data-testid="chat-composer-input"]', prompt);
     const threadId = await submitRealtimePrompt(page, prompt);
+    expect(threadId).toBe(createdThreadId);
     const completedState = await waitForThreadState(page, threadId, (state) => {
       const messages = threadStateMessages(state);
       return messages.length >= 2 && JSON.stringify(messages).includes(marker);

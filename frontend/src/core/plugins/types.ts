@@ -296,6 +296,8 @@ export interface HubPluginInfo {
   config_schema?: Record<string, unknown>;
   config_ui?: string | null;
   loaded: boolean;
+  installed?: boolean;
+  started?: boolean;
   enabled: boolean;
   error?: string | null;
   dir: string;

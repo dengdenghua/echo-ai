@@ -28,10 +28,15 @@ describe("AI browser mode ownership", () => {
     );
   });
 
-  it("renders the Agent desktop browser rather than the embedded preview", () => {
+  it("renders desktop browsing and retains thread-owned task previews", () => {
     expect(browserSource).toContain("function BrowserShell()");
     expect(browserSource).toContain("<BrowserShell />");
     expect(browserSource).toContain('WorkspaceSurfaceHeader active="browser"');
-    expect(browserSource).not.toContain("BrowserPreviewPanel");
+    expect(browserSource).toContain("<WebviewTab");
+    expect(browserSource).toContain("tab.taskPreview ? (");
+    expect(browserSource).toContain("threadId={tab.taskPreview.threadId}");
+    expect(browserSource).toContain(
+      "sharedSessionId={tab.taskPreview.sessionId}",
+    );
   });
 });

@@ -14,6 +14,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from runtime.execution.artifact_contracts import HandoffRecorder
+from runtime.execution.environment import ExecutionEnvironment, environment_for_workspace
 from runtime.execution.request import (
     ExecutionRequest,
     ExecutionResources,
@@ -88,6 +89,7 @@ def create_host_execution_boundary(
     parent_task_id: str | None = None,
     handoff_recorder: HandoffRecorder | None = None,
     budget: BudgetConfig | None = None,
+    environment: ExecutionEnvironment | None = None,
 ) -> HostExecutionBoundary:
     """Build a fresh trusted boundary from server-validated coordinates.
 
@@ -135,6 +137,8 @@ def create_host_execution_boundary(
     )
     limits = budget or BudgetConfig()
     task = ExecutionTask(
+        environment=environment
+        or environment_for_workspace(trusted_metadata.get("workspace_path")),
         task_id=normalized_task_id,
         thread_id=normalized_thread_id,
         actor_id=normalized_actor,

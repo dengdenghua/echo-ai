@@ -9,8 +9,8 @@ from pathlib import Path
 import httpx
 from fastapi import Depends, HTTPException, Request
 
-from .codex_hotspot import owner_token
 from .hotspot_control import require_local_owner
+from .hotspot_local import owner_token
 from .team_gateway import ROOT
 
 BASE = "http://127.0.0.1:8333"
@@ -36,7 +36,9 @@ async def ensure_running():
         try:
             await control("GET", "status")
             return
-        except httpx.ConnectError:
+        except (
+            httpx.ConnectError
+        ):  # intentional: Start the local service when no instance is listening.
             pass
         ROOT.mkdir(parents=True, exist_ok=True)
         with (ROOT / "service.log").open("ab") as log:
@@ -86,11 +88,6 @@ def mount_team_control(router, require_admin, connections):
         require_local_owner(request)
         return await connections.disconnect(connection_id)
 
-    @router.api_route(
-        "/api/team-gateway/admin/{path:path}",
-        methods=["GET", "POST", "PUT", "DELETE"],
-        dependencies=[Depends(require_admin)],
-    )
     async def admin(request: Request, path: str):
         require_local_owner(request)
         import re
@@ -106,3 +103,14 @@ def mount_team_control(router, require_admin, connections):
             return await control(request.method, path, body)
         except (httpx.HTTPError, ValueError):
             raise HTTPException(503, "团队网关操作失败") from None
+
+    # 每个 method 单独一条 add_api_route:多 method 挂同一条路由会产生重复的
+    # OpenAPI operation ID,破坏生成的 TS 客户端(见 paper_trading/proxy.py 的同款注释)。
+    for method in ("GET", "POST", "PUT", "DELETE"):
+        router.add_api_route(
+            "/api/team-gateway/admin/{path:path}",
+            admin,
+            methods=[method],
+            dependencies=[Depends(require_admin)],
+            operation_id=f"team_gateway_admin_{method.lower()}",
+        )

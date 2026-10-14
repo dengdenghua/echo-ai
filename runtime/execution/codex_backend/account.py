@@ -9,6 +9,7 @@ reaps idle sessions, and closes every child on application shutdown.
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import json
 import logging
@@ -39,6 +40,7 @@ from .types import (
     Notification,
     ProcessFactory,
     ProtocolError,
+    RemoteError,
     RequestTimeoutError,
     TransportClosedError,
 )
@@ -266,6 +268,45 @@ class CodexAccountService:
         refresh_token: bool = False,
     ) -> CodexAccountStatus:
         runtime = await self._runtime(scope)
+        try:
+            return await self._read_account_locked(runtime, refresh_token=refresh_token)
+        except RemoteError as exc:
+            if not _is_unusable_account_error(exc):
+                raise
+            # The stored ChatGPT credential was revoked server-side.  App
+            # Server resolves workspace routing inside ``account/read``, so a
+            # dead file makes the whole call fail with an opaque internal
+            # error instead of reporting "not connected".  Reporting that as a
+            # 503 hid the authorization controls, so retire the dead file and
+            # re-read through a fresh child.
+            quarantine = _quarantine_unusable_auth(runtime.home)
+            if quarantine is None:
+                raise
+            _LOG.warning(
+                "Codex account credential was rejected by the provider; quarantined %s",
+                quarantine.name,
+            )
+            # Never interrupt an authorization ceremony that is already in
+            # flight: the panel only needs ``login_pending`` back, and the
+            # freshly written credential arrives on the next read.
+            if runtime.active_login_id is None:
+                runtime = await self._recycle_runtime(scope, runtime)
+                try:
+                    return await self._read_account_locked(runtime, refresh_token=refresh_token)
+                except RemoteError as retry_exc:
+                    if not _is_unusable_account_error(retry_exc):
+                        raise
+            # The rejected credential is gone, so "no account" is the only
+            # truthful state left.  Return it instead of a 503 so the user can
+            # always reach the authorization flow again.
+            return _account_status_without_account(runtime)
+
+    async def _read_account_locked(
+        self,
+        runtime: _ControlRuntime,
+        *,
+        refresh_token: bool,
+    ) -> CodexAccountStatus:
         async with runtime.lock:
             await self._drain_notifications(runtime)
             response = await runtime.client.account_read(refresh_token=refresh_token)
@@ -280,23 +321,24 @@ class CodexAccountService:
             return status
 
     async def refresh_for_execution(self, scope: TenantScope | None) -> Path | None:
-        """Refresh master credentials under the principal control lease.
+        """Check master credentials and refresh when needed under the control lease.
 
-        Execution homes receive a copy of ``auth.json``. Refreshing here just
-        before each turn keeps that copy from starting with an expired access
-        token and prevents independent threads from racing on a stale master
-        refresh token during normal-length turns.
+        Execution homes receive a copy of ``auth.json``. Rotating its refresh
+        token on every turn can invalidate another desktop client's copy.
+        Keep a live access token; refresh near expiry or for unknown formats.
         """
 
         runtime = await self._runtime(scope)
         async with runtime.lock:
             await self._drain_notifications(runtime)
-            response = await runtime.client.account_read(refresh_token=True)
+            managed = self.account_home(scope)
+            response = await runtime.client.account_read(
+                refresh_token=not _has_fresh_chatgpt_access_token(managed / "auth.json")
+            )
             status = _normalize_account_response(response, runtime)
             runtime.last_used = time.monotonic()
             if status.account is None:
                 return None
-            managed = self.account_home(scope)
             return managed if _valid_auth_file(managed / "auth.json", required=False) else None
 
     async def refresh_for_execution_any_loop(
@@ -777,6 +819,20 @@ class CodexAccountService:
             _apply_account_notification(runtime, notification)
         raise ProtocolError("Codex account notification queue did not quiesce")
 
+    async def _recycle_runtime(
+        self,
+        scope: TenantScope | None,
+        runtime: _ControlRuntime,
+    ) -> _ControlRuntime:
+        """Replace one control child so the principal gets a clean process."""
+
+        key = self._scope_key(scope)
+        async with self._pool_lock:
+            if self._runtimes.get(key) is runtime:
+                self._runtimes.pop(key, None)
+        await self._close_runtime(runtime)
+        return await self._runtime(scope)
+
     async def _close_runtime(self, runtime: _ControlRuntime) -> None:
         if runtime.closed:
             return
@@ -836,6 +892,57 @@ def _normalize_account_response(
     return CodexAccountStatus(
         account=account,
         requires_openai_auth=requires_auth,
+        login_pending=runtime.active_login_id is not None,
+        login_id=runtime.active_login_id,
+        login_error=runtime.login_error,
+    )
+
+
+def _is_unusable_account_error(exc: BaseException) -> bool:
+    """Whether App Server rejected the stored account credential outright.
+
+    Codex App Server resolves workspace routing while answering
+    ``account/read``.  A credential the provider has revoked makes that
+    discovery fail with an opaque internal error (``-32603 workspace routing
+    discovery failed``) instead of a clean "no account" response.
+    """
+
+    return (
+        isinstance(exc, RemoteError)
+        and exc.code == -32603
+        and "workspace routing discovery failed" in exc.message.casefold()
+    )
+
+
+def _quarantine_unusable_auth(home: Path) -> Path | None:
+    """Retire an unusable ``auth.json`` without destroying it.
+
+    The rejected file is renamed inside the managed home so an operator can
+    still inspect it; the next login writes a fresh ``auth.json``.
+    """
+
+    source = home / "auth.json"
+    try:
+        if not source.is_file():
+            return None
+    except OSError:
+        return None
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    target = home / f"auth.json.revoked-{stamp}"
+    suffix = 1
+    while target.exists():
+        suffix += 1
+        target = home / f"auth.json.revoked-{stamp}-{suffix}"
+    os.replace(source, target)
+    return target
+
+
+def _account_status_without_account(runtime: _ControlRuntime) -> CodexAccountStatus:
+    """Report the principal as unauthenticated while keeping login state."""
+
+    return CodexAccountStatus(
+        account=None,
+        requires_openai_auth=True,
         login_pending=runtime.active_login_id is not None,
         login_id=runtime.active_login_id,
         login_error=runtime.login_error,
@@ -1435,6 +1542,30 @@ def _control_config() -> str:
     )
 
 
+def _has_fresh_chatgpt_access_token(path: Path) -> bool:
+    """Use JWT expiry only as a refresh hint; App Server still authenticates.
+
+    This does not verify a JWT or grant access. Missing/malformed expiry takes
+    the normal refresh path, and a logged-out App Server is still rejected.
+    """
+    data = _read_owned_private_file(path, max_bytes=1024 * 1024)
+    if data is None:
+        return False
+    try:
+        auth = json.loads(data)
+        if not isinstance(auth, dict) or auth.get("auth_mode") != "chatgpt":
+            return False
+        token = auth["tokens"]["access_token"]
+        if not isinstance(token, str) or len(token.split(".")) != 3:
+            return False
+        payload = token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        expiry = claims.get("exp") if isinstance(claims, dict) else None
+        return type(expiry) in (int, float) and time.time() + 300 < expiry < float("inf")
+    except (ValueError, KeyError, TypeError, UnicodeError):
+        return False
+
+
 def _valid_auth_file(path: Path, *, required: bool) -> bool:
     data = _read_owned_private_file(path, max_bytes=1024 * 1024)
     if data is None:
@@ -1448,6 +1579,26 @@ def _valid_auth_file(path: Path, *, required: bool) -> bool:
     if not isinstance(parsed, dict):
         raise ConfigurationError("Codex auth file must contain an object")
     return True
+
+
+def _quarantined_auth_matches(home: Path, canonical: bytes) -> bool:
+    """Whether this exact legacy credential was already rejected and retired.
+
+    Compares content rather than existence so the guard lapses as soon as the
+    host performs a genuinely new login.
+    """
+
+    try:
+        candidates = list(home.glob("auth.json.revoked-*"))
+    except OSError:
+        return False
+    for path in candidates:
+        try:
+            if path.read_bytes() == canonical:
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _seed_legacy_auth(target_home: Path, source_home: Path) -> None:
@@ -1466,6 +1617,14 @@ def _seed_legacy_auth(target_home: Path, source_home: Path) -> None:
     if not isinstance(parsed, dict):
         raise ConfigurationError("legacy Codex auth file must contain an object")
     canonical = (json.dumps(parsed, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+    # A credential the provider already rejected must not be re-seeded on the
+    # next child start: doing so recreated the very file we had just
+    # quarantined, so every read failed, retired a fresh App Server child and
+    # failed again.  The panel could never settle on "not connected" and the
+    # churn kept racing the authorization request.  Only the exact rejected
+    # bytes are skipped, so a later host login is still inherited.
+    if _quarantined_auth_matches(target_home, canonical):
+        return
     _atomic_write_private(target, canonical)
 
 

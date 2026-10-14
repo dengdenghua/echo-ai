@@ -200,10 +200,15 @@ def build_task_recovery_queue(
         )
         if not include_monitor and not actionable:
             continue
+        paused = task.status == TaskRunStatus.PAUSED
         items.append(
             {
                 "task_id": task.task_id,
                 "status": task.status.value,
+                # Why a paused run stopped (budget limit, unanswered
+                # approval, ...) so the queue can say more than "paused".
+                "pause_reason": str(task.metadata.get("pause_reason") or "") if paused else "",
+                "pause_detail": str(task.metadata.get("pause_detail") or "") if paused else "",
                 "kind": task.kind,
                 "title": task.title,
                 "owner_id": task.owner_id,

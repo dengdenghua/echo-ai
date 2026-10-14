@@ -90,6 +90,10 @@ def _last_attempt(run: LoopRun) -> LoopAttempt | None:
 
 def _checkpoint_summary(run: LoopRun, attempt: LoopAttempt | None) -> str:
     summary = str(run.last_error or "").strip()
+    if not summary and run.pause_reason:
+        summary = " · ".join(
+            part for part in (f"paused: {run.pause_reason}", run.pause_detail.strip()) if part
+        )
     if not summary and run.last_verifier_result is not None:
         summary = str(run.last_verifier_result.summary or "").strip()
     if not summary and attempt is not None:
@@ -303,7 +307,7 @@ def build_loop_run_resume_proposal(run: LoopRun) -> dict[str, Any]:
     ]
     title = (
         f"Resume {run.status.value} loop run"
-        if run.status.value in {"failed", "cancelled"}
+        if run.status.value in {"failed", "cancelled", "paused"}
         else "Resume loop run"
     )
     steps = [
@@ -383,6 +387,10 @@ def build_loop_run_resume_prompt(
     ]
     if str(source.workspace_path or "").strip():
         lines.append(f"- Workspace: {source.workspace_path}")
+    if source.pause_reason:
+        lines.append(f"- Paused because: {source.pause_reason}")
+        if source.pause_detail.strip():
+            lines.append(f"- Pause detail: {_preview(source.pause_detail, limit=280)}")
     if str(last_verifier.get("summary") or "").strip():
         lines.append(f"- Latest verifier signal: {last_verifier['summary']}")
     if str(last_verifier.get("failure_category") or "").strip():

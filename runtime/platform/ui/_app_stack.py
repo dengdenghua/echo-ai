@@ -3,7 +3,7 @@
 Extracted from ``app.py`` during the god-file reduction (§2.1 of the
 navigation map). Wires the execution stack onto the shared journal,
 starts the optional regeneration / camouflage / auto-trigger
-schedulers, registers ephemeral subagent runners, loads the
+schedulers (and stops them on shutdown), registers ephemeral subagent runners, loads the
 project-scoped subagent registry, and builds the thread store + cowork
 runtime.
 """
@@ -19,6 +19,7 @@ from runtime.execution.model_services import native_model_services
 from runtime.platform import feature_flags
 from runtime.platform.process.paths import app_paths
 
+from ._app_background import stop_on_shutdown
 from ._app_context import AppContext
 
 
@@ -33,6 +34,78 @@ def _regeneration_scheduler_config() -> Any:
         output_dir=str(app_paths().data_dir),
         enabled=feature_flags.is_on("regeneration.enabled"),
     )
+
+
+def _start_background_schedulers(ctx: AppContext, *, agent_registry: Any) -> None:
+    """Start the regeneration + camouflage schedulers; stop both on shutdown.
+
+    Each stop is registered before its start so a start that raises half-way
+    still has its thread reaped when the app shuts down.
+    """
+    stack = ctx.stack
+    try:
+        from runtime.safety.recovery.scheduler import get_scheduler
+
+        regeneration = get_scheduler()
+        stop_on_shutdown(ctx.app, "regeneration-scheduler", regeneration.stop)
+        regeneration.start(
+            stack,
+            config=_regeneration_scheduler_config(),
+            agent_registry=agent_registry,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "regeneration scheduler failed to start: %s",
+            exc,
+        )
+
+    # ─── Camouflage scheduler · LLM-driven prompt evolution (opt-in) ──
+    try:
+        from runtime.safety.experiments.scheduler import (
+            CamouflageConfig,
+            get_camouflage_scheduler,
+        )
+
+        cam_cfg = CamouflageConfig(
+            enabled=feature_flags.is_on("camouflage.enabled"),
+            interval_sec=max(60, int(feature_flags.value("camouflage.interval_sec", 600))),
+            initial_delay_sec=60,
+        )
+        camouflage = get_camouflage_scheduler()
+        stop_on_shutdown(ctx.app, "camouflage-scheduler", camouflage.stop)
+        camouflage.start(stack, config=cam_cfg)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "camouflage scheduler failed to start: %s",
+            exc,
+        )
+
+
+def _start_evolution_auto_trigger(app: Any, stack: Any, *, agent_registry: Any) -> None:
+    """Start the fitness-driven self-evolution trigger; stop it on shutdown."""
+    try:
+        from runtime.safety.evolution.auto_trigger import (
+            AutoTriggerConfig,
+            get_auto_trigger,
+        )
+
+        trigger = get_auto_trigger()
+        stop_on_shutdown(app, "evolution-auto-trigger", trigger.stop)
+        # Honour the evolution.auto_trigger flag (default True =
+        # current behaviour) instead of a hardcoded enabled=True,
+        # so the registered flag actually controls the trigger.
+        trigger.start(
+            stack,
+            AutoTriggerConfig(
+                enabled=feature_flags.is_on("evolution.auto_trigger"),
+            ),
+            agent_registry=agent_registry,
+        )
+    except Exception as _at_exc:
+        logging.getLogger(__name__).debug(
+            "evolution auto-trigger not started: %s",
+            _at_exc,
+        )
 
 
 def wire_stack(
@@ -88,39 +161,7 @@ def wire_stack(
         with contextlib.suppress(ImportError, AttributeError, TypeError, OSError):
             feature_flags.configure(app_paths().feature_flags_path)
 
-        try:
-            from runtime.safety.recovery.scheduler import get_scheduler
-
-            cfg = _regeneration_scheduler_config()
-            get_scheduler().start(
-                stack,
-                config=cfg,
-                agent_registry=agent_registry,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger(__name__).warning(
-                "regeneration scheduler failed to start: %s",
-                exc,
-            )
-
-        # ─── Camouflage scheduler · LLM-driven prompt evolution (opt-in) ──
-        try:
-            from runtime.safety.experiments.scheduler import (
-                CamouflageConfig,
-                get_camouflage_scheduler,
-            )
-
-            cam_cfg = CamouflageConfig(
-                enabled=feature_flags.is_on("camouflage.enabled"),
-                interval_sec=max(60, int(feature_flags.value("camouflage.interval_sec", 600))),
-                initial_delay_sec=60,
-            )
-            get_camouflage_scheduler().start(stack, config=cam_cfg)
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger(__name__).warning(
-                "camouflage scheduler failed to start: %s",
-                exc,
-            )
+        _start_background_schedulers(ctx, agent_registry=agent_registry)
 
         # ─── Ephemeral subagent runner · chat/code mode ───
         # Ephemeral roles (reviewer / researcher / debugger /
@@ -159,28 +200,7 @@ def wire_stack(
                         TypeError,
                     ):  # best-effort · deep_reflect / deep_evolve will return clean error
                         pass
-                    # ─── Evolution auto-trigger · fitness-driven self-evolution ──
-                    try:
-                        from runtime.safety.evolution.auto_trigger import (
-                            AutoTriggerConfig,
-                            get_auto_trigger,
-                        )
-
-                        # Honour the evolution.auto_trigger flag (default True =
-                        # current behaviour) instead of a hardcoded enabled=True,
-                        # so the registered flag actually controls the trigger.
-                        get_auto_trigger().start(
-                            stack,
-                            AutoTriggerConfig(
-                                enabled=feature_flags.is_on("evolution.auto_trigger"),
-                            ),
-                            agent_registry=agent_registry,
-                        )
-                    except Exception as _at_exc:
-                        logging.getLogger(__name__).debug(
-                            "evolution auto-trigger not started: %s",
-                            _at_exc,
-                        )
+                    _start_evolution_auto_trigger(app, stack, agent_registry=agent_registry)
                     # Same router for the Kimi-style skill library
                     # (learn_skill_from_text / apply_skill).
                     try:
@@ -229,13 +249,13 @@ def wire_stack(
                     try:
                         from runtime.execution.suckers.computer_use_loop import (
                             ModelRouterVisionPlanner,
-                            register_computer_use_loop,
                         )
                         from runtime.execution.suckers.desktop_grounding import (
                             combined_grounding,
                         )
+                        from runtime.platform.plugins.automation import configure_computer_vision
 
-                        register_computer_use_loop(
+                        configure_computer_vision(
                             stack.executor.registry,
                             ModelRouterVisionPlanner(
                                 router=router,
@@ -287,25 +307,8 @@ def wire_stack(
                     len(_sa_registry.all_names()),
                     ", ".join(_sa_registry.all_names()),
                 )
-            # Re-register the `call_agent` skill so its description
-            # reflects the freshly-loaded user definitions. Without
-            # this the catalog would only enumerate the hardcoded
-            # BUILTIN_ROLES (call_agent gets registered earlier when
-            # the SkillRegistry was first built · before this loader
-            # had a chance to run).
-            try:
-                from runtime.execution.suckers.delegation_skills import (
-                    register_delegation_skills,
-                )
-
-                register_delegation_skills(stack.executor.registry)
-            except Exception as exc:  # noqa: BLE001
-                logging.getLogger("runtime.platform.ui.app").warning(
-                    "subagent delegation skill refresh failed (%s: %s) · "
-                    "continuing with the existing registry",
-                    type(exc).__name__,
-                    exc,
-                )
+            # call_agent was registered before this loader ran; refresh it.
+            _refresh_delegation_catalog(stack)
         except (ImportError, AttributeError, TypeError, OSError) as exc:
             logging.getLogger("runtime.platform.ui.app").warning(
                 "subagent registry load failed (%s: %s) · "
@@ -359,6 +362,22 @@ def wire_stack(
             set_default_thread_store(thread_store)
         except Exception:  # noqa: BLE001 — skill module optional
             pass
+
+        def _close_thread_store(store: ThreadStateStore = thread_store) -> None:
+            # Release the FTS5 search.db connection (Windows keeps the file
+            # locked while it is open) and drop the process-global skill
+            # reference so it cannot outlive this app.
+            try:
+                from runtime.execution.suckers import history_skill
+
+                if history_skill._DEFAULT_STORE is store:  # noqa: SLF001
+                    history_skill.set_default_thread_store(None)
+            except Exception:  # noqa: BLE001 — skill module optional
+                pass
+            with contextlib.suppress(Exception):
+                store.close()
+
+        app.router.add_event_handler("shutdown", _close_thread_store)
         # Defer: feed stack.config.mcp_servers into the mcp_router
         # factory so the router owns the initial-seed logic instead
         # of doing it twice (once here, once inside the factory).
@@ -396,6 +415,11 @@ def wire_stack(
         app.state.cowork_group_store = cowork_runtime.group_store
         app.state.cowork_async_store = cowork_runtime.async_store
         app.state.collaboration_store = cowork_runtime.collaboration_store
+        if stack is not None:
+            from runtime.execution.suckers.collaboration_skills import register_collaboration_skills
+
+            register_collaboration_skills(stack.executor.registry, cowork_runtime.coordination)
+            stack.executor.coordination = cowork_runtime.coordination
 
         def _reconcile_collaboration_runs() -> None:
             try:
@@ -482,6 +506,26 @@ def wire_stack(
     ctx.subagent_registry = subagent_registry
 
 
+def _refresh_delegation_catalog(stack: Any) -> None:
+    """Re-register ``call_agent`` so its description lists the current roles.
+
+    Best effort: the catalog text is advisory, so a refresh failure (or a
+    stack without a skill registry) keeps the existing registration instead
+    of disabling the persistent runner and Project OS execution with it.
+    """
+    try:
+        from runtime.execution.suckers.delegation_skills import register_delegation_skills
+
+        register_delegation_skills(stack.executor.registry)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("runtime.platform.ui.app").warning(
+            "subagent delegation skill refresh failed (%s: %s) · "
+            "continuing with the existing registry",
+            type(exc).__name__,
+            exc,
+        )
+
+
 def wire_persistent_subagent_runner(ctx: AppContext) -> None:
     """Bind Claude-style persistent subagents to the live execution stack.
 
@@ -520,6 +564,7 @@ def wire_persistent_subagent_runner(ctx: AppContext) -> None:
             agent_registry=ctx.agent_registry,
         )
         set_sub_agent_runner(runner)
+        _refresh_delegation_catalog(stack)
         ctx.subagent_runner = runner
         app.state.subagent_runner = runner
         app.state.subagent_runner_ready = True

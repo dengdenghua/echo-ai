@@ -256,6 +256,14 @@ class TestRegistration:
 
 
 class TestPromptCatalogDistribution:
+    @pytest.fixture(autouse=True)
+    def _isolated_install_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # register_prompt_market_skills also loads cloud-installed skills from
+        # app_paths().data_dir / "skills". In a source checkout that is the
+        # repository's own data/ directory, so a developer's installed skills
+        # would otherwise inflate every exact count asserted below.
+        monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "isolated-data"))
+
     def test_cloud_installed_skill_survives_registry_rebuild(self, tmp_path, monkeypatch):
         from types import SimpleNamespace
 

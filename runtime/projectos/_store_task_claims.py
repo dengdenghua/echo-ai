@@ -4,12 +4,22 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from runtime.projectos._claim_process import (
+    DEFAULT_CLAIM_LEASE_SECONDS,
+    abandoned_on_restart,
+    claim_lease_seconds,
+    current_claim_owner,
+)
+from runtime.projectos._store_event_write import insert_sealed_event
 from runtime.projectos._store_helpers import (
     _milestone_from_doc,
     _normalize_milestone,
+    _normalize_project,
     _normalize_task,
     _project_from_doc,
     _require_id,
@@ -100,11 +110,13 @@ def claim_task(
     task_id: str,
     *,
     assigned_role: str | None = None,
+    lease_seconds: float = DEFAULT_CLAIM_LEASE_SECONDS,
     scope: TenantScope | None = None,
 ) -> tuple[Task, str] | None:
     """Atomically move one runnable task to ``running`` and fence its worker."""
 
     safe_task_id = _require_id(task_id, label="task_id")
+    lease_seconds = claim_lease_seconds(lease_seconds)
     claim_id = f"TC-{uuid4().hex}"
     with store._lock, store._conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -147,12 +159,58 @@ def claim_task(
             ),
         )
         conn.execute(
-            "INSERT INTO task_claims(task_id, claim_id, claimed_at) VALUES (?, ?, ?) "
+            "INSERT INTO task_claims(task_id, claim_id, claimed_at, process_owner, lease_seconds) "
+            "VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT(task_id) DO UPDATE SET "
-            "claim_id=excluded.claim_id, claimed_at=excluded.claimed_at",
-            (safe_task_id, claim_id, time.time()),
+            "claim_id=excluded.claim_id, claimed_at=excluded.claimed_at, "
+            "process_owner=excluded.process_owner, lease_seconds=excluded.lease_seconds",
+            (safe_task_id, claim_id, time.time(), current_claim_owner(), lease_seconds),
         )
     return task, claim_id
+
+
+def _task_parents_runnable(
+    store: Any, conn: Any, milestone_id: str, scope: TenantScope | None
+) -> bool:
+    row = conn.execute(
+        "SELECT doc, project_id FROM milestones WHERE id=?", (milestone_id,)
+    ).fetchone()
+    milestone = _milestone_from_doc(str(row[0])) if row else None
+    project = store._project_doc_for_scope(conn, str(row[1]), scope) if row else None
+    if (
+        milestone is None
+        or milestone.status not in {"active", "in_progress"}
+        or project is None
+        or project.status in _NON_RUNNABLE_PROJECT_STATUSES
+    ):
+        return False
+    assert_project_not_deleting(conn, project.id)
+    return True
+
+
+def heartbeat_task_claim(
+    store: Any,
+    task_id: str,
+    claim_id: str,
+    *,
+    stale_before: float,
+    scope: TenantScope | None = None,
+) -> bool:
+    """Renew a live generation; expired or stopped work cannot revive itself."""
+    task_id = _require_id(task_id, label="task_id")
+    claim_id = _require_id(claim_id, label="task_claim_id")
+    with store._lock, store._conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        loaded = _task_row_for_scope(store, conn, task_id, scope)
+        if loaded is None or loaded[0].status != "running":
+            return False
+        if not _task_parents_runnable(store, conn, loaded[1], scope):
+            return False
+        updated = conn.execute(
+            "UPDATE task_claims SET claimed_at=? WHERE task_id=? AND claim_id=? AND claimed_at>?",
+            (time.time(), task_id, claim_id, float(stale_before)),
+        )
+        return updated.rowcount == 1
 
 
 def finalize_task_claim(
@@ -160,6 +218,8 @@ def finalize_task_claim(
     task: Task,
     claim_id: str,
     *,
+    stale_before: float | None = None,
+    interrupted: bool = False,
     scope: TenantScope | None = None,
 ) -> tuple[Task | None, bool]:
     """Persist a claimed result only while its opaque fencing token still wins."""
@@ -168,6 +228,10 @@ def finalize_task_claim(
     safe_claim_id = _require_id(claim_id, label="task_claim_id")
     if candidate.status == "running":
         raise ValueError("claimed task result must leave running status")
+    if interrupted and (
+        candidate.status != "pending" or (candidate.qa_verdict or {}).get("approved")
+    ):
+        raise ValueError("interrupted work must remain pending and unapproved")
     with store._lock, store._conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
         loaded = _task_row_for_scope(store, conn, candidate.id, scope)
@@ -175,14 +239,26 @@ def finalize_task_claim(
             return None, False
         current, milestone_id = loaded
         claim_row = conn.execute(
-            "SELECT claim_id FROM task_claims WHERE task_id=?",
+            "SELECT claim_id, claimed_at FROM task_claims WHERE task_id=?",
             (candidate.id,),
         ).fetchone()
         if claim_row is None or str(claim_row[0]) != safe_claim_id or current.status != "running":
             return current, False
+        if stale_before is not None and float(claim_row[1]) <= stale_before:
+            return current, False
+        if not _task_parents_runnable(store, conn, milestone_id, scope):
+            # Retire this generation without accepting any late output or QA.
+            current.status = "blocked"
+            current.qa_verdict = {"approved": False, "reason": "parent execution stopped"}
+            conn.execute(
+                "UPDATE tasks SET doc=? WHERE id=?",
+                (json.dumps(current.to_dict(), ensure_ascii=False), current.id),
+            )
+            conn.execute("DELETE FROM task_claims WHERE task_id=?", (current.id,))
+            return current, False
         if candidate.milestone_id != milestone_id:
             raise ValueError("task is already attached to another milestone")
-        candidate.attempts = current.attempts
+        candidate.attempts = max(0, current.attempts - int(interrupted))
         candidate = _normalize_task(candidate)
         deleted = conn.execute(
             "DELETE FROM task_claims WHERE task_id=? AND claim_id=?",
@@ -206,6 +282,7 @@ def orphan_stale_task_claims(
     project_id: str,
     *,
     stale_before: float,
+    cause: str = "",
     scope: TenantScope | None = None,
 ) -> list[Task]:
     """Fence expired workers and atomically make their tasks operator-visible.
@@ -213,9 +290,16 @@ def orphan_stale_task_claims(
     Expiry never makes a task runnable: an external executor may have completed
     its side effect just before dying.  The task, milestone, and project are
     therefore blocked until an operator explicitly calls the recovery path.
+    ``cause`` (e.g. ``process_restart``) is recorded on the audit event when the
+    caller knows why the claim is dead rather than merely expired.
     """
 
     safe_project_id = _require_id(project_id, label="project_id")
+    reason = (
+        "execution claim abandoned by a previous process; explicit recovery required"
+        if cause == "process_restart"
+        else "execution claim expired; explicit recovery required"
+    )
     cutoff = float(stale_before)
     detected_at = time.time()
     orphaned: list[Task] = []
@@ -226,7 +310,8 @@ def orphan_stale_task_claims(
         if project is None:
             return []
         rows = conn.execute(
-            "SELECT t.doc, t.milestone_id, c.claim_id, c.claimed_at, m.doc "
+            "SELECT t.doc, t.milestone_id, c.claim_id, c.claimed_at, m.doc, "
+            "c.process_owner, c.lease_seconds "
             "FROM task_claims c "
             "INNER JOIN tasks t ON t.id=c.task_id "
             "INNER JOIN milestones m ON m.id=t.milestone_id "
@@ -234,7 +319,11 @@ def orphan_stale_task_claims(
             "ORDER BY c.claimed_at, c.task_id",
             (safe_project_id, cutoff),
         ).fetchall()
-        for task_doc, milestone_id, claim_id, claimed_at, milestone_doc in rows:
+        for task_doc, milestone_id, claim_id, claimed_at, milestone_doc, owner, lease in rows:
+            if cause == "process_restart" and not abandoned_on_restart(
+                owner, float(claimed_at), lease, cutoff
+            ):
+                continue
             task = _task_from_doc(str(task_doc))
             milestone = _milestone_from_doc(str(milestone_doc))
             if task is None or milestone is None:
@@ -246,10 +335,7 @@ def orphan_stale_task_claims(
                 )
                 continue
             task.status = "blocked"
-            task.qa_verdict = {
-                "approved": False,
-                "reason": "execution claim expired; explicit recovery required",
-            }
+            task.qa_verdict = {"approved": False, "reason": reason}
             task = _normalize_task(task)
             deleted = conn.execute(
                 "DELETE FROM task_claims WHERE task_id=? AND claim_id=?",
@@ -264,25 +350,22 @@ def orphan_stale_task_claims(
             if milestone.status not in {"done", "failed"}:
                 milestone.status = "blocked"
                 blocked_milestones[str(milestone_id)] = milestone
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (
-                    f"EV-{uuid4().hex[:12]}",
-                    safe_project_id,
-                    "task.claim_orphaned",
-                    json.dumps(
-                        {
-                            "task_id": task.id,
-                            "milestone_id": task.milestone_id,
-                            "claimed_at": float(claimed_at),
-                            "detected_at": detected_at,
-                            "recovery_required": True,
-                        },
-                        ensure_ascii=False,
-                    ),
-                    detected_at,
-                ),
+            insert_sealed_event(
+                conn,
+                {
+                    "id": f"EV-{uuid4().hex[:12]}",
+                    "project_id": safe_project_id,
+                    "kind": "task.claim_orphaned",
+                    "payload": {
+                        "task_id": task.id,
+                        "milestone_id": task.milestone_id,
+                        "claimed_at": float(claimed_at),
+                        "detected_at": detected_at,
+                        "recovery_required": True,
+                        **({"cause": cause} if cause else {}),
+                    },
+                    "created_at": detected_at,
+                },
             )
             orphaned.append(task)
         for milestone_id, milestone in blocked_milestones.items():
@@ -304,11 +387,13 @@ def claim_milestone_decomposition(
     store: Any,
     milestone_id: str,
     *,
+    lease_seconds: float = DEFAULT_CLAIM_LEASE_SECONDS,
     scope: TenantScope | None = None,
 ) -> tuple[Milestone, str] | None:
     """Elect the only worker allowed to call the external decomposer."""
 
     safe_milestone_id = _require_id(milestone_id, label="milestone_id")
+    lease_seconds = claim_lease_seconds(lease_seconds)
     claim_id = f"MC-{uuid4().hex}"
     with store._lock, store._conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -329,9 +414,9 @@ def claim_milestone_decomposition(
         ).fetchone():
             return None
         inserted = conn.execute(
-            "INSERT OR IGNORE INTO milestone_claims(milestone_id, claim_id, claimed_at) "
-            "VALUES (?, ?, ?)",
-            (safe_milestone_id, claim_id, time.time()),
+            "INSERT OR IGNORE INTO milestone_claims(milestone_id, claim_id, claimed_at, "
+            "process_owner, lease_seconds) VALUES (?, ?, ?, ?, ?)",
+            (safe_milestone_id, claim_id, time.time(), current_claim_owner(), lease_seconds),
         )
         if inserted.rowcount != 1:
             return None
@@ -343,6 +428,7 @@ def orphan_stale_milestone_claims(
     project_id: str,
     *,
     stale_before: float,
+    cause: str = "",
     scope: TenantScope | None = None,
 ) -> list[Milestone]:
     """Block abandoned decompositions instead of silently retrying the hook."""
@@ -356,14 +442,18 @@ def orphan_stale_milestone_claims(
         if project is None:
             return []
         rows = conn.execute(
-            "SELECT m.doc, c.claim_id, c.claimed_at "
+            "SELECT m.doc, c.claim_id, c.claimed_at, c.process_owner, c.lease_seconds "
             "FROM milestone_claims c "
             "INNER JOIN milestones m ON m.id=c.milestone_id "
             "WHERE m.project_id=? AND c.claimed_at<=? "
             "ORDER BY c.claimed_at, c.milestone_id",
             (safe_project_id, float(stale_before)),
         ).fetchall()
-        for milestone_doc, claim_id, claimed_at in rows:
+        for milestone_doc, claim_id, claimed_at, owner, lease in rows:
+            if cause == "process_restart" and not abandoned_on_restart(
+                owner, float(claimed_at), lease, float(stale_before)
+            ):
+                continue
             milestone = _milestone_from_doc(str(milestone_doc))
             if milestone is None:
                 continue
@@ -387,24 +477,21 @@ def orphan_stale_milestone_claims(
                 "UPDATE milestones SET doc=? WHERE id=?",
                 (json.dumps(milestone.to_dict(), ensure_ascii=False), milestone.id),
             )
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (
-                    f"EV-{uuid4().hex[:12]}",
-                    safe_project_id,
-                    "milestone.decomposition_claim_orphaned",
-                    json.dumps(
-                        {
-                            "milestone_id": milestone.id,
-                            "claimed_at": float(claimed_at),
-                            "detected_at": detected_at,
-                            "recovery_required": True,
-                        },
-                        ensure_ascii=False,
-                    ),
-                    detected_at,
-                ),
+            insert_sealed_event(
+                conn,
+                {
+                    "id": f"EV-{uuid4().hex[:12]}",
+                    "project_id": safe_project_id,
+                    "kind": "milestone.decomposition_claim_orphaned",
+                    "payload": {
+                        "milestone_id": milestone.id,
+                        "claimed_at": float(claimed_at),
+                        "detected_at": detected_at,
+                        "recovery_required": True,
+                        **({"cause": cause} if cause else {}),
+                    },
+                    "created_at": detected_at,
+                },
             )
             orphaned.append(milestone)
         if orphaned and project.status not in {"done", "failed"}:
@@ -556,17 +643,159 @@ def assert_no_active_claims(
         return project
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectCancelResult:
+    """Outcome of :func:`cancel_project`; ``cancelled`` is False when terminal."""
+
+    project: Project
+    previous_status: str
+    cancelled: bool
+    released_task_ids: tuple[str, ...] = ()
+    released_milestone_ids: tuple[str, ...] = ()
+    failed_task_ids: tuple[str, ...] = ()
+    failed_milestone_ids: tuple[str, ...] = ()
+
+
+_CANCELLED_REASON = "项目已取消，执行认领已作废"
+
+
+def cancel_project(
+    store: Any,
+    project_id: str,
+    *,
+    scope: TenantScope | None = None,
+) -> ProjectCancelResult:
+    """Atomically abandon a project and void every execution claim it holds.
+
+    The project, its unfinished milestones, and any task still ``running``
+    move to the terminal ``failed`` state in one transaction, and every task
+    and decomposition claim of the project is deleted. A worker that is still
+    executing therefore loses its fencing token: its heartbeat stops renewing
+    and its late result is never published. Later ticks and runs see a
+    non-runnable project, and the project is no longer *active*, so it can be
+    deleted. ``done`` and already-cancelled projects are left untouched.
+    """
+
+    safe_project_id = _require_id(project_id, label="project_id")
+    with store._lock, store._conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        project = store._project_doc_for_scope(conn, safe_project_id, scope)
+        if project is None:
+            raise PermissionError("project belongs to another tenant or does not exist")
+        assert_project_not_deleting(conn, safe_project_id)
+        previous_status = project.status
+        if previous_status in {"done", "failed"}:
+            return ProjectCancelResult(
+                project=project,
+                previous_status=previous_status,
+                cancelled=False,
+            )
+        released_tasks = tuple(
+            str(row[0])
+            for row in conn.execute(
+                "SELECT tc.task_id FROM task_claims tc "
+                "INNER JOIN tasks t ON t.id=tc.task_id "
+                "INNER JOIN milestones m ON m.id=t.milestone_id "
+                "WHERE m.project_id=? ORDER BY tc.task_id",
+                (safe_project_id,),
+            ).fetchall()
+        )
+        released_milestones = tuple(
+            str(row[0])
+            for row in conn.execute(
+                "SELECT mc.milestone_id FROM milestone_claims mc "
+                "INNER JOIN milestones m ON m.id=mc.milestone_id "
+                "WHERE m.project_id=? ORDER BY mc.milestone_id",
+                (safe_project_id,),
+            ).fetchall()
+        )
+        conn.execute(
+            "DELETE FROM task_claims WHERE task_id IN "
+            "(SELECT t.id FROM tasks t INNER JOIN milestones m ON m.id=t.milestone_id "
+            "WHERE m.project_id=?)",
+            (safe_project_id,),
+        )
+        conn.execute(
+            "DELETE FROM milestone_claims WHERE milestone_id IN "
+            "(SELECT id FROM milestones WHERE project_id=?)",
+            (safe_project_id,),
+        )
+        failed_tasks: list[str] = []
+        task_rows = conn.execute(
+            "SELECT t.doc FROM tasks t INNER JOIN milestones m ON m.id=t.milestone_id "
+            "WHERE m.project_id=? ORDER BY t.id",
+            (safe_project_id,),
+        ).fetchall()
+        for (task_doc,) in task_rows:
+            task = _task_from_doc(str(task_doc))
+            if task is None or task.status != "running":
+                continue
+            task.status = "failed"
+            task.qa_verdict = {"approved": False, "reason": _CANCELLED_REASON}
+            task = _normalize_task(task)
+            conn.execute(
+                "UPDATE tasks SET doc=? WHERE id=?",
+                (json.dumps(task.to_dict(), ensure_ascii=False), task.id),
+            )
+            failed_tasks.append(task.id)
+        failed_milestones: list[str] = []
+        milestone_rows = conn.execute(
+            "SELECT doc FROM milestones WHERE project_id=? ORDER BY id",
+            (safe_project_id,),
+        ).fetchall()
+        for (milestone_doc,) in milestone_rows:
+            milestone = _milestone_from_doc(str(milestone_doc))
+            if milestone is None or milestone.status in {"done", "failed"}:
+                continue
+            # Pending phases fail too: a stale tick holding the old snapshot
+            # must not be able to activate a phase of an abandoned project.
+            milestone.status = "failed"
+            milestone = _normalize_milestone(milestone)
+            conn.execute(
+                "UPDATE milestones SET doc=? WHERE id=?",
+                (json.dumps(milestone.to_dict(), ensure_ascii=False), milestone.id),
+            )
+            failed_milestones.append(milestone.id)
+        project.status = "failed"
+        project.finished_at = project.finished_at or datetime.now(UTC).isoformat(timespec="seconds")
+        project = _normalize_project(project)
+        conn.execute(
+            "UPDATE projects SET doc=? WHERE id=?",
+            (json.dumps(project.to_dict(), ensure_ascii=False), safe_project_id),
+        )
+        return ProjectCancelResult(
+            project=project,
+            previous_status=previous_status,
+            cancelled=True,
+            released_task_ids=released_tasks,
+            released_milestone_ids=released_milestones,
+            failed_task_ids=tuple(failed_tasks),
+            failed_milestone_ids=tuple(failed_milestones),
+        )
+
+
 class ProjectClaimStoreMixin:
     """ProjectStore methods backed by the execution-claim transactions above."""
+
+    def cancel_project(
+        self,
+        project_id: str,
+        *,
+        scope: TenantScope | None = None,
+    ) -> ProjectCancelResult:
+        return cancel_project(self, project_id, scope=scope)
 
     def claim_task(
         self,
         task_id: str,
         *,
         assigned_role: str | None = None,
+        lease_seconds: float = DEFAULT_CLAIM_LEASE_SECONDS,
         scope: TenantScope | None = None,
     ) -> tuple[Task, str] | None:
-        return claim_task(self, task_id, assigned_role=assigned_role, scope=scope)
+        return claim_task(
+            self, task_id, assigned_role=assigned_role, lease_seconds=lease_seconds, scope=scope
+        )
 
     def assert_no_active_claims(
         self,
@@ -587,38 +816,64 @@ class ProjectClaimStoreMixin:
         task: Task,
         claim_id: str,
         *,
+        stale_before: float | None = None,
+        interrupted: bool = False,
         scope: TenantScope | None = None,
     ) -> tuple[Task | None, bool]:
-        return finalize_task_claim(self, task, claim_id, scope=scope)
+        return finalize_task_claim(
+            self, task, claim_id, stale_before=stale_before, interrupted=interrupted, scope=scope
+        )
+
+    def heartbeat_task_claim(
+        self,
+        task_id: str,
+        claim_id: str,
+        *,
+        stale_before: float,
+        scope: TenantScope | None = None,
+    ) -> bool:
+        return heartbeat_task_claim(self, task_id, claim_id, stale_before=stale_before, scope=scope)
 
     def orphan_stale_task_claims(
         self,
         project_id: str,
         *,
         stale_before: float,
+        cause: str = "",
         scope: TenantScope | None = None,
     ) -> list[Task]:
-        return orphan_stale_task_claims(self, project_id, stale_before=stale_before, scope=scope)
+        return orphan_stale_task_claims(
+            self,
+            project_id,
+            stale_before=stale_before,
+            cause=cause,
+            scope=scope,
+        )
 
     def claim_milestone_decomposition(
         self,
         milestone_id: str,
         *,
+        lease_seconds: float = DEFAULT_CLAIM_LEASE_SECONDS,
         scope: TenantScope | None = None,
     ) -> tuple[Milestone, str] | None:
-        return claim_milestone_decomposition(self, milestone_id, scope=scope)
+        return claim_milestone_decomposition(
+            self, milestone_id, lease_seconds=lease_seconds, scope=scope
+        )
 
     def orphan_stale_milestone_claims(
         self,
         project_id: str,
         *,
         stale_before: float,
+        cause: str = "",
         scope: TenantScope | None = None,
     ) -> list[Milestone]:
         return orphan_stale_milestone_claims(
             self,
             project_id,
             stale_before=stale_before,
+            cause=cause,
             scope=scope,
         )
 
@@ -643,4 +898,4 @@ class ProjectClaimStoreMixin:
         )
 
 
-__all__ = ["ProjectClaimStoreMixin"]
+__all__ = ["ProjectCancelResult", "ProjectClaimStoreMixin", "cancel_project"]

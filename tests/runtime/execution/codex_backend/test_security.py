@@ -982,19 +982,127 @@ def test_cleanup_resolves_redirected_root_and_child_consistently(tmp_path, monke
     child = root / "scratch" / "task"
     child.mkdir(parents=True)
     marker = root / "marker.json"
-    marker.write_text(json.dumps({"schema": support._MARKER_KIND,
-        "kind": "scratch", "path": str(child)}), encoding="utf-8")
+    marker.write_text(
+        json.dumps({"schema": support._MARKER_KIND, "kind": "scratch", "path": str(child)}),
+        encoding="utf-8",
+    )
     physical = tmp_path / "LocalCache" / "physical"
     physical_child = physical / "scratch" / "task"
     physical_child.mkdir(parents=True)
     original = Path.resolve
+
     def redirected(path, strict=False):
         if path == root:
             return physical
         if path == child:
             return physical_child
         return original(path, strict=strict)
+
     monkeypatch.setattr(Path, "resolve", redirected)
     support._remove_marked_tree(child, root=root, marker_path=marker, expected_kind="scratch")
     assert not physical_child.exists()
     assert not marker.exists()
+
+
+def test_cleanup_accepts_only_captured_partial_namespace_redirect(tmp_path, monkeypatch):
+    from runtime.execution.codex_backend import _security_support as support
+
+    manager, workspace, _ = _manager(tmp_path)
+    context = _prepare(manager, workspace)
+    logical = context.scratch_root
+    physical = tmp_path / "LocalCache" / logical.name
+    original_resolve = Path.resolve
+    original_lstat = Path.lstat
+    metadata = logical.lstat()
+
+    def resolve(path, strict=False):
+        return physical if path == logical else original_resolve(path, strict=strict)
+
+    def lstat(path):
+        return metadata if path == physical else original_lstat(path)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    monkeypatch.setattr(Path, "lstat", lstat)
+    allocation = support._capture_cleanup_allocation(
+        logical, root=context.state_root, kind="scratch"
+    )
+    removed = []
+    monkeypatch.setattr(support.shutil, "rmtree", removed.append)
+    support._remove_marked_tree(
+        logical,
+        root=context.state_root,
+        marker_path=context.scratch_marker_path,
+        expected_kind="scratch",
+        allocation=allocation,
+    )
+    assert removed == [physical]
+
+
+@pytest.mark.parametrize("replace_directory", [False, True])
+def test_cleanup_rejects_changed_allocation(tmp_path, monkeypatch, replace_directory):
+    manager, workspace, _ = _manager(tmp_path)
+    context = _prepare(manager, workspace)
+    scratch = context.scratch_root
+    if replace_directory:
+        scratch.rename(scratch.with_name(scratch.name + "-original"))
+        scratch.mkdir()
+    else:
+        original_resolve = Path.resolve
+        other = tmp_path / "unrelated"
+        other.mkdir()
+
+        def resolve(path, strict=False):
+            return other if path == scratch else original_resolve(path, strict=strict)
+
+        monkeypatch.setattr(Path, "resolve", resolve)
+    with pytest.raises(CodexSecurityError, match="allocation changed"):
+        context.cleanup()
+    assert scratch.exists()
+    assert context.scratch_marker_path.exists()
+
+
+def test_versioned_feature_is_locked_only_where_the_executable_defines_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from runtime.execution.codex_backend import security as security_module
+
+    supported: dict[str, frozenset[str] | None] = {
+        "new-codex": frozenset({"apps", "api_key_model_discovery"}),
+        "old-codex": frozenset({"apps"}),
+    }
+    monkeypatch.setattr(
+        security_module,
+        "supported_codex_features",
+        lambda executable: supported.get(executable or ""),
+    )
+    manager, workspace, _state_root = _manager(tmp_path)
+
+    newer = manager.prepare(
+        realm_id="realm-a",
+        tenant_id="tenant-a",
+        thread_id="thread-new",
+        task_id="task-a",
+        workspace=workspace,
+        codex_executable="new-codex",
+    )
+    newer_features = _config(newer)["features"]
+    assert newer_features["api_key_model_discovery"] is False  # type: ignore[index]
+    newer.validate_effective_config({"config": _config(newer)})
+
+    # An older build would reject the unknown key under --strict-config.
+    for executable in ("old-codex", None):
+        older = manager.prepare(
+            realm_id="realm-a",
+            tenant_id="tenant-a",
+            thread_id=f"thread-{executable}",
+            task_id="task-a",
+            workspace=workspace,
+            codex_executable=executable,
+        )
+        assert "api_key_model_discovery" not in _config(older)["features"]  # type: ignore[operator]
+
+    # If detection missed it and the build enables it by default, fail closed.
+    drifted = copy.deepcopy(_config(older))
+    drifted["features"]["api_key_model_discovery"] = True  # type: ignore[index]
+    with pytest.raises(CodexSecurityError, match="unknown executable feature"):
+        older.validate_effective_config({"config": drifted})

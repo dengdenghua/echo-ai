@@ -12,6 +12,8 @@ describe("localized About content", () => {
       expect(content).toContain("Vite");
       expect(content).not.toContain("MIT License");
       expect(content).not.toContain("Next.js");
+      // Section headings are chrome: ECHO never uses emoji as icons.
+      expect(content).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
     },
   );
 });

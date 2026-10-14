@@ -8,6 +8,7 @@ from .codex_plugin_skills import action_tail, plugin_action_name
 from .registry import Skill, SkillRegistry
 
 CAPABILITY_SKILL_NAMES = [
+    "find_capability",
     "search_capabilities",
     "query_capability",
     "use_capability",
@@ -443,7 +444,7 @@ def _query_capability_for_registry(registry: SkillRegistry):
             return {"ok": False, "error": "capability_id is required"}
         entry = _find_capability(registry, cap_id, kind=kind)
         if entry is None:
-            return {"ok": False, "error": f"capability not found: {cap_id}"}
+            return _missing_capability(registry, cap_id)
         return {
             "ok": True,
             **_compact_entry(entry),
@@ -458,6 +459,19 @@ def _query_capability_for_registry(registry: SkillRegistry):
         }
 
     return _query_capability
+
+
+def _missing_capability(registry: SkillRegistry, cap_id: str) -> dict[str, Any]:
+    result: dict[str, Any] = {"ok": False, "error": f"capability not found: {cap_id}"}
+    if registry.has(cap_id):
+        result["registered_skill"] = cap_id
+        result["guidance"] = (
+            "This name identifies a registered skill, not a plugin or skill-pack capability. "
+            "Use query_skill for its arguments, then invoke its advertised tool directly. "
+            "If that tool is absent from the current turn's catalog, report the catalog limitation. "
+            "Do not retry it through use_capability or execute_skill."
+        )
+    return result
 
 
 def _coerce_args(args: Any) -> dict[str, Any]:
@@ -475,6 +489,13 @@ def _coerce_args(args: Any) -> dict[str, Any]:
 
 
 def _resolve_action(registry: SkillRegistry, entry: dict[str, Any], action: str) -> str:
+    """Resolve ``action`` to one of the capability's OWN registered actions.
+
+    Only names listed in ``entry["registered_actions"]`` are eligible. An
+    arbitrary registry skill name (``exec_shell``, ``write_text_file`` …) is
+    never accepted just because it exists — otherwise any capability id
+    would become a generic dispatcher for every registered tool.
+    """
     raw = action.strip()
     if not raw:
         return ""
@@ -489,7 +510,7 @@ def _resolve_action(registry: SkillRegistry, entry: dict[str, Any], action: str)
         tail = action_tail(name)
         if tail.lower() == lowered and registry.has(name):
             return name
-    return raw if registry.has(raw) else ""
+    return ""
 
 
 def _use_capability_for_registry(registry: SkillRegistry):
@@ -524,8 +545,21 @@ def _use_capability_for_registry(registry: SkillRegistry):
             return {"ok": False, "error": "capability_id is required"}
         entry = _find_capability(registry, cap_id)
         if entry is None:
-            return {"ok": False, "error": f"capability not found: {cap_id}"}
-        resolved = _resolve_action(registry, entry, _as_text(action))
+            return _missing_capability(registry, cap_id)
+        requested_action = _as_text(action).strip()
+        resolved = _resolve_action(registry, entry, requested_action)
+        if requested_action and not resolved:
+            return {
+                "ok": False,
+                "capability_id": entry.get("id"),
+                "action": requested_action,
+                "registered_actions": entry.get("registered_actions") or [],
+                "error": (
+                    f"action {requested_action!r} is not a registered action of capability "
+                    f"{entry.get('id')!r}; choose one of registered_actions. Other registered "
+                    "skills must be invoked directly as tools, not through use_capability."
+                ),
+            }
         if not resolved:
             return {
                 "ok": True,
@@ -548,29 +582,32 @@ def _use_capability_for_registry(registry: SkillRegistry):
             call_args["request"] = request
         # Safety chokepoint. This meta-skill dispatches to the inner handler
         # DIRECTLY (not via executor.execute_step), so EVERY pre-execution
-        # gate the executor enforces — capability-permission, injection-taint,
-        # immunity, file-safety — is bypassed. A tainted / denied / untrusted /
-        # credential-targeting inner action could otherwise be laundered
-        # through this low-risk-named meta-skill. Re-apply the shared gate
-        # sequence here, fail-closed (defer_taint_if_handled=False: the
-        # single-action approval gate reviewed use_capability, NOT this inner
-        # tool).
-        from runtime.execution.tool_engine.skill_gate import gate_inner_dispatch
+        # stage the executor runs would otherwise be bypassed: override
+        # stripping, host/read-only contracts, approval risk policy,
+        # capability-permission, injection-taint, immunity, sandbox/scope
+        # injection and the credential-file denylist. A risky inner action
+        # could then be laundered through this low-risk-named meta-skill.
+        # Re-apply the shared pipeline, fail-closed: the single-action
+        # approval gate reviewed use_capability, NOT this inner tool.
+        from runtime.execution.tool_engine.skill_gate import prepare_inner_dispatch
 
-        _block = gate_inner_dispatch(
+        prepared = prepare_inner_dispatch(
             skill,
             call_args,
             caller=f"use_capability:{entry.get('id')}",
         )
-        if _block is not None:
+        if prepared.block is not None:
             return {
                 "ok": False,
                 "capability_id": entry.get("id"),
                 "action": resolved,
-                "error": _block.message,
+                "error": prepared.block.message,
             }
+        call_args = prepared.args
         try:
-            result = skill.handler(**call_args)
+            from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
+
+            result = invoke_coordinated(skill, call_args)
         except Exception as exc:  # noqa: BLE001
             return {
                 "ok": False,
@@ -584,12 +621,35 @@ def _use_capability_for_registry(registry: SkillRegistry):
             "capability_name": entry.get("display_name") or entry.get("id"),
             "action": resolved,
             "result": result,
+            **({"stripped_overrides": list(prepared.stripped)} if prepared.stripped else {}),
         }
 
     return _use_capability
 
 
 def register_capability_skills(registry: SkillRegistry) -> int:
+    from .find_capability import find_capability_handler
+
+    registry.register(
+        Skill(
+            name="find_capability",
+            summary="Find fallback tools or authoritative standards and workplace requirements.",
+            description=(
+                "能力与规范兜底：工具不匹配、失败，或缺少标准/制度依据时使用。"
+                "query 描述缺少的能力；reason 为 no_match/poor_match/failed；"
+                "failed_capabilities 列出已失败的工具名或插件 ID，避免重复推荐。"
+                "检索本地插件、Skill 和工具；external_query 可提供脱敏后的公开产品/能力关键词，"
+                "以获得官方文档及 GitHub 检索下一步。返回匹配候选和状态，"
+                "purpose=auto/capability/standards/office_policy；standard_family=auto/GB/ISO/ASME/IEC。"
+                "公差、国标、行标等自动转权威标准来源，办公制度转企业文档和适用官方来源，"
+                "返回版本/现行状态/条款核对要求；标准发现不代表合规验证。"
+                "不执行工具、不联网、不安装；后续操作仍走正常授权和工具调用。"
+            ),
+            affinity=["meta", "capability", "discovery"],
+            trusted_source="skill://public/find_capability",
+            handler=find_capability_handler(registry),
+        )
+    )
     registry.register(
         Skill(
             name="search_capabilities",

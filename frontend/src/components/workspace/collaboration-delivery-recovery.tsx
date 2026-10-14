@@ -4,7 +4,7 @@ import {
   RotateCcwIcon,
   XIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
@@ -46,6 +46,12 @@ function deliveryPreview(delivery: CollaborationDelivery): string {
 }
 
 export function CollaborationDeliveryRecovery({
+  threadId, className,
+}: { threadId: string; className?: string }) {
+  return <DeliveryRecovery key={threadId} threadId={threadId} className={className} />;
+}
+
+function DeliveryRecovery({
   threadId,
   className,
 }: {
@@ -57,8 +63,12 @@ export function CollaborationDeliveryRecovery({
   const [expanded, setExpanded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current++; }, []);
 
   const load = useCallback(async () => {
+    const request = ++generation.current;
     try {
       const params = new URLSearchParams({
         status: RECOVERABLE_STATUSES,
@@ -70,6 +80,7 @@ export function CollaborationDeliveryRecovery({
       );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = (await response.json()) as DeliveryListResponse;
+      if (generation.current !== request) return;
       const next = Array.isArray(payload.deliveries) ? payload.deliveries : [];
       setDeliveries(next);
       setLoadFailed(false);
@@ -79,7 +90,7 @@ export function CollaborationDeliveryRecovery({
     } catch {
       // A recovery monitor must never disrupt the primary execution surface.
       // Keep a small retry affordance only when it was already visible.
-      setLoadFailed(true);
+      if (generation.current === request) setLoadFailed(true);
     }
   }, [threadId]);
 
@@ -112,6 +123,7 @@ export function CollaborationDeliveryRecovery({
   const mutate = useCallback(
     async (deliveryId: string, action: "retry" | "dismiss") => {
       setBusyId(deliveryId);
+      setActionError("");
       try {
         const response = await fetch(
           `${getBackendBaseURL()}/api/collab/${encodeURIComponent(threadId)}/deliveries/${encodeURIComponent(deliveryId)}/${action}`,
@@ -119,6 +131,8 @@ export function CollaborationDeliveryRecovery({
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         await load();
+      } catch {
+        setActionError("操作未完成，原记录已保留，请重试。");
       } finally {
         setBusyId(null);
       }
@@ -126,7 +140,7 @@ export function CollaborationDeliveryRecovery({
     [load, threadId],
   );
 
-  if (sorted.length === 0 && !loadFailed) return null;
+  if (sorted.length === 0 && !loadFailed && !actionError) return null;
 
   return (
     <div
@@ -167,6 +181,7 @@ export function CollaborationDeliveryRecovery({
         ) : null}
       </div>
 
+      {actionError && <p role="alert" className="px-3 py-2 text-xs text-destructive">{actionError}</p>}
       {expanded && sorted.length > 0 ? (
         <ul className="border-t border-warning/15 px-3 py-1">
           {sorted.map((delivery) => {

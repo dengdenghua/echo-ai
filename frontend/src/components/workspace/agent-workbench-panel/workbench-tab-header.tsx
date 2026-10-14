@@ -1,4 +1,4 @@
-import { memo, useContext, type CSSProperties } from "react";
+import { memo, useContext, type ReactNode, type CSSProperties } from "react";
 import { WorkbenchHeaderSlot } from "../workbench-header-slot";
 
 import { CheckIcon, LayoutGridIcon, XIcon } from "lucide-react";
@@ -36,6 +36,7 @@ function WorkbenchTabHeaderImpl({
   workspaceLabel,
   showWorkspaceLabel,
   mainRunStatusLabel,
+  actions,
 }: {
   mainButton: {
     active: boolean;
@@ -54,6 +55,7 @@ function WorkbenchTabHeaderImpl({
   workspaceLabel?: string;
   showWorkspaceLabel?: boolean;
   mainRunStatusLabel?: string;
+  actions?: ReactNode;
 }) {
   const { t } = useI18n();
   const setHeaderSlot = useContext(WorkbenchHeaderSlot);
@@ -96,7 +98,7 @@ function WorkbenchTabHeaderImpl({
               {workspaceLabel}
             </div>
             {mainRunStatusLabel ? (
-              <div className="mt-0.5 truncate text-xs text-muted-foreground/65">
+              <div className="mt-0.5 truncate text-xs text-muted-foreground">
                 {mainRunStatusLabel}
               </div>
             ) : null}
@@ -144,7 +146,7 @@ function WorkbenchTabHeaderImpl({
                     aria-label={t.editorTabs.closeTabAria(label)}
                     title={t.editorTabs.closeTabAria(label)}
                     onClick={() => onTabClose(id)}
-                    className="mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/65 opacity-0 transition-[color,background-color,opacity] hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                    className="mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-[color,background-color,opacity] hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                   >
                     <XIcon className="size-3" />
                   </button>
@@ -153,6 +155,7 @@ function WorkbenchTabHeaderImpl({
             );
           })}
         </div>
+        {actions}
         <DropdownMenu>
           <Tooltip content={t.agentWorkbenchPanel.tabList}>
             <DropdownMenuTrigger asChild>

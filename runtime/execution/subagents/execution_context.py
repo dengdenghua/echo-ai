@@ -78,6 +78,13 @@ def child_execution_scope(
             permissions=permissions,
             artifacts=artifacts,
             execution_engine=None,
+            environment=(
+                replace(task.environment, workspace=Path(child.metadata["workspace_path"]))
+                if task.environment
+                and isinstance(child.metadata.get("workspace_path"), str)
+                and child.metadata["workspace_path"]
+                else task.environment
+            ),
         )
         child.metadata["_execution_task"] = child_task
         request = ExecutionRequest(child_task, instruction)

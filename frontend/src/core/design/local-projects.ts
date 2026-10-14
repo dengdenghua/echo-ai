@@ -34,9 +34,9 @@ export function readLocalCreativeProjects(
   storage: Pick<Storage, "getItem"> = window.localStorage,
 ): LocalCreativeProject[] {
   try {
-    const parsed = JSON.parse(
+    const parsed: unknown = JSON.parse(
       storage.getItem(creativeProjectsStorageKey(personaId)) || "[]",
-    ) as unknown;
+    );
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (item): item is LocalCreativeProject =>

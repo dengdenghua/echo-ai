@@ -42,7 +42,7 @@ export function GroundingChip({ message }: { message: Message }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="inline-flex max-w-full items-center gap-1.5 bg-transparent px-0 py-0.5 text-xs leading-4 text-muted-foreground/55 transition-colors hover:text-muted-foreground"
+        className="inline-flex max-w-full items-center gap-1.5 bg-transparent px-0 py-0.5 text-xs leading-4 text-muted-foreground transition-colors hover:text-muted-foreground"
       >
         <BookOpenIcon className="size-3 shrink-0 opacity-60" />
         <span className="truncate">{label}</span>
@@ -63,7 +63,7 @@ export function GroundingChip({ message }: { message: Message }) {
               <span className="truncate font-medium text-foreground/90">
                 {source.title}
               </span>
-              <span className="truncate text-muted-foreground/70">
+              <span className="truncate text-muted-foreground">
                 {source.path}
               </span>
             </li>

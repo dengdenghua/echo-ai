@@ -1,38 +1,62 @@
+# Commit-time checks, run by .husky/pre-commit as
+#   pre-commit run --hook-stage pre-commit --files <the commit's files>
+# Passing --files keeps pre-commit from stashing unstaged changes: this
+# checkout is shared by concurrent sessions, and a stash would revert their
+# uncommitted files for the length of the run. The whole-tree ratchets run
+# in `tree-gates`, against a snapshot of the exact tree being committed.
+#
+# Install once: `uv tool install pre-commit` (husky finds it on PATH and puts
+# .venv on PATH, so `python`, `ruff` and `bandit` below are the locked ones).
+# The commit-msg hook (.husky/commit-msg) runs commitlint; .husky/pre-push
+# runs tools/hooks/commit_tree_gates.py --push with the slower scans.
+default_stages: [pre-commit]
+# Generated or vendored: regenerate them instead of fixing them by hand.
+exclude: ^(docs/auto/|docs/openapi-snapshot\.json$|frontend/src/core/api/openapi-types\.ts$|extensions/)
+
 repos:
-  # Implementation note.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
       - id: check-yaml
+        # mkdocs.yml uses !!python tags; check syntax only.
+        args: [--unsafe]
       - id: check-toml
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: check-json
+        exclude: /templates/.*tsconfig\..*\.json$
       - id: debug-statements
       - id: no-commit-to-branch
         args: [--branch, main]
 
-  # Ruff (lint + format)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.7
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-
-  # Bandit (security lint)
-  - repo: https://github.com/PyCQA/bandit
-    rev: "1.7.9"
-    hooks:
-      - id: bandit
-        args: [-ll, -ii, -r]
-        files: ^runtime/
-
-  # Implementation note.
   - repo: local
     hooks:
+      # Same scope and locked version as CI's `ruff check` / `ruff format --check`.
+      - id: ruff
+        name: ruff check
+        entry: ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        files: ^(runtime|tests|tools)/
+
+      - id: ruff-format
+        name: ruff format
+        entry: ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        files: ^(runtime|tests|tools)/
+
+      # CI: bandit -r runtime/ -ll -ii (zero MEDIUM+ findings).
+      - id: bandit
+        name: bandit
+        entry: bandit -ll -ii -q
+        language: system
+        types: [python]
+        files: ^runtime/
+
       - id: invariant-lint
         name: echo-ai invariant lint
         entry: python -m tools.lint.invariant_check
@@ -50,59 +74,6 @@ repos:
         # other commits; ~1s when it does run.
         files: ^runtime/execution/all_skills/
 
-      - id: exception-audit
-        name: "silent except: pass must be justified"
-        entry: python tools/lint/exception_audit.py --strict
-        language: system
-        pass_filenames: false
-        # Baselines existing swallows; new ones must add a noqa or
-        # log line. See exception_audit_baseline.txt.
-        files: ^runtime/
-
-      - id: god-file-check
-        name: no NEW files ≥1000 lines under runtime/
-        entry: python tools/lint/god_file_check.py --strict
-        language: system
-        pass_filenames: false
-        files: ^runtime/.*\.py$
-
-      - id: import-direction-check
-        name: no NEW wrong-way cross-package imports
-        entry: python tools/lint/import_direction_check.py --strict
-        language: system
-        pass_filenames: false
-        # Baselines existing kernel→sensing/web edges; new ones fail.
-        # See import_direction_baseline.txt.
-        files: ^runtime/.*\.py$
-
-      - id: orphan-module-check
-        name: no NEW exported-but-unimported runtime modules
-        entry: python tools/lint/orphan_module_check.py --strict
-        language: system
-        pass_filenames: false
-        # Baselines current orphans; a newly-stranded module fails.
-        # See orphan_module_baseline.txt.
-        files: ^(runtime|tests|demos|benchmarks|tools|scripts)/.*\.py$
-
-      - id: async-lock-check
-        name: no NEW await held across a synchronous lock
-        entry: python tools/lint/async_lock_check.py --strict
-        language: system
-        pass_filenames: false
-        # A threading.Lock/RLock held across `await` deadlocks the event
-        # loop. Baseline is empty (the tree obeys the rule). See
-        # async_lock_baseline.txt.
-        files: ^(runtime|tests)/.*\.py$
-
-      - id: async-blocking-check
-        name: no NEW blocking call in async control flow
-        entry: python tools/lint/async_blocking_check.py --strict
-        language: system
-        pass_filenames: false
-        # time.sleep / requests / subprocess.run inside `async def` stall
-        # the event loop. Baseline is empty. See async_blocking_baseline.txt.
-        files: ^(runtime|tests)/.*\.py$
-
       - id: root-hygiene
         name: repository root matches ROOT_LAYOUT.md allow-list
         entry: python tools/lint/root_hygiene.py --strict
@@ -112,34 +83,19 @@ repos:
         # enumerated in ROOT_ALLOWLIST (mirrors ROOT_LAYOUT.md).
         files: ^(?!\.gitignore$|ROOT_LAYOUT\.md$|tools/lint/root_hygiene\.py$).*
 
-      - id: repo-url-consistent
-        name: all GitHub repo URLs match pyproject.toml source of truth
-        entry: python tools/lint/repo_url_check.py --strict
+      # The CI ratchets that drifted most (exception audit, god files,
+      # function length, inline locale, kernel source pins, docs/auto, the
+      # frontend type-assertion ratchet, the OpenAPI snapshot), each only
+      # when its inputs changed, in parallel, on the committed tree: about
+      # 25 s when docs/auto is involved, a few seconds otherwise.
+      # .husky/pre-commit runs it after pre-commit rather than through it,
+      # because pre-commit fails a hook when any tracked file changes while
+      # it runs, and other sessions keep editing this tree. Manual run:
+      #   pre-commit run --hook-stage manual tree-gates
+      - id: tree-gates
+        name: CI ratchets on the committed tree
+        entry: python tools/hooks/commit_tree_gates.py
         language: system
         pass_filenames: false
-        # Trigger on any change that could shift a URL: the source of
-        # truth, the manifest files that hold derived URLs, the linter
-        # itself, and the install script. Lockfiles and vendored docs
-        # are excluded by the linter's own SKIP_GLOBS.
-        files: ^(pyproject\.toml$|frontend/package\.json$|mkdocs\.yml$|scripts/install\.sh$|permissions\.example\.json$|tools/lint/repo_url_check\.py$|runtime/cli\.py$|runtime/platform/demo\.py$|deploy/echo-ai\.service$|frontend/src/core/config/index\.ts$|frontend/src/components/workspace/settings/about.*)
-
-      - id: auto-docs-fresh
-        name: auto-generated docs in sync
-        entry: python scripts/gen_wiki.py --check
-        language: system
-        pass_filenames: false
-        # The generator walks runtime/ + docs/auto/. Trigger on any
-        # change under those roots so a stale docs/auto/ entry can't
-        # hide in a PR diff.
-        files: ^(runtime/|docs/auto/|scripts/gen_wiki\.py$)
-
-      - id: openapi-snapshot
-        name: OpenAPI snapshot fresh
-        entry: python -m pytest tests/test_openapi_snapshot.py -q --no-header
-        language: system
-        pass_filenames: false
-        # Drift detector reads the FastAPI app and diffs against
-        # docs/openapi-snapshot.json. Run when any router file
-        # changes so a new endpoint can't ship without snapshot
-        # regeneration.
-        files: ^(runtime/sensing/siphon/|runtime/platform/ui/|docs/openapi-snapshot\.json$)
+        always_run: true
+        stages: [manual]

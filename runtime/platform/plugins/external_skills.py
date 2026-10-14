@@ -3,13 +3,13 @@
 Search metadata is not authority. Installation downloads only the selected skill,
 never runs its scripts, and retains the host's deployment/authentication gates.
 """
+
 from __future__ import annotations
 
 import hashlib
 import io
 import json
 import re
-import shutil
 import stat
 import tarfile
 import tempfile
@@ -26,7 +26,11 @@ from runtime.platform.io.transactional import path_transaction
 from runtime.platform.plugins._secure_fetch import fetch_public_https_bytes
 from runtime.platform.process.paths import app_paths
 
-OFFICIAL = {"openai": "openai/skills", "anthropic": "anthropics/skills", "vercel": "vercel-labs/agent-skills"}
+OFFICIAL = {
+    "openai": "openai/skills",
+    "anthropic": "anthropics/skills",
+    "vercel": "vercel-labs/agent-skills",
+}
 TTL = 3600
 MAX_ARCHIVE = 25 * 1024 * 1024
 MAX_EXPANDED = 80 * 1024 * 1024
@@ -65,14 +69,16 @@ def _frontmatter(body: bytes) -> tuple[dict, str]:
         raise ValueError("SKILL.md is missing a name")
     if not isinstance(metadata.get("description"), str):
         raise ValueError("SKILL.md is missing a description")
-    return metadata, text[match.end():]
+    return metadata, text[match.end() :]
 
 
 def _archive(repo: str, commit: str) -> bytes:
     _repo(repo)
     if not re.fullmatch(r"[a-f0-9]{40}", commit):
         raise ValueError("skill version must be a pinned commit")
-    return fetch_public_https_bytes(f"https://codeload.github.com/{repo}/tar.gz/{commit}", timeout=30, max_bytes=MAX_ARCHIVE)
+    return fetch_public_https_bytes(
+        f"https://codeload.github.com/{repo}/tar.gz/{commit}", timeout=30, max_bytes=MAX_ARCHIVE
+    )
 
 
 def _files(body: bytes, *, links: set[str] | None = None) -> dict[str, bytes]:
@@ -83,7 +89,12 @@ def _files(body: bytes, *, links: set[str] | None = None) -> dict[str, bytes]:
             if count >= MAX_FILES:
                 raise ValueError("skill repository has too many files")
             path = PurePosixPath(member.name)
-            if path.is_absolute() or ".." in path.parts or "\\" in member.name or ":" in member.name:
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or "\\" in member.name
+                or ":" in member.name
+            ):
                 raise ValueError("unsafe skill archive path")
             if member.isdir():
                 continue
@@ -109,7 +120,9 @@ def _rows(repo: str, commit: str, files: dict[str, bytes], source: str) -> list[
     rows = []
     for path, body in files.items():
         parts = PurePosixPath(path).parts
-        if parts[-1] != "SKILL.md" or any(p.startswith(".") and p not in {".curated", ".experimental"} for p in parts):
+        if parts[-1] != "SKILL.md" or any(
+            p.startswith(".") and p not in {".curated", ".experimental"} for p in parts
+        ):
             continue
         try:
             meta, _ = _frontmatter(body)
@@ -118,14 +131,25 @@ def _rows(repo: str, commit: str, files: dict[str, bytes], source: str) -> list[
         name = meta["name"].strip()[:160]
         if not name:
             continue
-        rows.append({"name": _id(repo, name), "display_name": name, "original_name": name,
-                     "description": meta["description"][:6000], "source": source,
-                     "author": repo.split("/")[0], "repository": repo, "commit": commit,
-                     "version": commit[:12], "skill_path": str(PurePosixPath(path).parent),
-                     "source_url": f"https://github.com/{repo}/tree/{commit}/{PurePosixPath(path).parent}",
-                     "license": str(meta.get("license") or "见仓库及技能 LICENSE")[:1000],
-                     "compatibility": str(meta.get("compatibility") or "依赖以技能说明为准")[:1000],
-                     "tags": [], "external": True})
+        rows.append(
+            {
+                "name": _id(repo, name),
+                "display_name": name,
+                "original_name": name,
+                "description": meta["description"][:6000],
+                "source": source,
+                "author": repo.split("/")[0],
+                "repository": repo,
+                "commit": commit,
+                "version": commit[:12],
+                "skill_path": str(PurePosixPath(path).parent),
+                "source_url": f"https://github.com/{repo}/tree/{commit}/{PurePosixPath(path).parent}",
+                "license": str(meta.get("license") or "见仓库及技能 LICENSE")[:1000],
+                "compatibility": str(meta.get("compatibility") or "依赖以技能说明为准")[:1000],
+                "tags": [],
+                "external": True,
+            }
+        )
     # Duplicate names within one repository need a path-qualified identity.
     counts = {}
     for row in rows:
@@ -156,7 +180,11 @@ def _official(source: str) -> tuple[list[dict], dict]:
         except (OSError, ValueError):
             cached = {}
         if time.time() - cached.get("checked_at", 0) < TTL:
-            return cached["items"], {"source": source, "state": "ready", "count": len(cached["items"])}
+            return cached["items"], {
+                "source": source,
+                "state": "ready",
+                "count": len(cached["items"]),
+            }
         try:
             commit = _json(f"https://api.github.com/repos/{repo}/commits/HEAD")["sha"]
             rows = _rows(repo, commit, _files(_archive(repo, commit)), source)
@@ -167,7 +195,11 @@ def _official(source: str) -> tuple[list[dict], dict]:
             return rows, {"source": source, "state": "ready", "count": len(rows)}
         except Exception:
             rows = cached.get("items", [])
-            return rows, {"source": source, "state": "stale" if rows else "unavailable", "count": len(rows)}
+            return rows, {
+                "source": source,
+                "state": "stale" if rows else "unavailable",
+                "count": len(rows),
+            }
 
 
 def _search(query: str) -> tuple[list[dict], dict]:
@@ -180,9 +212,15 @@ def _search(query: str) -> tuple[list[dict], dict]:
         except (OSError, ValueError):
             cached = {}
         if time.time() - cached.get("checked_at", 0) < 300:
-            return cached["items"], {"source": "skills.sh", "state": "ready", "count": len(cached["items"])}
+            return cached["items"], {
+                "source": "skills.sh",
+                "state": "ready",
+                "count": len(cached["items"]),
+            }
         try:
-            data = _json("https://skills.sh/api/search?" + urlencode({"q": query[:200], "limit": 30}))
+            data = _json(
+                "https://skills.sh/api/search?" + urlencode({"q": query[:200], "limit": 30})
+            )
             if not isinstance(data.get("skills"), list):
                 raise ValueError("invalid search response")
             rows = []
@@ -194,20 +232,37 @@ def _search(query: str) -> tuple[list[dict], dict]:
                         continue
                 except (ValueError, KeyError, AttributeError):
                     continue
-                rows.append({"name": _id(repo, name), "display_name": name, "original_name": name,
-                             "description": f"Skills.sh 搜索结果 · {repo}；安装时读取完整技能与依赖说明。",
-                             "author": repo.split("/")[0], "repository": repo, "source": "skills.sh",
-                             "source_url": f"https://github.com/{repo}", "external": True,
-                             "search_match": query, "version": "安装时固定提交版本", "tags": []})
+                rows.append(
+                    {
+                        "name": _id(repo, name),
+                        "display_name": name,
+                        "original_name": name,
+                        "description": f"Skills.sh 搜索结果 · {repo}；安装时读取完整技能与依赖说明。",
+                        "author": repo.split("/")[0],
+                        "repository": repo,
+                        "source": "skills.sh",
+                        "source_url": f"https://github.com/{repo}",
+                        "external": True,
+                        "search_match": query,
+                        "version": "安装时固定提交版本",
+                        "tags": [],
+                    }
+                )
             _remember(rows)
             atomic_write_json(path, {"checked_at": time.time(), "items": rows})
             # Search snapshots are an expendable cache, not installed skills.
-            for old in sorted(path.parent.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[100:]:
+            for old in sorted(
+                path.parent.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+            )[100:]:
                 old.unlink(missing_ok=True)
             return rows, {"source": "skills.sh", "state": "ready", "count": len(rows)}
         except Exception:
             rows = cached.get("items", [])
-            return rows, {"source": "skills.sh", "state": "stale" if rows else "unavailable", "count": len(rows)}
+            return rows, {
+                "source": "skills.sh",
+                "state": "stale" if rows else "unavailable",
+                "count": len(rows),
+            }
 
 
 def _minimax_design() -> tuple[list[dict], dict]:
@@ -220,33 +275,57 @@ def _minimax_design() -> tuple[list[dict], dict]:
         except (OSError, ValueError):
             cached = {}
         if cached.get("schema") == 2 and time.time() - cached.get("checked_at", 0) < TTL:
-            return cached["items"], {"source": source, "state": "ready", "count": len(cached["items"])}
+            return cached["items"], {
+                "source": source,
+                "state": "ready",
+                "count": len(cached["items"]),
+            }
         try:
             rows = {}
             for page in range(1, 11):
-                data = _json("https://design.minimaxi.com/api/v1/skills/market?" + urlencode(
-                    {"page": page, "page_size": 20, "source": "official-featured"}))
+                data = _json(
+                    "https://design.minimaxi.com/api/v1/skills/market?"
+                    + urlencode({"page": page, "page_size": 20, "source": "official-featured"})
+                )
                 items, total = data.get("skills"), data.get("total")
                 if not isinstance(items, list) or type(total) is not int or not 0 <= total <= 200:
                     raise ValueError("invalid MiniMax Design catalog")
                 previous = len(rows)
                 for item in items:
                     name = item.get("name", "") if isinstance(item, dict) else ""
-                    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,159}", name):
+                    if not isinstance(name, str) or not re.fullmatch(
+                        r"[A-Za-z0-9][A-Za-z0-9._-]{0,159}", name
+                    ):
                         raise ValueError("invalid MiniMax Design skill name")
-                    def label(*keys, fallback=""):
-                        return next((item[key].strip()[:6000] for key in keys
-                                     if isinstance(item.get(key), str) and item[key].strip()), fallback)
+
+                    def label(*keys, fallback="", source_item=item):
+                        return next(
+                            (
+                                source_item[key].strip()[:6000]
+                                for key in keys
+                                if isinstance(source_item.get(key), str)
+                                and source_item[key].strip()
+                            ),
+                            fallback,
+                        )
+
                     tags = item.get("tags_cn", [])
                     rows[name] = {
-                        "name": _id("minimax-design/catalog", name), "original_name": name,
+                        "name": _id("minimax-design/catalog", name),
+                        "original_name": name,
                         "display_name": label("display_name_zh", fallback=name),
                         "description": label("summary_zh", "desc_cn", "summary", "description"),
-                        "version": label("version"), "author": label("author_cn", "author_en", fallback="MiniMax Design"),
-                        "source": source, "external": True,
-                        "catalog_only": not bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", label("version"))),
+                        "version": label("version"),
+                        "author": label("author_cn", "author_en", fallback="MiniMax Design"),
+                        "source": source,
+                        "external": True,
+                        "catalog_only": not bool(
+                            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", label("version"))
+                        ),
                         "source_url": "https://design.minimaxi.com/",
-                        "tags": [tag for tag in tags if isinstance(tag, str)][:20] if isinstance(tags, list) else [],
+                        "tags": [tag for tag in tags if isinstance(tag, str)][:20]
+                        if isinstance(tags, list)
+                        else [],
                         "compatibility": "可安装原版技能指令与配套资源。图像、视频、音频生成需另行配置兼容工具与模型；安装不会自动开通 MiniMax 服务。",
                     }
                 if len(rows) >= total:
@@ -261,7 +340,11 @@ def _minimax_design() -> tuple[list[dict], dict]:
             return result, {"source": source, "state": "ready", "count": len(result)}
         except Exception:
             rows = cached.get("items", [])
-            return rows, {"source": source, "state": "stale" if rows else "unavailable", "count": len(rows)}
+            return rows, {
+                "source": source,
+                "state": "stale" if rows else "unavailable",
+                "count": len(rows),
+            }
 
 
 def list_external_skills(search: str = "") -> dict:
@@ -278,7 +361,11 @@ def list_external_skills(search: str = "") -> dict:
                     merged[row["name"]]["search_match"] = search
                 continue
             merged[row["name"]] = dict(row)
-    return {"items": list(merged.values()), "total": len(merged), "meta": {"sources": [state for _, state in results]}}
+    return {
+        "items": list(merged.values()),
+        "total": len(merged),
+        "meta": {"sources": [state for _, state in results]},
+    }
 
 
 def _zip_files(body: bytes) -> dict[str, bytes]:
@@ -295,12 +382,20 @@ def _zip_files(body: bytes) -> dict[str, bytes]:
         for member in members:
             raw = member.filename.rstrip("/")
             parts = raw.split("/")
-            if not raw or "\\" in raw or any(
-                p in {"", ".", ".."} or p.endswith((" ", "."))
-                or re.search(r'[<>:"|?*\x00-\x1f]', p)
-                or re.fullmatch(r"(?:CON|PRN|AUX|NUL|COM[0-9¹²³]|LPT[0-9¹²³])(?:\..*)?", p, re.I)
-                for p in parts
-            ) or member.orig_filename != member.filename:
+            if (
+                not raw
+                or "\\" in raw
+                or any(
+                    p in {"", ".", ".."}
+                    or p.endswith((" ", "."))
+                    or re.search(r'[<>:"|?*\x00-\x1f]', p)
+                    or re.fullmatch(
+                        r"(?:CON|PRN|AUX|NUL|COM[0-9¹²³]|LPT[0-9¹²³])(?:\..*)?", p, re.I
+                    )
+                    for p in parts
+                )
+                or member.orig_filename != member.filename
+            ):
                 raise ValueError("unsafe skill archive path")
             mode = stat.S_IFMT(member.external_attr >> 16)
             if mode not in {0, stat.S_IFREG, stat.S_IFDIR} or member.flag_bits & 1:
@@ -322,15 +417,19 @@ def _zip_files(body: bytes) -> dict[str, bytes]:
                     raise ValueError("invalid skill archive size")
                 files[raw] = content
         for path in seen:
-            if any(seen.get(str(parent)) is False for parent in PurePosixPath(path).parents if str(parent) != "."):
+            if any(
+                seen.get(str(parent)) is False
+                for parent in PurePosixPath(path).parents
+                if str(parent) != "."
+            ):
                 raise ValueError("conflicting skill archive paths")
     roots = [path for path in files if path == "SKILL.md" or path.endswith("/SKILL.md")]
     if len(roots) != 1:
         raise ValueError("skill archive must contain one SKILL.md")
-    prefix = roots[0][:-len("SKILL.md")]
+    prefix = roots[0][: -len("SKILL.md")]
     if any(not path.startswith(prefix) for path in files):
         raise ValueError("skill archive contains unrelated files")
-    result = {path[len(prefix):]: content for path, content in files.items()}
+    result = {path[len(prefix) :]: content for path, content in files.items()}
     if any(path.casefold() in {".source.json", "skill.original.md"} for path in result):
         raise ValueError("skill archive contains reserved metadata")
     return result
@@ -338,9 +437,11 @@ def _zip_files(body: bytes) -> dict[str, bytes]:
 
 def _install_design(row: dict, *, skills_dir: Path | None = None) -> dict:
     name, original, version = row["name"], row["original_name"], row.get("version", "")
-    if (_id("minimax-design/catalog", original) != name
-            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,159}", original)
-            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version)):
+    if (
+        _id("minimax-design/catalog", original) != name
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,159}", original)
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version)
+    ):
         raise ValueError("invalid MiniMax Design skill identity or version")
     root = Path(skills_dir or app_paths().data_dir / "skills").resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -352,12 +453,18 @@ def _install_design(row: dict, *, skills_dir: Path | None = None) -> dict:
             if not (target / "SKILL.md").is_file():
                 raise ValueError("skill destination is incomplete")
             return {"installed": True, "already_exists": True, "name": name}
-        url = "https://design.minimaxi.com/api/v1/skills/market/download?" + urlencode({"name": original, "version": version})
+        url = "https://design.minimaxi.com/api/v1/skills/market/download?" + urlencode(
+            {"name": original, "version": version}
+        )
         body = fetch_public_https_bytes(url, timeout=30, max_bytes=MAX_ARCHIVE)
         files = _zip_files(body)
         metadata, instructions = _frontmatter(files["SKILL.md"])
         package = yaml.safe_load(files.get("meta.yaml", b""))
-        if metadata["name"] != original or not isinstance(package, dict) or str(package.get("version")) != version:
+        if (
+            metadata["name"] != original
+            or not isinstance(package, dict)
+            or str(package.get("version")) != version
+        ):
             raise ValueError("MiniMax Design package name or version mismatch")
         resolved = {**row, "download_url": url, "archive_sha256": hashlib.sha256(body).hexdigest()}
         with tempfile.TemporaryDirectory(prefix=".install-", dir=root) as temp:
@@ -372,10 +479,22 @@ def _install_design(row: dict, *, skills_dir: Path | None = None) -> dict:
             (stage / "SKILL.original.md").write_bytes(files["SKILL.md"])
             metadata["name"] = name
             metadata["version"] = version
-            (stage / "SKILL.md").write_text("---\n" + yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False) + "---\n" + instructions, encoding="utf-8")
+            (stage / "SKILL.md").write_text(
+                "---\n"
+                + yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False)
+                + "---\n"
+                + instructions,
+                encoding="utf-8",
+            )
             atomic_write_json(stage / ".source.json", resolved)
             stage.rename(target)
-        return {"installed": True, "name": name, "source": row["source"], "version": version, "path": str(target)}
+        return {
+            "installed": True,
+            "name": name,
+            "source": row["source"],
+            "version": version,
+            "path": str(target),
+        }
 
 
 def install_external_skill(name: str, *, skills_dir: Path | None = None) -> dict:
@@ -402,10 +521,14 @@ def install_external_skill(name: str, *, skills_dir: Path | None = None) -> dict
             if not (target / "SKILL.md").is_file():
                 raise ValueError("skill destination is incomplete")
             return {"installed": True, "already_exists": True, "name": name}
-        commit = row.get("commit") or _json(f"https://api.github.com/repos/{repo}/commits/HEAD")["sha"]
+        commit = (
+            row.get("commit") or _json(f"https://api.github.com/repos/{repo}/commits/HEAD")["sha"]
+        )
         links: set[str] = set()
         files = _files(_archive(repo, commit), links=links)
-        matches = [item for item in _rows(repo, commit, files, row["source"]) if item["name"] == name]
+        matches = [
+            item for item in _rows(repo, commit, files, row["source"]) if item["name"] == name
+        ]
         if len(matches) != 1:
             raise ValueError("未找到唯一匹配的 SKILL.md，请前往原仓库核对")
         resolved = matches[0]
@@ -420,7 +543,7 @@ def install_external_skill(name: str, *, skills_dir: Path | None = None) -> dict
             for path, content in files.items():
                 if not path.startswith(prefix):
                     continue
-                relative = path[len(prefix):]
+                relative = path[len(prefix) :]
                 if any(p.startswith(".") for p in PurePosixPath(relative).parts):
                     continue
                 dest = stage / relative
@@ -431,10 +554,22 @@ def install_external_skill(name: str, *, skills_dir: Path | None = None) -> dict
             # Namespace runtime identity; preserve the complete original instructions.
             metadata, instructions = _frontmatter((stage / "SKILL.md").read_bytes())
             metadata["name"] = name
-            (stage / "SKILL.md").write_text("---\n" + yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False) + "---\n" + instructions, encoding="utf-8")
+            (stage / "SKILL.md").write_text(
+                "---\n"
+                + yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False)
+                + "---\n"
+                + instructions,
+                encoding="utf-8",
+            )
             for license_name in ("LICENSE", "LICENSE.txt", "LICENSE.md", "NOTICE", "NOTICE.txt"):
                 if license_name in files:
                     (stage / ("REPOSITORY-" + license_name)).write_bytes(files[license_name])
             atomic_write_json(stage / ".source.json", resolved)
             stage.rename(target)
-        return {"installed": True, "name": name, "source": row["source"], "commit": commit, "path": str(target)}
+        return {
+            "installed": True,
+            "name": name,
+            "source": row["source"],
+            "commit": commit,
+            "path": str(target),
+        }

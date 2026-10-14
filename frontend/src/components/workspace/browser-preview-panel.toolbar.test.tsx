@@ -140,3 +140,13 @@ describe("BrowserPreviewToolbar", () => {
     expect(source).not.toContain("ExternalLinkIcon");
   });
 });
+
+
+it("opens the operation log from the task tools menu", async () => {
+  const onToggleActionLog = vi.fn();
+  renderWithProviders(<BrowserPreviewToolbar {...toolbarProps({onToggleActionLog})} />, {locale: "en-US"});
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", {name: "More"}));
+  await user.click(screen.getByRole("menuitem", {name: "Action Log"}));
+  expect(onToggleActionLog).toHaveBeenCalledOnce();
+});

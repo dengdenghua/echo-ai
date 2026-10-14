@@ -749,7 +749,13 @@ def register_all(registry: SkillRegistry, *, refresh_prompt_catalog: bool = True
     register_builtins(registry)
     web_count = register_web_skills(registry)
     crawler_count = register_crawler_skills(registry)
-    browser_count = register_browser_skills(registry)
+    from runtime.platform.plugins.automation import register_managed_group
+
+    before_browser = len(registry)
+    if register_managed_group(registry, "browser"):
+        browser_count = len(registry) - before_browser
+    else:
+        browser_count = register_browser_skills(registry)
     write_count = register_write_skills(registry)
     git_count = register_git_skills(registry)
     git_network_count = register_git_network_skills(registry)

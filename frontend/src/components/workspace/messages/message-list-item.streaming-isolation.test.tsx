@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -23,11 +23,16 @@ vi.mock("@/core/i18n/hooks", () => ({
   useI18n: () => ({
     t: {
       common: {
+        more: "More",
         fileSizeB: "B",
         fileSizeKB: "KB",
         fileSizeMB: "MB",
       },
       conversation: {
+        quoteMessage: "Quote",
+        goodResponse: "Good response",
+        badResponse: "Bad response",
+        regenerateResponse: "Regenerate",
         interruptedMessage: "interrupted",
         pausedMessage: "paused",
         cancelledMessage: "cancelled",
@@ -35,6 +40,7 @@ vi.mock("@/core/i18n/hooks", () => ({
       message: {
         attachmentFallback: "attachment",
       },
+      clipboard: { copyToClipboard: "Copy", failedToCopyToClipboard: "Copy failed" },
     },
   }),
 }));
@@ -79,6 +85,12 @@ describe("MessageListItem streaming isolation", () => {
     );
 
     const view = render(tree({ streamingMessage: null, values: {} }));
+    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Regenerate" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" });
+    expect(screen.getByRole("menuitem", { name: "Quote" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Regenerate" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     const initialRenderCount = renderTracker.markdown.mock.calls.length;
     expect(initialRenderCount).toBeGreaterThan(0);
 

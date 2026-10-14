@@ -13,6 +13,42 @@ from runtime.sensing.gateway import agent_world_router
 from runtime.sensing.gateway.agent_world_router import create_agent_world_router
 
 
+def test_targeted_installed_status_skips_skill_inventory(tmp_path, monkeypatch):
+    client, keys = _secured_client(tmp_path, monkeypatch)
+
+    class Catalog:
+        def __init__(self, kind, **kwargs):
+            assert kind == "plugins", "navigation must not load the skill catalog"
+
+        def installed_plugins(self):
+            return ["design", "unrelated"]
+
+        def plugin_statuses(self, *, package_id):
+            assert package_id == "design"
+            return {"design": {"installed": True, "enabled": False}}
+
+    from runtime.platform.plugins import cloud_catalog
+
+    monkeypatch.setattr(cloud_catalog, "CloudCatalog", Catalog)
+    response = client.get(
+        "/api/agent-market/cloud/installed?package_id=design",
+        headers=_headers(keys["alice"]),
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "plugins": ["design"],
+        "plugin_states": {"design": {"installed": True, "enabled": False}},
+    }
+    assert client.get("/api/agent-market/cloud/installed?package_id=design").status_code == 401
+    assert (
+        client.get(
+            "/api/agent-market/cloud/installed?package_id=../design",
+            headers=_headers(keys["alice"]),
+        ).status_code
+        == 400
+    )
+
+
 def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
@@ -58,6 +94,12 @@ def _secured_client(
 
         def items(self) -> list[dict[str, Any]]:
             return [{"id": "demo-plugin", "kind": "plugin", "plugin": "demo"}]
+
+        def list(self, **_kwargs: Any) -> dict[str, Any]:
+            return {"items": self.items(), "total": 1}
+
+        def meta(self) -> dict[str, Any]:
+            return {}
 
         def install_plugin(self, name: str, *, plugin_kind: str) -> dict[str, Any]:
             return {"installed": True, "name": name, "kind": plugin_kind}
@@ -113,9 +155,12 @@ def test_agent_world_shared_content_mutations_reject_non_admin(
         ("POST", "/api/agent-market/cloud/store/demo/install", {}),
         ("POST", "/api/agent-market/cloud/skills/demo/install", {}),
         ("POST", "/api/agent-market/cloud/skills/external-aaaaaaaaaaaaaaaaaaaaaaaa/install", {}),
-        ("POST", "/api/agent-market/cloud/skills/external-aaaaaaaaaaaaaaaaaaaaaaaa/install/stream", {}),
-        ("POST", "/api/agent-market/cloud/plugins/demo-plugin/install", {}),
-        ("DELETE", "/api/agent-market/cloud/plugins/demo-plugin/install", {}),
+        (
+            "POST",
+            "/api/agent-market/cloud/skills/external-aaaaaaaaaaaaaaaaaaaaaaaa/install/stream",
+            {},
+        ),
+        *((method, path, {}) for method, path in _WORKBENCH_MUTATIONS),
     )
 
     for method, path, kwargs in requests:
@@ -167,30 +212,95 @@ def test_agent_world_admin_can_install_and_uninstall_shared_content(
     assert client.delete("/api/agent-market/store/demo/install", headers=headers).status_code == 200
 
 
-def test_agent_world_local_desktop_allows_authenticated_plugin_lifecycle(
+_WORKBENCH_MUTATIONS = (
+    ("POST", "/api/agent-market/cloud/plugins/demo-plugin/install"),
+    ("DELETE", "/api/agent-market/cloud/plugins/demo-plugin/install"),
+    ("POST", "/api/agent-market/cloud/plugins/demo-plugin/rollback"),
+    ("POST", "/api/agent-market/cloud/plugins/demo-plugin/enable"),
+    ("POST", "/api/agent-market/cloud/plugins/demo-plugin/disable"),
+)
+
+
+def test_local_desktop_keeps_machine_wide_workbenches_admin_only(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
-    """The loopback desktop may manage its own cloud plugin catalog."""
+    """Workbenches serve every account on the machine, so the local posture does not open them."""
+    from runtime.sensing.gateway._workbench_admin import WORKBENCH_ADMIN_REQUIRED
 
     client, keys = _secured_client(
         tmp_path,
         monkeypatch,
         allow_local_user_plugin_lifecycle=True,
     )
-    headers = _headers(keys["alice"])
 
-    installed = client.post(
-        "/api/agent-market/cloud/plugins/demo-plugin/install",
-        headers=headers,
+    for method, path in _WORKBENCH_MUTATIONS:
+        response = client.request(method, path, headers=_headers(keys["alice"]))
+        assert response.status_code == 403, path
+        assert response.json()["detail"] == WORKBENCH_ADMIN_REQUIRED
+    # Reading the catalog stays open to every signed-in account.
+    listed = client.get("/api/agent-market/cloud/plugins", headers=_headers(keys["alice"]))
+    assert listed.status_code == 200
+
+    admin = _headers(keys["admin"])
+    path = "/api/agent-market/cloud/plugins/demo-plugin/install"
+    assert client.post(path, headers=admin).status_code == 200
+    assert client.delete(path, headers=admin).status_code == 200
+
+
+def test_workbench_admin_gate_reads_the_session_cookie(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """A browser whose tab token is gone is judged by the HttpOnly session cookie."""
+    from runtime.safety.auth.principal import SESSION_COOKIE_NAME
+
+    client, keys = _secured_client(
+        tmp_path,
+        monkeypatch,
+        allow_local_user_plugin_lifecycle=True,
     )
-    removed = client.delete(
-        "/api/agent-market/cloud/plugins/demo-plugin/install",
-        headers=headers,
+    path = "/api/agent-market/cloud/plugins/demo-plugin/install"
+
+    client.cookies.set(SESSION_COOKIE_NAME, keys["alice"])
+    assert client.post(path).status_code == 403
+    client.cookies.set(SESSION_COOKIE_NAME, keys["admin"])
+    assert client.post(path).status_code == 200
+
+
+def test_local_desktop_still_lets_accounts_install_skills(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Only the machine-wide workbench lifecycle moved behind the admin role."""
+
+    client, keys = _secured_client(
+        tmp_path,
+        monkeypatch,
+        allow_local_user_plugin_lifecycle=True,
     )
 
-    assert installed.status_code == 200
-    assert removed.status_code == 200
+    response = client.post(
+        "/api/agent-market/cloud/skills/demo/install",
+        headers=_headers(keys["alice"]),
+    )
+
+    assert response.status_code == 200
+
+
+def test_auth_disabled_single_user_still_manages_workbenches(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Without accounts (single-user loopback) there is nobody to tell apart."""
+    _secured_client(tmp_path, monkeypatch)
+    app = FastAPI()
+    app.include_router(create_agent_world_router(allow_local_user_plugin_lifecycle=True))
+    client = TestClient(app)
+    path = "/api/agent-market/cloud/plugins/demo-plugin/install"
+
+    assert client.post(path).status_code == 200
+    assert client.delete(path).status_code == 200
 
 
 def test_production_agent_install_cannot_hot_register_mutable_prompt_directory(

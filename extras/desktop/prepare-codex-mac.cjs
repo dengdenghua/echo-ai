@@ -20,7 +20,7 @@ const repoRoot = path.resolve(__dirname, "..", "..");
 const frontendRoot = path.join(repoRoot, "frontend");
 const outputRoot = path.join(__dirname, "build", "codex");
 const downloadRoot = path.join(__dirname, "build", "codex-download");
-const CODEX_VERSION = "0.149.0";
+const CODEX_VERSION = "0.162.0";
 // ECHO_MAC_ARCH selects the target slice; it defaults to the host arch so
 // native (arm64) builds need no extra flags and Rosetta/x64 stays opt-in.
 const MAC_ARCH = process.env.ECHO_MAC_ARCH || process.arch;
@@ -29,21 +29,21 @@ const DARWIN_PROFILES = {
   arm64: {
     platformPackage: "@openai/codex-darwin-arm64",
     platformPackageVersion: `${CODEX_VERSION}-darwin-arm64`,
-    // pnpm-lock.yaml: '@openai/codex@0.149.0-darwin-arm64' resolution.integrity
+    // pnpm-lock.yaml: '@openai/codex@0.162.0-darwin-arm64' resolution.integrity
     integrity:
-      "sha512-GsZJbzBWiD48RETrO8VHGAQNgfSrUVxItXZFeD87wswatPi0+lKuQo8Dx4nMYmOZhZrVtwr3al/feRrZxnDV8Q==",
+      "sha512-hyiGlMCbZog7IY2TcSWzXbsmtUnynT93QA4utqGlVmFlmz8TurADk3LV28zqUIdgh9GLOzumDIdHQbYieo9Nqw==",
     tarballUrl:
-      "https://registry.npmjs.org/@openai/codex/-/codex-0.149.0-darwin-arm64.tgz",
+      "https://registry.npmjs.org/@openai/codex/-/codex-0.162.0-darwin-arm64.tgz",
     targetTriple: "aarch64-apple-darwin",
   },
   x64: {
     platformPackage: "@openai/codex-darwin-x64",
     platformPackageVersion: `${CODEX_VERSION}-darwin-x64`,
-    // pnpm-lock.yaml: '@openai/codex@0.149.0-darwin-x64' resolution.integrity
+    // pnpm-lock.yaml: '@openai/codex@0.162.0-darwin-x64' resolution.integrity
     integrity:
-      "sha512-H+mMgW3Nhc5QzGWEklCoFqACuOc0cVpgPkPQRw0LShoK7P5664T6BRnyl1yzT6orKPKv49cXry7DIWWZ19SanQ==",
+      "sha512-4XzCUJgEDDdme6VWDEKvbWDA6f+470d4xhhorYUgNBZwY8Dq5NYqvWkO33rnc1vjxkqSj+SwkymHxRMxL6h1CA==",
     tarballUrl:
-      "https://registry.npmjs.org/@openai/codex/-/codex-0.149.0-darwin-x64.tgz",
+      "https://registry.npmjs.org/@openai/codex/-/codex-0.162.0-darwin-x64.tgz",
     targetTriple: "x86_64-apple-darwin",
   },
 };
@@ -59,8 +59,8 @@ const PLATFORM_PACKAGE_INTEGRITY = PROFILE.integrity;
 const TARBALL_URL = PROFILE.tarballUrl;
 const TARGET_TRIPLE = PROFILE.targetTriple;
 const CODEX_CARGO_LOCK_SHA256 =
-  "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad";
-const CODEX_SOURCE_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0";
+  "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117";
+const CODEX_SOURCE_COMMIT = "c1382380de69521303b416720a52f42d51af6248";
 const CARGO_ABOUT_VERSION = "0.9.2";
 const RATATUI_VERSION = "0.30.2";
 const RATATUI_CRATE_SHA256 =
@@ -94,7 +94,7 @@ const LICENSE_FILES = [
       "THIRD_PARTY_LICENSES-codex-cli.html",
     ),
     destination: "third-party/codex-rust/THIRD_PARTY_LICENSES-codex-cli.html",
-    sha256: "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771",
+    sha256: "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d",
   },
   {
     source: path.join(
@@ -104,7 +104,7 @@ const LICENSE_FILES = [
       "THIRD_PARTY_LICENSES.md",
     ),
     destination: "third-party/codex-rust/THIRD_PARTY_LICENSES.md",
-    sha256: "198967762991bc9c638b7c304a11bf5b564cb1898e48acf35eca793c2b4557ae",
+    sha256: "72de1154b17f9d9e73ac1ff3e749dd7a2e5b2f945ddc35826007611c2bd25fef",
   },
   {
     source: path.join(

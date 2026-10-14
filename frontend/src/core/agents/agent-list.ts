@@ -1,4 +1,5 @@
 import type { Agent } from "./types";
+import { canonicalAgentId } from "./aliases";
 import {
   isPrimaryPersonaAgentId,
   WHITE_GHOST_AGENT_ORDER,
@@ -9,10 +10,16 @@ export function primaryPersonaRoster(agents: Agent[]): Agent[] {
   const rank = new Map<string, number>(
     WHITE_GHOST_AGENT_ORDER.map((id, index) => [id, index]),
   );
+  // The rank table is keyed by canonical persona, and the filter above already
+  // normalizes. Looking up the raw name would miss every legacy id (`coder`,
+  // `general`, …), yielding `undefined - undefined = NaN` and silently leaving
+  // the roster in input order.
+  const rankOf = (agent: Agent) =>
+    rank.get(canonicalAgentId(agent.name)) ?? Number.MAX_SAFE_INTEGER;
   return dedupePersonaAgentsByDisplayName(
     agents
       .filter((agent) => isPrimaryPersonaAgentId(agent.name))
-      .sort((left, right) => rank.get(left.name)! - rank.get(right.name)!),
+      .sort((left, right) => rankOf(left) - rankOf(right)),
   );
 }
 

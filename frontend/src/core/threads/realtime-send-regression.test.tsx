@@ -289,3 +289,47 @@ describe("useThreadStreamRealtime outbound regression", () => {
     await act(async () => retry.promise);
   });
 });
+
+it("preserves a native form ID through transport, failure and durable receipt", async () => {
+  const clientMessageId = "ui-94b9c161-47af-4b81-b572-cd9f2325a050";
+  const startTurn = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("connection lost"))
+    .mockResolvedValue(undefined);
+  const realtime = realtimeValue({ startTurn });
+  const { result, rerender } = renderHook(() =>
+    useThreadStreamRealtime({ threadId: "thread-send-regression" }),
+  );
+  const message = {
+    text: "Form response: Requirements",
+    files: [],
+    clientMessageId,
+  };
+  act(() => result.current[1]("thread-send-regression", message));
+  await waitFor(() =>
+    expect(
+      result.current[0].messages[0]?.additional_kwargs?.delivery_state,
+    ).toBe("failed"),
+  );
+  expect(startTurn.mock.calls[0]?.[0]).toMatchObject({
+    clientItemId: clientMessageId,
+  });
+  act(() => result.current[1]("thread-send-regression", message));
+  await waitFor(() => expect(startTurn).toHaveBeenCalledTimes(2));
+  expect(startTurn.mock.calls[1]?.[0]).toMatchObject({
+    clientItemId: clientMessageId,
+  });
+  expect(
+    result.current[0].messages.filter((m) => m.id === clientMessageId),
+  ).toHaveLength(1);
+  realtime.state = conversation([
+    turn("receipt", [userItem(clientMessageId, message.text)], "completed"),
+  ]);
+  rerender();
+  await waitFor(() =>
+    expect(
+      result.current[0].messages.find((m) => m.id === clientMessageId)
+        ?.additional_kwargs,
+    ).not.toHaveProperty("delivery_state"),
+  );
+});

@@ -99,6 +99,7 @@ def create_app(
         if registry is None:
             registry = kernel.registry
 
+    from runtime.platform.assets.skill_inventory import warm_on_startup
     from runtime.platform.ui._app_agents import mount_agents
     from runtime.platform.ui._app_auth_routers import mount_auth_routers
     from runtime.platform.ui._app_collab import mount_collaboration
@@ -114,6 +115,8 @@ def create_app(
         wire_persistent_subagent_runner,
         wire_stack,
     )
+    from runtime.sensing.gateway.engine_packages_router import mount_engine_packages_router
+    from runtime.sensing.gateway.page_translate_router import mount_page_translate_router
 
     ctx = setup_app(
         journal_path=journal_path,
@@ -176,7 +179,14 @@ def create_app(
         oct_link_store=oct_link_store,
     )
     mount_pages(ctx)
-    mount_meta(ctx, oct_config=oct_config)
+    mount_meta(
+        ctx,
+        oct_config=oct_config,
+        include_default_skill_library=registry is None or stack is not None,
+    )
     mount_routers_a(ctx, journal_path=journal_path)
     mount_routers_b(ctx, journal_path=journal_path)
+    mount_page_translate_router(ctx)
+    mount_engine_packages_router(ctx)
+    warm_on_startup(ctx.app)
     return ctx.app

@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import type { AIMessage, Message } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
+import type { StreamVitals } from "@/core/realtime/stream-vitals";
 import type { AgentThreadState } from "@/core/threads";
 import { SubtasksProvider } from "@/core/tasks/context";
 import { renderWithProviders } from "@/test/harness";
@@ -15,6 +16,7 @@ import {
 } from "../agent-workbench-events";
 import { ThreadProviders } from "./context";
 import {
+  MESSAGE_LIST_STALL_HINT_MS,
   MESSAGE_LIST_TIMEOUT_WARNING_MS,
   MessageList,
   streamingMessageProgressKey,
@@ -26,6 +28,14 @@ import {
   deriveSubagentsFromMessages,
   InlineSubagentCards,
 } from "./inline-subagent-cards";
+
+// Streaming emphasis wraps the newest text in a span. Match the rendered
+// sentence rather than requiring a single DOM text node.
+function renderedText(text: string) {
+  return (_content: string, element: Element | null) =>
+    element?.textContent === text &&
+    !Array.from(element.children).some((child) => child.textContent === text);
+}
 
 vi.mock("../artifacts", () => ({
   useArtifacts: () => ({
@@ -293,9 +303,11 @@ describe("MessageList process trace lifecycle", () => {
       { locale: "zh-CN" },
     );
 
-    expect(screen.getByText("1 个子 Agent · 1 异常")).toBeInTheDocument();
     expect(
-      screen.queryByText("1 个子 Agent · 1 已完成"),
+      screen.getByRole("button", { name: /Eve.*异常|Eve.*失败/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("1 个子智能体 · 1 已完成"),
     ).not.toBeInTheDocument();
   });
 
@@ -496,7 +508,7 @@ describe("MessageList process trace lifecycle", () => {
       { locale: "zh-CN" },
     );
 
-    expect(screen.getByText("2 个子 Agent · 2 已完成")).toBeInTheDocument();
+    expect(screen.getByText("2 个子智能体 · 2 已完成")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /README 检查/ }),
     ).toBeInTheDocument();
@@ -505,7 +517,7 @@ describe("MessageList process trace lifecycle", () => {
     ).toBeInTheDocument();
   });
 
-  test("shows iteration and file counts on the collapsed live card", () => {
+  test("keeps iteration and file counts in details rather than the compact row", () => {
     renderWithProviders(
       <InlineSubagentCards
         settled
@@ -525,7 +537,8 @@ describe("MessageList process trace lifecycle", () => {
       { locale: "zh-CN" },
     );
 
-    const stats = screen.getByTestId("agent-card-stats-0");
+    expect(screen.queryByTestId("agent-card-stats-0")).not.toBeInTheDocument();
+    const stats = screen.getByTestId("agent-hover-0");
     expect(stats).toHaveTextContent("2 次迭代");
     expect(stats).toHaveTextContent("3 文件修改");
   });
@@ -594,7 +607,7 @@ describe("MessageList process trace lifecycle", () => {
     ).toBeInTheDocument();
   });
 
-  test("expands a failed agent card to reveal the failure reason", () => {
+  test("shows a failed agent reason without requiring expansion", () => {
     renderWithProviders(
       <InlineSubagentCards
         settled
@@ -614,12 +627,13 @@ describe("MessageList process trace lifecycle", () => {
       { locale: "zh-CN" },
     );
 
-    expect(screen.queryByTestId("agent-report-0")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /查看失败原因/ }));
-
-    const panel = screen.getByTestId("agent-report-0");
-    expect(panel).toHaveTextContent("时间窗口不足，未能完成多空验证");
+    // A failed agent renders the reason in the error block, which has no
+    // report test id — assert the reason itself is visible up front. The
+    // reason legitimately appears in both the compact row and the detail
+    // block, so match every occurrence rather than requiring exactly one.
+    expect(
+      screen.getAllByText(/时间窗口不足，未能完成多空验证/).length,
+    ).toBeGreaterThan(0);
   });
 
   test("folds persisted spec, spawn and finish rows into two compact cards", () => {
@@ -721,6 +735,44 @@ describe("MessageList process trace lifecycle", () => {
     ]);
   });
 
+  test.each([true, false])(
+    "uses HUB identity and success=%s from embedded receipts",
+    (success) => {
+      const history = {
+        id: "hub-receipt",
+        type: "ai",
+        content: "",
+        tool_calls: [
+          {
+            id: "hub-call",
+            name: "call_agent",
+            args: {
+              agent_id: "hub-health",
+              prompt: "Check the role",
+              output: JSON.stringify({
+                success,
+                display_name: "健康顾问",
+                avatar_url: "/health.png",
+                identity_source: "agent-market",
+                output: "HUB_RESULT",
+                error: success ? null : "Child failed",
+              }),
+            },
+          },
+        ],
+      } as AIMessage;
+      expect(deriveSubagentsFromMessages([history])).toEqual([
+        expect.objectContaining({
+          id: "hub-health",
+          name: "健康顾问",
+          avatarUrl: "/health.png",
+          status: success ? "done" : "error",
+          summary: "HUB_RESULT",
+        }),
+      ]);
+    },
+  );
+
   test("groups delegated agents into one cluster instead of repeating delegation rows", () => {
     const focusEvents: AgentWorkbenchFocusDetail[] = [];
     const handleFocus = (event: Event) => {
@@ -776,7 +828,7 @@ describe("MessageList process trace lifecycle", () => {
       ],
     });
 
-    expect(screen.getByText("Agent 集群")).toBeInTheDocument();
+    expect(screen.queryByText("Agent 集群")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Prism-fcc/ }),
     ).toBeInTheDocument();
@@ -823,9 +875,7 @@ describe("MessageList process trace lifecycle", () => {
     };
     const mission = deriveSubagentMissionFromMessages([orchestration]);
 
-    expect(mission).toBe(
-      "对 echo-ai 仓库做深度审计（只读，禁止写任何文件）。",
-    );
+    expect(mission).toBe("对 echo-ai 仓库做深度审计（只读，禁止写任何文件）。");
     renderWithProviders(
       <InlineSubagentCards
         settled
@@ -846,13 +896,98 @@ describe("MessageList process trace lifecycle", () => {
       { locale: "zh-CN" },
     );
 
-    expect(screen.getByText("1 个子 Agent · 1 异常")).toBeInTheDocument();
+    expect(screen.queryByText("Agent 集群")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: /Prism-history.*对 echo-ai 仓库做深度审计.*异常/,
       }),
     ).toBeInTheDocument();
   });
+
+  test.each([true, false])(
+    "keeps main narration, delegation and results in order (live=%s)",
+    (live) => {
+      const user = message("order-user", "human", "审查项目并汇总");
+      const intro: AIMessage = {
+        id: "order-intro",
+        type: "ai",
+        content: "先明确审查范围，再请审查员核对实现。",
+        additional_kwargs: { public_progress: true },
+      };
+      const delegate: AIMessage = {
+        id: "order-delegate",
+        type: "ai",
+        content: "",
+        tool_calls: [
+          {
+            id: "order-call",
+            name: "call_agent",
+            args: {
+              agent_id: "reviewer",
+              name: "审查员",
+              prompt: "核对实现",
+              ...(live
+                ? {}
+                : { output: { success: true, output: "实现已核对" } }),
+            },
+          },
+        ],
+      };
+      const after: AIMessage = {
+        id: "order-after",
+        type: "ai",
+        content: "审查已返回，我将核对结论中的依据。",
+        additional_kwargs: { public_progress: true },
+      };
+      const { rerender } = renderMessageList({
+        thread: mockThread({
+          messages: [user, intro],
+          isLoading: true,
+          streamingMessage: intro,
+        }),
+        mode: "chat",
+        locale: "zh-CN",
+      });
+      expect(
+        screen.queryByTestId("delegation-timeline-slot"),
+      ).not.toBeInTheDocument();
+      rerender(
+        messageListTree({
+          thread: mockThread({
+            messages: [user, intro, delegate, after],
+            isLoading: live,
+            streamingMessage: live ? after : null,
+          }),
+          mode: "chat",
+        }),
+      );
+      const assertOrder = () => {
+        const before = screen.getByText(renderedText(intro.content as string));
+        const card = screen.getByRole("button", { name: /^审查员 ·/ });
+        const following = screen.getByText(
+          renderedText(after.content as string),
+        );
+        expect(
+          before.compareDocumentPosition(card) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(
+          card.compareDocumentPosition(following) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(screen.getAllByTestId("delegation-timeline-slot")).toHaveLength(
+          1,
+        );
+      };
+      assertOrder();
+      if (!live) {
+        fireEvent.click(screen.getByTestId("process-replay-toggle"));
+        assertOrder();
+        fireEvent.click(screen.getByTestId("process-replay-toggle"));
+        assertOrder();
+      }
+    },
+  );
 
   test("collapses large agent clusters to six rows and restores the full list", () => {
     const user = message("user-large-cluster", "human", "并行执行七项检查");
@@ -983,7 +1118,7 @@ describe("MessageList process trace lifecycle", () => {
     );
 
     expect(
-      screen.getByText("我先确定赛道，再核对市场与竞品证据。"),
+      screen.getByText(renderedText("我先确定赛道，再核对市场与竞品证据。")),
     ).toBeInTheDocument();
     expect(screen.getByText("搜索网页")).toBeInTheDocument();
     expect(
@@ -1080,9 +1215,12 @@ describe("MessageList process trace lifecycle", () => {
 
     expect(screen.getByText("Eve")).toBeInTheDocument();
     expect(screen.getByText("队长")).toBeInTheDocument();
+    // The roster avatar_url is honoured, but withAgentAvatarVersion() rewrites
+    // the runtime id to its canonical persona id (general -> eve) so one agent
+    // never serves two avatar URLs.
     expect(screen.getByAltText("Eve")).toHaveAttribute(
       "src",
-      expect.stringContaining("/api/agents/general/avatar"),
+      expect.stringContaining("/api/agents/eve/avatar"),
     );
   });
 
@@ -1258,8 +1396,8 @@ describe("MessageList process trace lifecycle", () => {
     expect(zeroStrip.querySelector("img")).toBeNull();
     expect(zeroStrip).not.toHaveTextContent("内部委派任务");
     expect(screen.queryByText("Agent 集群")).toBeNull();
-    expect(screen.queryByText(/1 个子 Agent/)).toBeNull();
-    expect(screen.queryByText("2 个子 Agent · 1 已完成 · 1 异常")).toBeNull();
+    expect(screen.queryByText(/1 个子智能体/)).toBeNull();
+    expect(screen.queryByText("2 个子智能体 · 1 已完成 · 1 异常")).toBeNull();
   });
 
   test("keeps team execution clusters in the right workbench, not the chat", () => {
@@ -1318,7 +1456,7 @@ describe("MessageList process trace lifecycle", () => {
     });
 
     expect(screen.queryByText("Agent 集群")).toBeNull();
-    expect(screen.queryByText(/2 个子 Agent/)).toBeNull();
+    expect(screen.queryByText(/2 个子智能体/)).toBeNull();
     expect(
       screen.queryByText("上面中断任务啊", { selector: "button" }),
     ).toBeNull();
@@ -1799,6 +1937,10 @@ describe("MessageList process trace lifecycle", () => {
       },
     });
 
+    for (const toggle of screen.queryAllByTestId("process-replay-toggle")) {
+      if (toggle.getAttribute("aria-expanded") === "false")
+        fireEvent.click(toggle);
+    }
     const commentary = screen.getAllByTestId("public-progress-event");
     const execution = screen.getAllByTestId("process-timeline-event-execution");
     const answer = screen.getByText("三条通道最终按结构化坐标合并。");
@@ -1972,8 +2114,10 @@ describe("MessageList process trace lifecycle", () => {
       ],
     });
 
+    // "coder" is a builtin runtime id, so the persona layer presents it as
+    // Kane regardless of the roster's legacy display_name.
     expect(screen.getByAltText("Eve")).toBeInTheDocument();
-    expect(screen.getByAltText("Coder")).toBeInTheDocument();
+    expect(screen.getByAltText("Kane")).toBeInTheDocument();
   });
 
   test("does not render a completed process trace block in chat answers", () => {
@@ -2046,6 +2190,11 @@ describe("MessageList process trace lifecycle", () => {
     expect(
       screen.queryByTestId("process-details-trigger"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("process-timeline-event-execution"),
+    ).not.toBeInTheDocument();
+    for (const toggle of screen.getAllByTestId("process-replay-toggle"))
+      fireEvent.click(toggle);
     const savedStepRows = screen.getAllByTestId(
       "process-timeline-event-execution",
     );
@@ -2120,6 +2269,8 @@ describe("MessageList process trace lifecycle", () => {
     expect(
       screen.getAllByTestId("process-timeline-event-execution").length,
     ).toBeGreaterThan(0);
+    expect(screen.queryByText(/old market query/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("process-replay-toggle"));
     expect(screen.getByText(/old market query/)).toBeInTheDocument();
     expect(screen.getAllByText(/active market query/).length).toBeGreaterThan(
       0,
@@ -2182,7 +2333,7 @@ describe("MessageList process trace lifecycle", () => {
       },
     });
 
-    expect(screen.getAllByText("正在收束结论")).toHaveLength(1);
+    expect(screen.getAllByText(renderedText("正在收束结论"))).toHaveLength(1);
     expect(container.querySelectorAll(".kimi-streaming-tail")).toHaveLength(1);
     expect(
       screen.getAllByTestId("process-timeline-event-execution").length,
@@ -2552,7 +2703,9 @@ describe("MessageList output summaries", () => {
       locale: "zh-CN",
     });
 
-    expect(screen.getByText(/NAS research report/)).toBeInTheDocument();
+    expect(
+      screen.getByText(renderedText("NAS research report")),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText(/\u5df2\u7f16\u8f91 1 \u4e2a\u6587\u4ef6/),
     ).not.toBeInTheDocument();
@@ -2747,10 +2900,13 @@ describe("MessageList stalled-run warning", () => {
       },
     });
 
-    const execution = screen.getByTestId("process-timeline-event-execution");
     const receipt = screen.getByText(
       /This response was interrupted during generation/i,
     );
+    expect(receipt).toBeVisible();
+    for (const toggle of screen.queryAllByTestId("process-replay-toggle"))
+      fireEvent.click(toggle);
+    const execution = screen.getByTestId("process-timeline-event-execution");
     expect(execution).toHaveTextContent("late.ts");
     expect(
       execution.compareDocumentPosition(receipt) &
@@ -2871,6 +3027,45 @@ describe("MessageList stalled-run warning", () => {
     }
   });
 
+  test("leaves a slow first response to the inline lane instead of a banner", () => {
+    vi.useFakeTimers();
+    try {
+      const messages = [message("user-1", "human", "nihao")];
+      const waiting = {
+        ...mockThread({ messages, isLoading: true }),
+        vitals: {
+          phase: "waiting",
+          ttftMs: null,
+          lastDeltaAgeMs: Infinity,
+          sinceActivityMs: Infinity,
+          elapsedMs: MESSAGE_LIST_STALL_HINT_MS + 5_000,
+          maxDeltaGapMs: 0,
+          stalled: false,
+        } satisfies StreamVitals,
+      };
+      const { unmount } = renderMessageList({ thread: waiting });
+      act(() => {
+        vi.advanceTimersByTime(MESSAGE_LIST_STALL_HINT_MS + 2_000);
+      });
+      expect(screen.getByTestId("conversation-activity-pulse")).toHaveAttribute(
+        "data-first-response-delayed",
+        "true",
+      );
+      expect(screen.queryByText(/no new output for/)).not.toBeInTheDocument();
+      unmount();
+
+      // A stream without vitals has no inline wording for the silence, so
+      // the banner still speaks up.
+      renderMessageList({ thread: mockThread({ messages, isLoading: true }) });
+      act(() => {
+        vi.advanceTimersByTime(MESSAGE_LIST_STALL_HINT_MS + 2_000);
+      });
+      expect(screen.getByText(/no new output for/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("resets the warning timer when streaming content advances", () => {
     vi.useFakeTimers();
     try {
@@ -2970,7 +3165,7 @@ describe("MessageList stalled-run warning", () => {
 
       // The full text is NOT visible yet — the buffer is mid-playback.
       expect(
-        screen.queryByText("Planning and collecting sources"),
+        screen.queryByText(renderedText("Planning and collecting sources")),
       ).not.toBeInTheDocument();
 
       // Advancing the ticker drains the buffer to the full body.
@@ -2978,7 +3173,7 @@ describe("MessageList stalled-run warning", () => {
         vi.advanceTimersByTime(60_000);
       });
       expect(
-        screen.getByText("Planning and collecting sources"),
+        screen.getByText(renderedText("Planning and collecting sources")),
       ).toBeInTheDocument();
 
       // Stream settles: full text shown immediately, no lingering buffer.
@@ -2987,7 +3182,7 @@ describe("MessageList stalled-run warning", () => {
       });
       rerender(messageListTree({ thread: settledThread }));
       expect(
-        screen.getByText("Planning and collecting sources"),
+        screen.getByText(renderedText("Planning and collecting sources")),
       ).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
@@ -3034,4 +3229,23 @@ describe("MessageList stalled-run warning", () => {
     fireEvent.click(fullButton);
     expect(onAuthorizeNetwork).toHaveBeenCalledWith("full");
   });
+});
+
+
+test("keeps inline visuals visible when the completed process trace is folded", () => {
+  const messages: Message[] = [
+    message("user-visual", "human", "解释结构"),
+    { id: "visual-call", type: "ai", content: "", tool_calls: [{ id: "show-one", name: "show_visual", args: { title: "结构图", code: "<svg><text>Example</text></svg>", format: "svg" } }] } as AIMessage,
+    { id: "visual-result", type: "tool", tool_call_id: "show-one", content: JSON.stringify({ ok: true, kind: "echo.visual.v1", visual_id: "one", receipt_token: "test-token", thread_id: "thread-1" }) } as Message,
+    message("visual-final", "ai", "结构如图。"),
+  ];
+  renderMessageList({ thread: mockThread({ messages }), locale: "zh-CN" });
+  expect(screen.getByTestId("inline-visual")).toBeVisible();
+  expect(screen.getByTitle("结构图")).toHaveAttribute("sandbox", "allow-scripts");
+  for (const toggle of screen.queryAllByTestId("process-replay-toggle")) {
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("inline-visual")).toBeVisible();
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("inline-visual")).toBeVisible();
+  }
 });

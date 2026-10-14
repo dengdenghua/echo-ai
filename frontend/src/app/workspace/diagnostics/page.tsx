@@ -14,8 +14,7 @@
  * without the page becoming a wall of cards.
  */
 
-import { swallow } from "@/core/utils/log";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { GaugeIcon } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,40 +25,17 @@ import { RemoteBackendsPanel } from "@/components/workspace/remote-backends-pane
 import { RuntimeSelfCheckPanel } from "@/components/workspace/runtime-self-check-panel";
 import { StreamTelemetryPanel } from "@/components/workspace/stream-telemetry-panel";
 import { useI18n } from "@/core/i18n/hooks";
-import { getBackendBaseURL } from "@/core/config";
+import { readRememberedChatWorkDir } from "@/app/workspace/realtime/[thread_id]/page-utils";
 
 // The /workspace/diagnostics route renders ObservabilityPage (which embeds
 // DiagnosticsContent in its system tab), so this module intentionally has
 // no standalone page export.
 export function DiagnosticsContent() {
   const { t } = useI18n();
-  const [project, setProject] = useState<string>("");
-
-  // Resolve the active workspace root for the ambient-suggestions
-  // panel. Reads from ``/api/projects/active`` when the account /
-  // scope subsystem has one bound; otherwise leaves empty and the
-  // panel renders a "no active project" hint.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const r = await fetch(`${getBackendBaseURL()}/api/projects/active`);
-        if (r.ok) {
-          const body = (await r.json()) as { project_root?: string };
-          if (!cancelled && body.project_root) {
-            setProject(body.project_root);
-            return;
-          }
-        }
-      } catch (e) {
-        swallow(e);
-      }
-      if (!cancelled) setProject("");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Ambient suggestions read the folder last bound in chat. The old
+  // ``/api/projects/active`` lookup never existed on the server and only
+  // logged a 404 each visit.
+  const [project] = useState(readRememberedChatWorkDir);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">

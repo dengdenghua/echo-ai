@@ -30,6 +30,7 @@ import json
 import logging
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -301,6 +302,114 @@ def decide_with_guardian(
     return rule_engine_action, f"guardian-allow: {verdict.reason}"
 
 
+# Prefix of automatic review's turn-level stop reason. Callers match on it
+# (``is_auto_review_turn_stop``): once review stops for a turn, the remaining
+# approvals of that turn belong to a person, never to another review.
+AUTO_REVIEW_TURN_STOP_PREFIX = "automatic review stopped for this turn"
+
+
+def is_auto_review_turn_stop(reason: object) -> bool:
+    """Whether an approval reason is automatic review's turn-level stop."""
+    return str(reason or "").strip().lower().startswith(AUTO_REVIEW_TURN_STOP_PREFIX)
+
+
+@dataclass(frozen=True, slots=True)
+class AutoReviewTurnStop:
+    """Why automatic review stopped deciding for the rest of a turn."""
+
+    cause: Literal["consecutive_denials", "recent_denials", "review_budget"]
+    denials: int
+    reviews: int
+    reason: str
+
+
+class AutoReviewTurnBreaker:
+    """Turn-wide denial accounting for automatic review.
+
+    Codex auto-review interrupts the turn after 3 consecutive denials or 10
+    denials among the last 50 reviews; Claude Code's auto mode likewise stops
+    and hands the decision back to the user. Only real verdicts count: an
+    unavailable / timed-out review says nothing about safety, so it is neither
+    a denial nor a reset. Once tripped the breaker stays open for the
+    provider's lifetime (one turn) — the reviewer only stands in for the
+    approver, it never earns the run standing permission to keep trying.
+    """
+
+    def __init__(
+        self,
+        *,
+        consecutive_limit: int = 3,
+        window: int = 50,
+        window_limit: int = 10,
+    ) -> None:
+        if consecutive_limit < 1 or window < 1 or window_limit < 1:
+            raise ValueError("auto-review denial limits must be >= 1")
+        self._consecutive_limit = consecutive_limit
+        self._window_limit = window_limit
+        self._recent: deque[bool] = deque(maxlen=window)
+        self._consecutive = 0
+        self._denials = 0
+        self._reviews = 0
+        self._stop: AutoReviewTurnStop | None = None
+        self._lock = threading.Lock()
+
+    @property
+    def stop(self) -> AutoReviewTurnStop | None:
+        with self._lock:
+            return self._stop
+
+    def note_verdict(self, *, denied: bool) -> AutoReviewTurnStop | None:
+        """Record one verdict; return the stop once either limit is reached."""
+        with self._lock:
+            self._reviews += 1
+            self._recent.append(denied)
+            if denied:
+                self._denials += 1
+                self._consecutive += 1
+            else:
+                self._consecutive = 0
+            recent_denials = sum(self._recent)
+            if self._stop is None and self._consecutive >= self._consecutive_limit:
+                self._stop = self._stopped(
+                    "consecutive_denials",
+                    f"after {self._consecutive} consecutive denials",
+                )
+            elif self._stop is None and recent_denials >= self._window_limit:
+                self._stop = self._stopped(
+                    "recent_denials",
+                    f"after {recent_denials} denials in the last {len(self._recent)} reviews",
+                )
+            return self._stop
+
+    def exhaust_budget(self, limit: int) -> AutoReviewTurnStop:
+        """Stop because the turn's review budget is spent."""
+        with self._lock:
+            if self._stop is None:
+                self._stop = self._stopped(
+                    "review_budget",
+                    f"after reaching its limit of {limit} reviews",
+                )
+            return self._stop
+
+    def _stopped(
+        self,
+        cause: Literal["consecutive_denials", "recent_denials", "review_budget"],
+        why: str,
+    ) -> AutoReviewTurnStop:
+        reason = (
+            f"{AUTO_REVIEW_TURN_STOP_PREFIX} {why} ({self._denials} of {self._reviews} "
+            "reviewed actions denied). Actions that need approval will not be reviewed "
+            "or run for the rest of this turn: stop attempting them, do not work around "
+            "the block, and tell the user that a person has to decide how to continue."
+        )
+        return AutoReviewTurnStop(
+            cause=cause,
+            denials=self._denials,
+            reviews=self._reviews,
+            reason=reason,
+        )
+
+
 class AutoReviewApprovalProvider(ApprovalProvider):
     """Route an eligible approval request to a separate reviewer agent.
 
@@ -308,6 +417,12 @@ class AutoReviewApprovalProvider(ApprovalProvider):
     native Echo tools and for Echo dynamic tools called by the Codex engine.
     Reviewer failure does not become permission: it returns a distinct denial
     so the working agent can choose a safer path or ask the user in prose.
+
+    One instance spans one turn: its denial accounting (the same-action
+    breaker, the turn-wide ``AutoReviewTurnBreaker`` and the review budget)
+    only works when every approval of the turn goes through the same
+    provider. After the turn breaker trips, every later request returns the
+    stop reason without consulting the reviewer.
     """
 
     def __init__(
@@ -318,6 +433,9 @@ class AutoReviewApprovalProvider(ApprovalProvider):
         default_model: str | None = None,
         per_turn_limit: int = 50,
         timeout_s: float = 15.0,
+        consecutive_denial_limit: int = 3,
+        denial_window: int = 50,
+        denial_window_limit: int = 10,
     ) -> None:
         self._reviewer = GuardianReviewer(
             router,
@@ -329,8 +447,24 @@ class AutoReviewApprovalProvider(ApprovalProvider):
                 review_all_risks=True,
             ),
         )
+        self._per_turn_limit = per_turn_limit
         self._user_intent = user_intent
         self._breaker = DenialCircuitBreaker(limit=3)
+        self._turn = AutoReviewTurnBreaker(
+            consecutive_limit=consecutive_denial_limit,
+            window=denial_window,
+            window_limit=denial_window_limit,
+        )
+
+    @property
+    def turn_stop(self) -> AutoReviewTurnStop | None:
+        """The turn-level stop, once automatic review has stopped deciding."""
+        return self._turn.stop
+
+    def update_user_intent(self, user_intent: str) -> None:
+        """Track the latest user request (the only authorization evidence)."""
+        if user_intent:
+            self._user_intent = user_intent
 
     def request(
         self,
@@ -338,6 +472,9 @@ class AutoReviewApprovalProvider(ApprovalProvider):
         *,
         timeout: float = 120.0,  # noqa: ARG002
     ) -> ApprovalDecision:
+        stop = self._turn.stop
+        if stop is not None:
+            return ApprovalDecision(approved=False, reason=stop.reason)
         risk = assess_approval_risk(req.tool_name, req.args_preview)
         key = (req.thread_id, req.tool_name, req.args_preview[:500])
         if self._breaker.is_open(key):
@@ -345,6 +482,10 @@ class AutoReviewApprovalProvider(ApprovalProvider):
                 approved=False,
                 reason="automatic review stopped after repeated denials",
             )
+        if not self._reviewer.should_review(risk.level, req.thread_id):
+            # Every risk is reviewed, so only a spent budget lands here.
+            stop = self._turn.exhaust_budget(self._per_turn_limit)
+            return ApprovalDecision(approved=False, reason=stop.reason)
         verdict = self._reviewer.review(
             thread_id=req.thread_id,
             tool_name=req.tool_name,
@@ -360,15 +501,24 @@ class AutoReviewApprovalProvider(ApprovalProvider):
             )
         if verdict.outcome == "deny":
             self._breaker.note_denial(key)
-            return ApprovalDecision(approved=False, reason=f"auto-review: {verdict.reason}")
+            reason = f"auto-review: {verdict.reason}"
+            stop = self._turn.note_verdict(denied=True)
+            if stop is not None:
+                reason = f"{stop.reason} Last denial: {reason}"
+            return ApprovalDecision(approved=False, reason=reason)
         self._breaker.note_clear(key)
+        self._turn.note_verdict(denied=False)
         return ApprovalDecision(approved=True, reason=f"auto-review: {verdict.reason}")
 
 
 __all__ = [
+    "AUTO_REVIEW_TURN_STOP_PREFIX",
     "AutoReviewApprovalProvider",
+    "AutoReviewTurnBreaker",
+    "AutoReviewTurnStop",
     "GuardianReviewer",
     "GuardianReviewerConfig",
     "GuardianVerdict",
     "decide_with_guardian",
+    "is_auto_review_turn_stop",
 ]

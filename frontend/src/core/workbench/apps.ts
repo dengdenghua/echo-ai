@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 export type WorkbenchBuiltinIcon =
+  | "mail"
   | "projects"
   | "trading"
   | "design"
@@ -28,6 +29,8 @@ export interface WorkbenchBuiltinApp {
 
 /** Native Echo pages that can also live in the browser desktop and Dock. */
 export const WORKBENCH_BUILTIN_APPS: readonly WorkbenchBuiltinApp[] = [
+  { id: "mail", moduleId: "mail", name: "邮箱", description: "统一收件箱、邮件总结与智能写作",
+    workspaceRoute: "/workspace/mail", launchUrl: "echo://workspace/mail", icon: "mail", delivery: "core" },
   {
     id: "projects",
     moduleId: "projects",
@@ -39,19 +42,6 @@ export const WORKBENCH_BUILTIN_APPS: readonly WorkbenchBuiltinApp[] = [
     delivery: "remote",
     cloudId: "workbench_projects",
     packageId: "projects",
-  },
-  {
-    id: "paper-trading",
-    moduleId: "paper.trading",
-    name: "模拟炒股",
-    description: "策略验证与模拟交易",
-    workspaceRoute: "/workspace/paper-trading",
-    launchUrl: "echo://workspace/paper-trading",
-    icon: "trading",
-    delivery: "remote",
-    cloudId: "workbench_paper-trading",
-    packageId: "paper-trading",
-    runtimePlugin: "paper_trading",
   },
   {
     id: "design",
@@ -83,7 +73,7 @@ export const WORKBENCH_BUILTIN_APPS: readonly WorkbenchBuiltinApp[] = [
     moduleId: "evolution",
     name: "自进化",
     description: "双螺旋、候选基因、治理与审计",
-    workspaceRoute: "/workspace/evolution",
+    workspaceRoute: "/workspace/evolution?surface=chat",
     launchUrl: "echo://workspace/evolution",
     icon: "evolution",
     delivery: "remote",
@@ -93,7 +83,7 @@ export const WORKBENCH_BUILTIN_APPS: readonly WorkbenchBuiltinApp[] = [
   {
     id: "intelligence",
     moduleId: "intelligence",
-    name: "订阅",
+    name: "自动化",
     description: "持续跟踪主题与情报",
     workspaceRoute: "/workspace/intelligence?surface=chat",
     launchUrl: "echo://workspace/intelligence",
@@ -208,9 +198,20 @@ export function setWorkspaceWebShortcut(
   if (!clean) return;
   const current = readShortcuts();
   const next = pinned
-    ? [...current.filter((item) => item.url !== clean.url), clean]
+    ? current.some((item) => item.url === clean.url)
+      ? current.map((item) => item.url === clean.url ? clean : item)
+      : [...current, clean]
     : current.filter((item) => item.url !== clean.url);
   writeShortcuts(next);
+}
+
+export function moveWorkspaceWebShortcut(id: string, direction: -1 | 1): void {
+  const items = [...readShortcuts()];
+  const index = items.findIndex((item) => item.id === id);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= items.length) return;
+  [items[index], items[target]] = [items[target]!, items[index]!];
+  writeShortcuts(items);
 }
 
 function subscribe(listener: () => void): () => void {

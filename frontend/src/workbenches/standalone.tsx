@@ -94,7 +94,7 @@ function HostBridge() {
       if (typeof payload.route === "string") {
         const route = safeWorkspaceRoute(payload.route, "");
         const current = `${location.pathname}${location.search}${location.hash}`;
-        if (route && route !== current) navigate(route, { replace: true });
+        if (route && route !== current) void navigate(route, { replace: true });
       }
     };
     window.addEventListener("message", receive);

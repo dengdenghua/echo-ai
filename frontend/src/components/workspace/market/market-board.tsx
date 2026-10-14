@@ -136,7 +136,7 @@ export function MarketBoard() {
                 className={cn(
                   "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                   isActive
-                    ? "border-rose-300/60 bg-rose-500/10 text-rose-600 dark:border-rose-400/30 dark:text-rose-300"
+                    ? "border-core/30 bg-core/10 text-core"
                     : "border-transparent bg-muted/35 text-muted-foreground hover:bg-muted/65 hover:text-foreground",
                 )}
               >
@@ -166,7 +166,7 @@ export function MarketBoard() {
               placeholder="搜索好物、卖家…"
               className={cn(
                 "w-full rounded-md border border-border-default bg-background/60 py-1.5 pl-9 pr-8 text-sm",
-                "placeholder:text-muted-foreground/60 outline-none",
+                "placeholder:text-muted-foreground outline-none",
                 "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
               )}
             />
@@ -175,7 +175,7 @@ export function MarketBoard() {
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="清空搜索"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/60 hover:text-foreground"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
               >
                 <XIcon className="size-3.5" />
               </button>
@@ -184,9 +184,9 @@ export function MarketBoard() {
           <button
             type="button"
             onClick={() => setListOpen(true)}
-            className="flex min-h-9 shrink-0 items-center gap-1 rounded-md border border-border-default bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-rose-300 hover:bg-rose-500/5 hover:text-rose-600"
+            className="flex min-h-9 shrink-0 items-center gap-1 rounded-md border border-border-default bg-background px-3 py-2 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-muted"
           >
-            <PlusIcon className="size-4 text-rose-500" />
+            <PlusIcon className="size-4" />
             上架
           </button>
         </div>
@@ -280,7 +280,7 @@ export function ListModal({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="一句话好物标题…"
             maxLength={40}
-            className="w-full rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+            className="w-full rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
           />
           <label
             htmlFor="market-item-description"
@@ -294,7 +294,7 @@ export function ListModal({
             onChange={(e) => setDesc(e.target.value)}
             placeholder="描述用途、亮点（可选）…"
             rows={3}
-            className="w-full resize-none rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+            className="w-full resize-none rounded-md border border-border-default bg-background/60 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
           />
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
@@ -347,7 +347,7 @@ export function ListModal({
                   className={cn(
                     "aspect-[4/3] overflow-hidden rounded-md ring-2 transition",
                     cover === c
-                      ? "ring-rose-500"
+                      ? "ring-core"
                       : "ring-transparent hover:ring-border-default",
                   )}
                 >
@@ -372,8 +372,8 @@ export function ListModal({
             className={cn(
               "rounded-md px-4 py-1.5 text-sm font-semibold transition-colors",
               canSubmit
-                ? "bg-rose-500 text-white hover:bg-rose-600"
-                : "cursor-not-allowed bg-muted text-muted-foreground/50",
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                : "cursor-not-allowed bg-muted text-muted-foreground",
             )}
           >
             上架

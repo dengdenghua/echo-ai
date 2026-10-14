@@ -17,7 +17,6 @@ import json
 import logging
 import os
 import subprocess
-import sys
 import uuid
 from collections.abc import Awaitable, Callable
 from functools import partial
@@ -32,6 +31,7 @@ from .protocol import (
     encode_host_message,
 )
 from .realm import check_meta_statement, validate_script
+from .sandbox import WorkerLaunch, WorkflowSandboxUnavailable, prepare_worker_launch
 from .types import (
     WorkflowAgentEndInfo,
     WorkflowAgentInfo,
@@ -46,6 +46,52 @@ from .types import (
 _logger = logging.getLogger("runtime.execution.workflow")
 
 _STDERR_CAP = 64 * 1024
+
+# The worker only needs to boot a Python interpreter and import this
+# package; it never talks to providers (``agent()`` round-trips to the
+# host). So it gets an ALLOWLISTED environment rather than the server's
+# full one — provider API keys and other secrets are simply absent.
+_WORKER_ENV_ALLOW: frozenset[str] = frozenset(
+    {
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "SYSTEMDRIVE",
+        "WINDIR",
+        "COMSPEC",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "HOME",
+        "USERPROFILE",
+        "LANG",
+        "LANGUAGE",
+        "TZ",
+        "VIRTUAL_ENV",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONHASHSEED",
+    }
+)
+_WORKER_ENV_ALLOW_PREFIXES: tuple[str, ...] = ("LC_",)
+
+
+def worker_env() -> dict[str, str]:
+    """Environment for the workflow worker subprocess (allowlist only).
+
+    Stdio is pinned to UTF-8: the host writes UTF-8 JSONL, and a worker
+    that decodes stdin with the locale codec (cp936 / cp1252 on Windows)
+    corrupts any non-ASCII script or argument.
+    """
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if name.upper() in _WORKER_ENV_ALLOW or name.upper().startswith(_WORKER_ENV_ALLOW_PREFIXES)
+    }
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    return env
 
 
 class WorkflowObserver:
@@ -281,6 +327,7 @@ class WorkflowRun:
         self._observer = observer
         self._loop: asyncio.AbstractEventLoop | None = None
         self._proc: subprocess.Popen[bytes] | None = None
+        self._launch: WorkerLaunch | None = None
         self._result_future: asyncio.Future[WorkflowResult] | None = None
         self._settled = False
         self._cancelled = False
@@ -316,20 +363,26 @@ class WorkflowRun:
         self._loop = asyncio.get_running_loop()
         self._result_future = self._loop.create_future()
         try:
-            from runtime.platform.process.tree import process_group_kwargs
+            from runtime.platform.process.tree import spawn_in_job
 
-            self._proc = subprocess.Popen(
-                [sys.executable, "-m", "runtime.execution.workflow.worker"],
+            self._launch = prepare_worker_launch(worker_env())
+            # Audit T-10: the worker runs in its own session (pid == pgid)
+            # so terminating it later kills the whole process group —
+            # subagent children the worker spawned do not outlive the run.
+            # On Windows the tree is also bound to a kill-on-close Job
+            # Object, which holds even if this backend process dies.
+            self._proc = spawn_in_job(
+                self._launch.argv,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                # Audit T-10: the worker runs in its own session (pid ==
-                # pgid) so terminating it later kills the whole process
-                # group — subagent children the worker spawned do not
-                # outlive the run.
-                **process_group_kwargs(),
+                env=self._launch.env,
+                cwd=self._launch.cwd,
             )
-        except OSError as exc:
+        except (OSError, WorkflowSandboxUnavailable) as exc:
+            if self._launch is not None:
+                self._launch.close()
+                self._launch = None
             self._settle(
                 WorkflowResult(
                     None,
@@ -413,6 +466,9 @@ class WorkflowRun:
     async def _wait_exit(self) -> None:
         assert self._proc is not None
         returncode = await asyncio.to_thread(self._proc.wait)
+        if self._launch is not None:
+            self._launch.close()
+            self._launch = None
         stderr = b"".join(self._stderr_buf).decode("utf-8", "replace").strip()
         if not self._settled:
             detail = f" (worker exit {returncode})"
@@ -612,6 +668,17 @@ class WorkflowRun:
             )
         except TimeoutError:
             self._force_settle()
+        self._terminate_worker()
+        if self._proc is not None:
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                await asyncio.to_thread(self._proc.wait, timeout=1.0)
+            from runtime.platform.process.tree import close_process_job
+
+            # Ends descendants that outlived an already-exited worker.
+            close_process_job(self._proc)
+        if self._launch is not None and (self._proc is None or self._proc.poll() is not None):
+            self._launch.close()
+            self._launch = None
         # Give the reader/exit tasks a moment to finish their bookkeeping.
         for task in (getattr(self, "_reader_task", None), getattr(self, "_exit_task", None)):
             if task is not None:

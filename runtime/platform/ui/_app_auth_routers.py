@@ -14,7 +14,12 @@ from ._app_context import AppContext
 from ._app_fallback_routers import _attach_oct_fallback_router
 
 
-def _restore_oct_identities(identity_store: Any, link_store: Any) -> int:
+def _restore_oct_identities(
+    identity_store: Any,
+    link_store: Any,
+    *,
+    admin_emails: tuple[str, ...] | list[str] | set[str] = (),
+) -> int:
     """Rehydrate locally linked Oct actors after a process restart.
 
     The signed session JWT can outlive the in-memory ``IdentityStore``.  The
@@ -34,15 +39,25 @@ def _restore_oct_identities(identity_store: Any, link_store: Any) -> int:
         if not isinstance(actor_id, str) or not actor_id:
             continue
         try:
-            if hasattr(identity_store, "get") and identity_store.get(actor_id) is not None:
-                continue
             link = link_store.get(actor_id)
             if link is None or bool(getattr(link, "token_invalid", False)):
+                continue
+            email = str(getattr(link, "email", None) or "").strip().lower()
+            roles = (
+                ("user", "oct", "admin")
+                if (
+                    "*" in {str(item).strip().lower() for item in admin_emails}
+                    or (email and email in {str(item).strip().lower() for item in admin_emails})
+                )
+                else ("user", "oct")
+            )
+            if identity_store.get(actor_id) is not None:
+                identity_store.set_roles(actor_id, roles)
                 continue
             identity_store.add(
                 Identity(
                     actor_id=actor_id,
-                    roles=("user", "oct"),
+                    roles=roles,
                     metadata={
                         "provider": "oct",
                         "email": getattr(link, "email", None),
@@ -69,11 +84,16 @@ def mount_auth_routers(
     if ctx.identity_store is not None:
         from runtime.adapters.integrations.social_auth import create_social_auth_router
         from runtime.platform.process.paths import app_paths
-        app.include_router(create_social_auth_router(
-            identity_store=ctx.identity_store, jwt_secret=ctx.jwt_secret,
-            jwt_issuer=ctx.jwt_issuer, jwt_audience=ctx.jwt_audience,
-            data_dir=app_paths().data_dir,
-        ))
+
+        app.include_router(
+            create_social_auth_router(
+                identity_store=ctx.identity_store,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+                data_dir=app_paths().data_dir,
+            )
+        )
 
     if oct_config is not None and getattr(oct_config, "enabled", False):
         # oct 账号网关（echo 自己的，echo.aurest.ai）。
@@ -84,7 +104,11 @@ def mount_auth_routers(
         )
 
         effective_oct_link_store = oct_link_store or OctLinkStore()
-        restored = _restore_oct_identities(ctx.identity_store, effective_oct_link_store)
+        restored = _restore_oct_identities(
+            ctx.identity_store,
+            effective_oct_link_store,
+            admin_emails=getattr(oct_config, "admin_emails", ()) or (),
+        )
         if restored:
             logging.getLogger(__name__).info(
                 "restored %d Oct identity record(s) from durable account links",

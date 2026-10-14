@@ -323,6 +323,7 @@ def test_flatten_keeps_reasoning_private_and_commentary_explicit() -> None:
         "reasoning_content": shared_text,
         "message_kind": "commentary",
         "public_progress": True,
+        "turn_duration_ms": 1000,
     }
     assert "public_reasoning_summary" not in commentary["additional_kwargs"]
 
@@ -551,10 +552,12 @@ def gateway(tmp_path: Path) -> Any:
 def _drive(ws: Any, params: dict[str, Any], approve: bool = True) -> dict[str, Any]:
     ws.send_text(encode_message(JsonRpcRequest(id=1, method="turn/start", params=params)))
     notifications: list[Notification] = []
+    requests: list[JsonRpcRequest] = []
     response: JsonRpcResponse | None = None
     while True:
         msg = decode_message(ws.receive_text())
         if isinstance(msg, JsonRpcRequest):
+            requests.append(msg)
             ws.send_text(
                 encode_message(
                     JsonRpcResponse(
@@ -570,7 +573,7 @@ def _drive(ws: Any, params: dict[str, Any], approve: bool = True) -> dict[str, A
             response = msg
             break
     assert response is not None
-    return {"response": response, "notifications": notifications}
+    return {"response": response, "notifications": notifications, "requests": requests}
 
 
 def test_codex_partner_routes_to_app_server_before_legacy_cli(
@@ -931,11 +934,77 @@ def test_explicit_engine_is_independent_of_role_and_checked_before_effects(
         assert turn["error"]["code"] == "execution_unavailable"
         assert turn["error"]["reason"] == "account_required"
         assert turn["error"]["disposition"] == "blocked_on_user"
+        info = next(item["errorInfo"] for item in turn["items"] if item["type"] == "error")
+        assert info["engine"] == "codex"
+        assert info["reason"] == "account_required"
+        assert info["disposition"] == "blocked_on_user"
     else:
         assert calls == [expected]
         assert turn["status"] == "completed"
         assert turn["execution"]["engine"] == expected
         assert len(events) == 1
+
+
+def test_required_connector_blocks_engine_then_rechecks_same_thread(tmp_path, monkeypatch):
+    import importlib
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from runtime.sensing.gateway.realtime_cerebrum import CerebrumRuntime
+    from runtime.sensing.gateway.realtime_gateway import RealtimeGateway
+
+    registry = Mock()
+    registry.get.return_value = {
+        "id": "mail",
+        "source": "connector",
+        "installed": True,
+        "enabled": True,
+        "auth_mode": "token",
+    }
+    registry.status.return_value = {"connected": False}
+    monkeypatch.setattr(
+        importlib.import_module("runtime.platform.capabilities.capability_registry"),
+        "CapabilityRegistry",
+        lambda: registry,
+    )
+    agent = SimpleNamespace(
+        agent_id="eve", soul="Office role", capabilities={}, dependencies={"connectors": ["mail"]}
+    )
+    calls = []
+
+    async def native(runtime, turn, log, emitter, intent, provider, selected_agent, **kw):
+        calls.append((turn.thread_id, selected_agent.agent_id, intent.raw))
+        await runtime._emit_agent_message(turn, log, emitter, "completed")
+
+    monkeypatch.setattr(CerebrumRuntime, "_drive_react", native)
+    runtime = CerebrumRuntime(stack=object(), agent=agent, logs_root=str(tmp_path / "threads"))
+    app = FastAPI()
+    app.include_router(RealtimeGateway(runtime=runtime).router)
+    params = {
+        "threadId": "preparation-task",
+        "executionEngine": "echo",
+        "input": [{"type": "text", "text": "organize the mail"}],
+    }
+    with TestClient(app) as client, client.websocket_connect("/api/realtime") as ws:
+        first = _drive(ws, params)
+        blocked = first["response"].result["turn"]
+        assert blocked["status"] == "failed"
+        assert blocked["error"]["code"] == "role_connections_unavailable"
+        assert blocked["error"]["disposition"] == "blocked_on_user"
+        assert calls == []
+        assert not any(n.method == "turn/execution/updated" for n in first["notifications"])
+        receipt = next(item for item in blocked["items"] if item["type"] == "error")
+        assert receipt["errorInfo"]["connectors"] == ["mail"]
+        registry.status.return_value = {"connected": True}
+        second = _drive(ws, params)["response"].result["turn"]
+        assert second["status"] == "completed"
+        assert second["id"] != blocked["id"]
+        assert calls == [("preparation-task", "eve", "organize the mail")]
+    persisted = "\n".join(
+        path.read_text(encoding="utf-8") for path in (tmp_path / "threads").rglob("*.jsonl")
+    )
+    assert "role_connections_unavailable" in persisted
+    assert blocked["id"] in persisted and second["id"] in persisted
 
 
 def test_user_turn_refills_subagent_wake_budget(gateway: Any, tmp_path: Path) -> None:
@@ -1532,13 +1601,17 @@ def test_subagent_store_lock_does_not_delay_interrupt_terminal(
         set_subagent_session_store(previous)
 
 
-def test_turn_start_user_item_id_is_stable_and_retry_is_idempotent(gateway: Any) -> None:
+@pytest.mark.parametrize("queue_if_busy", [False, True])
+def test_turn_start_user_item_id_is_stable_and_retry_is_idempotent(
+    gateway: Any, queue_if_busy: bool
+) -> None:
     from runtime.memory.threads.event_log import EventLog, thread_log_path
 
     client, logs_root = gateway
     params = {
         "threadId": "th-idempotent-user-item",
         "userItemId": "itm_client_retry_1234",
+        "queueIfBusy": queue_if_busy,
         "input": [
             {
                 "type": "text",
@@ -2459,6 +2532,9 @@ def test_team_subagent_lifecycle_maps_to_first_class_item(
 def test_persistent_cowork_chat_without_mention_completes_without_model(
     tmp_path: Path,
 ) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
     from runtime.memory.cowork.collaboration_store import CollaborationStore
     from runtime.memory.cowork.group_store import GroupStore
     from runtime.memory.cowork.service import invite_member
@@ -2480,12 +2556,14 @@ def test_persistent_cowork_chat_without_mention_completes_without_model(
             {"type": "react_completed"},
         ]
     )
+    broadcaster = AsyncMock()
     runtime = CerebrumRuntime(
         stack=object(),
         agent=object(),
         logs_root=str(tmp_path / "threads"),
         cowork_group_store=groups,
         collaboration_store=collaboration,
+        team_rooms_router=SimpleNamespace(broadcast=broadcaster),
     )
     gateway = RealtimeGateway(runtime=runtime, approval_timeout=5.0)
     app = FastAPI()
@@ -2507,13 +2585,24 @@ def test_persistent_cowork_chat_without_mention_completes_without_model(
     assert [item["type"] for item in turn["items"]] == ["userMessage"]
     assert _LAST_STREAM_ARGS == {}
 
+    broadcaster.assert_awaited_once_with(
+        "room-project",
+        {
+            "type": "thread:update",
+            "thread_id": "th-project-room",
+            "reason": "message",
+            "participant_id": "",
+        },
+    )
+
     messages = collaboration.messages_for_session("th-project-room")
     assert len(messages) == 1
     message = messages[0]
     user_item = turn["items"][0]
     assert message["text"] == "这是一条普通项目群消息"
     assert message["participant_id"] == "anonymous"
-    assert message["display_name"] == "我"
+    assert message["display_name"] == "anonymous"
+    assert message["metadata"]["sender_kind"] == "human"
     assert message["metadata"]["source_message_id"] == f"thread:{user_item['id']}"
 
     # Emulate the frontend's lazy Project-action mirror.  The shared source id
@@ -2523,7 +2612,7 @@ def test_persistent_cowork_chat_without_mention_completes_without_model(
         room_id="room-project",
         text=message["text"],
         participant_id="anonymous",
-        display_name="我",
+        display_name=message["display_name"],
         metadata={"source_message_id": message["metadata"]["source_message_id"]},
     )
     assert repeated_seq == message["seq"]
@@ -2899,13 +2988,13 @@ def test_cowork_group_request_drives_pattern_fanout(
     assert team_items[0]["arguments"]["collaboration_run_id"].startswith("cowork-fanout:")
     assert team_items[0]["arguments"]["capacity"]["schema"] == ("echo.group_fanout_capacity.v1")
     assert team_items[0]["arguments"]["pattern"]["id"] == "parallel_roundtable"
-    assert team_items[0]["arguments"]["context_plan"]["schema"] == (
-        "echo.cowork_context_plan.v1"
-    )
+    assert team_items[0]["arguments"]["context_plan"]["schema"] == ("echo.cowork_context_plan.v1")
     assert team_items[0]["arguments"]["context_plan"]["selection_engine"] == ("runtime-fixture")
     assert team_items[0]["arguments"]["routing"] == {
         "schema": "echo.cowork_member_routing.v1",
-        "reason": "group_request_or_mode",
+        # A swarm plan already names its responders; ordinary chat widens via
+        # the natural-language group request instead.
+        "reason": "planned_responders" if room_mode == "swarm" else "group_request_or_mode",
         "available_member_count": 2,
         "selected_member_count": 2,
         "selected_agent_ids": ["db-agent", "ui-agent"],
@@ -2983,8 +3072,7 @@ def test_cowork_group_request_drives_pattern_fanout(
     audit_items = [
         item
         for item in turn["items"]
-        if item["type"] == "reasoning"
-        and "echo.group_fanout_audit.v1" in item.get("content", "")
+        if item["type"] == "reasoning" and "echo.group_fanout_audit.v1" in item.get("content", "")
     ]
     assert len(audit_items) == 1
     assert "use_primary_and_retry_failed_members" in audit_items[0]["content"]
@@ -3480,6 +3568,88 @@ def test_cowork_tl_correction_and_question_marks_preserve_the_original_task(
     )
 
 
+def test_client_topology_cannot_override_server_owned_coordinated_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """集群 sends a legacy ``topologyId`` alongside the deliverable request.
+
+    Route precedence puts ``topology_id`` above ``coordinated``, so the stale
+    client field used to dispatch ``swarm_mesh`` while the deliverable gate
+    still audited the turn as coordinated execution — two different team
+    orchestrations for one turn. The server-owned pattern is authoritative.
+    """
+
+    from runtime.memory.cowork.group_store import GroupStore
+    from runtime.memory.cowork.service import invite_member, set_mode
+    from runtime.sensing.gateway.realtime_cerebrum import CerebrumRuntime
+    from runtime.sensing.gateway.realtime_gateway import RealtimeGateway
+
+    store = GroupStore(base_dir=tmp_path / "cowork")
+    invite_member(store, "th-cluster-topology", actor="u", target_id="general", kind="agent")
+    invite_member(store, "th-cluster-topology", actor="u", target_id="coder", kind="agent")
+    set_mode(store, "th-cluster-topology", actor="u", mode="cluster")
+
+    async def should_not_drive_mesh(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("a server-owned coordinated turn must not run the swarm mesh")
+
+    _set_script(
+        [
+            {
+                "type": "tool_start",
+                "tool_name": "call_agent_parallel",
+                "tool_call_id": "cluster-dispatch",
+                "iteration": 1,
+            },
+            {
+                "type": "tool_end",
+                "tool_name": "call_agent_parallel",
+                "tool_call_id": "cluster-dispatch",
+                "iteration": 1,
+                "status": "success",
+            },
+            {"type": "text_delta", "delta": "已拆解任务、分派成员并汇总统一交付。"},
+            {"type": "react_completed"},
+        ]
+    )
+    runtime = CerebrumRuntime(
+        stack=object(),
+        agent=object(),
+        logs_root=str(tmp_path / "threads"),
+        cowork_group_store=store,
+    )
+    monkeypatch.setattr(runtime, "_drive_swarm_mesh", should_not_drive_mesh)
+    captured_contexts: list[dict[str, Any]] = []
+    original_drive_react = runtime._drive_react
+
+    async def capture_turn_context(*args: Any, **kwargs: Any) -> Any:
+        captured_contexts.append(dict(args[3].user_context))
+        return await original_drive_react(*args, **kwargs)
+
+    monkeypatch.setattr(runtime, "_drive_react", capture_turn_context)
+    gateway = RealtimeGateway(runtime=runtime, approval_timeout=5.0)
+    app = FastAPI()
+    app.include_router(gateway.router)
+
+    with TestClient(app) as client, client.websocket_connect("/api/realtime") as ws:
+        turn = _drive(
+            ws,
+            {
+                "threadId": "th-cluster-topology",
+                "input": [{"type": "text", "text": "做一份竞品调研报告并给出定价建议"}],
+                "approvalPolicy": "never",
+                # The legacy 集群 field the workspace still sends per turn.
+                "topologyId": "cowork",
+                "metadata": {"context": {"mode": "team", "team_mode": "cowork"}},
+            },
+        )["response"].result["turn"]
+
+    assert turn["status"] == "completed"
+    assert captured_contexts, "the coordinator turn must run through ReAct"
+    assert captured_contexts[0]["team_pattern"]["execution"] == "orchestrated"
+    assert turn["execution"]["driver"] != "swarm_mesh"
+
+
 def test_failed_coordinated_execution_is_recoverable_in_the_run_ledger(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3760,6 +3930,9 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from types import SimpleNamespace
+
+    from runtime.execution.agents.base import AgentRegistry
     from runtime.memory.cowork.group_store import GroupStore
     from runtime.memory.cowork.service import invite_member
     from runtime.memory.threads import ThreadStateStore
@@ -3792,6 +3965,7 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
                 "ambient_session": current_session(),
                 "request": current_execution_request(),
                 "cancellation": current_cancellation_token(),
+                "cancelled_at_dispatch": current_cancellation_token().is_cancelled,
             }
         )
         return {"success": True, "output": "delivered"}
@@ -3801,8 +3975,36 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
         fake_call_subagent,
     )
 
-    def milestones(goal: str) -> list[Milestone]:
-        return [Milestone(id="MS-auth", name="build", goal=goal)]
+    leader = SimpleNamespace(
+        agent_id="build-agent",
+        display_name="Builder",
+        description="Build securely",
+        soul="Lead the project",
+        capabilities={},
+    )
+    registry = AgentRegistry()
+    registry.register(leader)
+    monkeypatch.setattr("runtime.projectos.recruitment.hub_candidates", lambda _goal: [])
+
+    def prepare_initiation(**kwargs):
+        return {
+            "name": "Authenticated project",
+            "scope": kwargs["goal"],
+            "milestones": ["Secure delivery"],
+            "budget": "Test estimate only",
+            "deliverables": ["Secure artifact"],
+            "acceptance_criteria": ["Tenant isolation verified"],
+            "requirements_review": {"ready": True, "reason": "Scope and evidence specified"},
+            "staffing": [
+                {
+                    "role": "engineer",
+                    "count": 1,
+                    "responsibilities": "Build and review",
+                    "agent_id": "build-agent",
+                    "phases": [1],
+                }
+            ],
+        }
 
     def tasks(milestone: Milestone) -> list[Task]:
         return [
@@ -3816,14 +4018,15 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
 
     runtime = CerebrumRuntime(
         stack=object(),
-        agent=object(),
+        agent=leader,
+        agent_registry=registry,
         logs_root=str(tmp_path / "logs"),
         workspace_root=workspace_root,
         thread_store=threads,
         cowork_group_store=groups,
         project_store=projects,
         project_os_hooks={
-            "generate_milestones": milestones,
+            "prepare_initiation": prepare_initiation,
             "decompose_tasks": tasks,
             "execute_task": subagent_execute_task,
             "qa_task": lambda _task, _milestone: {"approved": True, "reason": "ok"},
@@ -3871,6 +4074,23 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
                 "approvalPolicy": "never",
             },
         )
+        assert dispatched == []
+        assert [r.params.get("tool") for r in created["requests"]] == ["project_initiation"]
+        established_id = projects.project_for_thread(thread_id).id
+        run_params = {
+            "threadId": thread_id,
+            "executionEngine": "echo",
+            "input": [{"type": "text", "text": "/project run"}],
+            "approvalPolicy": "never",
+        }
+        declined = _drive(ws, run_params, approve=False)
+        assert [r.params.get("tool") for r in declined["requests"]] == ["project_phase"]
+        assert dispatched == []
+        executed = _drive(ws, run_params)
+        assert [r.params.get("tool") for r in executed["requests"]] == ["project_phase"]
+        assert projects.project_for_thread(thread_id).id == established_id
+        assert len(projects.list_projects()) == 1
+        assert len(dispatched) == 1
         reported = _drive(
             ws,
             {
@@ -3878,6 +4098,25 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
                 "input": [{"type": "text", "text": "/project report"}],
             },
         )
+        assert projects.get_project(established_id).status != "done"
+        acceptance = {"threadId": thread_id, "input": [{"type": "text", "text": "/project accept"}]}
+        declined_delivery = _drive(ws, acceptance, approve=False)
+        assert [r.params.get("tool") for r in declined_delivery["requests"]] == [
+            "project_acceptance"
+        ]
+        assert not any(
+            e["kind"] == "project.delivery_accepted"
+            for e in projects.events_for_project(established_id)
+        )
+        accepted = _drive(ws, acceptance)
+        assert [r.params.get("tool") for r in accepted["requests"]] == ["project_acceptance"]
+        assert len(dispatched) == 1
+        _drive(ws, run_params)
+        assert projects.get_project(established_id).status == "done"
+        repeated = _drive(ws, run_params)
+        assert repeated["requests"] == []
+        assert projects.project_for_thread(thread_id).id == established_id
+        assert len(projects.list_projects()) == len(dispatched) == 1
 
     assert created["response"].result["turn"]["status"] == "completed"
     report_text = "\n".join(
@@ -3928,7 +4167,20 @@ def test_authenticated_explicit_project_command_owns_project_and_subagent_worksp
     assert host_task.actor_id == "alice"
     assert host_task.tenant_id == "tenant-a"
     assert host_task.permissions.allows_write(expected)
-    assert dispatch_record["cancellation"].is_cancelled is False
+    assert dispatch_record["cancelled_at_dispatch"] is False
+
+
+def _seed_existing_project(projects, groups, thread_id):
+    """Existing-project controls also support legacy plans without phase approval fields.
+
+    New-project approval is exercised through the authenticated WebSocket flow above.
+    This setup only creates a deterministic plan; no task is executed.
+    """
+    from runtime.projectos.group_execution import run_project_from_group
+
+    return run_project_from_group(
+        projects, groups, thread_id, name="Existing project", goal="Deliver the project", run=False
+    )
 
 
 def test_explicit_project_command_unhandled_failure_reports_driver_source(
@@ -3943,12 +4195,14 @@ def test_explicit_project_command_unhandled_failure_reports_driver_source(
 
     store = GroupStore(base_dir=tmp_path / "cowork")
     invite_member(store, "th-project-fail", actor="u", target_id="research-agent", kind="agent")
+    project_store = ProjectStore(base_dir=tmp_path / "projectos")
+    _seed_existing_project(project_store, store, "th-project-fail")
 
     def fail_project(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
         raise RuntimeError("project engine exploded")
 
     monkeypatch.setattr(
-        "runtime.projectos.cowork_bridge.run_project_from_group",
+        "runtime.projectos.group_execution.run_project_from_group",
         fail_project,
     )
     runtime = CerebrumRuntime(
@@ -3956,7 +4210,7 @@ def test_explicit_project_command_unhandled_failure_reports_driver_source(
         agent=object(),
         logs_root=str(tmp_path / "threads"),
         cowork_group_store=store,
-        project_store=ProjectStore(base_dir=tmp_path / "projectos"),
+        project_store=project_store,
     )
     gateway = RealtimeGateway(runtime=runtime, approval_timeout=5.0)
     app = FastAPI()
@@ -3994,6 +4248,7 @@ def test_explicit_project_command_reuses_active_project(
     invite_member(store, "th-project", actor="u", target_id="research-agent", kind="agent")
     invite_member(store, "th-project", actor="u", target_id="build-agent", kind="agent")
     project_store = ProjectStore(base_dir=tmp_path / "projectos")
+    _seed_existing_project(project_store, store, "th-project")
     runtime = CerebrumRuntime(
         stack=object(),
         agent=object(),
@@ -4053,10 +4308,9 @@ def test_explicit_project_command_reuses_active_project(
     second_trace_items = [
         item
         for item in second["response"].result["turn"]["items"]
-        if item["type"] == "reasoning"
-        and "echo.projectos.run_trace.v1" in item.get("content", "")
+        if item["type"] == "reasoning" and "echo.projectos.run_trace.v1" in item.get("content", "")
     ]
-    assert "Project OS 已接管并运行项目" in first_text
+    assert "Project OS 已继续推进项目" in first_text
     assert "Project OS 已继续推进项目" in second_text
     assert first_todos
     assert any(entry["status"] == "in_progress" for entry in first_todos[-1]["plan"])
@@ -4164,6 +4418,7 @@ def test_explicit_project_command_accepts_task_control_command(
     invite_member(store, "th-project-control", actor="u", target_id="research-agent", kind="agent")
     invite_member(store, "th-project-control", actor="u", target_id="build-agent", kind="agent")
     project_store = ProjectStore(base_dir=tmp_path / "projectos")
+    _seed_existing_project(project_store, store, "th-project-control")
     runtime = CerebrumRuntime(
         stack=object(),
         agent=object(),
@@ -4245,6 +4500,7 @@ def test_explicit_project_command_reports_failed_task_control_command(
     store = GroupStore(base_dir=tmp_path / "cowork")
     invite_member(store, "th-project-control-fail", actor="u", target_id="agent-a", kind="agent")
     project_store = ProjectStore(base_dir=tmp_path / "projectos")
+    _seed_existing_project(project_store, store, "th-project-control-fail")
     runtime = CerebrumRuntime(
         stack=object(),
         agent=object(),
@@ -5242,6 +5498,75 @@ def test_failed_turn_dispatches_stop_with_success_false(
 
 
 # ─── subagent wakeup → auto parent turn (dsh report lane) ─────────────
+
+
+def test_group_results_auto_resume_original_leader_without_public_user_stub(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from runtime.memory.cowork.async_work import AsyncWorkStore
+    from runtime.memory.cowork.collaboration_store import CollaborationStore
+    from runtime.memory.cowork.coordination_service import CoordinationService
+    from runtime.memory.cowork.delivery import current_delivery
+    from runtime.memory.cowork.group import MemberEvent
+    from runtime.memory.cowork.group_store import GroupStore
+    from runtime.memory.threads.event_log import EventLog, thread_log_path
+    from runtime.platform.process.session import current_session
+    from runtime.sensing.gateway.realtime_cerebrum import CerebrumRuntime
+    from runtime.sensing.gateway.realtime_gateway import RealtimeGateway
+
+    groups = GroupStore(tmp_path)
+    for member in ("leader", "worker"):
+        groups.append("group", MemberEvent(action="invite", actor="user", target_id=member))
+    groups.append("group", MemberEvent(action="mode", actor="user", mode="cluster"))
+    service = CoordinationService(
+        groups, CollaborationStore(tmp_path), AsyncWorkStore(tmp_path, groups)
+    )
+    service.logs_root = tmp_path / "threads"
+    runtime = CerebrumRuntime(
+        stack=object(), agent=SimpleNamespace(agent_id="leader"), logs_root=str(service.logs_root)
+    )
+    runtime._cowork_coordination = service
+    calls = []
+
+    def stream(*args, **kwargs):
+        batch = current_delivery()
+        calls.append(batch)
+        if batch is None:
+            child = service.delegate_agent("worker", "分析产品")["task_id"]
+            task = service.queue.claim_execution(child)
+            service.queue.complete(child, "成员已核对产品参数", expected_attempt=task.attempts)
+            service.sync("group")
+            response = "已安排成员分析。"
+        else:
+            assert (
+                current_session().metadata["_coordination_delivery_parent"] == batch["parent"]["id"]
+            )
+            assert current_session().agent_id == "leader"
+            assert "成员已核对产品参数" in args[1].user_context["mode_contract"]
+            response = "已验收成员结果，统一交付。"
+        yield {"type": "text_delta", "delta": response}
+        yield {"type": "react_completed", "final_answer": response}
+
+    monkeypatch.setattr("runtime.core.cerebrum.react_loop.stream_react_loop", stream)
+    app = FastAPI()
+    gateway = RealtimeGateway(runtime=runtime)
+    app.include_router(gateway.router)
+    with TestClient(app) as client, client.websocket_connect("/api/realtime") as ws:
+        out = _drive(ws, {"threadId": "group", "input": [{"type": "text", "text": "分析产品"}]})
+        first_id = out["response"].result["turn"]["id"]
+        completed = _wait_for_turn_event(ws, "turn/completed")
+        while completed.params["turn"]["id"] == first_id:
+            completed = _wait_for_turn_event(ws, "turn/completed")
+        assert completed.params["turn"]["status"] == "completed", json.dumps(
+            completed.params["turn"], ensure_ascii=False
+        )
+        items = completed.params["turn"]["items"]
+        assert not any(item["type"] == "userMessage" for item in items)
+        assert any(item.get("text") == "已验收成员结果，统一交付。" for item in items)
+    assert len(calls) == 2
+    assert len(service.queue.list("group")) == 1
+    turns = EventLog(thread_log_path(service.logs_root, "group")).replay()
+    assert len(turns) == 2
 
 
 def _recv_deadline(ws: Any, timeout_s: float = 6.0) -> Any:

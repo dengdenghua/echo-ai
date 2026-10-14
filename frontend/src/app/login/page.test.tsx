@@ -14,6 +14,9 @@ const allowRegistrationMock = vi.fn();
 const authUnavailableMock = vi.fn();
 const retryAuthMock = vi.fn();
 const localLoginMock = vi.fn();
+const startAccountFreeModeMock = vi.fn();
+const hasDesktopOwnerLoginMock = vi.fn();
+const desktopLoginMock = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<
@@ -27,6 +30,7 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("@/core/auth/api", () => ({
   getAuthProviderInfo: () => getAuthProvidersMock(),
+  hasDesktopOwnerLogin: () => hasDesktopOwnerLoginMock(),
   authHeaders: () => ({}),
   jsonAuthHeaders: () => ({}),
 }));
@@ -34,6 +38,7 @@ vi.mock("@/core/auth/api", () => ({
 vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => ({
     emailLogin: (email: string, code: string) => emailLoginMock(email, code),
+    desktopLogin: desktopLoginMock,
     guestLogin: vi.fn(),
     authStatus: authUnavailableMock()
       ? null
@@ -46,6 +51,7 @@ vi.mock("@/providers/AuthProvider", () => ({
     login: localLoginMock,
     register: vi.fn(),
     logout: vi.fn(),
+    startAccountFreeMode: startAccountFreeModeMock,
     refresh: vi.fn(),
     retryAuth: retryAuthMock,
   }),
@@ -111,6 +117,9 @@ describe("LoginPage", () => {
     authUnavailableMock.mockReset();
     retryAuthMock.mockReset();
     localLoginMock.mockReset();
+    hasDesktopOwnerLoginMock.mockReset();
+    desktopLoginMock.mockReset();
+    hasDesktopOwnerLoginMock.mockReturnValue(false);
     getAuthProvidersMock.mockResolvedValue([{ id: "oct" }]);
     allowRegistrationMock.mockReturnValue(false);
     authUnavailableMock.mockReturnValue(false);
@@ -118,6 +127,26 @@ describe("LoginPage", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("offers the desktop owner sign-in and reports its failure", async () => {
+    hasDesktopOwnerLoginMock.mockReturnValue(true);
+    desktopLoginMock.mockRejectedValue(new Error("本机登录凭证无效"));
+    const user = await renderPageAtLoginForm();
+
+    await user.click(screen.getByRole("button", { name: "以本机账户继续" }));
+
+    expect(desktopLoginMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "本机登录凭证无效",
+    );
+  });
+
+  it("hides the desktop owner sign-in outside the desktop shell", async () => {
+    await renderPageAtLoginForm();
+    expect(
+      screen.queryByRole("button", { name: "以本机账户继续" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses the configured local account with only a password field", async () => {
@@ -132,7 +161,9 @@ describe("LoginPage", () => {
     localLoginMock.mockResolvedValue(undefined);
     const user = userEvent.setup();
     renderPage();
-    const password = await screen.findByLabelText("密码", { selector: "input" });
+    const password = await screen.findByLabelText("密码", {
+      selector: "input",
+    });
     expect(screen.queryByLabelText("用户名")).not.toBeInTheDocument();
     await user.type(password, "12345678{Enter}");
     await waitFor(() =>
@@ -144,11 +175,54 @@ describe("LoginPage", () => {
     expect(navigateMock).toHaveBeenCalled();
   });
 
+  it("toggles password visibility between password and text in local login", async () => {
+    getAuthProvidersMock.mockResolvedValue([
+      {
+        id: "local",
+        password_required: true,
+        password_only_username: "owner",
+      },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const password = await screen.findByLabelText("密码", {
+      selector: "input",
+    });
+    expect(password).toHaveAttribute("type", "password");
+
+    const toggleBtn = screen.getByRole("button", { name: "显示密码" });
+    await user.click(toggleBtn);
+    expect(password).toHaveAttribute("type", "text");
+
+    const hideBtn = screen.getByRole("button", { name: "隐藏密码" });
+    await user.click(hideBtn);
+    expect(password).toHaveAttribute("type", "password");
+  });
+
+  it("validates empty fields in local login form before submitting", async () => {
+    getAuthProvidersMock.mockResolvedValue([
+      { id: "local", password_required: true },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("textbox", { name: "用户名" });
+    await user.click(screen.getByRole("button", { name: "进入 ECHO" }));
+
+    expect(screen.getByText("请输入用户名")).toBeInTheDocument();
+    expect(localLoginMock).not.toHaveBeenCalled();
+  });
+
   it("defaults to the email form with email + code fields visible", async () => {
     await renderPageAtLoginForm();
     expect(screen.getByRole("textbox", { name: "邮箱" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Google/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /GitHub/ })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: /Google/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /GitHub/ }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "验证码" })).toBeInTheDocument();
     // Legacy password tab was removed upstream · nothing here asks
     // for a password.
@@ -181,7 +255,7 @@ describe("LoginPage", () => {
 
     // Social providers lead; email remains available below.
     expect(
-      await screen.findByText("选择一种方式，登录你的 ECHO 账号"),
+      await screen.findByText("选择一种方式，登录你的 ECHO 账户"),
     ).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "邮箱" })).toBeInTheDocument();
     expect(screen.queryByText("登录你的 Echo 账户")).not.toBeInTheDocument();
@@ -196,17 +270,37 @@ describe("LoginPage", () => {
     renderPage();
 
     expect(
-      await screen.findByText("暂时无法连接 Echo 服务"),
+      await screen.findByText("暂时无法连接 ECHO AI 服务"),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重试连接" }));
     expect(retryAuthMock).toHaveBeenCalledTimes(1);
   });
 
+  it("auto-retries the backend connection with exponential backoff", async () => {
+    vi.useFakeTimers();
+    authUnavailableMock.mockReturnValue(true);
+
+    renderPage();
+
+    expect(screen.getByText("暂时无法连接 ECHO AI 服务")).toBeInTheDocument();
+    expect(retryAuthMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(retryAuthMock).toHaveBeenCalledTimes(1);
+    expect(retryAuthMock).toHaveBeenCalledWith({ quiet: true });
+
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(retryAuthMock).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(8_000);
+    expect(retryAuthMock).toHaveBeenCalledTimes(3);
+  });
+
   it("shows email + local tabs when both providers are available", async () => {
     getAuthProvidersMock.mockResolvedValue([
       { id: "oct" },
-      { id: "local", label: "本地账户" },
+      { id: "local", label: "本地账户", password_required: true },
     ]);
 
     renderPage();
@@ -261,6 +355,20 @@ describe("LoginPage", () => {
     expect(code).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("starts the account-free mode through the hidden verification code", async () => {
+    const user = await renderPageAtLoginForm();
+    const email = screen.getByRole("textbox", { name: "邮箱" });
+    const code = screen.getByRole("textbox", { name: "验证码" });
+
+    await user.type(code, "093655");
+    await user.click(screen.getByRole("button", { name: "进入 ECHO" }));
+
+    expect(startAccountFreeModeMock).toHaveBeenCalledTimes(1);
+    expect(emailLoginMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/workspace", { replace: true });
+    expect(email).not.toHaveFocus();
+  });
+
   it("rejects incomplete verification codes before calling the gateway", async () => {
     const user = await renderPageAtLoginForm();
     await user.type(
@@ -307,6 +415,17 @@ describe("LoginPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "验证码已发送，请查收邮箱 · alice@example.com",
     );
+    // ECHO has no green: success reads in the stable core colour.
+    expect(screen.getByRole("status")).toHaveClass("text-success");
+    expect(screen.getByRole("status").className).not.toMatch(/emerald/);
+  });
+
+  it("keeps the auto-register notice and the consent line apart", async () => {
+    await renderPageAtLoginForm();
+
+    const notice = screen.getByText("未注册邮箱将自动创建账号");
+    expect(notice.tagName).toBe("SPAN");
+    expect(notice).toHaveClass("block");
   });
 
   it("keeps send failures visible inside the form", async () => {

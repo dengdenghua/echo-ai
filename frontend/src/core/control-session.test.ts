@@ -132,7 +132,8 @@ describe("control-session", () => {
         expect.stringContaining(
           "/api/control-sessions/ctrl%20swarm/evidence/evidence%2Freplay/detail",
         ),
-        expect.objectContaining({ method: "GET" }),
+        // GET is fetch's default, so the request layer leaves `method` unset.
+        expect.not.objectContaining({ method: expect.anything() }),
       );
       expect(detail).toMatchObject({
         schema: "echo.control_evidence_detail.v1",
@@ -189,7 +190,8 @@ describe("control-session", () => {
         expect.stringContaining(
           "/api/control-sessions/ctrl-1/timeline?limit=25&after=100&after_cursor=100.000000%7Caction%253A1",
         ),
-        expect.objectContaining({ method: "GET" }),
+        // GET is fetch's default, so the request layer leaves `method` unset.
+        expect.not.objectContaining({ method: expect.anything() }),
       );
       expect(timeline).toMatchObject({
         schema: "echo.control_session_replay_timeline.v1",

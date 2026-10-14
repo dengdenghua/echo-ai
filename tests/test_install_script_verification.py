@@ -7,11 +7,26 @@ missing digest tool refuses — the payload never executes unchecked.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parent.parent
+
+
+def _bash() -> str:
+    bash = shutil.which("bash")
+    if sys.platform == "win32" and (
+        bash is None or Path(bash).parent.name.lower() in {"system32", "windowsapps"}
+    ):
+        # A bare "bash" resolves to the WSL launcher (System32/bash.exe),
+        # which runs inside Linux and cannot read the Windows temp payload.
+        pytest.skip("needs an MSYS bash such as Git Bash on PATH")
+    return bash or "bash"
 
 
 def _extract_helper() -> str:
@@ -28,20 +43,22 @@ def _extract_helper() -> str:
     return "\n".join(body)
 
 
-def _run_scenario(payload: str, expected: str, interpreter: str = "bash") -> tuple[int, str]:
+def _run_scenario(payload: Path, expected: str, interpreter: str = "bash") -> tuple[int, str]:
+    # as_uri() gives file:///tmp/... on POSIX and file:///C:/... on Windows.
     script = textwrap.dedent(
         f"""
         die() {{ echo "$*"; exit 1; }}
         {_extract_helper()}
-        payload='{payload}'
-        download_verify_run "file://$payload" {expected} {interpreter}
+        download_verify_run '{payload.as_uri()}' {expected} {interpreter}
         echo "rc=$?"
         """
     )
     proc = subprocess.run(
-        ["bash", "-c", script],
+        [_bash(), "-c", script],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     return proc.returncode, proc.stdout + proc.stderr
@@ -53,7 +70,7 @@ def test_matching_checksum_runs_payload(tmp_path: Path) -> None:
     payload = tmp_path / "payload.sh"
     payload.write_text("#!/bin/sh\necho RAN\n", encoding="utf-8")
     digest = hashlib.sha256(payload.read_bytes()).hexdigest()
-    rc, out = _run_scenario(str(payload), digest)
+    rc, out = _run_scenario(payload, digest)
     assert rc == 0
     assert "RAN" in out
 
@@ -61,7 +78,7 @@ def test_matching_checksum_runs_payload(tmp_path: Path) -> None:
 def test_mismatched_checksum_fails_closed(tmp_path: Path) -> None:
     payload = tmp_path / "payload.sh"
     payload.write_text("#!/bin/sh\necho SHOULD_NOT_RUN\n", encoding="utf-8")
-    rc, out = _run_scenario(str(payload), "0" * 64)
+    rc, out = _run_scenario(payload, "0" * 64)
     assert rc == 1
     assert "checksum mismatch" in out
     assert "SHOULD_NOT_RUN" not in out

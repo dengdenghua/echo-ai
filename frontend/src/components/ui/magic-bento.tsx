@@ -98,7 +98,7 @@ const ParticleCard: React.FC<{
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const particlesRef = useRef<HTMLDivElement[]>([]);
-  const timeoutsRef = useRef<number[]>([]);
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const isHoveredRef = useRef(false);
   const memoizedParticles = useRef<HTMLDivElement[]>([]);
   const particlesInitialized = useRef(false);
@@ -177,7 +177,7 @@ const ParticleCard: React.FC<{
         });
       }, index * 100);
 
-      timeoutsRef.current.push(timeoutId as unknown as number);
+      timeoutsRef.current.push(timeoutId);
     });
   }, [initializeParticles]);
 

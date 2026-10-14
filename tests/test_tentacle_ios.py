@@ -31,6 +31,8 @@ from runtime.tentacle.mobile.vlm.client import SuggestedAction
 from runtime.tentacle.mobile.vlm.react_with_vision import VisionReAct
 from runtime.tentacle.transport.ws_server import DeviceHello
 
+pytestmark = pytest.mark.usefixtures("enabled_device_plugin_manifests")
+
 # ── 1. 包导入与能力声明 ─────────────────────────────────────
 
 
@@ -40,11 +42,10 @@ def test_ios_package_imports():
     assert WdaClient is not None
     assert WdaError is not None
     assert isinstance(IOS_CAPABILITIES, list)
-    assert len(IOS_CAPABILITIES) > 0
 
 
 def test_ios_skills_root_exists():
-    """ios/skills 目录存在且可定位."""
+    """Enabled iOS plugin manifests can be located."""
     root = ios_skills_root()
     assert root.is_dir(), f"ios skills root not found: {root}"
 
@@ -68,8 +69,10 @@ def test_ios_capabilities_complete():
     }
     actual = set(ios_capabilities())
     assert expected == actual, f"missing: {expected - actual}, extra: {actual - expected}"
-    # cached list matches manifest
-    assert set(IOS_CAPABILITIES) == actual
+    # The legacy export is an import-time snapshot, independent of activation.
+    from runtime.tentacle.ios import device
+
+    assert IOS_CAPABILITIES is device.IOS_CAPABILITIES
 
 
 # ── 2. IOSDevice 实例化与 Tentacle Protocol ──────────────────
@@ -83,7 +86,7 @@ def test_ios_device_construction():
     assert dev.platform == "ios"
     assert dev.status == TentacleStatus.OFFLINE
     assert not dev.is_online
-    assert len(dev.capabilities) == len(IOS_CAPABILITIES)
+    assert set(dev.capabilities) == set(ios_capabilities())
     assert dev.wda.base_url == "http://localhost:8100"
     assert dev.wda.is_connected is False
 
@@ -390,12 +393,11 @@ def test_mcp_loads_both_android_and_ios_skills():
 
 
 def test_find_skills_roots_returns_multiple():
-    """_find_skills_roots 返回 mobile + ios 两个根目录."""
+    """_find_skills_roots returns the two enabled plugin manifest directories."""
     roots = _find_skills_roots()
-    assert len(roots) >= 2
-    root_strs = [str(r) for r in roots]
-    assert any("mobile" in r for r in root_strs)
-    assert any("ios" in r for r in root_strs)
+    assert len(roots) == 2
+    assert {root.parent.name for root in roots} == {"echo-android", "echo-ios"}
+    assert all(root.name == "tool-manifests" for root in roots)
 
 
 # ── 7. 平台感知辅助函数 ─────────────────────────────────────

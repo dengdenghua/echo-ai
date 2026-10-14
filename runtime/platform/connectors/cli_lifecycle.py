@@ -14,11 +14,11 @@ WorkBuddy 的 CLI 连接器不只是「跑一条 auth 命令」,完整协议还�
 from __future__ import annotations
 
 import os
-import platform
 import re
 import shlex
 import shutil
 import subprocess
+import sys
 import urllib.parse
 from pathlib import Path
 from typing import Any
@@ -27,10 +27,11 @@ _LOGGER = __import__("logging").getLogger(__name__)
 
 
 def platform_key() -> str:
-    sys = platform.system().lower()
-    if sys == "darwin":
+    # sys.platform is fixed at build time; platform.system() shells out to
+    # ``cmd /c ver`` the first time it runs on Windows.
+    if sys.platform == "darwin":
         return "darwin"
-    if sys == "windows":
+    if sys.platform == "win32":
         return "win32"
     return "linux"
 

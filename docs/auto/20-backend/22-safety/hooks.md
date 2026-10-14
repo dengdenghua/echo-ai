@@ -100,7 +100,7 @@ Agent runtime hooks · lifecycle events for the agent loop.
 | class | `class HookDecision` | Structured handler response. |
 | class | `class HookRegistry` | In-memory handler registration · one registry per app. |
 | func | `def get_global_registry()` | Process-global HookRegistry · used by ``register_hook`` decorator + runtime dispatch points. Tests needing isolation should call ``.clear()` |
-| func | `def register_hook(event_type)` | Decorator · register ``handler`` for ``event_type`` on the global registry. Community hooks in ``~/.echo/hooks/*.py`` use this to plug in |
+| func | `def register_hook(event_type)` | Decorator · register ``handler`` for ``event_type`` on the global registry. Community hooks in ``~/.echo/hooks/*.py`` use this to plug in. |
 
 ### `runner.py`
 
@@ -137,7 +137,7 @@ Agent runtime hooks · lifecycle events for the agent loop.
 
 ## Who imports this
 
-**11** file(s) reference this package:
+**12** file(s) reference this package:
 
 - **`runtime/core/`** · 1 file(s)
   - `runtime/core/cerebrum/_react_execution_phase6d.py`
@@ -151,8 +151,9 @@ Agent runtime hooks · lifecycle events for the agent loop.
   - `runtime/platform/ui/app.py`
 - **`runtime/safety/`** · 1 file(s)
   - `runtime/safety/approval/approval_gate.py`
-- **`runtime/sensing/`** · 3 file(s)
-  - `runtime/sensing/gateway/realtime_turn_lifecycle.py`
+- **`runtime/sensing/`** · 4 file(s)
+  - `runtime/sensing/gateway/_realtime_turn_reporting.py`
+  - `runtime/sensing/gateway/_realtime_turn_start_phases.py`
   - `runtime/sensing/gateway/realtime_turn_outcome.py`
   - `runtime/sensing/model_router/anthropic_router.py`
 

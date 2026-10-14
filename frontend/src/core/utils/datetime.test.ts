@@ -30,6 +30,21 @@ describe("compact relative timestamps", () => {
     expect(formatCompactRelativeTimestamp(recentDate, "en-US")).toBe("18m");
   });
 
+  test("keeps the first minute as just-now instead of 0m", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 9, 9, 0, 45));
+
+    const fortyFiveSecondsAgo = new Date(2026, 6, 9, 9, 0, 0);
+
+    expect(formatCompactRelativeTimestamp(fortyFiveSecondsAgo, "zh-CN")).toBe(
+      "刚刚",
+    );
+    expect(formatCompactRelativeTimestamp(fortyFiveSecondsAgo, "en-US")).toBe(
+      "now",
+    );
+    expect(formatRelativeTimestamp(fortyFiveSecondsAgo, "zh-CN")).toBe("刚刚");
+  });
+
   test("does not throw for an unfinished thread timestamp", () => {
     expect(formatCompactRelativeTimestamp("", "zh-CN")).toBe("");
     expect(formatRelativeTimestamp("not-a-date", "zh-CN")).toBe("");

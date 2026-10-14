@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from runtime.memory.control_sessions import ControlSessionStore
 from runtime.safety.evolution.kimi_swarm_certification import (
     compute_kimi_swarm_certification,
@@ -20,6 +22,10 @@ from runtime.safety.evolution.kimi_swarm_load_test import (
     run_kimi_swarm_quota_probe,
 )
 from runtime.sensing.model_router.models import ModelRequest, ModelResponse
+
+# Full load-test runs: a single case takes 100-140 s on Windows, past the
+# suite's 120 s default, and a timeout there ends the whole pytest process.
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(600)]
 
 
 def test_kimi_swarm_load_test_writes_control_session_replay(tmp_path: Path) -> None:

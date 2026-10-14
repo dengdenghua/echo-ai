@@ -1,7 +1,13 @@
 /** API client for the Teach & Repeat system. */
 
-import { getBackendBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  apiFetch,
+  apiGet,
+  apiPost,
+  apiPut,
+  failureDetail,
+  type ApiFailure,
+} from "@/core/api/request";
 
 import type {
   AdaptiveReplayRequest,
@@ -18,8 +24,31 @@ import type {
   TemplateUpdateRequest,
   WorkflowTemplate,
 } from "./types";
+import { looseBody } from "@/core/api/response";
+import {
+  isAppendRecordingEventsResponse,
+  isRecordingStatus,
+  isReplayResult,
+  isStartRecordingResponse,
+  isStopRecordingResponse,
+  isTemplateListResponse,
+  isWorkflowTemplate,
+} from "./guards";
 
-const BASE = () => `${getBackendBaseURL()}/api/teach-repeat`;
+/** ``label: statusText``, this module's historical error wording. */
+function failed(label: string) {
+  return (failure: ApiFailure): string => `${label}: ${failure.statusText}`;
+}
+
+/** The JSON ``detail`` of the error body when present, else ``failed``. */
+function detailOr(label: string) {
+  return (failure: ApiFailure): string => {
+    const detail = failureDetail(failure);
+    return detail === undefined || detail === null
+      ? failed(label)(failure)
+      : String(detail);
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Recording
@@ -28,65 +57,50 @@ const BASE = () => `${getBackendBaseURL()}/api/teach-repeat`;
 export async function startRecording(
   request: StartRecordingRequest,
 ): Promise<StartRecordingResponse> {
-  const res = await fetch(`${BASE()}/record/start`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to start recording: ${res.statusText}`,
-    );
-  }
-  return (await res.json()) as StartRecordingResponse;
+  return looseBody(
+    await apiPost("/api/teach-repeat/record/start", {
+      body: request,
+      errorMessage: detailOr("Failed to start recording"),
+    }),
+    isStartRecordingResponse,
+  );
 }
 
 export async function stopRecording(
   request: StopRecordingRequest,
 ): Promise<StopRecordingResponse> {
-  const res = await fetch(`${BASE()}/record/stop`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to stop recording: ${res.statusText}`,
-    );
-  }
-  return (await res.json()) as StopRecordingResponse;
+  return looseBody(
+    await apiPost("/api/teach-repeat/record/stop", {
+      body: request,
+      errorMessage: detailOr("Failed to stop recording"),
+    }),
+    isStopRecordingResponse,
+  );
 }
 
 export async function appendRecordingEvents(
   threadId: string,
   events: RecordingEvent[],
 ): Promise<AppendRecordingEventsResponse> {
-  const res = await fetch(`${BASE()}/record/events`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify({ thread_id: threadId, events }),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to append recording events: ${res.statusText}`,
-    );
-  }
-  return (await res.json()) as AppendRecordingEventsResponse;
+  return looseBody(
+    await apiPost("/api/teach-repeat/record/events", {
+      body: { thread_id: threadId, events },
+      errorMessage: detailOr("Failed to append recording events"),
+    }),
+    isAppendRecordingEventsResponse,
+  );
 }
 
 export async function getRecordingStatus(
   threadId: string,
 ): Promise<RecordingStatus> {
-  const res = await fetch(
-    `${BASE()}/record/status?thread_id=${encodeURIComponent(threadId)}`,
-    { headers: authHeaders() },
+  return looseBody(
+    await apiGet("/api/teach-repeat/record/status", {
+      query: { thread_id: threadId },
+      errorMessage: failed("Failed to get recording status"),
+    }),
+    isRecordingStatus,
   );
-  if (!res.ok)
-    throw new Error(`Failed to get recording status: ${res.statusText}`);
-  return (await res.json()) as RecordingStatus;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,56 +113,59 @@ export async function listTemplates(opts?: {
   search?: string;
   tag?: string;
 }): Promise<TemplateListResponse> {
-  const params = new URLSearchParams();
-  if (opts?.skip !== undefined) params.set("skip", String(opts.skip));
-  if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
-  if (opts?.search) params.set("search", opts.search);
-  if (opts?.tag) params.set("tag", opts.tag);
-
-  const qs = params.toString();
-  const url = `${BASE()}/templates${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) throw new Error(`Failed to list templates: ${res.statusText}`);
-  return (await res.json()) as TemplateListResponse;
+  return looseBody(
+    await apiGet("/api/teach-repeat/templates", {
+      query: {
+        skip: opts?.skip,
+        limit: opts?.limit,
+        search: opts?.search || undefined,
+        tag: opts?.tag || undefined,
+      },
+      errorMessage: failed("Failed to list templates"),
+    }),
+    isTemplateListResponse,
+  );
 }
 
 export async function getTemplate(id: string): Promise<WorkflowTemplate> {
-  const res = await fetch(`${BASE()}/templates/${encodeURIComponent(id)}`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error(`Failed to get template: ${res.statusText}`);
-  return (await res.json()) as WorkflowTemplate;
+  return looseBody(
+    await apiGet("/api/teach-repeat/templates/{template_id}", {
+      path: { template_id: id },
+      errorMessage: failed("Failed to get template"),
+    }),
+    isWorkflowTemplate,
+  );
 }
 
 export async function updateTemplate(
   id: string,
   request: TemplateUpdateRequest,
 ): Promise<WorkflowTemplate> {
-  const res = await fetch(`${BASE()}/templates/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error(`Failed to update template: ${res.statusText}`);
-  return (await res.json()) as WorkflowTemplate;
+  return looseBody(
+    await apiPut("/api/teach-repeat/templates/{template_id}", {
+      path: { template_id: id },
+      body: request,
+      errorMessage: failed("Failed to update template"),
+    }),
+    isWorkflowTemplate,
+  );
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
-  const res = await fetch(`${BASE()}/templates/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: authHeaders(),
+  await apiFetch("delete", "/api/teach-repeat/templates/{template_id}", {
+    path: { template_id: id },
+    errorMessage: failed("Failed to delete template"),
   });
-  if (!res.ok) throw new Error(`Failed to delete template: ${res.statusText}`);
 }
 
 export async function duplicateTemplate(id: string): Promise<WorkflowTemplate> {
-  const res = await fetch(
-    `${BASE()}/templates/${encodeURIComponent(id)}/duplicate`,
-    { method: "POST", headers: authHeaders() },
+  return looseBody(
+    await apiPost("/api/teach-repeat/templates/{template_id}/duplicate", {
+      path: { template_id: id },
+      errorMessage: failed("Failed to duplicate template"),
+    }),
+    isWorkflowTemplate,
   );
-  if (!res.ok)
-    throw new Error(`Failed to duplicate template: ${res.statusText}`);
-  return (await res.json()) as WorkflowTemplate;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,40 +176,26 @@ export async function replayTemplate(
   id: string,
   request: ReplayRequest,
 ): Promise<ReplayResult> {
-  const res = await fetch(
-    `${BASE()}/templates/${encodeURIComponent(id)}/replay`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(request),
-    },
+  return looseBody(
+    await apiPost("/api/teach-repeat/templates/{template_id}/replay", {
+      path: { template_id: id },
+      body: request,
+      errorMessage: detailOr("Failed to replay template"),
+    }),
+    isReplayResult,
   );
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to replay template: ${res.statusText}`,
-    );
-  }
-  return (await res.json()) as ReplayResult;
 }
 
 export async function replayAdaptive(
   id: string,
   request: AdaptiveReplayRequest,
 ): Promise<ReplayResult> {
-  const res = await fetch(
-    `${BASE()}/templates/${encodeURIComponent(id)}/replay-adaptive`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(request),
-    },
+  return looseBody(
+    await apiPost("/api/teach-repeat/templates/{template_id}/replay/adaptive", {
+      path: { template_id: id },
+      body: request,
+      errorMessage: detailOr("Failed to run adaptive replay"),
+    }),
+    isReplayResult,
   );
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to run adaptive replay: ${res.statusText}`,
-    );
-  }
-  return (await res.json()) as ReplayResult;
 }

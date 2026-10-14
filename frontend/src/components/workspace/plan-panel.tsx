@@ -83,7 +83,7 @@ function extractPlanFromMessages(messages: Message[]): PlanStep[] {
         if (matchIdx >= 0) {
           steps[matchIdx]!.status = "in_progress";
           steps[matchIdx]!.toolCalls = steps[matchIdx]!.toolCalls ?? [];
-          steps[matchIdx]!.toolCalls!.push(name);
+          steps[matchIdx]!.toolCalls.push(name);
         }
       }
     }
@@ -132,7 +132,7 @@ function extractTodosAsSteps(
     const occurrence = occurrences.get(todo.content) ?? 0;
     occurrences.set(todo.content, occurrence + 1);
     return {
-      id: `todo-${taskPlanItemId(todo as unknown as Record<string, unknown>, occurrence)}`,
+      id: `todo-${taskPlanItemId({ ...todo }, occurrence)}`,
       description: todo.content,
       status:
         todo.status === "completed"
@@ -208,14 +208,14 @@ function PlanStepItem({
           ) : step.status === "failed" ? (
             <XIcon className="size-3.5 text-destructive" />
           ) : (
-            <CircleDotIcon className="size-3.5 text-muted-foreground/40" />
+            <CircleDotIcon className="size-3.5 text-muted-foreground" />
           )}
         </div>
 
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground/50 text-xs font-mono">
+            <span className="text-muted-foreground text-xs font-mono">
               {index + 1}
             </span>
             <span
@@ -398,12 +398,12 @@ export function PlanPanel({
         {steps.length === 0 ? (
           <div className="workspace-panel-subtle py-6 text-center rounded-lg">
             <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/8">
-              <ClipboardListIcon className="size-5 text-muted-foreground/40" />
+              <ClipboardListIcon className="size-5 text-muted-foreground" />
             </div>
-            <p className="text-muted-foreground/50 text-xs">
+            <p className="text-muted-foreground text-xs">
               No plan detected yet.
             </p>
-            <p className="text-muted-foreground/40 text-xs">
+            <p className="text-muted-foreground text-xs">
               The plan will appear when the agent starts working.
             </p>
           </div>

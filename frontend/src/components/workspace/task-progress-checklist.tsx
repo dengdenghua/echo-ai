@@ -34,11 +34,11 @@ function StepIcon({ status }: { status: ExecutionPlanStep["status"] }) {
       );
     case "skipped":
       return (
-        <CircleIcon className="size-4 shrink-0 text-muted-foreground/30" />
+        <CircleIcon className="size-4 shrink-0 text-muted-foreground" />
       );
     default:
       return (
-        <CircleIcon className="size-4 shrink-0 text-muted-foreground/40" />
+        <CircleIcon className="size-4 shrink-0 text-muted-foreground" />
       );
   }
 }
@@ -82,7 +82,7 @@ export function TaskProgressChecklist({
               className={cn(
                 "leading-5",
                 step.status === "completed"
-                  ? "text-muted-foreground/50 line-through"
+                  ? "text-muted-foreground line-through"
                   : step.status === "in_progress"
                     ? "text-foreground"
                     : "text-muted-foreground",

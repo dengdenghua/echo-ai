@@ -11,8 +11,9 @@ test.describe("Chat golden path", () => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 
-    await expect(page).toHaveTitle(/(?:^|\s-\s)Echo$/);
-    await expect(page.getByRole("tab", { name: "Echo" })).toBeVisible({
+    // The product is "ECHO AI" (3ae6f7bf); "Echo" stays the agent's name.
+    await expect(page).toHaveTitle(/(?:^|\s-\s)ECHO AI$/);
+    await expect(page.getByRole("tab", { name: "ECHO AI" })).toBeVisible({
       timeout: 10_000,
     });
     await expect(
@@ -40,7 +41,9 @@ test.describe("Chat golden path", () => {
     await page.waitForLoadState("domcontentloaded");
 
     await expect(page).toHaveURL(/#\/workspace\/realtime\/new/);
-    await expect(page.getByRole("link", { name: "Assistant" })).toBeVisible({
+    await expect(
+      page.getByRole("link", { name: "Assistant", exact: true }),
+    ).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.locator("textarea").first()).toBeVisible();

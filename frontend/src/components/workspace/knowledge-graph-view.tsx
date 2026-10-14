@@ -27,8 +27,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { authHeaders } from "@/core/auth/api";
+import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
 import { useI18n } from "@/core/i18n/hooks";
-import { globalControlPlaneUrl } from "@/core/observability/api";
+import { scopedControlPlaneUrl } from "@/core/observability/api";
 import { swallow } from "@/core/utils/log";
 import { cn } from "@/lib/utils";
 
@@ -549,17 +550,15 @@ function disposeObject(object: THREE.Object3D) {
   object.traverse((child) => {
     const mesh = child as THREE.Mesh;
     mesh.geometry?.dispose?.();
-    const material = mesh.material as
-      | THREE.Material
-      | THREE.Material[]
-      | undefined;
+    const material: THREE.Material | THREE.Material[] | undefined =
+      mesh.material;
     const materials = Array.isArray(material)
       ? material
       : material
         ? [material]
         : [];
     for (const item of materials) {
-      const maybeMap = item as THREE.Material & { map?: THREE.Texture };
+      const maybeMap: THREE.Material & { map?: THREE.Texture } = item;
       maybeMap.map?.dispose?.();
       item.dispose();
     }
@@ -587,7 +586,7 @@ function RangeControl({
     <label className="grid gap-1.5">
       <span className="flex items-center justify-between text-xs text-foreground/80">
         <span>{label}</span>
-        <span className="font-mono text-xs text-muted-foreground/70">
+        <span className="font-mono text-xs text-muted-foreground">
           {format(value)}
         </span>
       </span>
@@ -626,6 +625,8 @@ function Section({
 
 function KnowledgeGraph3DContent() {
   const { t } = useI18n();
+  // Everyone's graph with the cross-tenant scope, otherwise the caller's own.
+  const globalView = useGlobalControlPlaneAccess();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -747,7 +748,7 @@ function KnowledgeGraph3DContent() {
     setLoading(true);
     try {
       const response = await fetch(
-        globalControlPlaneUrl("/api/knowledge/graph?limit=260"),
+        scopedControlPlaneUrl("/api/knowledge/graph?limit=260", globalView),
         { headers: authHeaders() },
       );
       if (!response.ok) return;
@@ -792,79 +793,83 @@ function KnowledgeGraph3DContent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [globalView]);
 
-  const expandNode = useCallback(async (nodeId: string) => {
-    setSelectedId(nodeId);
-    if (expandedRef.current.has(nodeId)) return;
-    expandedRef.current.add(nodeId);
-    try {
-      const response = await fetch(
-        globalControlPlaneUrl(
-          `/api/knowledge/neighbors?entity=${encodeURIComponent(nodeId)}&hops=1&limit=48`,
-        ),
-        { headers: authHeaders() },
-      );
-      if (!response.ok) return;
-      const data: { nodes: ApiNode[]; edges: ApiEdge[] } =
-        await response.json();
-      const anchor =
-        positionsRef.current.get(nodeId)?.clone() ?? new THREE.Vector3();
-      setBaseNodes((previous) => {
-        const existing = new Set(previous.map((node) => node.id));
-        const additions = data.nodes
-          .filter((node) => !existing.has(node.id))
-          .map((node, index) => {
-            const position = anchor
-              .clone()
-              .add(
-                initialSpherePosition(
-                  `${nodeId}:${node.id}`,
-                  index,
-                  data.nodes.length,
-                  displaySettingsRef.current,
-                ).multiplyScalar(0.28),
-              );
-            positionsRef.current.set(node.id, position);
-            return {
-              id: node.id,
-              label: node.label,
-              fullName: node.full_name || node.id,
-              entityType: node.entity_type || "neighbor",
-              roles: [node.entity_type || "neighbor"],
-              backendDegree: 0,
-              inDegree: 0,
-              outDegree: 0,
-              confidenceAvg: null,
-              sources: [],
-              firstSeen: null,
-              lastSeen: null,
-              color: colorForEntityType(node.entity_type || "neighbor"),
-            };
-          });
-        return [...previous, ...additions];
-      });
-      setBaseEdges((previous) => {
-        const existing = new Set(previous.map((edge) => edge.id));
-        const additions = data.edges
-          .filter((edge) => !existing.has(edge.id))
-          .map((edge) => ({
-            id: edge.id,
-            tripleId: edge.triple_id || edge.id,
-            source: edge.source,
-            target: edge.target,
-            label: edge.label,
-            confidence: edge.confidence ?? 0.55,
-            status: edge.status || "active",
-            sourceRef: edge.source_ref || "",
-            timestamp: edge.ts ?? null,
-          }));
-        return [...previous, ...additions];
-      });
-    } catch (error) {
-      swallow(error);
-    }
-  }, []);
+  const expandNode = useCallback(
+    async (nodeId: string) => {
+      setSelectedId(nodeId);
+      if (expandedRef.current.has(nodeId)) return;
+      expandedRef.current.add(nodeId);
+      try {
+        const response = await fetch(
+          scopedControlPlaneUrl(
+            `/api/knowledge/neighbors?entity=${encodeURIComponent(nodeId)}&hops=1&limit=48`,
+            globalView,
+          ),
+          { headers: authHeaders() },
+        );
+        if (!response.ok) return;
+        const data: { nodes: ApiNode[]; edges: ApiEdge[] } =
+          await response.json();
+        const anchor =
+          positionsRef.current.get(nodeId)?.clone() ?? new THREE.Vector3();
+        setBaseNodes((previous) => {
+          const existing = new Set(previous.map((node) => node.id));
+          const additions = data.nodes
+            .filter((node) => !existing.has(node.id))
+            .map((node, index) => {
+              const position = anchor
+                .clone()
+                .add(
+                  initialSpherePosition(
+                    `${nodeId}:${node.id}`,
+                    index,
+                    data.nodes.length,
+                    displaySettingsRef.current,
+                  ).multiplyScalar(0.28),
+                );
+              positionsRef.current.set(node.id, position);
+              return {
+                id: node.id,
+                label: node.label,
+                fullName: node.full_name || node.id,
+                entityType: node.entity_type || "neighbor",
+                roles: [node.entity_type || "neighbor"],
+                backendDegree: 0,
+                inDegree: 0,
+                outDegree: 0,
+                confidenceAvg: null,
+                sources: [],
+                firstSeen: null,
+                lastSeen: null,
+                color: colorForEntityType(node.entity_type || "neighbor"),
+              };
+            });
+          return [...previous, ...additions];
+        });
+        setBaseEdges((previous) => {
+          const existing = new Set(previous.map((edge) => edge.id));
+          const additions = data.edges
+            .filter((edge) => !existing.has(edge.id))
+            .map((edge) => ({
+              id: edge.id,
+              tripleId: edge.triple_id || edge.id,
+              source: edge.source,
+              target: edge.target,
+              label: edge.label,
+              confidence: edge.confidence ?? 0.55,
+              status: edge.status || "active",
+              sourceRef: edge.source_ref || "",
+              timestamp: edge.ts ?? null,
+            }));
+          return [...previous, ...additions];
+        });
+      } catch (error) {
+        swallow(error);
+      }
+    },
+    [globalView],
+  );
 
   useEffect(() => {
     void loadGraph();
@@ -1255,9 +1260,17 @@ function KnowledgeGraph3DContent() {
 
       <div className="absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center gap-2 sm:left-4 sm:right-auto sm:top-4 sm:max-w-[calc(100%-324px)]">
         <div className="relative min-w-0 flex-1 sm:min-w-[260px]">
-          <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/70" />
+          <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-9 border-border-default bg-background/90 pl-9 text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-primary/30"
+            // Autofill guard: a bare text input gets the saved account
+            // auto-filled by the browser, which then filters by it.
+            type="search"
+            name="echo-knowledge-graph-search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            className="h-9 border-border-default bg-background/90 pl-9 text-xs text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/30 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
             placeholder={t.knowledgePanel.searchPlaceholder}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -1313,14 +1326,14 @@ function KnowledgeGraph3DContent() {
                     {focusNode.label}
                   </div>
                   {focusNode.fullName !== focusNode.label && (
-                    <div className="mt-0.5 break-words text-xs leading-4 text-muted-foreground/70">
+                    <div className="mt-0.5 break-words text-xs leading-4 text-muted-foreground">
                       {shortText(focusNode.fullName, 96)}
                     </div>
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 text-center">
                   <div className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-1">
-                    <div className="text-xs text-muted-foreground/70">
+                    <div className="text-xs text-muted-foreground">
                       {controls.degree}
                     </div>
                     <div className="font-mono text-xs text-foreground/90">
@@ -1328,7 +1341,7 @@ function KnowledgeGraph3DContent() {
                     </div>
                   </div>
                   <div className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-1">
-                    <div className="text-xs text-muted-foreground/70">
+                    <div className="text-xs text-muted-foreground">
                       {controls.confidence}
                     </div>
                     <div className="font-mono text-xs text-foreground/90">
@@ -1336,7 +1349,7 @@ function KnowledgeGraph3DContent() {
                     </div>
                   </div>
                   <div className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-1">
-                    <div className="text-xs text-muted-foreground/70">
+                    <div className="text-xs text-muted-foreground">
                       {controls.updated}
                     </div>
                     <div className="font-mono text-xs text-foreground/90">
@@ -1358,7 +1371,7 @@ function KnowledgeGraph3DContent() {
                 )}
                 {focusEdges.length > 0 && (
                   <div className="space-y-1 border-t border-white/10 pt-2">
-                    <div className="text-xs font-semibold uppercase tracking-caps text-muted-foreground/70">
+                    <div className="text-xs font-semibold uppercase tracking-caps text-muted-foreground">
                       {controls.evidence}
                     </div>
                     {focusEdges.map((edge) => {
@@ -1374,15 +1387,15 @@ function KnowledgeGraph3DContent() {
                               {outbound ? "->" : "<-"}{" "}
                               {shortText(edge.label, 24)}
                             </span>
-                            <span className="font-mono text-xs text-muted-foreground/70">
+                            <span className="font-mono text-xs text-muted-foreground">
                               {formatConfidence(edge.confidence)}
                             </span>
                           </div>
-                          <div className="mt-0.5 truncate text-xs text-muted-foreground/70">
+                          <div className="mt-0.5 truncate text-xs text-muted-foreground">
                             {shortText(peer, 48)}
                           </div>
                           {(edge.sourceRef || edge.status !== "active") && (
-                            <div className="mt-1 flex gap-1 text-xs text-muted-foreground/50">
+                            <div className="mt-1 flex gap-1 text-xs text-muted-foreground">
                               {edge.status !== "active" && (
                                 <span>{edge.status}</span>
                               )}
@@ -1424,7 +1437,7 @@ function KnowledgeGraph3DContent() {
                     className={cn(
                       "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
                       disabled
-                        ? "text-muted-foreground/50 hover:bg-background/80"
+                        ? "text-muted-foreground hover:bg-background/80"
                         : "text-foreground/80 hover:bg-muted/70",
                     )}
                   >
@@ -1441,7 +1454,7 @@ function KnowledgeGraph3DContent() {
                         {entityTypeLabel(entityType)}
                       </span>
                     </span>
-                    <span className="font-mono text-xs text-muted-foreground/70">
+                    <span className="font-mono text-xs text-muted-foreground">
                       {group.count}
                     </span>
                   </button>

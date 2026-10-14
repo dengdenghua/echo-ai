@@ -15,6 +15,7 @@ import {
   XCircleIcon,
 } from "lucide-react";
 
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
 import { DotProgress } from "@/components/workspace/swarm/dot-progress";
@@ -226,7 +227,7 @@ export function ProcessTrace({
                 ) : phase.status === "done" ? (
                   <CheckCircle2Icon className="size-3.5 shrink-0 text-success" />
                 ) : (
-                  <CircleIcon className="size-3.5 shrink-0 text-muted-foreground/45" />
+                  <CircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 )}
                 <span
                   className={cn(
@@ -343,8 +344,9 @@ function AgentClusterRow({
               className="size-6 rounded-full object-cover"
             />
           ) : agent.avatar ? (
-            <span className="text-base leading-none" aria-hidden="true">
-              {agent.avatar}
+            // Emoji role avatars are never drawn (BRAND.md).
+            <span className="flex size-6 items-center justify-center rounded-full border border-border-default bg-muted text-xs">
+              <PersonaGlyph agentId={agent.id} name={agent.name} />
             </span>
           ) : (
             <BotIcon

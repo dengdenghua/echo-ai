@@ -45,10 +45,14 @@ from runtime.platform.connectors import oauth_support
 from runtime.platform.connectors.auth_orchestrator import RefreshCleanupRequiredError
 from runtime.safety.auth.scope import scope_from_request
 from runtime.sensing._fastapi_guard import require_fastapi
+from runtime.sensing.gateway._capability_icons import CapabilityIconIndex
+from runtime.sensing.gateway._codex_catalog_reader import CodexCatalogReader
 from runtime.sensing.gateway._device_flow_models import (
     DeviceFlowCancelResponse,
     DeviceFlowResponse,
 )
+from runtime.sensing.gateway._untrusted_content import untrusted_content_headers
+from runtime.sensing.gateway.model_catalog_refresh import ModelCatalogRefreshLoop
 
 
 def create_capability_router(
@@ -71,6 +75,8 @@ def create_capability_router(
         )
 
         registry = CapabilityRegistry()
+    codex_catalog = CodexCatalogReader(codex_accounts)
+    icon_index = CapabilityIconIndex(registry)
 
     async def _auth_dep(request: Request) -> AsyncIterator[None]:
         from runtime.adapters.web_auth import _resolve_actor
@@ -85,7 +91,7 @@ def create_capability_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; resolved principal is consumed by use_capability_scope below
         with use_capability_scope(scope_from_request(request)):
             yield
 
@@ -119,6 +125,20 @@ def create_capability_router(
 
     def _annotate_lifecycle(item: dict[str, Any], request: Request) -> dict[str, Any]:
         public = dict(item)
+        if public.get("is_codex_marketplace") is True:
+            public.update(
+                execution_owner="codex",
+                ownership_state="external_host",
+                ownership_label="通过 Codex 使用 · 尚未迁移到 Echo",
+                native_verified=False,
+            )
+        elif public.get("source") == "codex_plugin":
+            public.update(
+                execution_owner="echo",
+                ownership_state="local_package_unverified",
+                ownership_label="Echo 本地插件 · 授权适配待验证",
+                native_verified=False,
+            )
         if (
             public.get("source") == "codex_plugin"
             and public.get("is_codex_marketplace") is not True
@@ -213,34 +233,12 @@ def create_capability_router(
         ),
         force_refetch: bool = Query(default=False, alias="force_refetch"),
     ) -> dict[str, Any]:
-        items = registry.list()
-        if codex_accounts is not None and source != "connector":
-            try:
-                remote_plugins = await codex_accounts.list_plugins(
-                    scope_from_request(request),
-                    force_refetch=force_refetch,
-                )
-                # The App Server catalog owns install state for personal Codex
-                # applications.  A checked-out/bundled copy is only an offline
-                # source cache; letting it win here routed Browser/Documents/etc.
-                # through the process-global legacy registry and made remote
-                # uninstall/reinstall unreachable.
-                remote_provider_ids = {
-                    str(plugin.get("provider_id") or plugin.get("id") or "")
-                    for plugin in remote_plugins
-                }
-                items = [
-                    item
-                    for item in items
-                    if item.get("source") != "codex_plugin"
-                    or str(item.get("provider_id") or item.get("id") or "")
-                    not in remote_provider_ids
-                ]
-                items.extend(dict(plugin) for plugin in remote_plugins)
-            except Exception as exc:  # noqa: BLE001 - local catalog remains usable offline
-                logger.warning(
-                    "Codex plugin catalog unavailable; using local capabilities: %s", exc
-                )
+        items = await _local_and_codex_capabilities(
+            registry,
+            codex_catalog if codex_accounts is not None and source != "connector" else None,
+            scope_from_request(request),
+            force_refetch=force_refetch,
+        )
         if source:
             items = [i for i in items if i.get("source") == source]
         if ctype:
@@ -296,10 +294,8 @@ def create_capability_router(
 
     @router.get("/api/capabilities/{cid}/icon")
     async def capability_icon(cid: str, request: Request) -> Any:
-        item = registry.get(cid)
-        if item is not None:
-            icon_path = registry.icon_path(cid)
-        elif codex_accounts is not None and cid.startswith("codex-marketplace:"):
+        known, icon_path = await icon_index.lookup(cid)
+        if not known and codex_accounts is not None and cid.startswith("codex-marketplace:"):
             try:
                 icon_path = await codex_accounts.plugin_icon_path(
                     scope_from_request(request),
@@ -307,15 +303,19 @@ def create_capability_router(
                 )
             except Exception as exc:  # noqa: BLE001 - do not expose local paths/protocol errors
                 raise HTTPException(404, f"capability icon not found: {cid}") from exc
-        else:
+        elif not known:
             raise HTTPException(404, f"capability not found: {cid}")
         if icon_path is None or not icon_path.is_file():
             raise HTTPException(404, f"capability icon not found: {cid}")
         media_type = mimetypes.guess_type(icon_path.name)[0] or "application/octet-stream"
+        # Marketplace icons are third-party files (often SVG) on the API origin.
         return FileResponse(
             str(icon_path),
             media_type=media_type,
-            headers={"Cache-Control": "public, max-age=86400"},
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                **untrusted_content_headers(media_type),
+            },
         )
 
     @router.post("/api/capabilities/{cid}/install")
@@ -325,7 +325,7 @@ def create_capability_router(
             if item.get("installable") is False:
                 raise HTTPException(409, "Codex marketplace plugin is not installable")
             try:
-                return await codex_accounts.install_plugin(
+                return await codex_catalog.install_plugin(
                     scope_from_request(request),
                     catalog_id=cid,
                 )
@@ -360,17 +360,17 @@ def create_capability_router(
                 cid,
                 type(exc).__name__,
             )
-            raise HTTPException(
-                502,
-                "插件包下载或安装失败，请稍后重试",
-            ) from exc
+            from runtime.platform.plugins.install_errors import installation_failure
+
+            status, detail = installation_failure(exc)
+            raise HTTPException(status, detail) from exc
 
     @router.delete("/api/capabilities/{cid}/install")
     async def capability_uninstall(cid: str, request: Request) -> dict[str, Any]:
         item = await _get_lifecycle_item(cid, request)
         if item.get("is_codex_marketplace") is True:
             try:
-                return await codex_accounts.uninstall_plugin(
+                return await codex_catalog.uninstall_plugin(
                     scope_from_request(request),
                     catalog_id=cid,
                 )
@@ -430,17 +430,7 @@ def create_capability_router(
                 registry.set_enabled(cid, False, revoke_credentials=False)
                 raise HTTPException(503, "模型适配器服务尚未就绪")
             try:
-                discovered = await asyncio.to_thread(
-                    model_provider_plugins.validate,
-                    item,
-                    tokens=None,
-                )
-                configured = model_provider_plugins.configure(
-                    item,
-                    models=list(discovered.get("models") or []),
-                    channels=discovered.get("channels"),
-                    base_url=str(discovered.get("base_url") or "") or None,
-                )
+                configured = await asyncio.to_thread(model_provider_plugins.refresh, item)
             except Exception as exc:  # noqa: BLE001 - restore the lifecycle state
                 registry.set_enabled(cid, False, revoke_credentials=False)
                 raise HTTPException(409, str(exc)) from exc
@@ -631,4 +621,88 @@ def create_capability_router(
             "header_names": sorted(str(name) for name in headers),
         }
 
+    # A connected provider's catalog is a snapshot, not a live view, so a
+    # model published upstream after the last connect would never reach the
+    # picker. Re-run each connected provider's own discovery on a cadence;
+    # failures keep the previous catalog and are logged, never fatal.
+    def _refresh_model_provider_catalogs() -> int:
+        if model_provider_plugins is None:
+            return 0
+        connector_ids = model_provider_plugins.managed_connector_ids()
+        if not connector_ids:
+            return 0
+        available = {
+            str(entry.get("id") or ""): entry
+            for entry in registry.list()
+            if entry.get("model_provider")
+        }
+        refreshed = 0
+        for cid in connector_ids:
+            item = available.get(cid)
+            if item is None:
+                continue
+            try:
+                model_provider_plugins.refresh(item)
+            except Exception as exc:  # noqa: BLE001 - other providers still refresh
+                logger.warning("model catalog refresh failed for %s: %s", cid, exc)
+                continue
+            refreshed += 1
+        return refreshed
+
+    catalog_refresh = ModelCatalogRefreshLoop(_refresh_model_provider_catalogs)
+    router.add_event_handler("startup", catalog_refresh.start)
+    router.add_event_handler("shutdown", catalog_refresh.close)
+
     return router
+
+
+async def _local_and_codex_capabilities(
+    registry: Any,
+    codex_catalog: CodexCatalogReader | None,
+    scope: Any,
+    *,
+    force_refetch: bool,
+) -> list[dict[str, Any]]:
+    """Return registry rows merged with the Codex App Server catalog.
+
+    The registry walk is blocking file IO (1-2 s on a dev profile). It runs in
+    a worker thread alongside the bounded Codex catalog wait, so it neither
+    stalls the event loop nor adds to that wait.
+    """
+
+    local = asyncio.to_thread(registry.list)
+    if codex_catalog is None:
+        return await local
+    items: list[dict[str, Any]] | BaseException
+    remote: list[dict[str, Any]] | BaseException
+    items, remote = await asyncio.gather(
+        local,
+        codex_catalog.list_plugins(scope, force_refetch=force_refetch),
+        return_exceptions=True,
+    )
+    if isinstance(items, BaseException):
+        raise items
+    if isinstance(remote, BaseException):
+        if not isinstance(remote, Exception):
+            raise remote
+        # The local catalog remains usable offline.
+        logging.getLogger(__name__).warning(
+            "Codex plugin catalog unavailable; using local capabilities: %s", remote
+        )
+        return items
+    # The App Server catalog owns install state for personal Codex
+    # applications.  A checked-out/bundled copy is only an offline
+    # source cache; letting it win here routed Browser/Documents/etc.
+    # through the process-global legacy registry and made remote
+    # uninstall/reinstall unreachable.
+    remote_provider_ids = {
+        str(plugin.get("provider_id") or plugin.get("id") or "") for plugin in remote
+    }
+    merged = [
+        item
+        for item in items
+        if item.get("source") != "codex_plugin"
+        or str(item.get("provider_id") or item.get("id") or "") not in remote_provider_ids
+    ]
+    merged.extend(dict(plugin) for plugin in remote)
+    return merged

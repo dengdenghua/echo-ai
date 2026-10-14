@@ -16,6 +16,8 @@ from dataclasses import asdict, dataclass, field
 from math import isfinite
 from typing import Any, Literal, cast
 
+from runtime.projectos.appearance import normalize_project_category, normalize_project_icon
+
 
 def _is_finite_num(value: Any) -> bool:
     try:
@@ -44,7 +46,24 @@ TEAM_MODES_AI: frozenset[str] = frozenset({"swarm", "cluster"})
 # delivery fingerprint — the one guarantee the acceptance gate rests on.
 TEAM_MODES_HUMAN: frozenset[str] = frozenset({"human", "hybrid"})
 MilestoneStatus = Literal["pending", "active", "in_progress", "blocked", "done", "failed"]
+# ``failed`` is the only terminal non-success state. The engine never fails a
+# project on its own (every execution problem blocks it for recovery), so in
+# practice a ``failed`` project is one an operator cancelled; the
+# ``project.cancelled`` audit event records who and why.
 ProjectStatus = Literal["planning", "running", "blocked", "done", "failed"]
+
+# Which surface planned a project. ``""`` is every legacy row (unknown) and a
+# bare ``ProjectEngine.plan``; ``cli`` marks a project the offline CLI planned
+# with its deterministic stub hooks — the only kind the CLI may drive without
+# an explicit override, because stubs fabricate output and auto-approve QA.
+# ``app`` (project page / REST) and ``chat`` (``/project`` initiation) are
+# governed: phase authorization, AI budget and owner acceptance always apply,
+# and an ``app`` project waits for the owner's initiation approval.
+PROJECT_ORIGIN_CLI = "cli"
+PROJECT_ORIGIN_APP = "app"
+PROJECT_ORIGIN_CHAT = "chat"
+GOVERNED_PROJECT_ORIGINS: frozenset[str] = frozenset({PROJECT_ORIGIN_APP, PROJECT_ORIGIN_CHAT})
+PROJECT_ORIGINS: frozenset[str] = frozenset({"", PROJECT_ORIGIN_CLI, *GOVERNED_PROJECT_ORIGINS})
 
 # Which role owns which kind of work (L1 routing).
 ROLE_FOR_TASK: dict[str, str] = {
@@ -198,6 +217,10 @@ class Project:
     created_at: str = ""  # ISO timestamp
     started_at: str = ""  # ISO timestamp (first active milestone)
     finished_at: str = ""  # ISO timestamp (project done)
+    origin: str = ""  # planning surface, see PROJECT_ORIGINS; immutable once stored
+    # ── 外观（新建项目时选择；旧项目为 None）─────────
+    icon: str | None = None  # line-icon id, see appearance.normalize_project_icon
+    category: str | None = None  # short label, e.g. "investment"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -205,6 +228,7 @@ class Project:
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> Project:
         status = raw.get("status")
+        origin = str(raw.get("origin") or "")
         return cls(
             id=str(raw["id"]),
             name=str(raw.get("name") or raw["id"]),
@@ -221,6 +245,9 @@ class Project:
             created_at=str(raw.get("created_at") or ""),
             started_at=str(raw.get("started_at") or ""),
             finished_at=str(raw.get("finished_at") or ""),
+            origin=origin if origin in PROJECT_ORIGINS else "",
+            icon=normalize_project_icon(raw.get("icon")),
+            category=normalize_project_category(raw.get("category")),
         )
 
 

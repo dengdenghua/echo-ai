@@ -89,6 +89,7 @@ config.local*.yaml
 *.tmp
 .tmp_*
 .tmp-tailwind-postcss/
+frontend/.tmp-*
 /tmp/
 scratch/
 
@@ -257,8 +258,10 @@ runtime/execution/all_skills/.preinstalled
 /skills/public/*/
 .trae/tmp/
 
-# Local assistant/IDE state generated during development.
-.workbuddy/
+# Local assistant/IDE state generated during development. The unsigned
+# electron-builder config is the one tracked file (see fdb0fcc2).
+.workbuddy/*
+!.workbuddy/electron-builder.unsigned.yml
 .trae/skills/
 
 # Godot editor cache for the desktop-pet sidecar (never commit; regenerated).
@@ -266,9 +269,26 @@ pet-sidecar/.godot/
 
 # Root-level preview screenshots (local UI artifacts, never commit)
 /preview*.png
+/*-preview.png
+/*_preview.png
 .pytest-tmp/
+docs/auto/_coverage_tmp/
 
 # Dev-history artifacts kept locally only (not part of the public project)
 docs/archive/
 docs/audits/
 .trae/
+
+# Windows UIAutomation side-effect log: the uiautomation package dumps its
+# CoInitialize / UIAutomationCore.dll complaints here. Never source.
+/@AutomationLog.txt
+
+# Frontend build backup archives
+frontend/dist.old*/
+dist.old*/
+
+# Mangled pytest tmp_path files (drive colon/backslashes stripped on Windows)
+/C*Users*pytest-of-*
+
+# pnpm patch scratch workspace
+frontend/.patch-work/

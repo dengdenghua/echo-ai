@@ -14,6 +14,8 @@ import hashlib
 import json
 import os
 import shutil
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -22,11 +24,14 @@ from runtime.platform.plugins.publisher_provenance import (
     SIGNATURE_RELATIVE_PATH,
     verify_plugin_publisher_provenance,
 )
-from runtime.platform.process.paths import project_root
+from runtime.platform.process.paths import app_paths, project_root
 
 _PROVENANCE_IGNORED_DIRS = frozenset({".git", ".pytest_cache", "__pycache__", "node_modules"})
 _PROVENANCE_MAX_FILES = 2048
 _PROVENANCE_MAX_BYTES = 64 * 1024 * 1024
+# Smoke checks hash every plugin file. File reads and hashlib release the GIL,
+# so independent plugins check concurrently (51 plugins: 1.4 s -> 0.6 s warm).
+_SMOKE_WORKERS = 8
 _PUBLIC_IMAGE_SUFFIXES = frozenset(
     {".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"}
 )
@@ -85,19 +90,24 @@ def _default_plugin_roots() -> list[Path]:
     return [
         root / ".echo" / "plugins" / "codex",
         Path.home() / ".echo" / "plugins" / "codex",
+        app_paths().codex_plugins_path,
     ]
 
 
-# 我们自己的 Codex 格式插件目录(echo 名下,不再直接读 ~/.codex)。
-ECHO_CODEX_PLUGIN_ROOT = Path.home() / ".echo" / "plugins" / "codex"
-# Codex 应用的原始插件缓存(只作为一次性的迁移来源)。
-LEGACY_CODEX_PLUGIN_CACHE = Path.home() / ".codex" / "plugins" / "cache"
+# Both roots resolve per call: binding Path.home() at import pinned them to
+# whichever HOME the first importer saw.
 
 
 def echo_codex_plugin_root() -> Path:
     """返回 echo 自有的 Codex 格式插件目录(不存在则创建)。"""
-    ECHO_CODEX_PLUGIN_ROOT.mkdir(parents=True, exist_ok=True)
-    return ECHO_CODEX_PLUGIN_ROOT
+    root = Path.home() / ".echo" / "plugins" / "codex"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def legacy_codex_plugin_cache() -> Path:
+    """Codex 应用的原始插件缓存(只作为一次性的迁移来源)。"""
+    return Path.home() / ".codex" / "plugins" / "cache"
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
@@ -117,7 +127,7 @@ def sync_codex_cache_to_echo(
     幂等:echo 目录里已有同名插件(.codex-plugin/plugin.json)就跳过,不覆盖
     本地已装的。返回本次复制成功的插件数。
     """
-    src = Path(source or LEGACY_CODEX_PLUGIN_CACHE)
+    src = Path(source or legacy_codex_plugin_cache())
     target_root = Path(dest or echo_codex_plugin_root())
     if not src.is_dir():
         return 0
@@ -533,17 +543,26 @@ def _permission_resolution(
     }
 
 
+def _plugin_identity(
+    plugin_dir: Path,
+    manifest: dict[str, Any],
+) -> tuple[dict[str, Any], str, str]:
+    """Return ``(interface, id, display name)`` exactly as listings use them."""
+
+    interface = manifest.get("interface")
+    if not isinstance(interface, dict):
+        interface = {}
+    name = _string(manifest.get("name"), plugin_dir.name)
+    return interface, name, _string(interface.get("displayName"), name)
+
+
 def _plugin_info(
     plugin_dir: Path,
     manifest: dict[str, Any],
     *,
     publisher_trust_store_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    interface = manifest.get("interface")
-    if not isinstance(interface, dict):
-        interface = {}
-    name = _string(manifest.get("name"), plugin_dir.name)
-    display_name = _string(interface.get("displayName"), name)
+    interface, name, display_name = _plugin_identity(plugin_dir, manifest)
     capabilities = _capability_records(interface.get("capabilities"), name)
     logo_url = _asset_url(plugin_dir, name, interface.get("logo"))
     composer_icon_url = _asset_url(plugin_dir, name, interface.get("composerIcon"))
@@ -583,29 +602,67 @@ def _plugin_info(
     return info
 
 
-def discover_codex_plugins(
-    roots: list[Path] | None = None,
-    *,
-    publisher_trust_store_path: str | Path | None = None,
-) -> list[dict[str, Any]]:
-    out: dict[str, dict[str, Any]] = {}
+def _discovered_manifests(roots: list[Path] | None) -> Iterator[tuple[Path, dict[str, Any]]]:
     for root in roots or _default_plugin_roots():
         if not root.is_dir():
             continue
         for manifest_path in sorted(root.glob("*/.codex-plugin/plugin.json")):
             manifest = _read_manifest(manifest_path)
-            if manifest is None:
-                continue
-            info = _plugin_info(
-                manifest_path.parent.parent,
-                manifest,
-                publisher_trust_store_path=publisher_trust_store_path,
-            )
-            out[info["id"]] = info
+            if manifest is not None:
+                yield manifest_path.parent.parent, manifest
+
+
+def discover_codex_plugins(
+    roots: list[Path] | None = None,
+    *,
+    publisher_trust_store_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    found = list(_discovered_manifests(roots))
+
+    def info(entry: tuple[Path, dict[str, Any]]) -> dict[str, Any]:
+        return _plugin_info(*entry, publisher_trust_store_path=publisher_trust_store_path)
+
+    if len(found) > 1:
+        with ThreadPoolExecutor(max_workers=_SMOKE_WORKERS) as pool:
+            infos = list(pool.map(info, found))
+    else:
+        infos = [info(entry) for entry in found]
+    out = {item["id"]: item for item in infos}
     return sorted(out.values(), key=lambda item: item["name"].lower())
 
 
+def discover_codex_capabilities(roots: list[Path] | None = None) -> list[dict[str, Any]]:
+    """Return every capability record, in ``discover_codex_plugins`` order.
+
+    Listing capabilities needs only the manifests. ``discover_codex_plugins``
+    also runs each plugin's smoke check, which hashes every plugin file for
+    publisher provenance. With a few dozen plugins that takes several seconds.
+    """
+
+    plugins: dict[str, tuple[str, list[dict[str, Any]]]] = {}
+    for plugin_dir, manifest in _discovered_manifests(roots):
+        interface, name, display_name = _plugin_identity(plugin_dir, manifest)
+        plugins[name] = (display_name, _capability_records(interface.get("capabilities"), name))
+    ordered = sorted(plugins.values(), key=lambda entry: entry[0].lower())
+    return [cap for _, caps in ordered for cap in caps]
+
+
+def discover_codex_plugin_dirs(roots: list[Path] | None = None) -> dict[str, Path]:
+    """Map plugin id -> directory, resolved like ``discover_codex_plugins``.
+
+    For callers that only need to locate a plugin, such as asset serving. It
+    skips the per-plugin smoke checks.
+    """
+
+    dirs: dict[str, Path] = {}
+    for plugin_dir, manifest in _discovered_manifests(roots):
+        dirs[_plugin_identity(plugin_dir, manifest)[1]] = plugin_dir
+    return dirs
+
+
 __all__ = [
+    "discover_codex_capabilities",
+    "discover_codex_plugin_dirs",
     "discover_codex_plugins",
     "is_sensitive_plugin_asset_path",
     "public_plugin_asset_paths",

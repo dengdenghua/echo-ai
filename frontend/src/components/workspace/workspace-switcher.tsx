@@ -322,7 +322,7 @@ export function WorkspaceSwitcher({
               <div className="flex max-h-full flex-col overflow-hidden rounded-lg border border-border-default bg-popover/95 shadow-[var(--shadow-floating)] backdrop-blur">
                 <div className="shrink-0 border-b border-border-default p-2">
                   <div className="flex items-center gap-1.5 rounded-md border border-border-default bg-background/70 px-2 py-1">
-                    <SearchIcon className="size-3 shrink-0 text-muted-foreground/70" />
+                    <SearchIcon className="size-3 shrink-0 text-muted-foreground" />
                     <input
                       ref={searchInputRef}
                       type="text"
@@ -330,7 +330,7 @@ export function WorkspaceSwitcher({
                       onChange={(event) => setQuery(event.target.value)}
                       placeholder={tr.searchPlaceholder}
                       aria-label={tr.searchPlaceholder}
-                      className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/60"
+                      className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
                     />
                   </div>
                 </div>

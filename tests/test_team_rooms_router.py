@@ -108,12 +108,13 @@ def test_legacy_invite_scrub_serializes_with_live_room_create(
 ) -> None:
     import runtime.platform.io.transactional as transactional
     import runtime.sensing.gateway._team_room_persistence as persistence
+    from runtime.sensing.gateway._team_rooms_state import _load_state
     from runtime.sensing.gateway.team_invitations_router import scrub_legacy_room_invites
 
     state_path = tmp_path / "team_rooms.json"
     client = _client(tmp_path)
     existing = client.post("/api/teams", json=_team_body("Legacy")).json()
-    raw = json.loads(state_path.read_text(encoding="utf-8"))
+    raw = {"teams": [existing]}
     raw["teams"][0]["invite_token"] = "plaintext-secret"
     raw["teams"][0]["invite_role"] = "member"
     state_path.write_text(json.dumps(raw), encoding="utf-8")
@@ -149,11 +150,13 @@ def test_legacy_invite_scrub_serializes_with_live_room_create(
         response = created.result(timeout=5)
 
     assert response.status_code == 200, response.json()
-    durable = json.loads(state_path.read_text(encoding="utf-8"))["teams"]
-    assert {item["id"] for item in durable} == {existing["id"], response.json()["id"]}
+    durable = _load_state(state_path)
+    assert set(durable) == {existing["id"], response.json()["id"]}
+    backup = json.loads(state_path.read_text(encoding="utf-8"))["teams"]
+    assert {item["id"] for item in backup} == {existing["id"]}
     assert all(
         field not in item
-        for item in durable
+        for item in backup
         for field in ("invite_token", "invite_role", "invite_created_at")
     )
 
@@ -375,11 +378,14 @@ def test_team_room_websocket_respects_auth_and_actor_binding(tmp_path: Path) -> 
     owner_id = team["participants"][0]["id"]
     url = f"/api/teams/{team['id']}/ws?participant_id={owner_id}&display_name=Alice"
 
-    with client.websocket_connect(url) as ws:
-        assert ws.receive_json() == {
-            "type": "error",
-            "message": "missing Authorization: Bearer <token>",
-        }
+    # Unauthenticated: refused by the shared gate before accept() (1008), so
+    # the client never receives a room frame at all.
+    from starlette.websockets import WebSocketDisconnect
+
+    with pytest.raises(WebSocketDisconnect) as exc_info, client.websocket_connect(url):
+        pass
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "authentication required"
 
     with client.websocket_connect(
         url,

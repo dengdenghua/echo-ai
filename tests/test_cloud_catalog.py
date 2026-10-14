@@ -9,11 +9,13 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import tarfile
+from pathlib import Path
 
 import pytest
 
-from runtime.platform.plugins import cloud_catalog
+from runtime.platform.plugins import cloud_catalog, install_errors
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
 
 
@@ -157,7 +159,15 @@ class TestExtractMember:
         assert (out / "SKILL.md").exists()
         assert (out / "scripts" / "gen.py").exists()
 
-    def test_normalizes_archive_file_modes(self, tmp_path):
+    def test_normalizes_archive_file_modes(self, tmp_path, monkeypatch):
+        original_chmod = Path.chmod
+        requested_modes = {}
+
+        def record_chmod(path, mode, **kwargs):
+            requested_modes[path.name] = mode
+            return original_chmod(path, mode, **kwargs)
+
+        monkeypatch.setattr(Path, "chmod", record_chmod)
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tf:
             for name, mode in (("run.sh", 0o4777), ("config.json", 0o666)):
@@ -177,8 +187,13 @@ class TestExtractMember:
         )
 
         assert out is not None
-        assert (out / "run.sh").stat().st_mode & 0o7777 == 0o755
-        assert (out / "config.json").stat().st_mode & 0o7777 == 0o644
+        assert requested_modes == {"run.sh": 0o755, "config.json": 0o644}
+        assert (out / "run.sh").read_bytes() == b"content"
+        assert (out / "config.json").read_bytes() == b"content"
+        # Windows chmod only controls the read-only flag; POSIX preserves all mode bits.
+        if os.name != "nt":
+            assert (out / "run.sh").stat().st_mode & 0o7777 == 0o755
+            assert (out / "config.json").stat().st_mode & 0o7777 == 0o644
 
     def test_missing_member_returns_none(self, tmp_path):
         pack = tmp_path / "pack.tar.gz"
@@ -258,6 +273,41 @@ class TestArchiveDownload:
         assert path.read_bytes() == b"archive"
         assert observed["max_bytes"] == 192 * 1024 * 1024
         assert observed["max_bytes"] < cloud_catalog._MAX_EXTRACTED_BYTES
+
+    def test_missing_release_is_a_readable_error_not_a_traceback(self, tmp_path, monkeypatch):
+        import httpx
+
+        def _missing(url: str, *, timeout: float, max_bytes: int) -> bytes:
+            request = httpx.Request("GET", url)
+            raise httpx.HTTPStatusError(
+                "404", request=request, response=httpx.Response(404, request=request)
+            )
+
+        monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path)
+        monkeypatch.setattr(cloud_catalog, "fetch_public_https_bytes", _missing)
+
+        with pytest.raises(cloud_catalog.ContentPackUnavailableError, match="尚未在云端发布"):
+            CloudCatalog("plugins", use_remote=False, use_cache=False)._archive_path()
+        assert not list(tmp_path.iterdir()), "a failed download must not leave a cache file"
+
+    @pytest.mark.parametrize(
+        "detail",
+        [
+            "workbench publisher signature rejected: publisher trust store is unavailable",
+            "trusted workbench publisher signature is required: unsigned",
+            "trusted publisher signature is required: key revoked",
+        ],
+    )
+    def test_signature_refusal_reads_as_a_sentence(self, detail):
+        message = install_errors.public_install_error(ValueError(detail))
+
+        assert message.startswith("插件包签名或完整性验证失败")
+        assert "trust store" not in message
+
+    def test_other_install_errors_pass_through(self):
+        assert install_errors.public_install_error(ValueError("enabled must be a boolean")) == (
+            "enabled must be a boolean"
+        )
 
 
 class TestInstallSkill:
@@ -483,3 +533,15 @@ class TestSyncCodexCache:
         # 幂等:重复同步不再复制
         n2 = codex_discovery.sync_codex_cache_to_echo(source=legacy, dest=dest)
         assert n2 == 0
+
+
+def test_builtin_catalog_entries_use_current_brand_author():
+    """Market cards print ``来自 <author>``; retired names must not resurface."""
+    from runtime.platform.plugins import _cloud_catalog_entries as entries
+
+    authors = {
+        entry["author"]
+        for group in (entries._REMOTE_SURFACE_PLUGINS, entries._WORKBENCH_APPS)
+        for entry in group
+    }
+    assert not authors & {"EchoAI", "EchoOS", "Octopus"}

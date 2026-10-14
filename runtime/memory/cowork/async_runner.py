@@ -14,19 +14,24 @@ without an LLM and never touches the realtime streaming path.
 from __future__ import annotations
 
 import logging
-import math
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from datetime import UTC, datetime
 from typing import Any
 
+from runtime.execution.claim_guard import ExecutionClaimGuard
 from runtime.memory.cowork.async_work import AsyncTask, AsyncWorkStore
 from runtime.memory.cowork.context_view import materialize_messages, resolve_view
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.nominate import CompetenceStore, tokenize
+from runtime.safety.approval.cancellation import current_cancellation_token
 
 _LOG = logging.getLogger("echo.cowork.async_runner")
+
+# Model/network waits dominate these tasks; keep the default independent of CPU count.
+DEFAULT_MAX_CONCURRENCY = 16
 
 # execute(task, context) -> result text. ``context`` carries the grant-sliced
 # history, the shared blackboard, and the roster.
@@ -51,9 +56,10 @@ class AsyncWorkRunner:
         competence: CompetenceStore | None = None,
         history_provider: HistoryProvider | None = None,
         completion_observer: CompletionObserver | None = None,
+        admission: Callable[[AsyncTask], bool] | None = None,
         recover_stale_seconds: float = 900.0,
         max_attempts: int = 3,
-        max_concurrency: int = 4,
+        max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
         max_tasks_per_tick: int = 64,
     ) -> None:
         self._store = store
@@ -62,6 +68,7 @@ class AsyncWorkRunner:
         self._competence = competence
         self._history = history_provider or (lambda _tid: [])
         self._completion_observer = completion_observer
+        self._admission = admission
         self._recover_stale_seconds = max(0.0, float(recover_stale_seconds))
         self._max_attempts = max(1, int(max_attempts))
         self._max_concurrency = max(1, int(max_concurrency))
@@ -160,25 +167,67 @@ class AsyncWorkRunner:
 
     def run_one(self, task: AsyncTask) -> bool:
         """Claim → execute → complete (or fail) one task. False if not claimable."""
-        if not self._store.claim(task.task_id):
+        parent = current_cancellation_token()
+        if parent.is_cancelled:
             return False
+        if self._admission is not None:
+            try:
+                if not self._admission(task):
+                    return False
+            except PermissionError:
+                # Membership/permission revocation cannot turn into delayed work.
+                self._store.cancel_batch(
+                    [task.task_id], reason="group execution permission revoked"
+                )
+                return False
+        claimed = self._store.claim_execution(task.task_id)
+        if claimed is None:
+            return False
+        task = claimed
+        guard = ExecutionClaimGuard(
+            lambda: self._store.heartbeat(task.task_id, expected_attempt=task.attempts),
+            interval_s=min(30.0, self._recover_stale_seconds / 3),
+        )
+
+        # Persist parent cancellation even if the provider ignores its token.
+        # The attempt fence prevents a delayed callback cancelling a new worker.
+        def cancel_claim(reason: str) -> None:
+            self._store.cancel_claim(task.task_id, expected_attempt=task.attempts, reason=reason)
+
+        unlink = parent.on_cancelled(cancel_claim)
         try:
+            with guard.scope():
+                return self._run_claimed(task, guard)
+        finally:
+            unlink()
+
+    def _run_claimed(self, task: AsyncTask, guard: ExecutionClaimGuard) -> bool:
+        try:
+            guard.token.throw_if_cancelled()
             result = self._execute(task, self._build_context(task))
+            guard.token.throw_if_cancelled()
         except Exception as exc:  # noqa: BLE001 — a failed task must not kill the loop
+            if guard.claim_lost:
+                return True
+            if guard.token.is_cancelled:
+                self._store.cancel_claim(
+                    task.task_id, expected_attempt=task.attempts, reason=guard.token.reason
+                )
+                return True
             error = f"{type(exc).__name__}: {exc}"
-            failed = self._store.fail(task.task_id, error)
-            current = self._store.get(task.task_id)
-            if not failed and current is not None and current.status == "cancelled":
-                _LOG.info("discarded late failure from cancelled async task %s", task.task_id)
+            failed = self._store.fail(task.task_id, error, expected_attempt=task.attempts)
+            if not failed:
+                _LOG.info("discarded failure from obsolete async claim %s", task.task_id)
                 return True
             self._record_competence(task.assignee, task.prompt, success=False)
             self._notify_completion(task, success=False, result=error)
             _LOG.warning("async task %s failed: %s", task.task_id, exc)
             return True
-        completed = self._store.complete(task.task_id, result)
-        current = self._store.get(task.task_id)
-        if not completed and current is not None and current.status == "cancelled":
-            _LOG.info("discarded late result from cancelled async task %s", task.task_id)
+        if guard.claim_lost:
+            return True
+        completed = self._store.complete(task.task_id, result, expected_attempt=task.attempts)
+        if not completed:
+            _LOG.info("discarded result from obsolete async claim %s", task.task_id)
             return True
         self._record_competence(task.assignee, task.prompt, success=True)
         self._notify_completion(task, success=True, result=result)
@@ -212,11 +261,11 @@ class AsyncWorkRunner:
         return selected
 
     def _adaptive_worker_count(self, task_count: int) -> int:
-        """Scale gently with backlog instead of spawning one worker per task."""
+        """Use available I/O slots, bounded by the configured worker cap."""
 
         if task_count <= 0:
             return 0
-        return min(self._max_concurrency, max(1, math.ceil(math.sqrt(task_count))))
+        return min(self._max_concurrency, task_count)
 
     def _run_fair_pending(self, *, limit: int | None = None) -> tuple[int, int]:
         tasks = self._fair_pending(limit=limit)
@@ -227,7 +276,8 @@ class AsyncWorkRunner:
             max_workers=concurrency,
             thread_name_prefix="cowork-task",
         ) as pool:
-            ran = sum(1 for completed in pool.map(self.run_one, tasks) if completed)
+            futures = [pool.submit(copy_context().run, self.run_one, task) for task in tasks]
+            ran = sum(1 for future in futures if future.result())
         return ran, concurrency
 
     def recover_stale(self) -> dict[str, int]:
@@ -287,6 +337,11 @@ class AsyncWorkRunner:
             target=self._loop, args=(poll_seconds,), name="cowork-async-runner", daemon=True
         )
         self._thread.start()
+        _LOG.info(
+            "cowork async runner started: max_concurrency=%d, max_tasks_per_tick=%d",
+            self._max_concurrency,
+            self._max_tasks_per_tick,
+        )
 
     def stop(self, timeout: float = 5.0) -> None:
         self._stop.set()
@@ -301,9 +356,50 @@ class AsyncWorkRunner:
         self._wake.set()
 
     def _loop(self, poll_seconds: float) -> None:
-        while not self._stop.is_set():
-            self._wake.wait(timeout=poll_seconds)
-            self._wake.clear()
-            if self._stop.is_set():
-                break
-            self.tick_once()
+        # A persistent pool admits arrivals while existing workers are busy.
+        # tick_once/drain_all intentionally wait for a finite batch (CLI/tests);
+        # using them here used to strand new work behind a 15-minute task even
+        # with three vacant execution slots.
+        pool = ThreadPoolExecutor(
+            max_workers=self._max_concurrency, thread_name_prefix="cowork-task"
+        )
+        active = {}
+
+        def completed(future):
+            # Admission-blocked tasks wait for a dependency completion/poll;
+            # immediately waking on False would spin on the same blocked row.
+            if not future.cancelled() and (future.exception() or future.result()):
+                self._wake.set()
+
+        try:
+            while not self._stop.is_set():
+                self._wake.wait(timeout=poll_seconds)
+                self._wake.clear()
+                if self._stop.is_set():
+                    break
+                try:
+                    ran = 0
+                    for task_id, future in list(active.items()):
+                        if future.done():
+                            active.pop(task_id)
+                            ran += bool(future.result())
+                    recovered = self.recover_stale()
+                    for task in self._fair_pending(limit=self._max_tasks_per_tick):
+                        if len(active) >= self._max_concurrency:
+                            break
+                        if task.task_id in active:
+                            continue
+                        future = pool.submit(copy_context().run, self.run_one, task)
+                        active[task.task_id] = future
+                        future.add_done_callback(completed)
+                    self._record_tick_result(
+                        success=True,
+                        recovered=recovered,
+                        ran_count=ran,
+                        concurrency=len(active),
+                    )
+                except Exception as exc:  # noqa: BLE001 — one worker must not kill dispatch
+                    self._record_tick_result(success=False, error=f"{type(exc).__name__}: {exc}")
+                    _LOG.warning("async runner dispatch error: %s", exc, exc_info=True)
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)

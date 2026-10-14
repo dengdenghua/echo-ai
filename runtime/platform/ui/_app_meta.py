@@ -17,6 +17,7 @@ def mount_meta(
     ctx: AppContext,
     *,
     oct_config: object,
+    include_default_skill_library: bool,
 ) -> None:
     """Mount the meta / mcp / config routers."""
     app = ctx.app
@@ -35,13 +36,17 @@ def mount_meta(
     _skill_library_dirs = [
         p for p in (ctx.resources_root / "skills" / "public", _source_public_skills) if p.is_dir()
     ]
+    if include_default_skill_library:
+        # An existing external directory can contain only downloaded skills.
+        # Keep the packaged catalog as a fallback for plugin-owned entries.
+        _skill_library_dirs.append(Path(__file__).resolve().parents[2] / "execution" / "all_skills")
 
     app.include_router(
         create_meta_router(
             registry=state.registry,
             tool_registry=get_tool_registry(),
             skill_library_dirs=list(dict.fromkeys(_skill_library_dirs)),
-            include_default_skill_library=(state.registry is None or stack is not None),
+            include_default_skill_library=include_default_skill_library,
             oct_config=oct_config,
             local_auth_config=ctx.local_auth_runtime_config,
             identity_store=ctx.identity_store,

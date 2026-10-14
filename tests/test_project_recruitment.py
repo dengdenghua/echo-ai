@@ -81,7 +81,11 @@ def test_cloud_install_hot_loads_the_returned_role(tmp_path, monkeypatch):
     monkeypatch.setattr("runtime.execution.agents.loader.load_agent", lambda *a: loaded)
     registered = []
     sources = []
-    registry = SimpleNamespace(has=lambda _: False, register=registered.append, record_hub_source=lambda key, agent: sources.append((key, agent)))
+    registry = SimpleNamespace(
+        has=lambda _: False,
+        register=registered.append,
+        record_hub_source=lambda key, agent: sources.append((key, agent)),
+    )
     app = FastAPI()
     app.include_router(
         agent_world_router.create_agent_world_router(registry=registry, runtime=object())
@@ -138,20 +142,30 @@ def test_old_proposal_cannot_recruit_hidden_hub_role(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("source_matches", [True, False])
 def test_hub_approval_requires_verified_source(tmp_path, monkeypatch, source_matches):
-    monkeypatch.setattr("runtime.projectos.recruitment.hub_candidates", lambda _: [
-        {"agent_id": "hub:wb_content-creator", "name": "Writer", "source": "hub"}])
+    monkeypatch.setattr(
+        "runtime.projectos.recruitment.hub_candidates",
+        lambda _: [{"agent_id": "hub:wb_content-creator", "name": "Writer", "source": "hub"}],
+    )
     runtime, emitter, kwargs, proposal = setup(tmp_path)
     proposal["staffing"][1].update(source="hub", agent_id="hub:wb_content-creator")
-    runtime._agent_registry.matches_hub_source = lambda expert, actual: source_matches and expert == "wb_content-creator" and actual == "coder"
+    runtime._agent_registry.matches_hub_source = lambda expert, actual: (
+        source_matches and expert == "wb_content-creator" and actual == "coder"
+    )
     emitter.request_approval.side_effect = None
-    emitter.request_approval.return_value = {"action": "accept", "preparedRoles": {"hub:wb_content-creator": "coder"}}
-    result = asyncio.run(initiate_project(runtime, SimpleNamespace(id="turn"), None, emitter, **kwargs))
+    emitter.request_approval.return_value = {
+        "action": "accept",
+        "preparedRoles": {"hub:wb_content-creator": "coder"},
+    }
+    result = asyncio.run(
+        initiate_project(runtime, SimpleNamespace(id="turn"), None, emitter, **kwargs)
+    )
     assert (result is not None) == source_matches
     assert bool(runtime._cowork_group_store.state("thread").roster) == source_matches
 
 
 def test_hub_source_does_not_survive_role_replacement():
     from runtime.execution.agents.base import AgentRegistry
+
     registry = AgentRegistry()
     original = SimpleNamespace(agent_id="writer")
     registry.register(original)

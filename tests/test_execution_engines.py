@@ -9,12 +9,17 @@ from unittest.mock import AsyncMock
 import pytest
 
 from runtime.execution.engines import (
+    CapabilityRequest,
     EngineId,
+    EngineSelectionError,
     ExecutionAdmissionError,
     ExecutionPhase,
     ExecutionRoute,
     ExecutionSupervisor,
+    engine_capabilities,
+    engines_supporting,
     select_execution_route,
+    verify_engine_admission,
 )
 
 
@@ -184,3 +189,78 @@ def test_adapter_must_match_selected_engine():
             is_interrupted=lambda: False,
             before_invoke=AsyncMock(),
         )
+
+
+def test_max_tools_matches_the_broker():
+    # engines.py duplicates the broker's cap as a literal to avoid inverting the
+    # dependency direction. Both external engines project the same broker, so a
+    # bump on either side must not silently diverge from this table.
+    from runtime.execution.tool_engine.host_tool_broker import _MAX_DYNAMIC_TOOLS
+
+    for engine in EngineId:
+        assert engine_capabilities(engine).max_tools == _MAX_DYNAMIC_TOOLS
+
+
+def test_every_engine_declares_capabilities():
+    for engine in EngineId:
+        capabilities = engine_capabilities(engine)
+        assert capabilities.max_tools > 0
+        assert capabilities.credential_scope in {
+            "client_identity",
+            "account_token",
+            "host_router",
+        }
+
+
+def test_opencode_free_path_requires_the_official_client_identity():
+    # Zen's free tier authorizes the client, not only the key, so the host must
+    # run the vendored binary. Relaxing this to a plain model API would
+    # reintroduce the HTTP 400 MissingSessionID failure.
+    assert engine_capabilities(EngineId.OPENCODE).credential_scope == "client_identity"
+    assert engine_capabilities(EngineId.CODEX).credential_scope == "account_token"
+
+
+def test_empty_request_is_satisfied_by_every_engine():
+    assert set(engines_supporting(CapabilityRequest())) == set(EngineId)
+
+
+@pytest.mark.parametrize(
+    ("request_kwargs", "unmet"),
+    [
+        ({"vision": True}, ("vision",)),
+        ({"team_orchestration": True}, ("team_orchestration",)),
+        ({"vision": True, "team_orchestration": True}, ("vision", "team_orchestration")),
+        ({"tools": True}, ()),
+    ],
+)
+def test_opencode_capability_gaps_are_reported_before_execution(request_kwargs, unmet):
+    request = CapabilityRequest(**request_kwargs)
+    assert request.unmet_by(engine_capabilities(EngineId.OPENCODE)) == unmet
+
+
+def test_admission_rejects_an_impossible_binding_with_alternatives():
+    with pytest.raises(EngineSelectionError) as raised:
+        verify_engine_admission(EngineId.OPENCODE, CapabilityRequest(vision=True))
+    assert raised.value.reason == "capability_unmet"
+    assert raised.value.unmet == ("vision",)
+    assert EngineId.OPENCODE not in raised.value.alternatives
+    assert EngineId.CODEX in raised.value.alternatives
+
+
+def test_route_selection_verifies_the_resolved_engine():
+    with pytest.raises(EngineSelectionError):
+        select_execution_route(
+            requested_engine=EngineId.OPENCODE,
+            required=CapabilityRequest(vision=True),
+        )
+
+
+def test_route_selection_is_unchanged_without_a_capability_request():
+    # The check is opt-in: existing callers must resolve exactly as before.
+    assert select_execution_route(requested_engine=EngineId.OPENCODE) == ExecutionRoute(
+        EngineId.OPENCODE, "opencode_server", "explicit_engine"
+    )
+    satisfied = select_execution_route(
+        requested_engine=EngineId.OPENCODE, required=CapabilityRequest(tools=True)
+    )
+    assert satisfied.engine is EngineId.OPENCODE

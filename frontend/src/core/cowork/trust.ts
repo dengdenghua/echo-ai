@@ -48,7 +48,7 @@ export function trustTooltip(score: TrustScore): string {
 
 /** 分数 → 徽标配色。中国习惯：红=好？不——这是风险语义，沿用警示色阶。 */
 export function trustBadgeClass(score: number): string {
-  if (score >= 85) return "bg-emerald-500/10 text-emerald-600";
+  if (score >= 85) return "bg-core/10 text-core";
   if (score >= 70) return "bg-sky-500/10 text-sky-600";
   if (score >= 50) return "bg-amber-500/15 text-amber-700";
   return "bg-red-500/10 text-red-600";

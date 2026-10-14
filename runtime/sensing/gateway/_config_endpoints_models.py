@@ -47,8 +47,10 @@ def _register_models(router: Any, ctx: _ConfigCtx) -> None:
             if not command:
                 raise backend.OpenCodeError("OpenCode 尚未安装")
             async with backend.managed_server(
-                command, backend.state_directory(scope, "model-capabilities"),
-                backend.model_key(scope, resolved), resolved, False,
+                command,
+                backend.state_directory(scope, "model-capabilities"),
+                backend.model_key(scope, resolved),
+                resolved,
             ) as client:
                 variants = await backend.reasoning_variants(client, resolved)
             return {"reasoning_efforts": ["off" if v == "none" else v for v in variants]}
@@ -212,7 +214,9 @@ def _register_models(router: Any, ctx: _ConfigCtx) -> None:
                     "supports_thinking": supports_thinking,
                     "supports_vision": supports_vision,
                     "supports_tool_use": supports_tool_use,
-                    "is_free": bool((e.get("model_free_status") or {}).get(variant, e.get("is_free", False))),
+                    "is_free": bool(
+                        (e.get("model_free_status") or {}).get(variant, e.get("is_free", False))
+                    ),
                     "context_window": context_window,
                     "context_profile": "default",
                     "omit_sampling_parameters": (

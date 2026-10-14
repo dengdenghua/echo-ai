@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from ._webhook_auth import secrets_match
 from .base import Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 try:
@@ -130,7 +131,7 @@ class YuanbaoChannel(Channel):
             raise ValueError("payload not an object")
 
         token = payload.get("token")
-        if token != self._bot_token:
+        if not secrets_match(token, self._bot_token):
             raise YuanbaoSignatureError("bot_token mismatch on webhook")
 
         content = payload.get("content", {})

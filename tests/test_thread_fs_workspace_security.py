@@ -776,7 +776,8 @@ def test_authenticated_loopback_realtime_recovers_context_only_workspace(
 
 @pytest.mark.parametrize("local_project", [False, True])
 def test_authenticated_realtime_new_thread_ignores_all_client_path_authority(
-    tmp_path: Path, local_project: bool,
+    tmp_path: Path,
+    local_project: bool,
 ) -> None:
     from runtime.platform.runtime_policy.workspaces import WorkspaceManager
     from runtime.protocol import TurnParams

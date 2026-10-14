@@ -41,7 +41,6 @@ import {
   queueReplayEvidenceHint,
   rejectStaleBrowserDesktopReplayArtifacts,
   rerunBrowserDesktopRepairRecipeEvidenceBatch,
-  takeoverTaskRun,
 } from "@/core/agent-trace/api";
 import type {
   AgentCompetitorScorecard,
@@ -105,6 +104,7 @@ import { PublisherTrustCard } from "./cards/PublisherTrustCard";
 import { ReviewQueueRow } from "./cards/ReviewQueueRow";
 import { SubagentRiskCard } from "./cards/SubagentRiskCard";
 import { TaskRecoveryQueueCard } from "./cards/TaskRecoveryQueueCard";
+import { useTaskRecoveryActions } from "./use-task-recovery-actions";
 import { TimelinePreview } from "./cards/TimelinePreview";
 import { ToolSafetyCard } from "./cards/ToolSafetyCard";
 import { TopologyPolicyCard } from "./cards/TopologyPolicyCard";
@@ -290,7 +290,7 @@ export function AgentOperatorPanel() {
       fetchAgentTraceTrustDenialSummary(),
       fetchAgentTracePolicyReviewRuleDrafts(),
       fetchAgentCompetitorScorecard(E2E_SURPASS_TARGET_SCORE)
-        .then((scorecard) => ({ scorecard, error: null as string | null }))
+        .then((scorecard) => ({ scorecard, error: null }))
         .catch((err: unknown) => {
           swallow(err);
           return {
@@ -301,7 +301,7 @@ export function AgentOperatorPanel() {
       fetchE2ESurpassCertification(E2E_SURPASS_TARGET_SCORE)
         .then((certification) => ({
           certification,
-          error: null as string | null,
+          error: null,
         }))
         .catch((err: unknown) => {
           swallow(err);
@@ -365,7 +365,7 @@ export function AgentOperatorPanel() {
 
   useEffect(() => {
     void refreshAll();
-    const timer = window.setInterval(refreshAll, 8000);
+    const timer = window.setInterval(() => void refreshAll(), 8000);
     return () => window.clearInterval(timer);
   }, [refreshAll]);
 
@@ -768,28 +768,26 @@ export function AgentOperatorPanel() {
     }
   };
 
-  const onTakeoverTaskRun = async (taskId: string) => {
-    setBusyId(`takeover-task:${taskId}`);
-    try {
-      await takeoverTaskRun(taskId);
-      setLastApplyResult(
-        formatOperatorCopy(to, "Took over task {task}.", { task: taskId }),
-      );
-      await Promise.all([refreshTaskRuns(), refreshQueue()]);
-      setError(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
+  const { onTakeoverTaskRun, onResumeTaskRun } = useTaskRecoveryActions({
+    setBusyId,
+    setError,
+    setLastApplyResult,
+    refreshTaskRuns,
+    refreshQueue,
+    to,
+  });
 
-  if ((!hasLoaded && loading) || error) {
+  // Only the *first* load may take over the whole panel. Once data has
+  // landed, an action failure must keep the operator queue usable and
+  // surface itself through the inline banner (plus the replay-evidence
+  // drill-down card) further down — those are unreachable if we bail out
+  // to the skeleton on every `error`.
+  if (!hasLoaded && (loading || error)) {
     return (
       <section
         className="workspace-panel space-y-3 px-5 py-4"
         aria-busy={loading}
+        data-operator-state="placeholder"
       >
         <h2 className="text-base font-semibold">
           {to("Agent evolution queue")}
@@ -814,7 +812,7 @@ export function AgentOperatorPanel() {
     );
   }
   return (
-    <section className="workspace-panel px-5 py-4">
+    <section className="workspace-panel px-5 py-4" data-operator-state="ready">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-eyebrow text-muted-foreground">
@@ -900,6 +898,7 @@ export function AgentOperatorPanel() {
         queue={taskRecoveryQueue}
         busyId={busyId}
         onTakeover={(taskId) => void onTakeoverTaskRun(taskId)}
+        onResume={(taskId) => void onResumeTaskRun(taskId)}
       />
       <CompetitorScorecardCard
         report={agentScorecard}

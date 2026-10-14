@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 import httpx
 from fastapi import HTTPException, Request
 
-from runtime.sensing.gateway.codex_hotspot import ROOT, owner_token
+from runtime.sensing.gateway.hotspot_local import ROOT, owner_token
 
 BASE = "http://127.0.0.1:8322"
 _lock = asyncio.Lock()
@@ -151,7 +151,9 @@ async def register_local_role(engine="codex"):
         try:
             await a2a_router._resolve_agent_card(existing["base_url"], read_token(existing))
             return {"agent_id": existing["agent_id"], "name": label}
-        except Exception:
+        except (
+            Exception
+        ):  # intentional: Replace a stale connection through the invitation flow below.
             pass
     invitation = await control(
         "POST",

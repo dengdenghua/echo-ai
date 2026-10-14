@@ -60,7 +60,9 @@ describe("AgentWorldCard", () => {
     await user.keyboard("{Enter}");
     expect(onSelect).toHaveBeenCalledWith(agent);
 
-    await user.click(screen.getByRole("button", { name: "添加角色 研究角色" }));
+    await user.click(
+      screen.getByRole("button", { name: "添加智能体 研究角色" }),
+    );
     expect(installAgentMock).toHaveBeenCalledWith("research-role");
   });
 });

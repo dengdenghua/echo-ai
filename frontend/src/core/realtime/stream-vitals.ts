@@ -102,6 +102,26 @@ export const DEFAULT_VITALS_THRESHOLDS: VitalsThresholds = {
 // surface it as a delayed first response without calling the socket stalled.
 export const FIRST_RESPONSE_DELAY_NOTICE_MS = 60_000;
 
+const STREAM_PHASES: readonly StreamPhase[] = [
+  "idle",
+  "streaming",
+  "working",
+  "waiting",
+  "slow",
+  "disconnected",
+];
+
+/** The live phase of a thread object that may carry ``vitals`` (only the
+ * realtime stream does); undefined for other stream implementations. */
+export function streamPhaseOf(thread: object): StreamPhase | undefined {
+  const vitals = "vitals" in thread ? thread.vitals : undefined;
+  if (typeof vitals !== "object" || vitals === null || !("phase" in vitals)) {
+    return undefined;
+  }
+  const phase = vitals.phase;
+  return STREAM_PHASES.find((candidate) => candidate === phase);
+}
+
 export function emptyVitalsMarks(): VitalsMarks {
   return {
     activeTurnId: null,
@@ -169,7 +189,7 @@ export function applyVitalNotification(
     const wireTurn = params?.turn;
     const wireTurnId =
       wireTurn && typeof wireTurn === "object" && "id" in wireTurn
-        ? (wireTurn as { id?: unknown }).id
+        ? wireTurn.id
         : params?.turnId;
     marks.activeTurnId = typeof wireTurnId === "string" ? wireTurnId : null;
     marks.turnStartedAt = now;
@@ -226,9 +246,7 @@ function isAgentActivityNotification(note: {
   if (!note.method.startsWith("item/")) return false;
   const item = note.params?.item;
   const itemType =
-    item && typeof item === "object" && "type" in item
-      ? (item as { type?: unknown }).type
-      : undefined;
+    item && typeof item === "object" && "type" in item ? item.type : undefined;
   if (itemType === "userMessage" || itemType === "steeringUserMessage") {
     return false;
   }

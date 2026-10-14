@@ -7,6 +7,7 @@ import base64
 import json
 import time
 import uuid
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -78,7 +79,9 @@ class CodexRemoteConfig:
     timeout: float = 300
 
 
-async def stream_codex(config: CodexRemoteConfig, prompt: str, workspace: Path, resume=None):
+async def stream_codex(
+    config: CodexRemoteConfig, prompt: str, workspace: Path, resume=None
+) -> AsyncGenerator[dict[str, object], None]:
     from runtime.execution.codex_backend.backend import CodexExecutionRequest, CodexExecutionSession
     from runtime.execution.codex_backend.security import CodexSecurityPolicy, CodexSidecarSecurity
     from runtime.safety.approval.approval_gate import AutoDenyProvider

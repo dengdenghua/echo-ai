@@ -1,17 +1,17 @@
 import {
   AppWindowIcon,
   FileImageIcon,
-  FileTextIcon,
   FilmIcon,
   FolderIcon,
   GlobeIcon,
   MonitorIcon,
+  MonitorSmartphoneIcon,
   SettingsIcon,
-  SparklesIcon,
   TerminalSquareIcon,
   type LucideIcon,
 } from "lucide-react";
 
+import { WORKBENCH_APP_ICONS } from "@/components/workspace/module-icons";
 import {
   WORKBENCH_BUILTIN_APPS,
   type WorkbenchBuiltinApp,
@@ -31,29 +31,8 @@ export interface DesktopApp {
   subtitle: string;
   route: string;
   icon: LucideIcon;
-  color: string;
   placement: DesktopAppPlacement;
 }
-
-const WORKBENCH_ICONS: Record<WorkbenchBuiltinApp["icon"], LucideIcon> = {
-  projects: FolderIcon,
-  trading: SparklesIcon,
-  design: FileImageIcon,
-  narrative: FileTextIcon,
-  evolution: SparklesIcon,
-  intelligence: GlobeIcon,
-  community: AppWindowIcon,
-};
-
-const WORKBENCH_COLORS: Record<WorkbenchBuiltinApp["icon"], string> = {
-  projects: "from-amber-500 to-orange-600",
-  trading: "from-emerald-500 to-teal-600",
-  design: "from-fuchsia-500 to-violet-600",
-  narrative: "from-rose-500 to-orange-500",
-  evolution: "from-violet-500 to-indigo-600",
-  intelligence: "from-indigo-500 to-cyan-500",
-  community: "from-sky-500 to-blue-600",
-};
 
 function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {
   return {
@@ -61,8 +40,7 @@ function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {
     name: app.name,
     subtitle: app.description,
     route: app.workspaceRoute,
-    icon: WORKBENCH_ICONS[app.icon],
-    color: WORKBENCH_COLORS[app.icon],
+    icon: WORKBENCH_APP_ICONS[app.icon],
     placement: "workbench",
   };
 }
@@ -75,12 +53,19 @@ function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {
 export function buildDesktopApps(t: Translations): DesktopApp[] {
   const apps: DesktopApp[] = [
     {
+      id: "devices",
+      name: "设备互联",
+      subtitle: "电脑与手机 · 同屏与文件收发",
+      route: "/workspace/devices",
+      icon: MonitorSmartphoneIcon,
+      placement: "primary",
+    },
+    {
       id: "workspace",
       name: t.desktop.apps.workspace.name,
       subtitle: t.desktop.apps.workspace.subtitle,
       route: "/workspace/realtime/new",
       icon: MonitorIcon,
-      color: "from-sky-500 to-blue-600",
       placement: "primary",
     },
     {
@@ -89,7 +74,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.aiBrowser.subtitle,
       route: BROWSER_WORKSPACE_ROUTE,
       icon: GlobeIcon,
-      color: "from-indigo-500 to-cyan-500",
       placement: "primary",
     },
     {
@@ -98,7 +82,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.localFiles.subtitle,
       route: "/workspace/knowledge",
       icon: FolderIcon,
-      color: "from-warning to-orange-500",
       placement: "primary",
     },
     {
@@ -107,7 +90,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.storage.libraries.imagesDetail,
       route: "/apps/photos",
       icon: FileImageIcon,
-      color: "from-cyan-400 to-blue-500",
       placement: "library",
     },
     {
@@ -116,7 +98,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.storage.libraries.videosDetail,
       route: "/apps/media",
       icon: FilmIcon,
-      color: "from-violet-500 to-fuchsia-500",
       placement: "library",
     },
     {
@@ -125,7 +106,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.localApps.subtitle,
       route: "/workspace/agents?surface=chat&tab=plugins",
       icon: AppWindowIcon,
-      color: "from-violet-500 to-fuchsia-500",
       placement: "library",
     },
     {
@@ -134,7 +114,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.terminalLogs.subtitle,
       route: "/workspace/observability",
       icon: TerminalSquareIcon,
-      color: "from-muted-foreground to-muted-foreground/70",
       placement: "system",
     },
     {
@@ -143,7 +122,6 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
       subtitle: t.desktop.apps.settings.subtitle,
       route: "/workspace/settings",
       icon: SettingsIcon,
-      color: "from-stone-500 to-neutral-700",
       placement: "system",
     },
   ];

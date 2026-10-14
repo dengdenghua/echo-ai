@@ -12,7 +12,7 @@ import {
   ShieldAlertIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { swallow } from "@/core/utils/log";
@@ -48,9 +48,12 @@ import {
 } from "@/components/workspace/workspace-container";
 import { AgentOperatorPanel } from "@/components/workspace/agent-operator-panel";
 import { RunReviewPanel } from "@/components/workspace/run-review-panel";
+import { OperatorEventsGate } from "@/components/workspace/operator-events-gate";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/core/i18n/hooks";
+import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
 import {
+  GLOBAL_CONTROL_PLANE_ACCESS_CODE,
   GlobalControlPlaneAccessError,
   authorizeToolEffectRetry,
   globalControlPlaneUrl,
@@ -64,7 +67,7 @@ import { DiagnosticsContent } from "../diagnostics/page";
 // on an interval, track loading / error, expose a manual-refresh
 // button. Abstracting it keeps each panel's render code tight.
 function useHeartbeat<T>(
-  url: string,
+  requestedUrl: string,
   intervalMs: number,
   initial: T,
   options: { globalControlPlane?: boolean } = {},
@@ -77,6 +80,11 @@ function useHeartbeat<T>(
   lastFetchedAt: number | null;
 } {
   const globalControlPlane = options.globalControlPlane === true;
+  // Without the cross-tenant scope the server refuses every global request;
+  // do not ask, and report the same forbidden state a 403 would.
+  const globalAllowed = useGlobalControlPlaneAccess();
+  const blocked = globalControlPlane && !globalAllowed;
+  const url = blocked ? "" : requestedUrl;
   const [data, setData] = useState<T>(initial);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +141,16 @@ function useHeartbeat<T>(
     void fetchOnce();
   }, [fetchOnce]);
 
-  return { data, loading, error, forbidden, refresh, lastFetchedAt };
+  return blocked
+    ? {
+        data,
+        loading: false,
+        error: GLOBAL_CONTROL_PLANE_ACCESS_CODE,
+        forbidden: true,
+        refresh,
+        lastFetchedAt,
+      }
+    : { data, loading, error, forbidden, refresh, lastFetchedAt };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -146,7 +163,8 @@ export default function ObservabilityPage({
   initialTab?: string;
 }) {
   const { t } = useI18n();
-  const tab = normalizeObservabilityTab(initialTab);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = normalizeObservabilityTab(searchParams.get("tab") ?? initialTab);
   return (
     <WorkspaceContainer mobileNavigation>
       <WorkspaceBody className="px-0 pb-4 sm:px-4">
@@ -175,31 +193,13 @@ export default function ObservabilityPage({
               </div>
             </div>
 
-            <div className="mt-5 hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
-              <ObservabilitySignalCard
-                icon={<ActivityIcon className="size-4" />}
-                title={t.observabilityPage.shell.runReviewTitle}
-                description={t.observabilityPage.shell.runReviewDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<NetworkIcon className="size-4" />}
-                title={t.observabilityPage.shell.liveEventsTitle}
-                description={t.observabilityPage.shell.liveEventsDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<GaugeIcon className="size-4" />}
-                title={t.observabilityPage.shell.resourcesTitle}
-                description={t.observabilityPage.shell.resourcesDescription}
-              />
-              <ObservabilitySignalCard
-                icon={<BrainCircuitIcon className="size-4" />}
-                title={t.observabilityPage.shell.systemTitle}
-                description={t.observabilityPage.shell.systemDescription}
-              />
-            </div>
           </section>
 
-          <Tabs defaultValue={tab} className="w-full">
+          <Tabs value={tab} onValueChange={(next) => setSearchParams((current) => {
+            const params = new URLSearchParams(current);
+            params.set("tab", next);
+            return params;
+          }, { replace: true })} className="w-full">
             <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 md:grid-cols-4">
               <TabsTrigger value="overview" className="py-2">
                 <ActivityIcon className="mr-1.5 size-3.5" />
@@ -252,10 +252,9 @@ export default function ObservabilityPage({
                 title={t.observabilityPage.shell.eventsTitle}
                 description={t.observabilityPage.shell.eventsDescription}
               >
-                <RunReviewPanel />
-                <SwarmPanel />
+                <OperatorEventsGate><RunReviewPanel /><SwarmPanel /></OperatorEventsGate>
                 <BlackboardPanel />
-                <JournalPanel />
+                <OperatorEventsGate quiet><JournalPanel /></OperatorEventsGate>
               </PanelGroup>
             </TabsContent>
 
@@ -575,11 +574,7 @@ function BlackboardPanel() {
             ? t.observabilityPage.crossTenantAdminRequired
             : t.observabilityPage.errorPrefix
         }
-        detail={
-          list.forbidden
-            ? t.observabilityPage.crossTenantAdminRequired
-            : list.error
-        }
+        detail={list.forbidden ? undefined : list.error}
       />
     );
   }
@@ -1063,7 +1058,7 @@ export function ToolEffectsPanel() {
         <CardContent>
           <div className="mb-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span className="rounded-full bg-muted px-2.5 py-1">
-              {t.observabilityPage.toolEffects.backendLabel} · {data.backend}
+              {t.observabilityPage.toolEffects.backendLabel} · {data.backend === "disabled" ? t.observabilityPage.toolEffects.backendDisabled : data.backend}
             </span>
             <span className="rounded-full bg-muted px-2.5 py-1">
               {data.shared_across_hosts
@@ -1260,9 +1255,7 @@ function RegenerationPanel() {
             ? t.observabilityPage.crossTenantAdminRequired
             : t.observabilityPage.errorPrefix
         }
-        detail={
-          forbidden ? t.observabilityPage.crossTenantAdminRequired : error
-        }
+        detail={forbidden ? undefined : error}
       />
     );
   }
@@ -1405,9 +1398,7 @@ function HemolymphPanel() {
             ? t.observabilityPage.crossTenantAdminRequired
             : t.observabilityPage.errorPrefix
         }
-        detail={
-          forbidden ? t.observabilityPage.crossTenantAdminRequired : error
-        }
+        detail={forbidden ? undefined : error}
       />
     );
   }
@@ -1825,27 +1816,5 @@ function PanelGroup({
       </div>
       <div className="space-y-4">{children}</div>
     </section>
-  );
-}
-
-function ObservabilitySignalCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border-default bg-background/70 px-4 py-3">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <span className="text-primary">{icon}</span>
-        {title}
-      </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">
-        {description}
-      </p>
-    </div>
   );
 }

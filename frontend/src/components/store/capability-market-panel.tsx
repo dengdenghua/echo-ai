@@ -1,3 +1,14 @@
+import {
+  AUTH_LABEL,
+  PERMISSION_LABELS,
+  TYPE_META,
+  DEFAULT_TYPE_META,
+} from "./capability-categories";
+import {
+  type CapabilityCategoryId,
+  CAPABILITY_CATEGORIES,
+  capabilityCategory,
+} from "./capability-categories";
 import { serializeComposerDraft } from "@/core/threads/composer-capability-refs";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { serviceErrorMessage } from "@/core/utils/service-error";
@@ -78,34 +89,20 @@ import {
   type CapabilitySource,
 } from "@/core/agents/agent-world-api";
 import { getBackendBaseURL } from "@/core/config";
+import { ACCOUNT_FREE_TOKEN, getToken } from "@/core/auth/api";
 import { CAPABILITY_SURFACE_QUERY_KEY } from "@/core/plugins/use-capability-surface";
 import { cn } from "@/lib/utils";
+
+import {
+  openExternalAuthPopup,
+  openExternalAuthTab,
+  safeExternalAuthUrl,
+} from "./external-auth-url";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 // 统一「插件」市场 —— 所有外部能力(WorkBuddy MCP 服务、Codex 插件、注册表插件)统一叫插件。
 // 一个市场统一管理:安装→技能/MCP,连接→认证编排,插件直接就绪。
 // 数据来自后端 /api/capabilities(见 runtime/sensing/gateway/capability_router.py)。
-
-const TYPE_META: Record<string, { badge: string; label: string }> = {
-  mcp: { badge: "bg-primary/10 text-primary", label: "MCP" },
-  cli: {
-    badge: "bg-chart-3/10 text-chart-3 dark:text-chart-3",
-    label: "CLI",
-  },
-  "skill-only": {
-    badge: "bg-chart-2/10 text-chart-2 dark:text-chart-2",
-    label: "技能",
-  },
-  plugin: {
-    badge: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
-    label: "插件",
-  },
-  other: { badge: "bg-muted text-muted-foreground", label: "其他" },
-};
-
-const DEFAULT_TYPE_META = {
-  badge: "bg-muted text-muted-foreground",
-  label: "其他",
-};
 
 function capabilityIconUrl(capability: CapabilityInfo): string | null {
   const raw = capability.icon?.trim();
@@ -186,100 +183,6 @@ function CapabilityIcon({ capability }: { capability: CapabilityInfo }) {
   return <Boxes className="size-4 text-chart-2" />;
 }
 
-type CapabilityCategoryId =
-  | "installed"
-  | "featured"
-  | "productivity"
-  | "creative"
-  | "developer"
-  | "business"
-  | "other";
-
-const CAPABILITY_CATEGORIES: ReadonlyArray<{
-  id: CapabilityCategoryId;
-  label: string;
-}> = [
-  { id: "installed", label: "已安装" },
-  { id: "featured", label: "精选" },
-  { id: "productivity", label: "效率" },
-  { id: "creative", label: "创意" },
-  { id: "developer", label: "开发者工具" },
-  { id: "business", label: "业务与运营" },
-  { id: "other", label: "其他" },
-];
-
-const FEATURED_CAPABILITY_IDS = new Set([
-  "browser",
-  "documents",
-  "spreadsheets",
-  "presentations",
-  "pdf",
-  "visualize",
-]);
-
-function capabilityCategory(capability: CapabilityInfo): CapabilityCategoryId {
-  if (capability.featured || FEATURED_CAPABILITY_IDS.has(capability.id)) {
-    return "featured";
-  }
-  const haystack = [
-    capability.category,
-    capability.id,
-    capability.name,
-    capability.name_zh,
-    capability.description,
-    capability.description_zh,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  if (
-    /(creative|design|image|video|audio|media|canvas|figma|canva|runway|higgsfield|创意|设计|图像|视频|音频|媒体)/.test(
-      haystack,
-    )
-  ) {
-    return "creative";
-  }
-  if (
-    /(developer|development|devops|code|database|hosting|deploy|cloud|github|gitlab|vercel|supabase|neon|datadog|开发|代码|数据库|部署|云服务)/.test(
-      haystack,
-    )
-  ) {
-    return "developer";
-  }
-  if (
-    /(business|operations|sales|marketing|crm|commerce|shop|seo|analytics|finance|trading|hubspot|shopify|apollo|业务|运营|销售|营销|电商|金融|交易|分析)/.test(
-      haystack,
-    )
-  ) {
-    return "business";
-  }
-  if (
-    /(productivity|office|calendar|meeting|mail|email|docs|sheets|drive|notion|slack|效率|办公|日历|会议|邮件|文档|表格|协作)/.test(
-      haystack,
-    )
-  ) {
-    return "productivity";
-  }
-  return "other";
-}
-const AUTH_LABEL: Record<string, string> = {
-  none: "无需认证",
-  token: "Token",
-  oauth: "OAuth",
-  "server-side": "服务端",
-  "oneid-token": "OneID",
-};
-
-const PERMISSION_LABELS: Record<string, string> = {
-  "content.read": "读取工作内容",
-  "content.write": "修改或创建内容",
-  "interaction.user": "发起交互与提示",
-  "network.remote": "访问外部网络服务",
-  "account.credentials": "使用本机加密保存的账号凭据",
-  "process.local": "在本机启动受控进程",
-};
-
-/** 轮询 MCP OAuth 授权结果,直到已授权或超时(默认 90s)。 */
 function pollOAuth(server: string, timeoutMs = 90_000): Promise<boolean> {
   return new Promise((resolve) => {
     const startedAt = Date.now();
@@ -297,7 +200,7 @@ function pollOAuth(server: string, timeoutMs = 90_000): Promise<boolean> {
         resolve(false);
         return;
       }
-      window.setTimeout(tick, 1500);
+      window.setTimeout(() => void tick(), 1500);
     };
     void tick();
   });
@@ -420,6 +323,13 @@ export function ConnectDialog({
   const isPlugin = capability.source === "codex_plugin";
   const modelProvider = capability.model_provider ?? null;
   const isModelProvider = Boolean(modelProvider);
+  const modelProviderPermissions = isModelProvider
+    ? capability.permissions_granted?.length
+      ? capability.permissions_granted
+      : capability.permission_review_required
+        ? (capability.permissions ?? [])
+        : []
+    : [];
   const isOneId = capability.auth_mode === "oneid-token";
   const canUseDeviceFlow = supportsDeviceFlow(capability);
   const mountedRef = useRef(true);
@@ -704,6 +614,9 @@ export function ConnectDialog({
     setMessage(null);
     const operation = (async () => {
       try {
+        if (isModelProvider && !capability.installed) {
+          await installCapability(capability.id);
+        }
         const tokens: Record<string, string> = {};
         if (isOneId) {
           if (oneIdToken.trim()) tokens.oneid_token = oneIdToken.trim();
@@ -717,8 +630,8 @@ export function ConnectDialog({
         const res = await connectCapability(capability.id, {
           tokens: Object.keys(tokens).length ? tokens : undefined,
           run_cli: isCli && Object.keys(tokens).length === 0,
-          ...(isModelProvider && capability.permissions_granted
-            ? { grant_permissions: capability.permissions_granted }
+          ...(modelProviderPermissions.length > 0
+            ? { grant_permissions: modelProviderPermissions }
             : {}),
         });
         const isCurrentOperation =
@@ -767,13 +680,17 @@ export function ConnectDialog({
           setDeviceFlow(res.device_flow);
           const uri = res.device_flow.verification_uri;
           if (uri) {
-            const popup = window.open(
-              uri,
-              "echo-device-flow",
-              "popup=yes,width=560,height=720",
-            );
-            if (!popup)
-              setMessage("已复制授权地址,请手动打开(浏览器拦截了弹窗)。");
+            if (!safeExternalAuthUrl(uri)) {
+              setMessage("授权地址不是 http(s) 链接,已拒绝打开。");
+            } else {
+              const popup = openExternalAuthPopup(
+                uri,
+                "echo-device-flow",
+                "popup=yes,width=560,height=720",
+              );
+              if (!popup)
+                setMessage("已复制授权地址,请手动打开(浏览器拦截了弹窗)。");
+            }
           }
           if (
             operationEpochRef.current === operationEpoch &&
@@ -840,7 +757,7 @@ export function ConnectDialog({
 
         {isPlugin && (
           <p className="text-xs leading-5 text-muted-foreground">
-            插件(Echo
+            插件(ECHO AI
             插件)无需认证,安装后技能即可用。点「保存凭据」直接确认就绪。
           </p>
         )}
@@ -888,7 +805,7 @@ export function ConnectDialog({
                   "直连模型 API，不安装或检测任何 CLI"}
               </p>
               <p className="mt-0.5 text-muted-foreground">
-                Key 会加密保存在本机；模型继续使用 Echo
+                Key 会加密保存在本机；模型继续使用 ECHO AI
                 的流式输出、工具调用和记忆。
               </p>
               {modelProvider.dashboard_url ? (
@@ -945,30 +862,45 @@ export function ConnectDialog({
                   placeholder={modelProvider.base_url}
                   className="h-9 text-sm"
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   留空使用默认地址；自托管服务请填写以 /v1 结尾的地址。
                 </p>
               </div>
             ) : null}
-            <div className="rounded-md bg-muted/40 p-2.5 text-xs">
-              <p className="font-medium text-foreground">
-                {modelProvider.model_list_label_zh ?? "预置模型"}
-              </p>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {modelProvider.free_models.map((model) => (
-                  <code
-                    key={model}
-                    className="rounded bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                  >
-                    {model}
-                  </code>
-                ))}
+            {modelProvider.free_models.length > 0 ? (
+              <div className="rounded-md bg-muted/40 p-2.5 text-xs">
+                <p className="font-medium text-foreground">
+                  {modelProvider.model_list_label_zh ?? "预置模型"}
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {modelProvider.free_models.map((model) => (
+                    <code
+                      key={model}
+                      className="rounded bg-background px-1.5 py-0.5 text-xs text-muted-foreground"
+                    >
+                      {model}
+                    </code>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
             {(modelProvider.privacy_notices_zh ?? []).length > 0 ? (
-              <div className="rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-[11px] leading-5 text-warning">
+              <div className="rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2 text-xs leading-5 text-warning">
                 {(modelProvider.privacy_notices_zh ?? []).map((notice) => (
                   <p key={notice}>• {notice}</p>
+                ))}
+              </div>
+            ) : null}
+            {capability.permission_review_required &&
+            modelProviderPermissions.length > 0 ? (
+              <div className="rounded-md border border-border-default px-2.5 py-2 text-xs leading-5">
+                <p className="font-medium text-foreground">
+                  连接时将确认以下权限
+                </p>
+                {modelProviderPermissions.map((permission) => (
+                  <p key={permission} className="text-muted-foreground">
+                    • {PERMISSION_LABELS[permission] ?? permission}
+                  </p>
                 ))}
               </div>
             ) : null}
@@ -980,10 +912,10 @@ export function ConnectDialog({
           (isFreebuffCli ? (
             <div className="space-y-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-xs leading-5">
               <p className="font-medium text-foreground">
-                官方 Freebuff CLI · 交互式本地 Agent
+                官方 Freebuff CLI · 交互式本地智能体
               </p>
               <p className="text-muted-foreground">
-                登录会打开 freebuff.com 官方授权页。Echo
+                登录会打开 freebuff.com 官方授权页。ECHO AI
                 不读取或保存其登录凭据；Freebuff
                 会处理你交给它的对话、代码和工作区文件。
               </p>
@@ -1018,10 +950,8 @@ export function ConnectDialog({
                 size="sm"
                 variant="secondary"
                 className="h-7 px-2 text-xs"
-                onClick={() =>
-                  deviceFlow.verification_uri &&
-                  window.open(deviceFlow.verification_uri, "_blank")
-                }
+                disabled={!safeExternalAuthUrl(deviceFlow.verification_uri)}
+                onClick={() => openExternalAuthTab(deviceFlow.verification_uri)}
               >
                 打开授权页
               </Button>
@@ -1184,7 +1114,7 @@ function OAuthAppDialog({
             <div className="font-medium text-foreground">
               回调地址(注册 App 时填写)
             </div>
-            <code className="mt-0.5 block break-all text-[11px] text-muted-foreground">
+            <code className="mt-0.5 block break-all text-xs text-muted-foreground">
               {redirectUri}
             </code>
           </div>
@@ -1306,9 +1236,11 @@ function PermissionReviewDialog({
         </DialogHeader>
 
         {loading ? (
-          <div className="flex min-h-28 items-center justify-center text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" />
-          </div>
+          <BrandLoadingPanel
+            label="正在读取…"
+            hideLabel
+            className="min-h-28"
+          />
         ) : plan ? (
           <div className="space-y-3 text-xs">
             <div className="rounded-md border border-border-default bg-muted/25 px-3 py-2 leading-5">
@@ -1320,7 +1252,7 @@ function PermissionReviewDialog({
               </div>
               <div className="flex justify-between gap-3">
                 <span className="text-muted-foreground">安装结果</span>
-                <span>验证签名 · 写入技能 · 默认停用</span>
+                <span>{capability.model_provider ? "验证签名 · 安装后配置连接" : "验证签名 · 安装后按确认权限启用"}</span>
               </div>
             </div>
 
@@ -1334,7 +1266,7 @@ function PermissionReviewDialog({
                       className="flex items-center justify-between gap-3 rounded-md border border-border-subtle px-2.5 py-2"
                     >
                       <span>{PERMISSION_LABELS[permission] ?? permission}</span>
-                      <code className="text-[10px] text-muted-foreground">
+                      <code className="text-xs text-muted-foreground">
                         {permission}
                       </code>
                     </div>
@@ -1360,8 +1292,8 @@ function PermissionReviewDialog({
                       <span
                         className={
                           dependency.ready
-                            ? "text-emerald-600"
-                            : "text-amber-600"
+                            ? "text-core"
+                            : "text-warning"
                         }
                       >
                         {dependency.ready ? "已验证" : "待安装"}
@@ -1421,6 +1353,8 @@ export interface CapabilityMarketPanelProps {
   source?: CapabilitySource | "";
   /** 使用接近 Codex 桌面端插件目录的紧凑双列列表。 */
   compact?: boolean;
+  /** Exact role requirements, including manual-token connectors. No fuzzy replacements. */
+  requiredCapabilityIds?: readonly string[];
 }
 
 const CAPABILITY_PAGE_SIZE = 60;
@@ -1450,9 +1384,11 @@ export function CapabilityMarketPanel({
   showToolbar = true,
   source = "",
   compact = false,
+  requiredCapabilityIds,
 }: CapabilityMarketPanelProps = {}) {
   const queryClient = useQueryClient();
   const { confirm, confirmDialog } = useConfirmDialog();
+  const isAccountFree = getToken() === ACCOUNT_FREE_TOKEN;
   const [loadedOffset, setLoadedOffset] = useState(0);
   const [items, setItems] = useState<CapabilityInfo[]>([]);
   const [total, setTotal] = useState(0);
@@ -1471,7 +1407,7 @@ export function CapabilityMarketPanel({
     Record<string, string | null>
   >({});
   /** 显示只能手动填 token 的插件(默认隐藏,对齐「都能跳网页授权」)。 */
-  const [showManual, setShowManual] = useState(false);
+  const [showManual, setShowManual] = useState(Boolean(requiredCapabilityIds?.length));
   const [collapsedCategories, setCollapsedCategories] = useState<
     Partial<Record<CapabilityCategoryId, boolean>>
   >(() => {
@@ -1508,6 +1444,15 @@ export function CapabilityMarketPanel({
 
   const load = useCallback(
     async (offset = 0) => {
+      if (isAccountFree) {
+        setItems([]);
+        setTotal(0);
+        setLoadedOffset(0);
+        setError("免账号模式仅支持本地内置能力，云端插件需登录后查看。");
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
       const append = offset > 0;
       if (append) setLoadingMore(true);
       else setLoading(true);
@@ -1542,7 +1487,7 @@ export function CapabilityMarketPanel({
         else setLoading(false);
       }
     },
-    [serverQuery, showManual, source, view],
+    [isAccountFree, serverQuery, showManual, source, view],
   );
 
   useEffect(() => {
@@ -1606,6 +1551,7 @@ export function CapabilityMarketPanel({
   }, [featuredIds, items, view]);
 
   const filtered = viewItems.filter((c) => {
+    if (requiredCapabilityIds && !requiredCapabilityIds.includes(c.id)) return false;
     if (typeFilter !== "all" && c.type !== typeFilter) return false;
     return (
       capabilityMatchesQuery(c, searchQuery) && capabilityMatchesQuery(c, query)
@@ -1787,6 +1733,11 @@ export function CapabilityMarketPanel({
     cap: CapabilityInfo,
     mode: "install" | "enable",
   ) => {
+    if (isAccountFree) {
+      setPermissionReview(null);
+      setError("免账号模式无法读取插件签名，请登录后安装或启用。");
+      return;
+    }
     setPermissionReview({
       capability: cap,
       mode,
@@ -1813,6 +1764,10 @@ export function CapabilityMarketPanel({
   };
 
   const onInstall = async (cap: CapabilityInfo) => {
+    if (isAccountFree) {
+      setError("免账号模式无法安装外部插件，请登录后重试。");
+      return;
+    }
     if (cap.is_codex_marketplace) {
       await performInstall(cap, null);
       return;
@@ -1867,8 +1822,31 @@ export function CapabilityMarketPanel({
     }
   };
 
+  const onDisable = async (cap: CapabilityInfo) => {
+    setBusy(cap.id, true);
+    setError(null);
+    try {
+      await setCapabilityEnabled(cap.id, false);
+      setItems((current) =>
+        current.map((item) =>
+          item.id === cap.id ? { ...item, enabled: false } : item,
+        ),
+      );
+      void queryClient.invalidateQueries({
+        queryKey: CAPABILITY_SURFACE_QUERY_KEY,
+      });
+    } catch (err) {
+      setError(serviceErrorMessage(err));
+    } finally {
+      setBusy(cap.id, false);
+    }
+  };
+
   const openTrialConversation = (cap: CapabilityInfo) => {
-    const prompt = serializeComposerDraft({ refs: [{ type: "plugin", id: cap.codex_plugin_id || cap.id }], body: "" });
+    const prompt = serializeComposerDraft({
+      refs: [{ type: "plugin", id: cap.codex_plugin_id || cap.id }],
+      body: "",
+    });
     window.location.hash = `/workspace/realtime/new?prompt=${encodeURIComponent(prompt)}`;
   };
 
@@ -1886,7 +1864,9 @@ export function CapabilityMarketPanel({
     setError(null);
     try {
       await setCapabilityEnabled(cap.id, true);
-      void queryClient.invalidateQueries({ queryKey: CAPABILITY_SURFACE_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: CAPABILITY_SURFACE_QUERY_KEY,
+      });
       openTrialConversation(cap);
     } catch (err) {
       setError(serviceErrorMessage(err));
@@ -2003,11 +1983,15 @@ export function CapabilityMarketPanel({
       !window.echo?.isElectron
     ) {
       setError(
-        "该服务商使用桌面客户端回跳，请在 Echo 桌面版中完成授权。浏览器版无法安全接收授权结果。",
+        "该服务商使用桌面客户端回跳，请在 ECHO AI 桌面版中完成授权。浏览器版无法安全接收授权结果。",
       );
       return;
     }
-    const popup = window.open(
+    if (!safeExternalAuthUrl(authorize_url)) {
+      setError("授权地址不是 http(s) 链接,已拒绝打开");
+      return;
+    }
+    const popup = openExternalAuthPopup(
       authorize_url,
       "echo-mcp-oauth",
       "popup=yes,width=560,height=720",
@@ -2166,9 +2150,10 @@ export function CapabilityMarketPanel({
       ) : null}
 
       {loading ? (
-        <div className="flex min-h-[200px] items-center justify-center text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
-        </div>
+        <BrandLoadingPanel
+          label="正在读取插件目录…"
+          className="min-h-[200px]"
+        />
       ) : (
         <div
           className={cn(
@@ -2252,14 +2237,15 @@ export function CapabilityMarketPanel({
                       {compact
                         ? cap.description_zh || cap.description
                         : isFeaturedView
-                          ? `来自 ${cap.author || "EchoOS"}`
+                          ? `来自 ${cap.author || "ECHO"}`
                           : `${cap.id} · ${AUTH_LABEL[cap.auth_mode] ?? cap.auth_mode}`}
                     </CardDescription>
                     {compact && cap.author ? (
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="truncate text-xs text-muted-foreground">
                         来自 {cap.author}
                       </p>
                     ) : null}
+                    {cap.ownership_label && <p className="text-xs text-muted-foreground">{cap.ownership_label}</p>}
                   </div>
                 </CardHeader>
                 <div
@@ -2270,21 +2256,21 @@ export function CapabilityMarketPanel({
                 >
                   <Badge
                     className={cn(
-                      "border-transparent text-[11px]",
+                      "border-transparent text-xs",
                       typeMeta.badge,
                     )}
                   >
                     {typeMeta.label}
                   </Badge>
                   {isPlugin ? (
-                    <Badge className="border-transparent bg-sky-500/10 text-[11px] text-sky-600 dark:text-sky-300">
+                    <Badge className="border-transparent bg-sky-500/10 text-xs text-sky-600 dark:text-sky-300">
                       Codex
                     </Badge>
                   ) : null}
                   {isCodexMarketplace && cap.marketplace_name ? (
                     <Badge
                       variant="outline"
-                      className="text-[11px] font-normal text-muted-foreground"
+                      className="text-xs font-normal text-muted-foreground"
                     >
                       {cap.marketplace_name}
                     </Badge>
@@ -2292,7 +2278,7 @@ export function CapabilityMarketPanel({
                   {!isFeaturedView &&
                     (cap.oauth_supported || cap.has_cli_auth) && (
                       <Badge
-                        className="border-transparent bg-sky-500/15 text-[11px] text-sky-600 dark:text-sky-400"
+                        className="border-transparent bg-sky-500/15 text-xs text-sky-600 dark:text-sky-400"
                         title="支持跳转网页登录授权,无需手动填 token"
                       >
                         🔗 网页登录
@@ -2301,7 +2287,7 @@ export function CapabilityMarketPanel({
                   {!isFeaturedView ? (
                     <Badge
                       variant="outline"
-                      className="text-[11px] font-normal text-muted-foreground"
+                      className="text-xs font-normal text-muted-foreground"
                     >
                       技能 ×{cap.skill_count}
                     </Badge>
@@ -2309,7 +2295,7 @@ export function CapabilityMarketPanel({
                   {!isFeaturedView && cap.mcp_servers.length > 0 && (
                     <Badge
                       variant="outline"
-                      className="text-[11px] font-normal text-muted-foreground"
+                      className="text-xs font-normal text-muted-foreground"
                     >
                       MCP ×{cap.mcp_servers.length}
                     </Badge>
@@ -2317,10 +2303,10 @@ export function CapabilityMarketPanel({
                   {cap.installed && (
                     <Badge
                       className={cn(
-                        "border-transparent text-[11px]",
+                        "border-transparent text-xs",
                         cap.enabled && (!needsConnection || connected)
-                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                          : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                          ? "bg-core/15 text-core"
+                          : "bg-warning/15 text-warning",
                       )}
                     >
                       {statusError
@@ -2339,7 +2325,7 @@ export function CapabilityMarketPanel({
                     </Badge>
                   )}
                   {cap.permission_review_required ? (
-                    <Badge className="border-transparent bg-amber-500/15 text-[11px] text-amber-700 dark:text-amber-300">
+                    <Badge className="border-transparent bg-amber-500/15 text-xs text-amber-700 dark:text-amber-300">
                       待确认权限
                     </Badge>
                   ) : null}
@@ -2355,7 +2341,7 @@ export function CapabilityMarketPanel({
                     {cap.description_zh || cap.description}
                   </p>
                   {cap.author && !isFeaturedView ? (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground/70">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       作者:{cap.author}
                     </p>
                   ) : null}
@@ -2400,9 +2386,17 @@ export function CapabilityMarketPanel({
                       disabled={busy || cap.installable === false}
                       onClick={() => void onInstall(cap)}
                       aria-label={`安装 ${cap.name_zh || cap.name}`}
-                      title={cap.installable === false ? "当前账号或工作区不允许安装" : "安装"}
+                      title={
+                        cap.installable === false
+                          ? "当前账号或工作区不允许安装"
+                          : "安装"
+                      }
                     >
-                      {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                      {busy ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Plus className="size-4" />
+                      )}
                     </Button>
                   ) : (
                     <>
@@ -2415,7 +2409,11 @@ export function CapabilityMarketPanel({
                             disabled={busy}
                             aria-label={`管理 ${cap.name_zh || cap.name}`}
                           >
-                            {busy ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" />}
+                            {busy ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <MoreHorizontal className="size-4" />
+                            )}
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="min-w-40">
@@ -2423,12 +2421,42 @@ export function CapabilityMarketPanel({
                             <Plug className="size-4" />
                             试用
                           </DropdownMenuItem>
-                          {!isCodexMarketplace && needsConnection && !connected && (cap.enabled || !needsModelConfiguration) && (
-                            <DropdownMenuItem disabled={cap.permission_review_required} onSelect={() => void openConnect(cap)}>
-                              <KeyRound className="size-4" />
-                              连接
+                          {!isCodexMarketplace &&
+                          cap.permission_review_required ? (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                void openPermissionReview(cap, "enable")
+                              }
+                            >
+                              确认权限
+                            </DropdownMenuItem>
+                          ) : !isCodexMarketplace && needsModelConfiguration ? (
+                            <DropdownMenuItem
+                              onSelect={() => void openConnect(cap)}
+                            >
+                              配置模型
+                            </DropdownMenuItem>
+                          ) : null}
+                          {!isCodexMarketplace && cap.enabled && (
+                            <DropdownMenuItem
+                              disabled={cap.lifecycle_manageable === false}
+                              onSelect={() => void onDisable(cap)}
+                            >
+                              停用插件
                             </DropdownMenuItem>
                           )}
+                          {!isCodexMarketplace &&
+                            needsConnection &&
+                            !connected &&
+                            (cap.enabled || !needsModelConfiguration) && (
+                              <DropdownMenuItem
+                                disabled={cap.permission_review_required}
+                                onSelect={() => void openConnect(cap)}
+                              >
+                                <KeyRound className="size-4" />
+                                连接
+                              </DropdownMenuItem>
+                            )}
                           {!isCodexMarketplace &&
                             needsConnection &&
                             connected && (

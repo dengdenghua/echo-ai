@@ -1,0 +1,19 @@
+{
+  "id": "build-agent",
+  "templateId": "build-agent",
+  "source_kind": "subagent-promoted",
+  "managed_by": "agent-market",
+  "name": "Build Agent",
+  "icon": "🤖",
+  "description": "Auto-created from delegation (Build Agent)",
+  "avatar": "avatar.svg",
+  "category": "promoted-subagent",
+  "tags": [],
+  "model": {
+    "provider": "auto",
+    "name": "auto"
+  },
+  "runtime": "local",
+  "available_skills": [],
+  "key_skills": []
+}

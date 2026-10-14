@@ -19,10 +19,19 @@ const EVENT_CHANNELS = [
   "browser:tab-crashed",
   "browser:keyboard-shortcut",
   "browser:download-event",
+  "browser:ask-selection",
+  "browser:webview-pointer",
+  "browser:password-offer",
+  "browser:extension-actions-changed",
+  "browser:extension-side-panel-changed",
+  "browser:open-extensions",
+  "browser:focus-webcontents",
+  "browser:close-webcontents",
   "desktop:organize-now",
   "desktop:items-changed",
   "backend:bootstrap-progress",
   "window:fullscreen-changed",
+  "notification:clicked",
 ];
 
 const api = {
@@ -34,6 +43,7 @@ const api = {
   browser: {
     setDevice: invoke("browser:setDevice"),
     executeJS: invoke("browser:executeJS"),
+    executeIsolated: invoke("browser:executeIsolated"),
     reload: invoke("browser:reload"),
     goBack: invoke("browser:goBack"),
     goForward: invoke("browser:goForward"),
@@ -54,6 +64,9 @@ const api = {
     savePassword: invoke("browser:savePassword"),
     deletePassword: invoke("browser:deletePassword"),
     fillPassword: invoke("browser:fillPassword"),
+    resolvePasswordOffer: invoke("browser:resolvePasswordOffer"),
+    listPasswordNeverSites: invoke("browser:listPasswordNeverSites"),
+    removePasswordNeverSite: invoke("browser:removePasswordNeverSite"),
     listSitePermissions: invoke("browser:listSitePermissions"),
     setSitePermission: invoke("browser:setSitePermission"),
     showDownloadInFolder: invoke("browser:showDownloadInFolder"),
@@ -62,6 +75,10 @@ const api = {
     resumeDownload: invoke("browser:resumeDownload"),
     cancelDownload: invoke("browser:cancelDownload"),
     retryDownload: invoke("browser:retryDownload"),
+    print: invoke("browser:print"),
+    importBookmarks: invoke("browser:importBookmarks"),
+    getNavigationHistory: invoke("browser:getNavigationHistory"),
+    queueNavigationRestore: invoke("browser:queueNavigationRestore"),
   },
 
   dialog: {
@@ -72,8 +89,17 @@ const api = {
   extensions: {
     list: invoke("extensions:list"),
     installFromFolder: invoke("extensions:installFromFolder"),
+    installFromStore: invoke("extensions:installFromStore"),
     setEnabled: invoke("extensions:setEnabled"),
     remove: invoke("extensions:remove"),
+    actions: invoke("extensions:actions"),
+    clickAction: invoke("extensions:clickAction"),
+    showActionMenu: invoke("extensions:showActionMenu"),
+    setPinned: invoke("extensions:setPinned"),
+    openOptions: invoke("extensions:openOptions"),
+    sidePanelState: invoke("extensions:sidePanelState"),
+    setSidePanelBounds: invoke("extensions:setSidePanelBounds"),
+    closeSidePanel: invoke("extensions:closeSidePanel"),
   },
 
   app: {
@@ -104,6 +130,15 @@ const api = {
     getBaseURL: invoke("backend:getBaseURL"),
     restart: invoke("backend:restart"),
     ensureOptionalDeps: invoke("backend:ensureOptionalDeps"),
+  },
+
+  auth: {
+    desktopOwnerLogin: invoke("auth:desktopOwnerLogin"),
+  },
+
+  notifications: {
+    isSupported: invoke("notifications:isSupported"),
+    show: invoke("notifications:show"),
   },
 
   window: {

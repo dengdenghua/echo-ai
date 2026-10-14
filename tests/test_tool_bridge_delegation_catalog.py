@@ -16,7 +16,7 @@ def test_native_tool_catalog_preserves_parallel_delegation_after_cap():
             ),
             verify_tests=False,
         )
-    for name in ("call_agent_parallel", "bb_keys", "bb_read", "bb_write"):
+    for name in ("call_agent", "call_agent_parallel", "bb_keys", "bb_read", "bb_write"):
         reg.register(
             Skill(
                 name=name,
@@ -30,6 +30,7 @@ def test_native_tool_catalog_preserves_parallel_delegation_after_cap():
     specs = build_anthropic_tool_specs(reg, max_skills=3)
     names = {spec.name for spec in specs}
 
+    assert "call_agent" in names
     assert "call_agent_parallel" in names
     assert "bb_keys" in names
     assert "bb_read" in names

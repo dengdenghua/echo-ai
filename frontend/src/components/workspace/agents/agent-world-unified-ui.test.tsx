@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { renderWithProviders } from "@/test/harness";
 import type * as AgentsApiModule from "@/core/agents/api";
+import type { AuthStatus, User } from "@/core/auth/types";
+import type * as AuthProviderModule from "@/providers/AuthProvider";
 import * as enabledModules from "@/core/modules/enabled-modules";
 
 const listLocalAgentsMock = vi.hoisted(() => vi.fn());
@@ -24,6 +26,20 @@ const agentWorldApiMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/core/agents/agent-world-api", () => agentWorldApiMocks);
+
+// ``undefined`` means "no auth shell" (the server decides); a test that needs
+// an ordinary signed-in account sets it.
+const authState = vi.hoisted(() => {
+  const state: {
+    current: { authStatus: AuthStatus | null; user: User | null } | undefined;
+  } = { current: undefined };
+  return state;
+});
+
+vi.mock("@/providers/AuthProvider", async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthProviderModule>()),
+  useOptionalAuth: () => authState.current,
+}));
 
 vi.mock("@/core/backend/readiness", () => ({
   waitForBackendAvailability: (...args: unknown[]) =>
@@ -92,6 +108,7 @@ import {
 } from "./agent-world-unified";
 
 beforeEach(() => {
+  authState.current = undefined;
   listLocalAgentsMock.mockReset();
   listLocalAgentsMock.mockResolvedValue([]);
   listRegistryRolesMock.mockReset();
@@ -150,7 +167,7 @@ function renderAgentsTab({
 describe("Agent Hub role list states", () => {
   it("announces loading without exposing empty controls", () => {
     renderAgentsTab({ loading: true });
-    expect(screen.getByRole("status")).toHaveTextContent("正在加载角色");
+    expect(screen.getByRole("status")).toHaveTextContent("正在加载智能体");
     expect(screen.queryByRole("button", { name: "全部" })).toBeNull();
   });
 
@@ -160,7 +177,7 @@ describe("Agent Hub role list states", () => {
     renderAgentsTab({ loadError: true, onRetry });
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "角色列表加载失败，请稍后重试。",
+      "智能体列表加载失败，请稍后重试。",
     );
     await user.click(screen.getByRole("button", { name: "重新加载" }));
     expect(onRetry).toHaveBeenCalledOnce();
@@ -169,7 +186,7 @@ describe("Agent Hub role list states", () => {
   it("keeps a scene-only failure compact", () => {
     renderAgentsTab({ loadError: true, sceneOnly: true });
     expect(screen.getByRole("alert")).toHaveTextContent("精选场景暂时不可用");
-    expect(screen.queryByText("角色列表加载失败，请稍后重试。")).toBeNull();
+    expect(screen.queryByText("智能体列表加载失败，请稍后重试。")).toBeNull();
   });
 
   it("exposes category selection state without counts polluting names", () => {
@@ -190,8 +207,8 @@ describe("HUB market shell", () => {
   it("keeps the heavy role profile out of the scene-first directory", async () => {
     listLocalAgentsMock.mockResolvedValue([
       {
-        id: "general",
-        name: "general",
+        id: "eve",
+        name: "eve",
         display_name: "Lazy Agent",
         description: "Loaded on demand",
         author: "echo",
@@ -219,8 +236,11 @@ describe("HUB market shell", () => {
       },
     );
 
+    await userEvent.click(
+      await screen.findByRole("button", { name: /展开全部 .* 个场景/ }),
+    );
     expect(
-      await screen.findByRole("button", { name: "启动场景：白幽灵行动组" }),
+      await screen.findByRole("button", { name: "启动部门场景：白幽灵行动组" }),
     ).toBeVisible();
     expect(screen.queryByTestId("agent-role-profile-dialog")).toBeNull();
   });
@@ -237,12 +257,12 @@ describe("HUB market shell", () => {
     );
 
     expect(screen.queryByRole("tab", { name: "开始" })).toBeNull();
-    expect(screen.getByRole("tab", { name: "角色" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "智能体" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
     expect(screen.getByRole("tab", { name: "应用" })).toBeVisible();
-    expect(screen.getByRole("tab", { name: "Skills" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "技能" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: "添加", exact: true }),
     ).toBeVisible();
@@ -250,8 +270,9 @@ describe("HUB market shell", () => {
     expect(screen.queryByRole("heading", { name: "开始一项工作" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "常用应用" })).toBeNull();
     expect(
-      screen.getByRole("textbox", {
-        name: "搜索角色…",
+      // type=search (autofill guard) makes this a searchbox, not a textbox.
+      screen.getByRole("searchbox", {
+        name: "搜索智能体…",
       }),
     ).toBeVisible();
     expect(screen.queryByText(/统一资产/)).toBeNull();
@@ -259,14 +280,14 @@ describe("HUB market shell", () => {
       within(screen.getByTestId("hub-market-navigation"))
         .getAllByRole("tab")
         .map((tab) => tab.textContent?.trim()),
-    ).toEqual(["角色", "应用", "Skills"]);
+    ).toEqual(["智能体", "应用", "技能"]);
   });
 
   it("keeps primary personas in scenes and aggregates every remote source", async () => {
     listLocalAgentsMock.mockResolvedValue([
       {
-        id: "general",
-        name: "general",
+        id: "eve",
+        name: "eve",
         display_name: "通用助手",
         description: "White Ghost local identity",
         author: "echo",
@@ -309,10 +330,16 @@ describe("HUB market shell", () => {
       { initialRoute: "/workspace/agents?tab=agents", locale: "zh-CN" },
     );
 
-    expect((await screen.findAllByText("通用助手")).length).toBeGreaterThan(0);
+    await userEvent.click(
+      await screen.findByRole("button", { name: /展开全部 .* 个场景/ }),
+    );
+    const scene = await screen.findByRole("button", {
+      name: "启动部门场景：白幽灵行动组",
+    });
+    expect(scene).toHaveAttribute("title", expect.stringContaining("通用助手"));
     expect(screen.queryByText("法务合规分身")).toBeNull();
     expect(screen.getByRole("heading", { name: "精选场景" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "角色目录" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "智能体目录" })).toBeVisible();
     expect(screen.getByTestId("workbuddy-talent-market")).not.toHaveAttribute(
       "data-kind",
     );
@@ -384,7 +411,7 @@ describe("HUB market shell", () => {
     expect(
       screen.getByRole("heading", { name: "应用中心" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "本机应用" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "应用" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "推荐插件" })).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "从这些能力开始" }),
@@ -396,24 +423,24 @@ describe("HUB market shell", () => {
     expect(screen.getByRole("tab", { name: "全部" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "已安装" })).toBeVisible();
     expect(
-      screen.getByRole("button", {
+      screen.queryByRole("button", {
         name: "模拟炒股 · 策略验证与模拟交易",
       }),
-    ).toBeVisible();
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: "设计画布 · 视觉创作、素材编排与设计工作流",
       }),
     ).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "将模拟炒股添加到侧栏" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "安装模拟炒股" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "从侧栏移除设计画布" }),
     ).toBeVisible();
     expect(screen.queryByRole("combobox", { name: "应用范围" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "应用来源" })).toBeNull();
-    expect(screen.getByRole("tab", { name: "Skills" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "技能" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "管理已添加应用" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: "添加", exact: true }),
@@ -438,7 +465,9 @@ describe("HUB market shell", () => {
       },
     );
 
-    expect(screen.queryByRole("tab", { name: "外部智能体" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "外部智能体" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeVisible();
     expect(screen.getByTestId("a2a-agents-panel")).toBeVisible();
   });
@@ -477,9 +506,9 @@ describe("HUB market shell", () => {
     expect(screen.queryByRole("combobox", { name: "应用范围" })).toBeNull();
     expect(screen.getByRole("heading", { name: "插件" })).toBeVisible();
 
-    await user.click(screen.getByRole("tab", { name: "角色" }));
+    await user.click(screen.getByRole("tab", { name: "智能体" }));
     expect(screen.queryByRole("group", { name: "成员范围" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "角色目录" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "智能体目录" })).toBeVisible();
   });
 
   it("shows repair and rollback controls for a broken workbench package", async () => {
@@ -518,6 +547,41 @@ describe("HUB market shell", () => {
     expect(
       screen.getByRole("menuitem", { name: "回退上个版本" }),
     ).toBeVisible();
+  });
+
+  it("does not offer machine-wide installs to an ordinary account", async () => {
+    const user = userEvent.setup();
+    authState.current = {
+      authStatus: {
+        enabled: true,
+        jwt_available: true,
+        allow_registration: false,
+        exempt_paths: [],
+      },
+      user: { user_id: "local:reader", username: "reader", roles: ["user"] },
+    };
+
+    renderWithProviders(
+      <SidebarProvider>
+        <AgentWorldUnified />
+      </SidebarProvider>,
+      {
+        initialRoute: "/workspace/agents?surface=chat&tab=plugins",
+        locale: "zh-CN",
+      },
+    );
+
+    expect((await screen.findAllByText("由管理员安装")).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryAllByRole("button", { name: /^安装/ })).toHaveLength(0);
+    // The row opens the app's own page, which explains who installs it.
+    await user.click(
+      screen.getByRole("button", {
+        name: "设计画布 · 视觉创作、素材编排与设计工作流",
+      }),
+    );
+    expect(agentWorldApiMocks.installCloudPlugin).not.toHaveBeenCalled();
   });
 
   it("opens installed app management without changing it, then reinstalls explicitly", async () => {
@@ -615,7 +679,7 @@ describe("HUB market shell", () => {
       },
     );
 
-    expect(screen.getByRole("tab", { name: "角色" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "智能体" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -640,7 +704,7 @@ describe("HUB market shell", () => {
       },
     );
 
-    expect(screen.getByRole("tab", { name: "角色" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "智能体" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -682,7 +746,7 @@ describe("HUB market shell", () => {
     await userEvent.click(screen.getByRole("button", { name: "返回 HUB" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "角色" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "智能体" })).toHaveAttribute(
         "aria-selected",
         "true",
       );

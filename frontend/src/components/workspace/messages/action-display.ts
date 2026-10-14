@@ -35,7 +35,10 @@ import {
   READ_TOOL_NAMES,
   SEARCH_TOOL_NAMES,
   SHELL_TOOL_NAMES,
+  WEB_READ_TOOL_NAMES,
+  WEB_SEARCH_TOOL_NAMES,
   WRITE_TOOL_NAMES,
+  canonicalToolName,
   shellCommandFromInput,
 } from "../tool-name-groups";
 
@@ -360,8 +363,7 @@ function friendlyRoleName(role: string | undefined | null): string {
 function isWebFetchToolName(name: string): boolean {
   const n = name.toLowerCase();
   return (
-    n === "fetch_url" ||
-    n === "web_fetch" ||
+    WEB_READ_TOOL_NAMES.has(n) ||
     (n.includes("fetch") && (n.includes("web") || n.includes("http")))
   );
 }
@@ -370,7 +372,7 @@ export function getActionDisplay(
   toolName: string,
   input: Record<string, unknown> | undefined,
 ): ActionDisplay {
-  const name = toolName.toLowerCase();
+  const name = canonicalToolName(toolName);
   const args = effectiveToolInput(input);
 
   if (WRITE_TOOL_NAMES.has(name) || name.includes("create_file")) {
@@ -451,7 +453,7 @@ export function getActionDisplay(
     };
   }
 
-  if (SEARCH_TOOL_NAMES.has(name)) {
+  if (SEARCH_TOOL_NAMES.has(name) || WEB_SEARCH_TOOL_NAMES.has(name)) {
     const query = extractQuery(args);
     return {
       labelKey: "search_web",
@@ -463,7 +465,7 @@ export function getActionDisplay(
     };
   }
 
-  if (isWebFetchToolName(toolName)) {
+  if (isWebFetchToolName(name)) {
     const url = extractUrl(args);
     return {
       labelKey: "browse_web",
@@ -475,7 +477,7 @@ export function getActionDisplay(
     };
   }
 
-  if (isBrowserToolName(toolName)) {
+  if (isBrowserToolName(name)) {
     const url = extractUrl(args);
     const labelKey: ActionDisplay["labelKey"] = hasToolToken(name, "click")
       ? "browser_click"

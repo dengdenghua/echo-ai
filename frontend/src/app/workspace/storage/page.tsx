@@ -56,6 +56,7 @@ import {
   getNASPolicy,
   getVideoCoverURL,
   isNASAuthenticationError,
+  isNASUnavailableError,
   loadNASAssetURL,
   listNASApps,
   listNASAlbums,
@@ -474,7 +475,9 @@ export default function StoragePage() {
           ? copy.service.credentialsExpired
           : isNetworkError
             ? copy.service.networkError
-            : serviceErrorMessage(error),
+            : isNASUnavailableError(error)
+              ? copy.service.unavailable
+              : serviceErrorMessage(error),
       );
       return false;
     }
@@ -646,18 +649,25 @@ export default function StoragePage() {
         <div className="flex size-full overflow-hidden">
           <section className="workspace-panel flex min-h-0 flex-1 overflow-hidden rounded-none border-0 bg-card">
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-card">
+              {/* An optional service being offline is state, not risk: no
+                  warning amber (BRAND.md reserves it for approval/risk). */}
               {serviceError && (
                 <div
-                  role="alert"
-                  className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-warning/70 bg-warning/5 px-4 py-2 text-xs text-warning"
+                  role="status"
+                  className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/60 px-4 py-2 text-xs text-muted-foreground"
                 >
-                  <span className="min-w-0 flex-1 break-words">
+                  <span className="flex min-w-0 flex-1 items-start gap-2 break-words">
+                    <DatabaseIcon
+                      aria-hidden="true"
+                      className="mt-0.5 size-3.5 shrink-0"
+                      strokeWidth={1.5}
+                    />
                     {serviceError}
                   </span>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 shrink-0 rounded-md border-warning/40 bg-card px-3 text-warning hover:bg-warning/10"
+                    className="h-7 shrink-0 rounded-md px-3"
                     onClick={() => void reconnectNAS()}
                     disabled={isReconnecting}
                   >
@@ -1907,7 +1917,7 @@ function VideoAssetTile({
           <FilmIcon className="size-7 text-muted-foreground" />
         )}
         <span className="absolute inset-0 grid place-items-center bg-black/0 transition-colors group-hover:bg-black/20">
-          <span className="grid size-8 place-items-center rounded-full bg-white/90 text-foreground opacity-0 shadow-[var(--shadow-xs)] transition-opacity group-hover:opacity-100">
+          <span className="grid size-8 place-items-center rounded-full bg-card/90 text-foreground opacity-0 shadow-[var(--shadow-xs)] transition-opacity group-hover:opacity-100">
             <PlayIcon className="size-4" />
           </span>
         </span>
@@ -2132,7 +2142,7 @@ function QuickFileActions({
       if (!result.ok) throw new Error(result.error || "无法打开文件");
       return;
     }
-    throw new Error("请在 Echo 桌面端打开本机文件");
+    throw new Error("请在 ECHO AI 桌面端打开本机文件");
   };
   const quoteInTask = () => {
     if (!item) return;
@@ -2259,7 +2269,7 @@ function PreviewPanel({
   };
   const openItem = async () => {
     if (!window.echo?.desktop) {
-      toast.error("请在 Echo 桌面端打开本机文件");
+      toast.error("请在 ECHO AI 桌面端打开本机文件");
       return;
     }
     const result = await window.echo.desktop.openItem(item.path);
@@ -2637,6 +2647,8 @@ function LocalDiskView({
   const [isLoading, setIsLoading] = useState(false);
   const [browseRevision, setBrowseRevision] = useState(0);
   const [browseError, setBrowseError] = useState<string | null>(null);
+  const { t } = useI18n();
+  const directoryUnavailable = t.storage.service.directoryUnavailable;
 
   useEffect(() => {
     let cancelled = false;
@@ -2661,7 +2673,9 @@ function LocalDiskView({
           setBrowseError(
             error instanceof NASRequestTimeoutError
               ? "本地服务连接超时，目录尚未读取。请检查连接后重试。"
-              : serviceErrorMessage(error),
+              : isNASUnavailableError(error)
+                ? directoryUnavailable
+                : serviceErrorMessage(error),
           );
           setEntries([]);
         }
@@ -2673,7 +2687,7 @@ function LocalDiskView({
     return () => {
       cancelled = true;
     };
-  }, [currentPath, browseRevision]);
+  }, [currentPath, browseRevision, directoryUnavailable]);
 
   const pathParts = currentPath.split("/").filter(Boolean);
   const goUp = () => {
@@ -2702,7 +2716,7 @@ function LocalDiskView({
                 {item}
               </button>
               {index < items.length - 1 && (
-                <ChevronRightIcon className="mx-0.5 size-3 text-muted-foreground/60" />
+                <ChevronRightIcon className="mx-0.5 size-3 text-muted-foreground" />
               )}
             </span>
           ))}
@@ -2778,7 +2792,7 @@ function LocalDiskView({
               </Button>
             )}
             {browseError ||
-              (manifest ? "本地路径与索引已连接。" : "目录服务尚未连接。")}
+              (manifest ? "本地路径与索引已连接。" : isLoading ? "正在连接目录服务…" : "目录服务尚未连接。")}
           </div>
         </main>
       </div>
@@ -2864,7 +2878,7 @@ function SourcesView({
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Button
             size="sm"
-            className="h-8 rounded-md bg-black px-2.5 text-xs text-white hover:bg-black/85"
+            className="h-8 rounded-md bg-primary px-2.5 text-xs text-primary-foreground hover:bg-primary/90"
             onClick={onPickFolder}
             disabled={isPickingFolder}
           >
@@ -2957,7 +2971,7 @@ function SourcesView({
         </div>
         {sources.length === 0 ? (
           <div className="flex min-h-[360px] flex-col items-center justify-center px-8 text-center">
-            <div className="grid size-14 place-items-center rounded-lg bg-black text-white shadow-[var(--shadow-xs)]">
+            <div className="grid size-14 place-items-center rounded-lg bg-primary text-primary-foreground shadow-[var(--shadow-xs)]">
               <FolderPlusIcon className="size-7" />
             </div>
             <div className="mt-4 text-base font-semibold">
@@ -2967,12 +2981,12 @@ function SourcesView({
             </div>
             <div className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
               {manifest
-                ? "本地数据库会在本机解析文件、OCR 图片并生成向量索引。原文件不上传；只有你确认引用的片段会进入任务上下文。"
+                ? "资料库会在本机解析文件、OCR 图片并生成向量索引。原文件不上传；只有你确认引用的片段会进入任务上下文。"
                 : "离线时可以浏览常用位置，但无法扫描新目录。重新连接后再添加文件夹，索引会在本机生成。"}
             </div>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               <Button
-                className="rounded-md bg-black text-white hover:bg-black/85"
+                className="rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={manifest ? onPickFolder : onReconnect}
                 disabled={manifest ? isPickingFolder : isReconnecting}
               >
@@ -3097,7 +3111,7 @@ function SearchResultsView({
           />
           <Button
             size="sm"
-            className="h-9 shrink-0 rounded-lg bg-black px-3 text-white hover:bg-black/85"
+            className="h-9 shrink-0 rounded-lg bg-primary px-3 text-primary-foreground hover:bg-primary/90"
             disabled={selectedPaths.size === 0}
             onClick={quoteSelected}
           >
@@ -3143,7 +3157,7 @@ function SearchResultsView({
                   <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
                     {hit.snippet}
                   </div>
-                  <div className="mt-1 truncate text-xs text-muted-foreground/75">
+                  <div className="mt-1 truncate text-xs text-muted-foreground">
                     {hit.path}
                   </div>
                 </div>

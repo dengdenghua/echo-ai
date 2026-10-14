@@ -205,6 +205,24 @@ class TestArtifactServe:
         assert r.status_code == 200
         assert r.content == b"hello from artifact"
 
+    def test_uploaded_svg_is_served_in_a_script_free_sandbox(
+        self,
+        client: TestClient,
+    ) -> None:
+        """Agent/user SVG shares the API origin: CSP sandbox must survive the
+        app-wide header middleware so ``<script>`` cannot run as the app."""
+        client.post(
+            "/api/threads/svg_t/uploads",
+            files={"files": ("x.svg", b"<svg><script>1</script></svg>", "image/svg+xml")},
+        )
+        r = client.get("/api/threads/svg_t/artifacts/x.svg")
+        assert r.status_code == 200
+        csp = r.headers["content-security-policy"]
+        assert csp.startswith("sandbox;")
+        assert "allow-scripts" not in csp
+        assert "allow-same-origin" not in csp
+        assert r.headers["x-content-type-options"] == "nosniff"
+
     def test_absolute_path_inside_thread_upload_root_still_serves(
         self,
         client: TestClient,

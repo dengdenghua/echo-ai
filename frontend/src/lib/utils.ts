@@ -1,11 +1,26 @@
 import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
-// Custom font-size names must be registered; otherwise text-ui is treated as
-// a color and gets removed when a component also supplies text-foreground.
+// Custom font-size and letter-spacing names must be registered; otherwise
+// tailwind-merge treats text-micro as a colour and drops it when a component
+// also supplies text-foreground (and tracking-caps would never override a
+// tracking-wide default). Keep in sync with the @theme block in globals.css.
 const twMerge = extendTailwindMerge({
   extend: {
-    theme: { text: ["ui", "ui-caption", "ui-body", "ui-title"] },
+    theme: {
+      text: [
+        "ui",
+        "ui-caption",
+        "ui-body",
+        "ui-title",
+        "micro",
+        "mini",
+        "caption",
+        "2xs",
+        "3xs",
+      ],
+      tracking: ["caps", "eyebrow"],
+    },
   },
 });
 

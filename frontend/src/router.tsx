@@ -8,6 +8,9 @@ import {
 } from "react-router-dom";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { AssistantThreadAlias } from "@/components/workspace/assistant-thread-alias";
+import { BrandTopProgress } from "@/components/brand/brand-progress";
+import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
   ElectronTitleBar,
@@ -35,7 +38,6 @@ const PROJECTS_APP = remoteWorkbenchApp("projects");
 const INTELLIGENCE_APP = remoteWorkbenchApp("intelligence");
 const DESIGN_APP = remoteWorkbenchApp("design");
 const NARRATIVE_APP = remoteWorkbenchApp("narrative");
-const PAPER_TRADING_APP = remoteWorkbenchApp("paper-trading");
 const EVOLUTION_APP = remoteWorkbenchApp("evolution");
 function StorageRedirect() {
   const search = window.location.hash.includes("?")
@@ -65,7 +67,7 @@ function SettingsRoute() {
       : "/workspace/realtime/new";
     // Carry the intent to the mounted destination; an event from this route
     // can be lost when navigation unmounts its effect.
-    navigate(target, {
+    void navigate(target, {
       replace: true,
       state: { settingsSection: section ?? "appearance" },
     });
@@ -75,7 +77,8 @@ function SettingsRoute() {
 }
 
 const LEGACY_REDIRECTS = {
-  mobile: "/workspace/computer",
+  computer: "/workspace/settings?section=desktopAutomation",
+  mobile: "/workspace/devices",
   store: "/workspace/agents?surface=chat",
   replay: "/workspace/observability",
   workflows: "/workspace/agents?surface=chat&tab=skills",
@@ -96,13 +99,11 @@ const ChatPage = lazy(
   () => import("./app/workspace/realtime/[thread_id]/page"),
 );
 const TeamJoinPage = lazy(() => import("./app/workspace/team/join/page"));
-const ComputerPage = lazy(() => import("./app/workspace/computer/page"));
-const DesktopOrganizerPage = lazy(
-  () => import("./app/workspace/desktop-organizer/page"),
+const OrganizationsPage = lazy(
+  () => import("./app/workspace/organizations/page"),
 );
 const AgentsPage = lazy(loadAgentsPage);
 const AgentsNewPage = lazy(() => import("./app/workspace/agents/new/page"));
-const ChannelsPage = lazy(() => import("./app/workspace/channels/page"));
 // Workspace-scoped observability surface: focused tabs for swarm
 // sub-agent tracing, blackboard snapshot, journal stream, 6-producer
 // regeneration summary, hemolymph compose-budget meter, and per-task
@@ -115,10 +116,11 @@ const ObservabilityPage = lazy(
 // wired into this router. Clicks fell through to the ``*`` catch-all
 // and bounced the user to landing. Fixed by registering them here.
 const KnowledgePage = lazy(() => import("./app/workspace/knowledge/page"));
+const DevicesPage = lazy(() => import("./app/workspace/devices/page"));
 const StoragePage = lazy(() => import("./app/workspace/storage/page"));
+const MailPage = lazy(() => import("./app/workspace/mail/page"));
 const WorkspaceWebAppPage = lazy(() => import("./app/workspace/web-app/page"));
 // Reflex monitor + YAML editor. See app/workspace/reflex/page.tsx.
-const ReflexMonitorPage = lazy(() => import("./app/workspace/reflex/page"));
 const ReflexEditorPage = lazy(() => import("./app/workspace/reflex/edit/page"));
 const SLOW_PAGE_LOADING_MS = 8_000;
 
@@ -139,28 +141,18 @@ export function PageLoading() {
       role="status"
       aria-live="polite"
       aria-busy="true"
-      className="flex h-full min-h-[320px] w-full items-start justify-center p-4 sm:p-6"
+      className="flex h-full min-h-[320px] w-full items-center justify-center p-4 sm:p-6"
     >
+      <BrandTopProgress fixed />
       {!isSlow ? <span className="sr-only">{t.common.loading}</span> : null}
+      {/* This fallback serves every lazy route, so it must not sketch any one
+          page's layout: a card grid flashed before the login page and the
+          chat alike. A centered brand mark is honest for all of them. */}
       <div
-        className="w-full max-w-6xl animate-pulse space-y-4"
+        className="flex flex-col items-center gap-4"
         data-testid="page-loading-skeleton"
       >
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="h-5 w-32 rounded-md bg-muted" />
-            <div className="h-3 w-56 max-w-[60vw] rounded bg-muted/70" />
-          </div>
-          <div className="h-8 w-24 rounded-lg bg-muted" />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-28 rounded-xl border border-border-subtle bg-muted/35"
-            />
-          ))}
-        </div>
+        <EchoBrandMark size="lg" breathe />
         {isSlow ? (
           <div className="flex animate-none flex-col items-center gap-2 pt-2 text-center">
             <div className="text-sm text-muted-foreground">
@@ -222,18 +214,35 @@ export function AppRouter() {
                   path="realtime"
                   element={<Navigate to="/workspace/realtime/new" replace />}
                 />
-                <Route path="realtime/:threadId" element={<ChatPage />} />
+                <Route
+                  path="realtime/:threadId"
+                  element={
+                    <AssistantThreadAlias>
+                      <ChatPage />
+                    </AssistantThreadAlias>
+                  }
+                />
                 <Route path="team/join" element={<TeamJoinPage />} />
+                <Route path="organizations" element={<OrganizationsPage />} />
+                <Route path="devices" element={<DevicesPage />} />
                 {/* Browser previews stay in the Agent workbench. The complete
                     desktop browser mode owns the top-level /browser route. */}
                 <Route
                   path="browser"
                   element={<Navigate to="/browser" replace />}
                 />
-                <Route path="computer" element={<ComputerPage />} />
+                <Route
+                  path="computer"
+                  element={<Navigate to={LEGACY_REDIRECTS.computer} replace />}
+                />
                 <Route
                   path="desktop-organizer"
-                  element={<DesktopOrganizerPage />}
+                  element={
+                    <Navigate
+                      to="/workspace/settings?section=desktopAutomation"
+                      replace
+                    />
+                  }
                 />
                 <Route
                   path="mobile"
@@ -264,8 +273,19 @@ export function AppRouter() {
                   path="store"
                   element={<Navigate to={LEGACY_REDIRECTS.store} replace />}
                 />
-                <Route path="channels" element={<ChannelsPage />} />
-                <Route path="architecture" element={<Navigate to="/workspace/realtime/new" replace />} />
+                <Route
+                  path="channels"
+                  element={
+                    <Navigate
+                      to="/workspace/realtime/echo-assistant?agent=echo&assistantPanel=channels"
+                      replace
+                    />
+                  }
+                />
+                <Route
+                  path="architecture"
+                  element={<Navigate to="/workspace/realtime/new" replace />}
+                />
                 <Route path="observability" element={<ObservabilityPage />} />
                 <Route
                   path="intelligence"
@@ -293,8 +313,9 @@ export function AppRouter() {
                 />
                 <Route
                   path="paper-trading"
-                  element={<RemoteWorkbenchSurface app={PAPER_TRADING_APP} />}
+                  element={<Navigate to="/workspace/agents" replace />}
                 />
+                <Route path="mail" element={<MailPage />} />
                 <Route path="web-app" element={<WorkspaceWebAppPage />} />
                 <Route
                   path="replay"
@@ -304,11 +325,24 @@ export function AppRouter() {
                   path="workflows"
                   element={<Navigate to={LEGACY_REDIRECTS.workflows} replace />}
                 />
-                <Route path="reflex" element={<ReflexMonitorPage />} />
+                <Route
+                  path="reflex"
+                  element={
+                    <Navigate
+                      to="/workspace/evolution?surface=chat&section=governance&detail=reflex"
+                      replace
+                    />
+                  }
+                />
                 <Route path="reflex/edit" element={<ReflexEditorPage />} />
                 <Route
                   path="diagnostics"
-                  element={<ObservabilityPage initialTab="diagnostics" />}
+                  element={
+                    <Navigate
+                      to="/workspace/observability?tab=system"
+                      replace
+                    />
+                  }
                 />
               </Route>
             </Route>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getBackendBaseURL } from "@/core/config";
+import { apiFetch, apiGet } from "@/core/api/request";
 
 export interface ReachChannel {
   platform: string;
@@ -21,11 +21,10 @@ export interface ReachStatus {
 const REACH_STATUS_KEY = ["reach-status"] as const;
 
 async function fetchReachStatus(signal?: AbortSignal): Promise<ReachStatus> {
-  const response = await fetch(`${getBackendBaseURL()}/api/reach/status`, {
+  return (await apiGet("/api/reach/status", {
     signal,
-  });
-  if (!response.ok) throw new Error(`reach status failed: ${response.status}`);
-  return (await response.json()) as ReachStatus;
+    errorMessage: (failure) => `reach status failed: ${failure.status}`,
+  })) as ReachStatus;
 }
 
 export function useReachStatus() {
@@ -48,11 +47,10 @@ export function useClearReachCache() {
   const client = useQueryClient();
   const mutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`${getBackendBaseURL()}/api/reach/cache`, {
-        method: "DELETE",
+      await apiFetch("delete", "/api/reach/cache", {
+        errorMessage: (failure) =>
+          `clear reach cache failed: ${failure.status}`,
       });
-      if (!response.ok)
-        throw new Error(`clear reach cache failed: ${response.status}`);
     },
     onSuccess: () => client.invalidateQueries({ queryKey: REACH_STATUS_KEY }),
   });

@@ -56,13 +56,18 @@ jobs:
 
       - name: Run gates
         id: gates
+        # Inputs go through env, never `${{ }}` inside the script, so a crafted
+        # value cannot inject shell.
+        env:
+          GATES: ${{ inputs.gates }}
+          SKIP: ${{ inputs.skip }}
         run: |
           ARGS=()
-          if [[ -n "${{ inputs.gates }}" ]]; then
-            ARGS+=(--only "${{ inputs.gates }}")
+          if [[ -n "$GATES" ]]; then
+            ARGS+=(--only "$GATES")
           fi
-          if [[ -n "${{ inputs.skip }}" ]]; then
-            ARGS+=(--skip "${{ inputs.skip }}")
+          if [[ -n "$SKIP" ]]; then
+            ARGS+=(--skip "$SKIP")
           fi
           python tools/lint/run_gates.py "${ARGS[@]}" --json gates-report.json
 

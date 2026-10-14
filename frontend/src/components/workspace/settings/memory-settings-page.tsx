@@ -862,11 +862,20 @@ export default function MemorySettingsPage() {
                 <div className="relative sm:max-w-xs w-full">
                   <SearchIcon className="text-muted-foreground absolute left-2.5 top-2.5 size-4" />
                   <Input
+                    // Same autofill trap as the settings section filter: a
+                    // plain text input gets the saved account auto-filled by
+                    // the browser, which then searches memories for it.
+                    type="search"
+                    name="echo-memory-search"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                     aria-label={searchPlaceholder}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder={searchPlaceholder}
-                    className="pl-9 pr-9"
+                    className="pl-9 pr-9 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                   />
                   {isSearching && normalizedQuery ? (
                     <Loader2Icon className="text-muted-foreground absolute right-2.5 top-2.5 size-4 animate-spin" />

@@ -74,6 +74,8 @@ class MobileDevice:
 
     @property
     def capabilities(self) -> list[str]:
+        if "reported_capabilities" in self.meta:
+            return list(self.meta["reported_capabilities"])
         return list(android_capabilities())
 
     @property

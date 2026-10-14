@@ -349,7 +349,7 @@ class TeamRunner:
             if parent is not None and parent_execution_task(parent) is not None:
                 run_context["_host_execution_session"] = parent
                 run_context["_host_cancellation_token"] = current_cancellation_token()
-        except (ImportError, AttributeError, LookupError):
+        except (ImportError, AttributeError, LookupError):  # intentional: Optional parent context.
             pass
         result = TeamRunResult(
             topology_name=topology.name,

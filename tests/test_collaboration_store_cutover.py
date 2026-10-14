@@ -4,18 +4,71 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from runtime.memory.cowork.collaboration_store import CollaborationStore
+from runtime.memory.cowork.group_store import GroupStore
+from runtime.memory.cowork.service import invite_member
 from runtime.projectos.store import ProjectStore
 from runtime.sensing.gateway.projects_router import create_projects_router
 from runtime.sensing.gateway.team_tasks_router import create_team_tasks_router
+from tests.project_governance_utils import run_governed_to_done
+
+
+def test_linking_room_with_owned_task_preserves_task_in_new_session(tmp_path):
+    from runtime.sensing.gateway.cowork_group_router import create_cowork_group_router
+    from runtime.sensing.gateway.team_rooms_router import create_team_rooms_router
+
+    collaboration = CollaborationStore(tmp_path / "cowork")
+    groups = GroupStore(tmp_path / "groups")
+    rooms = create_team_rooms_router(
+        state_path=tmp_path / "rooms.json", room_projection=collaboration.upsert_room_by_id
+    )
+    tasks = create_team_tasks_router(
+        state_path=tmp_path / "tasks.json", collaboration_store=collaboration
+    )
+    app = FastAPI()
+    app.include_router(rooms)
+    app.include_router(tasks)
+    app.include_router(
+        create_cowork_group_router(
+            store=groups,
+            collaboration_store=collaboration,
+            team_rooms_router=rooms,
+            team_tasks_router=tasks,
+            team_rooms_state_path=tmp_path / "rooms.json",
+        )
+    )
+    client = TestClient(app)
+    assert (
+        client.post(
+            "/api/teams",
+            json={"id": "room-old", "name": "Existing", "members": [{"name": "alice"}]},
+        ).status_code
+        == 200
+    )
+    task = client.post("/api/team-tasks", json={"room_id": "room-old", "title": "Preserve me"})
+    assert task.status_code == 200
+    assert (
+        client.post(
+            "/api/cowork/thread-new/members", json={"target_id": "alice", "kind": "agent"}
+        ).status_code
+        == 200
+    )
+    linked = client.post("/api/collab/thread-new/link-room", json={"room_id": "room-old"})
+    assert linked.status_code == 200, linked.json()
+    current = client.get(f"/api/team-tasks/{task.json()['id']}")
+    assert current.status_code == 200 and current.json()["title"] == "Preserve me"
+    assert current.json()["metadata"]["collab_session_id"] == "thread-new"
+    assert collaboration.tasks_for_session("thread-new")[0]["id"] == task.json()["id"]
 
 
 def test_projectos_tasks_project_into_collaboration_store(tmp_path) -> None:
     project_store = ProjectStore(base_dir=tmp_path / "projectos")
     collaboration_store = CollaborationStore(base_dir=tmp_path / "cowork")
+    groups = GroupStore(base_dir=tmp_path / "groups")
     app = FastAPI()
     app.include_router(
         create_projects_router(
             store=project_store,
+            group_store=groups,
             collaboration_store=collaboration_store,
         )
     )
@@ -28,8 +81,9 @@ def test_projectos_tasks_project_into_collaboration_store(tmp_path) -> None:
     assert planned.status_code == 200
     project_id = planned.json()["project"]["id"]
 
-    run = client.post(f"/api/projects/{project_id}/run", json={"max_ticks": 5})
-    assert run.status_code == 200
+    invite_member(groups, "thread-cutover", actor="u", target_id="coder", kind="agent")
+    project_store.bind_thread("thread-cutover", project_id)
+    run_governed_to_done(client, project_id, max_ticks=5)
 
     tasks = collaboration_store.project_tasks_for_project(project_id)
     assert tasks
@@ -70,11 +124,7 @@ def test_team_tasks_project_into_collaboration_store(tmp_path) -> None:
     app.include_router(
         create_team_tasks_router(
             state_path=tmp_path / "team_tasks.json",
-            task_projection=lambda room_id, task: collaboration_store.upsert_task_for_room(
-                room_id,
-                task,
-            ),
-            task_delete_projection=collaboration_store.delete_task,
+            collaboration_store=collaboration_store,
         ),
     )
     client = TestClient(app)

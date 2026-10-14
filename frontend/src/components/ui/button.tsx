@@ -20,8 +20,10 @@ const buttonVariants = cva(
         ghost:
           "cursor-pointer hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "cursor-pointer text-primary underline-offset-4 hover:underline hover:text-primary/80",
+        // Kept for API compatibility. ECHO has no colored gradients, so this
+        // is a quiet tonal sweep of the (monochrome) primary action.
         gradient:
-          "cursor-pointer bg-gradient-to-r from-primary via-violet-500 to-fuchsia-500 text-white shadow-[var(--shadow-xs)] hover:shadow-[var(--shadow-sm)] hover:brightness-110",
+          "cursor-pointer bg-gradient-to-r from-primary to-primary/85 text-primary-foreground shadow-[var(--shadow-xs)] hover:shadow-[var(--shadow-sm)] hover:to-primary",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

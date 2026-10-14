@@ -46,6 +46,7 @@ def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCata
     plugin_root = tmp_path / "data" / "plugins"
     codex_root = tmp_path / "codex-plugins"
     codex_root.mkdir()
+    monkeypatch.setenv("ECHO_MARKETPLACE_DEV_SOURCES", "1")
     monkeypatch.setattr(cloud_catalog, "REPO", tmp_path)
     monkeypatch.setattr(CloudCatalog, "PLUGIN_INSTALL_ROOT", plugin_root)
     monkeypatch.setattr(CloudCatalog, "SKILLS_ROOT", tmp_path / "data" / "skills")
@@ -329,12 +330,41 @@ def test_reinstall_replaces_legacy_broken_workbench_without_offering_bad_rollbac
     assert status["rollback_available"] is False
 
 
+def test_targeted_status_preserves_integrity_checks(tmp_path, monkeypatch):
+    catalog, plugin_root = _catalog(tmp_path, monkeypatch)
+    catalog.install_plugin("narrative_studio", plugin_kind="workbench")
+    items = catalog.items()
+    monkeypatch.setattr(
+        catalog,
+        "items",
+        lambda: [
+            *items,
+            {"id": "unrelated", "plugin": "unrelated", "kind": "workbench"},
+        ],
+    )
+    status = catalog.plugin_statuses(package_id="narrative_studio")
+    assert list(status) == ["narrative_studio"]
+    assert status["narrative_studio"]["enabled"] is True
+    (plugin_root / "workbench" / "narrative_studio" / "dist" / "index.html").write_text(
+        "tampered",
+        encoding="utf-8",
+    )
+    status = catalog.plugin_statuses(package_id="narrative_studio")
+    assert status["narrative_studio"]["lifecycle_state"] == "broken"
+    assert status["narrative_studio"]["enabled"] is False
+
+
 def test_installed_package_incompatible_with_current_host_is_reported_broken(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     catalog, _plugin_root = _catalog(tmp_path, monkeypatch)
     catalog.install_plugin("narrative_studio", plugin_kind="workbench")
-    monkeypatch.setattr(cloud_catalog, "__version__", "0.3.0")
+    import runtime
+
+    # Product releases do not change the separately versioned host API.
+    monkeypatch.setattr(runtime, "__version__", "0.3.0")
+    assert catalog.plugin_statuses()["narrative_studio"]["enabled"] is True
+    monkeypatch.setattr(cloud_catalog, "HOST_API_VERSION", "0.3.0")
 
     status = catalog.plugin_statuses()["narrative_studio"]
 

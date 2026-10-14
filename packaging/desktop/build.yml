@@ -10,9 +10,11 @@
 # 约定：
 #   - main 入口指向 frontend/electron/main.cjs（frontend/package.json 的
 #     "main" 字段，electron-builder 据此打包入口）。
-#   - extraResources 放入首启配置模板和只读运行资源。Windows 的
-#     win.extraResources 额外强制携带 CI 生成的 PyInstaller 后端和锁定的
-#     官方 Codex Windows 原生运行时。
+#   - extraResources 放入首启配置模板和只读运行资源。各平台的
+#     extraResources 额外强制携带 CI 生成的 PyInstaller 后端。
+#   - 这是标准安装包：不带 Codex / OpenCode 执行引擎，用户在 HUB「应用」的
+#     执行引擎里按需安装（runtime/execution/engine_packages）。完整离线版
+#     见 build-offline.yml，它在此基础上追加锁定的引擎。
 
 appId: ai.echo.desktop
 productName: Echo
@@ -39,6 +41,7 @@ electronLanguages:
 files:
   - dist/**/*
   - electron/**/*
+  - "!electron/**/*.test.mjs"
   - "!node_modules/**/*"
   - "!**/*.map"
 
@@ -82,28 +85,20 @@ mac:
   target:
     - dmg
   category: public.app-category.developer-tools
-  # The PyInstaller backend and the pinned darwin-x64 Codex runtime are
-  # materialized by extras/desktop/build-backend-mac.cjs and
-  # extras/desktop/prepare-codex-mac.cjs before electron-builder runs.
+  # The PyInstaller backend is materialized by
+  # extras/desktop/build-backend-mac.cjs before electron-builder runs.
   extraResources:
     - from: ../extras/desktop/build/backend/echo-backend
       to: backend/echo-backend
-    - from: ../extras/desktop/build/codex
-      to: codex
-      filter:
-        - "**/*"
-    - from: ../extras/desktop/build/opencode
-      to: opencode
-      filter:
-        - "**/*"
 
 win:
   target:
     - nsis
   # Release builds are invalid without Authenticode. electron-builder obtains
   # the protected PKCS#12 bundle from CSC_LINK/CSC_KEY_PASSWORD, signs the
-  # unpacked app, copied backend/Codex executables and NSIS installer, and requests a
-  # SHA-256 RFC3161 timestamp from this explicitly trusted endpoint.
+  # unpacked app, copied backend (and, offline, engine) executables and NSIS
+  # installer, and requests a SHA-256 RFC3161 timestamp from this explicitly
+  # trusted endpoint.
   forceCodeSigning: true
   # Explicitly include every copied native executable (backend, Codex and its
   # sandbox helpers) in electron-builder's signing transformer.
@@ -117,20 +112,11 @@ win:
     # and both workflows require Windows to validate its timestamp certificate.
     rfc3161TimeStampServer: http://timestamp.digicert.com
   # 该文件由 extras/desktop/build-backend-win.cjs 在 CI 中生成。
-  # Codex 目录由 prepare-codex-win.cjs 从 pnpm 锁定的官方平台包生成。
   # CI 在打包前后均显式校验；缺失时中止，不允许生成依赖系统
-  # uv/Python/Codex/PATH 或首启下载的安装包。
+  # uv/Python/PATH 或首启下载的安装包。引擎只在用户点「安装」时下载。
   extraResources:
     - from: ../extras/desktop/build/backend/echo-backend.exe
       to: backend/echo-backend.exe
-    - from: ../extras/desktop/build/codex
-      to: codex
-      filter:
-        - "**/*"
-    - from: ../extras/desktop/build/opencode
-      to: opencode
-      filter:
-        - "**/*"
 
 linux:
   target:
@@ -139,20 +125,11 @@ linux:
   # Bind each AppImage to the exact source commit it was built from, matching
   # the Windows installer naming so CI can verify provenance by filename.
   artifactName: "${productName}-Setup-Linux-${version}-${env.GITHUB_SHA}.${ext}"
-  # The PyInstaller backend and the pinned linux-musl Codex runtime are
-  # materialized by extras/desktop/build-backend-linux.cjs and
-  # extras/desktop/prepare-codex-linux.cjs before electron-builder runs.
+  # The PyInstaller backend is materialized by
+  # extras/desktop/build-backend-linux.cjs before electron-builder runs.
   extraResources:
     - from: ../extras/desktop/build/backend/echo-backend
       to: backend/echo-backend
-    - from: ../extras/desktop/build/codex
-      to: codex
-      filter:
-        - "**/*"
-    - from: ../extras/desktop/build/opencode
-      to: opencode
-      filter:
-        - "**/*"
 
 nsis:
   oneClick: false

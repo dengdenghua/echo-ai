@@ -227,10 +227,9 @@ export function ModeSelector({
   ) ?? {
     name: "develop",
     icon: CodeIcon,
-    tone: "bg-info/15 text-info hover:bg-info/25 dark:bg-info/30 dark:text-info",
-    activeTone:
-      "bg-info/15 text-info dark:bg-info/40 dark:text-info ring-1 ring-info/20",
-    ring: "ring-info/20",
+    tone: "bg-muted text-foreground hover:bg-muted/80",
+    activeTone: "bg-core/10 text-foreground ring-1 ring-core/30",
+    ring: "ring-core/30",
     label: t.modes.develop,
     desc: t.modes.developDesc,
     effect: t.modes.developEffect,
@@ -523,7 +522,7 @@ export function ModeSelector({
         )}
         {codeModeUnlocked ? (
           <span
-            className="size-1.5 rounded-full bg-success/90 shadow-[0_0_6px_rgba(16,185,129,0.28)] transition-all duration-base"
+            className="size-1.5 rounded-full bg-core transition-all duration-base"
             aria-hidden="true"
           />
         ) : (
@@ -603,7 +602,9 @@ export function ModeSelector({
 
                 {modeInfo && (
                   <div className="border-t px-3 py-2 text-ui text-muted-foreground leading-tight">
-                    {modeInfo.description}
+                    {/* The backend description is English-only; prefer the
+                        localized effect line for the active mode. */}
+                    {activeOption.effect || modeInfo.description}
                   </div>
                 )}
                 {workspaceLabel && (
@@ -773,10 +774,9 @@ function getModeOptions(t: ReturnType<typeof useI18n>["t"]): ModeOption[] {
     {
       name: "develop",
       icon: CodeIcon,
-      tone: "bg-info/15 text-info hover:bg-info/25 dark:bg-info/30 dark:text-info",
-      activeTone:
-        "bg-info/15 text-info dark:bg-info/40 dark:text-info ring-1 ring-info/20",
-      ring: "ring-info/20",
+      tone: "bg-muted text-foreground hover:bg-muted/80",
+      activeTone: "bg-core/10 text-foreground ring-1 ring-core/30",
+      ring: "ring-core/30",
       label: t.modes.develop,
       desc: t.modes.developDesc,
       effect: t.modes.developEffect,
@@ -785,10 +785,9 @@ function getModeOptions(t: ReturnType<typeof useI18n>["t"]): ModeOption[] {
     {
       name: "uxui",
       icon: PaletteIcon,
-      tone: "bg-chart-3/15 text-chart-3 hover:bg-chart-3/25 dark:bg-chart-3/30 dark:text-chart-3",
-      activeTone:
-        "bg-chart-3/15 text-chart-3 dark:bg-chart-3/40 dark:text-chart-3 ring-1 ring-chart-3/20",
-      ring: "ring-chart-3/20",
+      tone: "bg-muted text-foreground hover:bg-muted/80",
+      activeTone: "bg-core/10 text-foreground ring-1 ring-core/30",
+      ring: "ring-core/30",
       label: t.modes.uxui,
       desc: t.modes.uxuiDesc,
       effect: t.modes.uxuiEffect,

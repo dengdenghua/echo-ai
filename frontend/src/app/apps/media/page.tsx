@@ -34,6 +34,8 @@ import {
   type NASFileAsset,
 } from "@/core/storage/api";
 import { cn } from "@/lib/utils";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
+import { EchoAppTile } from "@/components/ui/echo-app-tile";
 
 export type MediaAppKind = "image" | "video";
 
@@ -98,6 +100,9 @@ function useAssetObjectURL(assetId: string | undefined): string | null {
   return url;
 }
 
+/** Starting the storage service is a probe, not a wait: bound it. */
+const STORAGE_START_TIMEOUT_MS = 10_000;
+
 async function loadAssets(
   kind: MediaAppKind,
 ): Promise<{ files: NASFileAsset[]; albums: NASAlbum[] }> {
@@ -110,7 +115,14 @@ async function loadAssets(
   } catch (firstError) {
     // A packaged desktop app may race the local storage service on first
     // launch. Start it once and retry so the app remains self-contained.
-    await startNASService();
+    // When the service is not installed, failed to start, or the start call
+    // itself stalls, report the original failure instead of spinning.
+    const started = await startNASService({
+      signal: AbortSignal.timeout(STORAGE_START_TIMEOUT_MS),
+    }).catch(() => null);
+    if (!started || !(started.ok || started.status === "started")) {
+      throw firstError;
+    }
     const [files, albums] = await Promise.all([
       listNASFiles(kind, 500),
       kind === "image" ? listNASAlbums().catch(() => []) : Promise.resolve([]),
@@ -190,11 +202,11 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
       window.close();
       return;
     }
-    navigate("/desktop");
+    void navigate("/desktop");
   };
 
   const openStorage = () => {
-    navigate(
+    void navigate(
       `/workspace/storage?surface=company&library=${isPhotos ? "images" : "videos"}`,
     );
   };
@@ -236,20 +248,10 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
             >
               <ArrowLeftIcon className="size-4" />
             </Button>
-            <div
-              className={cn(
-                "grid size-10 shrink-0 place-items-center rounded-xl text-white shadow-sm",
-                isPhotos
-                  ? "bg-gradient-to-br from-cyan-400 to-blue-500"
-                  : "bg-gradient-to-br from-violet-500 to-fuchsia-500",
-              )}
-            >
-              {isPhotos ? (
-                <FileImageIcon className="size-5" />
-              ) : (
-                <FilmIcon className="size-5" />
-              )}
-            </div>
+            <EchoAppTile
+              icon={isPhotos ? FileImageIcon : FilmIcon}
+              className="size-10"
+            />
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold">{title}</h1>
               <p className="truncate text-xs text-muted-foreground">
@@ -366,8 +368,15 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
                 本机媒体服务暂时不可用
               </h2>
               <p className="mt-1 max-w-md text-xs leading-5 text-muted-foreground">
-                {error}
+                {/(502|503|504)|unavailable|timed? ?out|超时/i.test(error)
+                  ? "本机存储服务没有响应，可能还没启动。可以重试，或到存储管理里查看服务状态。"
+                  : "读取本机索引时出错。可以重试，或到存储管理里检查授权目录。"}
               </p>
+              {/* The raw error stays available for support, folded away. */}
+              <details className="mt-2 max-w-md text-micro text-muted-foreground">
+                <summary className="cursor-pointer">技术详情</summary>
+                <p className="mt-1 break-all font-mono">{error}</p>
+              </details>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Button
                   type="button"
@@ -392,10 +401,7 @@ export default function MediaAppPage({ kind }: MediaAppPageProps) {
             </div>
           ) : loading && files.length === 0 ? (
             <div className="grid min-h-[360px] place-items-center rounded-2xl border border-border bg-card">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2Icon className="size-4 animate-spin" />
-                正在读取本机索引…
-              </div>
+              <BrandLoadingPanel label="正在读取本机索引…" />
             </div>
           ) : visibleFiles.length > 0 ? (
             <>
@@ -533,14 +539,7 @@ function MediaAssetCard({
             className="size-full object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (
-          <div
-            className={cn(
-              "grid size-full place-items-center",
-              isImage
-                ? "bg-gradient-to-br from-cyan-400/20 to-blue-500/20 text-blue-500"
-                : "bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 text-violet-500",
-            )}
-          >
+          <div className="grid size-full place-items-center bg-muted text-muted-foreground">
             {isImage ? (
               <ImageIcon className="size-10 opacity-70" />
             ) : (
@@ -549,7 +548,7 @@ function MediaAssetCard({
           </div>
         )}
         {!isImage ? (
-          <span className="absolute bottom-2 left-2 rounded-md bg-black/65 px-2 py-1 text-[10px] font-medium text-white">
+          <span className="absolute bottom-2 left-2 rounded-md bg-black/65 px-2 py-1 text-xs font-medium text-white">
             点击预览
           </span>
         ) : null}
@@ -558,7 +557,7 @@ function MediaAssetCard({
         <div className="truncate text-xs font-medium" title={asset.name}>
           {asset.name}
         </div>
-        <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{formatDate(asset.mtime_ns)}</span>
           <span className="shrink-0">{formatBytes(asset.size)}</span>
         </div>

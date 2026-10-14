@@ -70,8 +70,10 @@ def test_fallback_to_project_root(tmp_path: Path, monkeypatch) -> None:
     # no workspace_path → falls back to the project's .echo/artifacts
     ref = save_artifact("x", name="n.txt", root_thread_id="r", sub_thread_id="s")
     assert ref["ok"] is True
-    assert ".echo" in ref["path"]
-    assert "/artifacts/" in ref["path"]
+    # Compare path components, not "/" substrings: Windows uses backslashes.
+    parts = Path(ref["path"]).parts
+    assert ".echo" in parts
+    assert parts[parts.index(".echo") + 1] == "artifacts"
 
 
 def test_read_missing_returns_error(tmp_path: Path) -> None:

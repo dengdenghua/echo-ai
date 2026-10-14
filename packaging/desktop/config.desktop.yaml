@@ -60,3 +60,12 @@ local_auth:
   jwt_issuer: echo-ai
   actor_prefix: "local:"
   default_roles: [user, local]
+  # Desktop installs are single-user. The Electron shell signs the owner in
+  # with a per-launch token it passes as ECHO_DESKTOP_OWNER_TOKEN and never
+  # shows the renderer (local_auth.config.desktop_owner_login_enabled), so a
+  # local account needs that token and is always the owner. The oct email
+  # login above stays a non-admin account/credits identity.
+  # Without admin the owner cannot install/enable connectors, and model
+  # provider config is admin-gated too (config_router._require_admin), so the
+  # whole connector marketplace would be read-only. "*" = every local account.
+  admin_usernames: ["*"]

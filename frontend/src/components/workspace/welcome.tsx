@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router-dom";
-import { InfinityIcon } from "lucide-react";
 
+import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { type Agent } from "@/core/agents";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
@@ -34,16 +34,17 @@ export function Welcome({
           </p>
         </>
       ) : (
-        <div className="inline-flex items-center justify-center gap-2.5 sm:gap-3">
-          <span
-            className="grid size-9 shrink-0 place-items-center rounded-[11px] bg-[#111] text-white shadow-sm sm:size-10 sm:rounded-xl dark:bg-white dark:text-black"
-            aria-hidden="true"
-          >
-            <InfinityIcon className="size-5 sm:size-6" strokeWidth={2} />
-          </span>
-          <h2 className="whitespace-nowrap text-[26px] leading-tight font-semibold tracking-[-0.035em] text-foreground sm:text-[32px]">
-            Echo Everything
+        // Same "ECHO · AI" lockup and line as the login page, so signing in continues
+        // the brand instead of switching to a different product.
+        <div className="flex flex-col items-center gap-3">
+          <h2 className="inline-flex items-center justify-center text-foreground">
+            <EchoLockup
+              product="AI"
+              wordmarkClassName="h-7 sm:h-8"
+              productClassName="text-sm"
+            />
           </h2>
+          <p className="text-sm text-muted-foreground">{t.welcome.brandLine}</p>
         </div>
       )}
     </div>

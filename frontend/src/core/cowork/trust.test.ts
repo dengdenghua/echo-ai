@@ -71,7 +71,7 @@ describe("trustTooltip", () => {
 
 describe("trustBadgeClass", () => {
   it("四档色阶", () => {
-    expect(trustBadgeClass(95)).toContain("emerald");
+    expect(trustBadgeClass(95)).toContain("core");
     expect(trustBadgeClass(70)).toContain("sky");
     expect(trustBadgeClass(55)).toContain("amber");
     expect(trustBadgeClass(30)).toContain("red");

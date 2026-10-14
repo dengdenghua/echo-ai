@@ -1,0 +1,33 @@
+{
+  "schema": "echo.execution_recovery_benchmark.v1",
+  "created_at": "2026-09-25T16:39:12.846467+00:00",
+  "platform": "Windows-10-10.0.26100-SP0",
+  "python": "3.11.16",
+  "transport": "real loopback HTTP",
+  "isolation": "two OS worker processes; same physical host",
+  "model": "deterministic runner, real subagent bridge and file tool; no LLM",
+  "clock": "wall clock; production 15-second lease, no time mocking",
+  "worker_poll_seconds": 5,
+  "checks": {
+    "lease_reclaimed": true,
+    "pinned_input_on_both_workers": true,
+    "stale_result_rejected": true,
+    "lost_response_replayed": true,
+    "one_committed_delivery": true,
+    "human_edit_preserved": true,
+    "verified_apply": true
+  },
+  "passed": true,
+  "recovery_seconds": 18.766,
+  "elapsed_seconds": 22.765,
+  "claimed_attempts": 2,
+  "committed_deliveries": 1,
+  "input_snapshot": {
+    "archive_bytes": 394,
+    "content_bytes": 11,
+    "file_count": 1,
+    "sha256": "8b63ada2bf7e66be28bf48e5e167c7ebefc004c8f51c6b8fdd383fb41e988679",
+    "skipped_count": 0
+  },
+  "ax_comparison": "not run; this report is not a cross-product score"
+}

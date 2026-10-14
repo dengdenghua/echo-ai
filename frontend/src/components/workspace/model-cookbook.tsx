@@ -191,7 +191,7 @@ export function ModelCookbook() {
               />
             ))}
           </div>
-          <p className="mt-2 text-xs text-muted-foreground/70">
+          <p className="mt-2 text-xs text-muted-foreground">
             {snapshot?.source === "huggingface" ? t.sourceLive : t.sourceStatic}{" "}
             · {t.note}
           </p>

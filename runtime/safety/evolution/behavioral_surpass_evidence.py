@@ -870,9 +870,7 @@ def _compare_domains(
                 ),
                 "echo_cases": echo_count,
                 "codex_cases": codex_count,
-                "echo_pass_pow_k": float(
-                    systems["echo"]["domain_pass_pow_k"].get(domain, 0.0)
-                ),
+                "echo_pass_pow_k": float(systems["echo"]["domain_pass_pow_k"].get(domain, 0.0)),
                 "codex_pass_pow_k": float(systems["codex"]["domain_pass_pow_k"].get(domain, 0.0)),
             }
         )

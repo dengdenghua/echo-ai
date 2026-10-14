@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 
 import pytest
@@ -27,12 +28,14 @@ def _p2_env():
     ``client`` and ``sample_thread`` both depend on this fixture so they share
     the same store instance within a test.
     """
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir, contextlib.ExitStack() as cleanup:
         store = ThreadStateStore(
             per_agent_base=tmpdir,
             search_enabled=True,
             feedback_enabled=True,
         )
+        # Close search.db before the temp dir is removed (Windows locks open files).
+        cleanup.callback(store.close)
         from fastapi import FastAPI
 
         router = create_thread_state_router(store=store, require_auth=False)
@@ -70,12 +73,14 @@ class TestFullTextSearch:
     @pytest.fixture
     def setup(self):
         """Setup store, client, and sample thread."""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as tmpdir, contextlib.ExitStack() as cleanup:
             store = ThreadStateStore(
                 per_agent_base=tmpdir,
                 search_enabled=True,
                 feedback_enabled=True,
             )
+            # Close search.db before the temp dir is removed (Windows locks open files).
+            cleanup.callback(store.close)
             from fastapi import FastAPI
 
             router = create_thread_state_router(store=store, require_auth=False)
@@ -169,12 +174,14 @@ class TestExportMarkdown:
     @pytest.fixture
     def setup(self):
         """Setup store, client, and sample thread."""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as tmpdir, contextlib.ExitStack() as cleanup:
             store = ThreadStateStore(
                 per_agent_base=tmpdir,
                 search_enabled=True,
                 feedback_enabled=True,
             )
+            # Close search.db before the temp dir is removed (Windows locks open files).
+            cleanup.callback(store.close)
             from fastapi import FastAPI
 
             router = create_thread_state_router(store=store, require_auth=False)
@@ -400,12 +407,14 @@ class TestP2FeaturesDisabled:
     @pytest.fixture
     def client_no_p2(self):
         """Create client with P2 features disabled."""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as tmpdir, contextlib.ExitStack() as cleanup:
             store = ThreadStateStore(
                 per_agent_base=tmpdir,
                 search_enabled=False,
                 feedback_enabled=False,
             )
+            # Close search.db before the temp dir is removed (Windows locks open files).
+            cleanup.callback(store.close)
             router = create_thread_state_router(store=store, require_auth=False)
             from fastapi import FastAPI
 

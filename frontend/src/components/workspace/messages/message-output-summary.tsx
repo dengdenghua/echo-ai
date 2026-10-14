@@ -1,8 +1,9 @@
-import type {
-  AIMessage,
-  Message,
-  ToolCall,
-  ToolMessage,
+import {
+  isAIMessage,
+  isToolMessage,
+  type Message,
+  type ToolCall,
+  type ToolMessage,
 } from "@/core/api/types";
 import type { FileHunk } from "@/core/realtime";
 import { singleHunkDiff } from "@/components/realtime/item-views/file-change-view";
@@ -46,6 +47,7 @@ import { useArtifacts } from "../artifacts";
 import { emitOpenAgentWorkbench } from "../agent-workbench-events";
 import { isInternalWorkingFilePath } from "../agent-workbench-utils";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
+import { TaskConnectionRecovery, taskConnectionIssue } from "./task-connection-recovery";
 
 type OutputArtifact = {
   path: string;
@@ -338,8 +340,8 @@ function toolCallOutputsFromMessage(message: Message): ToolCallOutputs {
     artifacts: [],
     changes: [],
   };
-  if (message.type === "ai") {
-    for (const toolCall of (message as AIMessage).tool_calls ?? []) {
+  if (isAIMessage(message)) {
+    for (const toolCall of message.tool_calls ?? []) {
       extracted.toolCalls.push(toolCall);
       const artifact = artifactFromToolCall(toolCall);
       if (artifact) extracted.artifacts.push(artifact);
@@ -420,11 +422,8 @@ function summarizeOutputs(messages: Message[]): OutputSummary {
 
   // Second pass: collect verification results from tool messages
   for (const message of messages) {
-    if (message.type !== "tool") continue;
-    const entry = verificationFromToolMessageCached(
-      message as ToolMessage,
-      toolCallMap,
-    );
+    if (!isToolMessage(message)) continue;
+    const entry = verificationFromToolMessageCached(message, toolCallMap);
     if (entry) verifications.set(entry.id, entry);
   }
 
@@ -540,6 +539,14 @@ export function MessageOutputSummary({
   const { t } = useI18n();
   const { select, setOpen } = useArtifacts();
   const scanMessages = turnMessages ?? messages;
+  const connectionIssue = useMemo(() => taskConnectionIssue(scanMessages), [scanMessages]);
+  const modelPreparationIssue = useMemo(() => scanMessages.some((message) => {
+    const info = asRecord(asRecord(message.additional_kwargs?.error)?.info);
+    return info?.code === "execution_unavailable" &&
+      (info.engine === "codex" || info.engine === "opencode") &&
+      ["account_required", "account_unavailable", "model_incompatible",
+        "configuration_unavailable", "executable_unavailable", "not_installed", "disabled", "unavailable"].includes(String(info.reason));
+  }), [scanMessages]);
   const summary = useMemo(() => summarizeOutputs(scanMessages), [scanMessages]);
   // Error details frequently contain failed proxy endpoints. They are
   // diagnostics, not user-facing results, so a failed turn must never expose
@@ -762,7 +769,7 @@ export function MessageOutputSummary({
           )}
           {isFailure &&
             !isResolvedFailure &&
-            (failure?.kind === "auth" || failure?.kind === "rate-limit") && (
+            (failure?.kind === "auth" || failure?.kind === "rate-limit" || modelPreparationIssue) && (
               <button
                 type="button"
                 onClick={() => emitOpenSettings("models")}
@@ -816,6 +823,7 @@ export function MessageOutputSummary({
           {isFailure &&
             !isResolvedFailure &&
             failure?.kind !== "auth" &&
+            !connectionIssue &&
             (failure?.kind !== "environment" || !onAuthorizeNetwork) &&
             originalPrompt && (
               <button
@@ -839,6 +847,11 @@ export function MessageOutputSummary({
                 {isRetrying ? t.message.retryingTask : t.message.retryTask}
               </button>
             )}
+          {isFailure && !isResolvedFailure && connectionIssue && (
+            <TaskConnectionRecovery key={`${threadId}:${JSON.stringify(connectionIssue)}`}
+              issue={connectionIssue} busy={isRetrying}
+              onContinue={originalPrompt && onRetryTask ? handleMakeSimilar : undefined} />
+          )}
         </div>
       )}
       {visibleArtifacts.length > 0 && (
@@ -882,7 +895,7 @@ export function MessageOutputSummary({
       {summary.verifications.length > 0 && (
         <section aria-label={t.message.verificationRan} className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <CheckCircle2Icon className="size-4 shrink-0 text-muted-foreground/60" />
+            <CheckCircle2Icon className="size-4 shrink-0 text-muted-foreground" />
             {t.message.verificationRan}
             <span className="rounded-full bg-muted/60 px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">
               {summary.verifications.filter((v) => v.passed).length}/
@@ -957,7 +970,7 @@ export function MessageOutputSummary({
               aria-label={`+${totalAdded} -${totalRemoved}`}
             >
               <span className="text-success">+{totalAdded}</span>
-              <span className="mx-1 text-muted-foreground/40"> </span>
+              <span className="mx-1 text-muted-foreground"> </span>
               <span className="text-destructive">-{totalRemoved}</span>
             </span>
             <button
@@ -1067,7 +1080,7 @@ function ChangeRow({
       >
         <FilePenLineIcon
           className={cn(
-            "shrink-0 text-muted-foreground/70",
+            "shrink-0 text-muted-foreground",
             presentation === "final" ? "size-4" : "size-3.5",
           )}
         />
@@ -1107,7 +1120,7 @@ function ChangeRow({
             aria-label={t.message.changesSummary}
             aria-expanded={open}
             onClick={() => setOpen((prev) => !prev)}
-            className="shrink-0 rounded-sm text-muted-foreground/60 transition-colors hover:text-foreground"
+            className="shrink-0 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronDownIcon
               className={cn(
@@ -1179,7 +1192,7 @@ function HunkDecisionRow({
                 className="inline-flex h-6 items-center gap-1 rounded-md border border-border-default px-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-55 dark:text-destructive"
               >
                 {rejecting && (
-                  <Loader2Icon className="size-3 animate-spin text-muted-foreground/70" />
+                  <Loader2Icon className="size-3 animate-spin text-muted-foreground" />
                 )}
                 {t.message.reject}
               </button>

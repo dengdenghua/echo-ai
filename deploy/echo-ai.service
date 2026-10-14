@@ -1,0 +1,43 @@
+# Install deploy/systemd-config.yaml as /etc/echo/config.yaml first.
+[Unit]
+Description=Echo AI runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=echo
+Group=echo
+WorkingDirectory=/var/lib/echo
+Environment=ECHO_DATA_DIR=/var/lib/echo
+Environment=ECHO_RESOURCES_DIR=/var/lib/echo/resources
+Environment=ECHO_ENV=production
+Environment=PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=/etc/echo/echo.env
+ExecStart=/opt/echo-ai/.venv/bin/echo-ai serve --config /etc/echo/config.yaml --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+StateDirectory=echo
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/echo
+MemoryMax=2G
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

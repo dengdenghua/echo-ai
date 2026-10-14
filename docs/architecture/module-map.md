@@ -52,26 +52,97 @@ old name.
 Retired biomimetic names with no current dedicated package: `eyes`, `skin`,
 `mantle`, `genome`, `ink`, `camouflage`.
 
+Functional packages that sit outside the organ groups:
+
+| Package | Responsibility |
+|---|---|
+| `runtime/kernel/` | `AgentKernel`, the embeddable facade hosts depend on instead of wiring Cerebrum, the execution stack and persistence by hand |
+| `runtime/protocol/` | Transport-agnostic realtime wire contract: JSON-RPC 2.0 envelopes and the item-oriented state model |
+| `runtime/projectos/` | Project OS: milestone-driven project execution (model/store, planning, claims, deletion) |
+| `runtime/workspace/` | Workspaces and organizations: mounts, membership, directory sync, encrypted options |
+| `runtime/research/` | Deep-research workflows and citation handling |
+| `runtime/cloud_edge/` | Cloud control-plane accounts and shares, and the local edge connector |
+| `runtime/evals/` | Reproducible product evaluation suites |
+| `runtime/pet/` | Desktop-pet bridge: maps agent state, mood and cross-device presence to pet events |
+
+`tests/test_module_map.py` fails when a top-level package is missing from this
+file or a path cited here no longer exists.
+
 ## Runtime Path
 
-The default workspace turn enters through the realtime gateway, uses a fast
-reflex layer first, then a ReAct loop for tool-using work. `deep` mode opts into
-the older deliberative path:
+Workspace turns enter through the realtime gateway and bind one execution
+engine through `select_turn_execution` and `ExecutionSupervisor`. Local
+deployments default to OpenCode; non-local deployments default to Echo unless
+configured otherwise. Explicit task choices and role bindings affect selection.
 
 ```text
 request
   -> sensing/gateway/realtime_gateway
-  -> core/nerves/reflex
-  -> ReAct loop (default workspace slow path)
-  -> execution/tool_engine/ToolExecutor
+  -> sensing/gateway/realtime_turn_lifecycle
+  -> select_turn_execution + ExecutionSupervisor
+  -> OpenCode process / Codex App Server / Echo ReAct
+  -> host tools, permissions, budgets and verification
   -> journal + item protocol events
 
-deep mode:
+explicit project/team orchestration:
 request
-  -> core/cerebrum planner
-  -> core/graph_runtime TaskGraph runtime
-  -> synthesized answer
+  -> host project_os / group_fanout / swarm_mesh scheduler
+  -> member execution engines
+  -> shared evidence and task results
 ```
+
+`chat`, `react` and `deep` alone stay on the single-agent path; a `deep` label
+does not select DAG execution. Native reflex/ReAct and GraphRuntime remain
+available within their configured paths. Engine capability fallback before
+execution preserves any host project/team scheduler.
+
+### Three naming systems, one execution
+
+"Mode" names three orthogonal things. They are not layers of one concept, and
+reading one as another is the most common way to misjudge what a turn will do.
+
+| Layer | Values | Owner | What it decides |
+| --- | --- | --- | --- |
+| `AgentModeName` | `develop`, `audit`, `uxui` | `frontend/src/core/agent-modes/presets.ts` | Prompt/preset persona. No effect on routing. |
+| `TeamMode` | `chat`, `cluster`, `swarm`, `project` | `frontend/src/components/workspace/team-mode-picker.tsx` | The user's per-turn *intent*, sent as a request field. `project` is migration-only — `normalizeTeamResponseMode` folds it to `chat`. |
+| `PatternExecution` | `presence`, `focused`, `fanout`, `orchestrated` | `runtime/execution/agents/team_patterns.py` | Server-arbitrated truth, from `select_team_pattern`. |
+| Execution driver | `react`, `project_os`, `group_fanout`, `swarm_mesh`, `opencode_server`, `codex_app_server` | `select_execution_route` in `runtime/execution/engines.py` | What actually runs. |
+
+`select_team_pattern` → `PatternExecution` is fixed
+(`TEAM_PATTERNS`, team_patterns.py:123-161):
+
+| Pattern | Execution | Rounds |
+| --- | --- | --- |
+| `presence_check` | `presence` | 0 |
+| `focused_reply` | `focused` | 1 |
+| `parallel_roundtable` | `fanout` | 1 |
+| `adversarial_review` | `fanout` | 2 |
+| `coordinated_execution` | `orchestrated` | 1 |
+
+`PatternExecution` then reaches a driver through `select_execution_route`,
+whose precedence is `project_command` > `group_fanout` > `topology_id` >
+`coordinated` (engines.py:274-286). Two consequences worth holding onto:
+
+* `orchestrated` does **not** reach a dedicated driver. It sets `coordinated`,
+  which routes to the *coordinator's own engine* (`react` /
+  `opencode_server` / `codex_app_server`), and the delivery-completeness gate
+  audits it as `orchestrated` (realtime_turn_lifecycle.py:1394).
+* `topology_id` outranks `coordinated`, so a stale client-supplied
+  `topology_id` would dispatch `swarm_mesh` while the turn is still audited as
+  `orchestrated`. `realtime_turn_lifecycle.py:1080-1094` clears it under
+  server-owned `focused`/`orchestrated` patterns for exactly that reason.
+
+`serve_mesh` and `topology_id` are compatibility inputs, not intent:
+`serveMeshForMode` maps cluster→`"0"` and swarm→`"1"`
+(team-mode-picker.tsx:90-94), and `serve_mesh == "1"` is only a *fallback*
+condition for `group_fanout` when no server pattern was produced
+(realtime_turn_lifecycle.py:1173-1186).
+
+Known label/semantics gap: the zh-CN strings describe cluster as
+"队长拆解→分派→汇总" and swarm as "并行共创", but swarm falls through to
+`group_fanout`, which states outright that it is still conversation rather than
+a task graph (`runtime/execution/agents/group_fanout.py:12-15`). Whether the
+copy or the mapping is wrong is a product decision and is still open.
 
 ## Practical Navigation Guide
 

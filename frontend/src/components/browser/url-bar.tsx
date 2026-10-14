@@ -33,6 +33,10 @@ import {
   PauseIcon,
   PlayIcon,
   XIcon,
+  PrinterIcon,
+  BookOpenTextIcon,
+  EyeOffIcon,
+  BookmarkIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -54,14 +58,13 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { swallow } from "@/core/utils/log";
-import { jsonAuthHeaders } from "@/core/auth/api";
+import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import {
   BROWSER_AGENT_POLICY_EVENT,
@@ -79,11 +82,20 @@ import type { DevicePreset } from "../workspace/embedded-browser/browser-context
 import {
   BROWSER_EDIT_HOME_EVENT,
   BROWSER_HOME_URL,
-  SEARCH_ENGINE_URLS,
   useBrowserStore,
   type Bookmark,
   type HistoryEntry,
 } from "./browser-store";
+import { openBrowserFind, openBrowserReader } from "./browser-events";
+import { ExtensionToolbar } from "./extension-toolbar";
+import { PageTranslateButton } from "./page-translate-button";
+import {
+  PasswordNeverSites,
+  PasswordOfferBubble,
+  SavedPasswordButton,
+} from "./password-prompt";
+import { StoreInstallButton } from "./store-install-button";
+import { preferredSearchEngine, suggestEngineId } from "./search-engines";
 import type { WebviewTabHandle } from "./webview-tab";
 
 const DEVICE_ORDER: DevicePreset[] = ["desktop", "tablet", "mobile"];
@@ -219,6 +231,8 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
     isBookmarked,
     clearHistory,
     settings,
+    updateSettings,
+    openTab,
   } = useBrowserStore();
   const [draft, setDraft] = useState(activeTab?.url ?? "");
   const [canBack, setCanBack] = useState(false);
@@ -235,8 +249,7 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
   const [siteDataStatus, setSiteDataStatus] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [zoomByTab, setZoomByTab] = useState<Record<string, number>>({});
-  const [findDialogOpen, setFindDialogOpen] = useState(false);
-  const [findQuery, setFindQuery] = useState("");
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const historyBtnRef = useRef<HTMLButtonElement>(null);
   const downloadsBtnRef = useRef<HTMLButtonElement>(null);
   const actionsBtnRef = useRef<HTMLButtonElement>(null);
@@ -268,16 +281,65 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
     setCanForward(webviewHandle.canGoForward());
   }, [webviewHandle, activeTab?.isLoading, activeTab?.url]);
 
+  // The start page has no page surface to load into: changing the tab's
+  // address swaps it for one, which then loads that address.
+  const navigateActive = useCallback(
+    (url: string) => {
+      if (!activeTab) return;
+      if (webviewHandle && activeTab.url !== BROWSER_HOME_URL) {
+        webviewHandle.loadURL(url);
+        patchTab(activeTab.id, { url });
+      } else {
+        patchTab(activeTab.id, { url, isLoading: true });
+      }
+    },
+    [activeTab, patchTab, webviewHandle],
+  );
+
   const submit = useCallback(() => {
-    const target = normalize(draft, SEARCH_ENGINE_URLS[settings.searchEngine]);
+    // One engine for the whole browser: the one picked on the start page.
+    const target = normalize(draft, preferredSearchEngine().url);
     if (!target) return;
-    if (activeTab && webviewHandle) {
-      webviewHandle.loadURL(target);
-      patchTab(activeTab.id, { url: target });
-    }
+    navigateActive(target);
     setSuggestionsOpen(false);
     setSuggestionIndex(-1);
-  }, [activeTab, draft, patchTab, settings.searchEngine, webviewHandle]);
+  }, [draft, navigateActive]);
+
+  // Engine suggestions for what is being typed (not for addresses); the
+  // text goes only to the chosen engine, through the backend.
+  useEffect(() => {
+    const query = draft.trim();
+    const looksLikeAddress =
+      /^[a-z][\w+.-]*:\/\//i.test(query) ||
+      (!/\s/.test(query) && /^[^/:]+\.[a-z]{2,}(?:[:/]|$)/i.test(query));
+    if (!suggestionsOpen || !query || looksLikeAddress) {
+      setSearchSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      const engine = suggestEngineId(preferredSearchEngine());
+      fetch(
+        `${getBackendBaseURL()}/api/browser/suggest?engine=${engine}&lang=${encodeURIComponent(navigator.language || "zh-CN")}&q=${encodeURIComponent(query)}`,
+        { headers: authHeaders(), signal: controller.signal },
+      )
+        .then((res) => (res.ok ? res.json() : { suggestions: [] }))
+        .then((data: { suggestions?: unknown }) =>
+          setSearchSuggestions(
+            Array.isArray(data.suggestions)
+              ? data.suggestions.filter(
+                  (s): s is string => typeof s === "string",
+                )
+              : [],
+          ),
+        )
+        .catch(swallow);
+    }, 180);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [draft, suggestionsOpen]);
 
   const addressSuggestions = useMemo(() => {
     const query = draft.trim().toLowerCase();
@@ -287,15 +349,26 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
       ...bookmarks.map((item) => ({ ...item, source: "bookmark" as const })),
       ...history.map((item) => ({ ...item, source: "history" as const })),
     ];
-    return merged
+    const local = merged
       .filter((item) => {
         if (!item.url || seen.has(item.url)) return false;
         seen.add(item.url);
         const haystack = `${item.title || ""} ${item.url}`.toLowerCase();
         return haystack.includes(query);
       })
-      .slice(0, 6);
-  }, [bookmarks, draft, history]);
+      .slice(0, 5);
+    const engine = preferredSearchEngine();
+    const searches = searchSuggestions
+      .filter((text) => text.toLowerCase() !== query)
+      .slice(0, 8 - local.length)
+      .map((text) => ({
+        url: engine.url + encodeURIComponent(text),
+        title: text,
+        favicon: undefined as string | undefined,
+        source: "search" as const,
+      }));
+    return [...local, ...searches];
+  }, [bookmarks, draft, history, searchSuggestions]);
 
   const onDeviceChange = useCallback(
     (device: DevicePreset) => {
@@ -364,16 +437,15 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
 
   const goTo = useCallback(
     (url: string) => {
-      if (activeTab && webviewHandle) {
-        webviewHandle.loadURL(url);
-        patchTab(activeTab.id, { url });
+      if (activeTab) {
+        navigateActive(url);
         setDraft(url);
       }
       setHistoryOpen(false);
       setSuggestionsOpen(false);
       setSuggestionIndex(-1);
     },
-    [activeTab, patchTab, webviewHandle],
+    [activeTab, navigateActive],
   );
 
   const onKey = useCallback(
@@ -452,7 +524,7 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
     const confirmed = await confirm({
       title: "清除浏览数据",
       description:
-        "将清除 Echo 浏览器中的 Cookie、缓存、网站存储、浏览历史和下载记录。所有网站会退出登录，但不会删除已下载的文件。",
+        "将清除 ECHO AI 浏览器中的 Cookie、缓存、网站存储、浏览历史和下载记录。所有网站会退出登录，但不会删除已下载的文件。",
       confirmLabel: "确认清除",
     });
     if (!confirmed) return;
@@ -546,21 +618,9 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
 
   const findInPage = useCallback(() => {
     if (!webviewHandle || !canUsePageActions) return;
-    setFindQuery("");
     setActionsOpen(false);
-    setFindDialogOpen(true);
+    openBrowserFind();
   }, [canUsePageActions, webviewHandle]);
-
-  const executeFind = useCallback(() => {
-    if (!webviewHandle || !findQuery.trim()) {
-      setFindDialogOpen(false);
-      return;
-    }
-    void webviewHandle.executeJS(`
-      (() => window.find(${JSON.stringify(findQuery.trim())}, false, false, true, false, true, false))();
-    `);
-    setFindDialogOpen(false);
-  }, [findQuery, webviewHandle]);
 
   useEffect(() => {
     if (!window.echo?.on) return;
@@ -640,7 +700,9 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
 
   useEffect(() => {
     setSuggestionIndex(-1);
-    if (draft.trim().length === 0 || addressSuggestions.length === 0) {
+    // Stay open while the list is empty: engine suggestions arrive later,
+    // and the dropdown renders only when it has items.
+    if (draft.trim().length === 0) {
       setSuggestionsOpen(false);
     }
   }, [addressSuggestions.length, draft]);
@@ -666,15 +728,27 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
       >
         <ArrowRightIcon className="size-4" />
       </button>
-      <button
-        onClick={() => webviewHandle?.reload()}
-        disabled={activeTab?.url === BROWSER_HOME_URL}
-        className="hidden size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:pointer-events-none disabled:opacity-25 sm:grid"
-        title={ub.refresh}
-      >
-        <RefreshCwIcon className="size-4" />
-      </button>
+      {activeTab?.isLoading && webviewHandle?.stop ? (
+        <button
+          onClick={() => webviewHandle.stop?.()}
+          className="hidden size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground sm:grid"
+          title="停止加载"
+          aria-label="停止加载"
+        >
+          <XIcon className="size-4" />
+        </button>
+      ) : (
+        <button
+          onClick={() => webviewHandle?.reload()}
+          disabled={activeTab?.url === BROWSER_HOME_URL}
+          className="hidden size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground disabled:pointer-events-none disabled:opacity-25 sm:grid"
+          title={ub.refresh}
+        >
+          <RefreshCwIcon className="size-4" />
+        </button>
+      )}
       <div ref={addressBarRef} className="relative ml-1 min-w-0 flex-1">
+        <PasswordOfferBubble />
         <div className="flex h-9 items-center gap-1 rounded-xl border border-border-subtle bg-card/80 px-3 backdrop-blur-sm transition-colors focus-within:border-primary/30 focus-within:ring-2 focus-within:ring-primary/12">
           <input
             type="text"
@@ -689,7 +763,10 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
               if (addressSuggestions.length > 0) setSuggestionsOpen(true);
             }}
             placeholder={ub.searchOrUrl}
-            className="min-w-0 flex-1 bg-transparent px-2 text-sm font-medium outline-none placeholder:text-muted-foreground/65"
+            spellCheck={false}
+            autoComplete="off"
+            data-browser-address=""
+            className="min-w-0 flex-1 bg-transparent px-2 text-sm font-medium outline-none placeholder:text-muted-foreground"
           />
           {canManageSiteData && (
             <div className="relative">
@@ -751,6 +828,21 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
               )}
             </div>
           )}
+          <StoreInstallButton url={activeTab?.url} />
+          {window.echo?.isElectron && activeTab && !activeTab.private ? (
+            <PageTranslateButton
+              tabId={activeTab.id}
+              url={activeTab.url}
+              isLoading={Boolean(activeTab.isLoading)}
+              webContentsId={webviewHandle?.getWebContentsId() ?? null}
+            />
+          ) : null}
+          {window.echo?.isElectron && !activeTab?.private ? (
+            <SavedPasswordButton
+              origin={siteOrigin}
+              webContentsId={webviewHandle?.getWebContentsId() ?? null}
+            />
+          ) : null}
           {/* Implementation note. */}
           {activeTab &&
             activeTab.url &&
@@ -776,7 +868,12 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
           <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-xl bg-popover py-1.5 text-popover-foreground shadow-lg">
             {addressSuggestions.map((item, index) => {
               const active = index === suggestionIndex;
-              const Icon = item.source === "bookmark" ? StarIcon : ClockIcon;
+              const Icon =
+                item.source === "bookmark"
+                  ? StarIcon
+                  : item.source === "search"
+                    ? SearchIcon
+                    : ClockIcon;
               return (
                 <button
                   key={`${item.source}-${item.url}`}
@@ -802,14 +899,18 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
                     <div className="truncate text-xs font-medium">
                       {item.title || item.url}
                     </div>
-                    <div className="truncate text-mini text-muted-foreground">
-                      {item.url}
-                    </div>
+                    {item.source === "search" ? null : (
+                      <div className="truncate text-mini text-muted-foreground">
+                        {item.url}
+                      </div>
+                    )}
                   </div>
                   <div className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-micro text-muted-foreground">
                     {item.source === "bookmark"
                       ? ub.bookmarkLabel
-                      : ub.historyLabel}
+                      : item.source === "search"
+                        ? preferredSearchEngine().name
+                        : ub.historyLabel}
                   </div>
                 </button>
               );
@@ -825,6 +926,13 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
           </div>
         )}
       </div>
+
+      {window.echo?.isElectron && !activeTab?.private ? (
+        <ExtensionToolbar
+          webContentsId={webviewHandle?.getWebContentsId() ?? null}
+          onManage={onOpenExtensions}
+        />
+      ) : null}
 
       {/* Implementation note. */}
       <div className="relative">
@@ -871,6 +979,29 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
             onClearHistory={clearHistory}
             onClose={() => setHistoryOpen(false)}
             anchorRef={historyBtnRef}
+            onImportBookmarks={
+              window.echo?.browser?.importBookmarks
+                ? async (browser) => {
+                    const result =
+                      await window.echo!.browser.importBookmarks(browser);
+                    if (!result.ok) {
+                      toast.error(
+                        result.error === "not-found"
+                          ? `没有找到 ${browser === "chrome" ? "Chrome" : "Edge"} 的书签`
+                          : result.error || "导入失败",
+                      );
+                      return;
+                    }
+                    const fresh = result.entries.filter(
+                      (entry) => !isBookmarked(entry.url),
+                    );
+                    for (const entry of fresh) {
+                      addBookmark({ url: entry.url, title: entry.title });
+                    }
+                    toast.success(`已导入 ${fresh.length} 个书签`);
+                  }
+                : undefined
+            }
           />
         )}
       </div>
@@ -919,6 +1050,34 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
             onAttachScreenshot={() => void attachScreenshotToNextComposer()}
             onDeviceChange={onDeviceChange}
             onFindInPage={findInPage}
+            canPrint={Boolean(webviewHandle?.print) && canUsePageActions}
+            onPrint={() => {
+              setActionsOpen(false);
+              webviewHandle
+                ?.print?.()
+                .catch((error: unknown) =>
+                  toast.error(
+                    error instanceof Error ? error.message : "打印失败",
+                  ),
+                );
+            }}
+            canRead={canUsePageActions}
+            onReader={() => {
+              setActionsOpen(false);
+              openBrowserReader();
+            }}
+            onNewPrivateTab={
+              window.echo?.isElectron
+                ? () => {
+                    setActionsOpen(false);
+                    openTab(BROWSER_HOME_URL, { private: true });
+                  }
+                : undefined
+            }
+            showBookmarksBar={settings.showBookmarksBar}
+            onToggleBookmarksBar={() =>
+              updateSettings({ showBookmarksBar: !settings.showBookmarksBar })
+            }
             onGoHome={goHome}
             onCustomizeHome={customizeHome}
             onOpenExtensions={onOpenExtensions}
@@ -933,31 +1092,6 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
         )}
       </div>
       {confirmDialog}
-      <Dialog open={findDialogOpen} onOpenChange={setFindDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{ub.findPrompt}</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={findQuery}
-            onChange={(e) => setFindQuery(e.target.value)}
-            placeholder={ub.findPrompt}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                executeFind();
-              }
-            }}
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setFindDialogOpen(false)}>
-              {t.common.cancel}
-            </Button>
-            <Button onClick={executeFind}>{t.common.confirm}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <BrowserDataCenterDialog
         open={dataCenterOpen}
         onOpenChange={setDataCenterOpen}
@@ -1100,10 +1234,7 @@ function BrowserDataCenterDialog({
 
   const fillPassword = async (id: string) => {
     if (webContentsId == null) return;
-    const result = await window.echo?.browser.fillPassword(
-      webContentsId,
-      id,
-    );
+    const result = await window.echo?.browser.fillPassword(webContentsId, id);
     if (result?.ok) toast.success("已填充当前登录页面");
     else toast.error(result?.error || "当前页面没有可填充的登录表单");
   };
@@ -1141,7 +1272,7 @@ function BrowserDataCenterDialog({
         <DialogHeader>
           <DialogTitle>浏览器数据与隐私</DialogTitle>
           <DialogDescription className="sr-only">
-            管理 Cookie、浏览历史、下载记录、Agent 网站权限与安全密码。
+            管理 Cookie、浏览历史、下载记录、智能体网站权限与安全密码。
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -1152,7 +1283,7 @@ function BrowserDataCenterDialog({
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold">Cookie 与站点数据</div>
               <div className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                登录状态保存在独立的 Echo 浏览器配置中，不与系统浏览器混用。
+                登录状态保存在独立的 ECHO AI 浏览器配置中，不与系统浏览器混用。
               </div>
             </div>
             <Button
@@ -1282,7 +1413,7 @@ function BrowserDataCenterDialog({
               <ShieldCheckIcon className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold">Agent 网站权限</div>
+              <div className="text-sm font-semibold">智能体网站权限</div>
               <div className="mt-0.5 text-xs leading-5 text-muted-foreground">
                 默认首次询问。网站权限只允许页面操作，提交、支付和删除等敏感动作仍会再次确认。
               </div>
@@ -1393,8 +1524,8 @@ function BrowserDataCenterDialog({
               </div>
               <div className="mt-0.5 text-xs leading-5 text-muted-foreground">
                 {passwordAvailable
-                  ? "密码由系统钥匙串加密，只能在域名完全匹配时主动填充。"
-                  : "网页版不保存密码；请在桌面应用中使用系统钥匙串。"}
+                  ? "密码由系统加密保存，登录后会询问是否保存，只在域名完全匹配时由你点按填充。"
+                  : "网页版不保存密码；请在桌面应用中使用。"}
               </div>
               {passwordAvailable && currentOrigin && (
                 <div className="mt-3 space-y-2">
@@ -1418,7 +1549,7 @@ function BrowserDataCenterDialog({
                     disabled={passwordBusy || !username.trim() || !password}
                     onClick={() => void savePassword()}
                   >
-                    保存到系统钥匙串
+                    保存密码
                   </Button>
                   {passwordEntries.map((entry) => (
                     <div
@@ -1452,6 +1583,7 @@ function BrowserDataCenterDialog({
                   ))}
                 </div>
               )}
+              {passwordAvailable ? <PasswordNeverSites /> : null}
             </div>
           </section>
 
@@ -1492,6 +1624,14 @@ interface BrowserActionsMenuProps {
   onAttachScreenshot: () => void;
   onDeviceChange: (device: DevicePreset) => void;
   onFindInPage: () => void;
+  canPrint: boolean;
+  onPrint: () => void;
+  canRead: boolean;
+  onReader: () => void;
+  /** Desktop app only: private tabs need their own browser session. */
+  onNewPrivateTab?: () => void;
+  showBookmarksBar: boolean;
+  onToggleBookmarksBar: () => void;
   onCustomizeHome: () => void;
   onGoHome: () => void;
   onOpenExtensions?: () => void;
@@ -1516,6 +1656,13 @@ function BrowserActionsMenu({
   onAttachScreenshot,
   onDeviceChange,
   onFindInPage,
+  canPrint,
+  onPrint,
+  canRead,
+  onReader,
+  onNewPrivateTab,
+  showBookmarksBar,
+  onToggleBookmarksBar,
   onCustomizeHome,
   onGoHome,
   onOpenExtensions,
@@ -1570,7 +1717,51 @@ function BrowserActionsMenu({
         className={menuButtonClass}
       >
         <SearchIcon className="size-4" />
-        {ub.findInPage}
+        <span className="flex-1">{ub.findInPage}</span>
+        <kbd className="text-micro text-muted-foreground">Ctrl F</kbd>
+      </button>
+      <button
+        type="button"
+        disabled={!canRead}
+        onClick={onReader}
+        className={menuButtonClass}
+      >
+        <BookOpenTextIcon className="size-4" />
+        阅读模式
+      </button>
+      <button
+        type="button"
+        disabled={!canPrint}
+        onClick={onPrint}
+        className={menuButtonClass}
+        title={canPrint ? undefined : "仅桌面版可打印"}
+      >
+        <PrinterIcon className="size-4" />
+        <span className="flex-1">打印…</span>
+        <kbd className="text-micro text-muted-foreground">Ctrl P</kbd>
+      </button>
+      {onNewPrivateTab ? (
+        <button
+          type="button"
+          onClick={onNewPrivateTab}
+          className={menuButtonClass}
+        >
+          <EyeOffIcon className="size-4" />
+          <span className="flex-1">新建无痕标签页</span>
+          <kbd className="text-micro text-muted-foreground">Ctrl ⇧ N</kbd>
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={onToggleBookmarksBar}
+        aria-pressed={showBookmarksBar}
+        className={menuButtonClass}
+      >
+        <BookmarkIcon className="size-4" />
+        <span className="flex-1">
+          {showBookmarksBar ? "隐藏书签栏" : "显示书签栏"}
+        </span>
+        <kbd className="text-micro text-muted-foreground">Ctrl ⇧ B</kbd>
       </button>
       <button
         type="button"
@@ -1731,6 +1922,8 @@ interface HistoryDropdownProps {
   onClearHistory: () => void;
   onClose: () => void;
   anchorRef: React.RefObject<HTMLButtonElement | null>;
+  /** Desktop app: copy bookmarks from a local Chrome / Edge. */
+  onImportBookmarks?: (browser: "chrome" | "edge") => void | Promise<void>;
 }
 
 interface DownloadDropdownProps {
@@ -1945,9 +2138,7 @@ function DownloadDropdown({
                     </button>
                     <button
                       onClick={() =>
-                        void window.echo?.browser.showDownloadInFolder(
-                          item.id,
-                        )
+                        void window.echo?.browser.showDownloadInFolder(item.id)
                       }
                       className="flex items-center gap-1 rounded-md px-2 py-1 text-mini text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
                     >
@@ -1973,6 +2164,7 @@ function HistoryDropdown({
   onClearHistory,
   onClose,
   anchorRef,
+  onImportBookmarks,
 }: HistoryDropdownProps) {
   const { t } = useI18n();
   const ub = t.browser.urlBar;
@@ -2073,7 +2265,7 @@ function HistoryDropdown({
                 {isBookmark && (
                   <button
                     onClick={() => onRemoveBookmark(item.url)}
-                    className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground/40 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                    className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                     title={ub.removeBookmarkTitle}
                   >
                     <Trash2Icon className="size-3" />
@@ -2084,6 +2276,25 @@ function HistoryDropdown({
           })
         )}
       </div>
+      {tab === "bookmarks" && onImportBookmarks ? (
+        <div className="flex items-center gap-2 border-t border-border-subtle px-3 py-2 text-micro text-muted-foreground">
+          <span className="flex-1">从其他浏览器导入书签</span>
+          <button
+            type="button"
+            onClick={() => void onImportBookmarks("chrome")}
+            className="rounded px-2 py-0.5 hover:bg-muted hover:text-foreground"
+          >
+            Chrome
+          </button>
+          <button
+            type="button"
+            onClick={() => void onImportBookmarks("edge")}
+            className="rounded px-2 py-0.5 hover:bg-muted hover:text-foreground"
+          >
+            Edge
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

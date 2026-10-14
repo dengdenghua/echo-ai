@@ -432,7 +432,7 @@ function RuleCard({
   return (
     <Card
       className={cn(
-        "rounded-lg border-white/40 shadow-none dark:border-white/10",
+        "rounded-lg border-border/50 shadow-none",
         readOnly && "opacity-70",
       )}
     >

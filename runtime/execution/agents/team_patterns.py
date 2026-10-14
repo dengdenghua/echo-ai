@@ -63,7 +63,17 @@ _DELIVERABLE_WORK_RE = re.compile(
     # real verification work through the coordinator.
     r"测试|回归|运行|执行|安装|配置|部署|发布|提交|推送|"
     r"生成|制作|导出|下载|制定|规划|策划|"
-    r"做.{0,12}(?:报告|方案|策划|计划|清单|表格)|"
+    # ``写`` / ``做`` take a bounded gap before the artifact noun: "写一份上季度
+    # 的复盘报告" is the ordinary way people ask, and the adjacent-only form
+    # above missed it — routing a report request to the tool-less bubble lane,
+    # which is exactly the failure this detector exists to prevent.
+    # ``写`` and ``做`` take a bounded gap before the artifact noun: "写一份上
+    # 季度的复盘报告" is the ordinary way people ask, and the adjacent-only form
+    # above missed it — routing a report request to the tool-less bubble lane,
+    # which is exactly the failure this detector exists to prevent. Deliberately
+    # not ``出``/``交``: "他提出的方案" would read as execution intent, and turning
+    # a discussion into a task graph is worse than missing one request.
+    r"(?:写|做).{0,12}(?:报告|方案|策划|计划|清单|表格|文档|总结|复盘)|"
     r"整理(?:成|一份|报告|文档)"
     r")",
     re.IGNORECASE,
@@ -269,6 +279,24 @@ def pattern_role_label(role: str) -> str:
     return _ROLE_LABELS.get(str(role or ""), str(role or "回应者"))
 
 
+# Roles whose job is an unanchored candidate inside adversarial review. Only
+# these drop conversational history; durable project state still reaches them.
+_INDEPENDENT_CANDIDATE_ROLES = frozenset({"proposer", "alternative"})
+
+
+def pattern_member_context_mode(role: str) -> str:
+    """Context-steward mode for a fan-out member with ``role``.
+
+    Ordinary group discussion (the roundtable ``explorer``) is about the thread
+    the user is pointing at, so it gets the budgeted shared brief plus a
+    role-relevant delta (``selective``). Parallel execution already keeps the
+    replies of one round independent of each other. Only the candidate roles of
+    adversarial review are ``isolated`` to avoid anchoring on prior opinions.
+    """
+
+    return "isolated" if str(role or "") in _INDEPENDENT_CANDIDATE_ROLES else "selective"
+
+
 __all__ = [
     "TEAM_PATTERNS",
     "TeamPatternDecision",
@@ -276,6 +304,7 @@ __all__ = [
     "is_explicit_group_work_request",
     "is_coordinator_followup",
     "is_team_presence_query",
+    "pattern_member_context_mode",
     "pattern_member_role",
     "pattern_role_label",
     "requires_coordinated_execution",

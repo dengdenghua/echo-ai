@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useCollab } from "./collab-provider";
 import { useI18n } from "@/core/i18n/hooks";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 
 /** A team AI-roster member shown as "in attendance" beside live humans. */
@@ -106,13 +107,9 @@ export function PresenceAvatars({
                       alt={name}
                       className="size-5 rounded object-cover opacity-90"
                     />
-                  ) : agent.icon?.trim() ? (
-                    <span className="text-base leading-none opacity-90">
-                      {agent.icon}
-                    </span>
                   ) : (
-                    <span className="flex size-5 items-center justify-center rounded bg-muted text-xs font-semibold text-muted-foreground">
-                      {name.charAt(0).toUpperCase()}
+                    <span className="flex size-5 items-center justify-center rounded bg-muted text-xs">
+                      <PersonaGlyph agentId={agent.name} name={name} />
                     </span>
                   )}
                   <span className="absolute -bottom-0.5 -right-0.5 flex size-2.5 items-center justify-center rounded-full bg-background">
@@ -131,7 +128,7 @@ export function PresenceAvatars({
                 +{remainingAgents}
               </div>
             </TooltipTrigger>
-            <TooltipContent>{remainingAgents} 个 Agent 在场</TooltipContent>
+            <TooltipContent>{remainingAgents} 个智能体在场</TooltipContent>
           </Tooltip>
         )}
       </div>

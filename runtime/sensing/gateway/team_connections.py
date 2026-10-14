@@ -33,7 +33,9 @@ class TeamConnections:
             try:
                 fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                 os.close(fd)
-            except FileExistsError:
+            except (
+                FileExistsError
+            ):  # intentional: A concurrent creator won; open the existing database below.
                 pass
         db = sqlite3.connect(self.path, timeout=10)
         db.row_factory = sqlite3.Row

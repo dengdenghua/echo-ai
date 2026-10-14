@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BugIcon,
@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 
 import type { LiveToolEvent } from "./live-tool-timeline";
+import { useStreamingDebugEnabled } from "@/core/observability/streaming-debug-flag";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +24,8 @@ interface StreamingDebuggerProps {
  * 流式事件调试面板
  *
  * 开发者工具，用于实时追踪和调试流式事件流。
- * 仅在开发环境或通过 localStorage flag 启用。
- *
- * 启用方式:
- * localStorage.setItem('echo:debug:streaming', '1')
+ * 开发构建默认显示（可关闭），正式构建默认隐藏；在 设置 → 可观测性 中切换，
+ * 或 localStorage.setItem('echo:debug:streaming', '1' | '0')。
  *
  * 功能:
  * - 实时事件列表
@@ -42,17 +41,25 @@ export function StreamingDebugger({
   events,
   className,
 }: StreamingDebuggerProps) {
-  // Keep the disabled production path hook-free: streaming event arrays change
+  // Keep the disabled path free of event work: streaming event arrays change
   // frequently, so even memoized derivations would still rescan them on every
-  // parent render if the gate lived below the hooks.
-  const enabled =
-    import.meta.env.DEV ||
-    (typeof window !== "undefined" &&
-      window.localStorage.getItem("echo:debug:streaming") === "1");
+  // parent render if the gate lived below them. The flag hook never reads
+  // `events`.
+  const enabled = useStreamingDebugEnabled();
 
   if (!enabled) return null;
 
   return <EnabledStreamingDebugger events={events} className={className} />;
+}
+
+/** Ctrl+Shift+D (⌘⇧D on macOS) toggles the panel the button advertises. */
+function isStreamingDebugShortcut(event: KeyboardEvent): boolean {
+  return (
+    (event.ctrlKey || event.metaKey) &&
+    event.shiftKey &&
+    !event.altKey &&
+    (event.code === "KeyD" || event.key.toLowerCase() === "d")
+  );
 }
 
 function EnabledStreamingDebugger({
@@ -60,6 +67,18 @@ function EnabledStreamingDebugger({
   className,
 }: StreamingDebuggerProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Only mounted while the debugger is enabled (dev builds, or the
+  // Settings → 可观测性 switch), so the shortcut never reaches other users.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || !isStreamingDebugShortcut(event)) return;
+      event.preventDefault();
+      setIsOpen((open) => !open);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const [filter, setFilter] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<LiveToolEvent | null>(
     null,
@@ -99,7 +118,7 @@ function EnabledStreamingDebugger({
 
   const handleCopyEvent = () => {
     if (!selectedEvent) return;
-    navigator.clipboard.writeText(JSON.stringify(selectedEvent, null, 2));
+    void navigator.clipboard.writeText(JSON.stringify(selectedEvent, null, 2));
     toast.success("事件已复制到剪贴板");
   };
 
@@ -141,12 +160,14 @@ function EnabledStreamingDebugger({
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
+          aria-keyshortcuts="Control+Shift+D Meta+Shift+D"
+          aria-expanded={isOpen}
           className={cn(
             // Dev-only affordance: tucked into the very corner at a small size
             // so it never competes with the composer or the paused-tasks
             // banner (which owns bottom-4 right-4 at z-50 — we sit below it).
             "fixed bottom-1.5 right-1.5 z-[199] flex size-7 items-center justify-center rounded-full",
-            "border border-border-default bg-background/80 text-muted-foreground/70 backdrop-blur-sm",
+            "border border-border-default bg-background/80 text-muted-foreground backdrop-blur-sm",
             "opacity-35 transition-[opacity,color,background-color] duration-fast",
             "hover:opacity-100 hover:text-foreground hover:bg-background",
             "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
@@ -201,7 +222,7 @@ function EnabledStreamingDebugger({
             <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-background px-4 py-2">
               <FilterIcon className="size-4 text-muted-foreground" />
               <Input
-                placeholder="筛选事件 (名称/ID/Agent)..."
+                placeholder="筛选事件（名称 / ID / 智能体）…"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 className="h-8 flex-1 text-xs"
@@ -250,31 +271,28 @@ function EnabledStreamingDebugger({
                           {event.name}
                         </span>
                         {event.agentName && (
-                          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
                             {event.agentName}
                           </span>
                         )}
                       </div>
-                      <span className="block truncate text-[10px] text-muted-foreground">
+                      <span className="block truncate text-xs text-muted-foreground">
                         {event.id}
                       </span>
                     </div>
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                        event.status === "running" &&
-                          "bg-blue-500/10 text-blue-500",
-                        event.status === "done" &&
-                          "bg-green-500/10 text-green-500",
-                        event.status === "error" &&
-                          "bg-red-500/10 text-red-500",
+                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+                        event.status === "running" && "bg-core/10 text-core",
+                        event.status === "done" && "bg-core/10 text-core",
+                        event.status === "error" && "bg-breach/10 text-breach",
                         event.status === "waiting_approval" &&
-                          "bg-yellow-500/10 text-yellow-500",
+                          "bg-warning/10 text-warning",
                       )}
                     >
                       {event.status}
                     </span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {new Date(event.startedAt).toLocaleTimeString()}
                     </span>
                   </button>

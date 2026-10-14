@@ -66,6 +66,32 @@ def check_url(
     if not host:
         return URLVerdict(False, url, "missing_host")
 
+    return _check_host(host, url, allow_private=allow_private, resolve_dns=resolve_dns)
+
+
+def check_host(
+    host: str,
+    *,
+    allow_private: bool = False,
+    resolve_dns: bool = True,
+) -> URLVerdict:
+    """Apply the ``check_url`` host policy to a bare hostname or IP literal.
+
+    For non-HTTP transports (SFTP, SMB, S3 endpoints, ...) that connect to a
+    host rather than fetch a URL. Every resolved address must be public.
+    """
+    if not host or not isinstance(host, str):
+        return URLVerdict(False, str(host), "missing_host")
+    return _check_host(host, host, allow_private=allow_private, resolve_dns=resolve_dns)
+
+
+def _check_host(
+    host: str,
+    url: str,
+    *,
+    allow_private: bool,
+    resolve_dns: bool,
+) -> URLVerdict:
     # IDN normalisation.  ``urllib.parse.urlparse`` returns hostnames
     # without IDNA-normalising them, so ``xn--bad-host.example``-style
     # punycode and raw Unicode look distinct to our suffix / exact-match

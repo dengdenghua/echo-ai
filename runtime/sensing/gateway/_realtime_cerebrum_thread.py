@@ -444,6 +444,7 @@ def _snapshot_to_thread_store(
             "mode",
             "agent",
             "agent_name",
+            "private_conversation",
             "workspace_path",
             "workspace_scope",
             "personal_workspace_path",

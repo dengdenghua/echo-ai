@@ -26,6 +26,7 @@ import { useI18n } from "@/core/i18n/hooks";
 import { useSkills } from "@/core/skills/hooks";
 import type { SkillInfo } from "@/core/skills/types";
 import { cn } from "@/lib/utils";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 interface Props {
   agentId: string;
@@ -345,12 +346,7 @@ export function ArmsEditor({ agentId, initialTab = "arms" }: Props) {
   }
 
   if (armsQuery.isLoading || registryQuery.isLoading || skillsQuery.isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-        <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-        {t.armsEditor.loading}
-      </div>
-    );
+    return <BrandLoadingPanel label={t.armsEditor.loading} className="py-12" />;
   }
 
   if (armsQuery.error || registryQuery.error || skillsQuery.error) {

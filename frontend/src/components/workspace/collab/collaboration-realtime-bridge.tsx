@@ -64,6 +64,7 @@ export function CollaborationRealtimeBridge({
   participantId,
   displayName,
   avatar,
+  canWrite = true,
   children,
 }: {
   roomId?: string | null;
@@ -71,11 +72,13 @@ export function CollaborationRealtimeBridge({
   participantId?: string | null;
   displayName?: string | null;
   avatar?: string | null;
+  canWrite?: boolean;
   children?: ReactNode;
 }) {
   if (!roomId || !threadId || threadId === "new") return children ?? null;
   return (
     <CollabProvider
+      canWrite={canWrite}
       teamId={roomId}
       threadId={threadId}
       participantId={participantId}

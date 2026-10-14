@@ -9,8 +9,8 @@ from runtime.safety.evolution._agent_competitor_scorecard_models import (
     COMPETITORS,
     DEFAULT_TARGET_SCORE,
     DIMENSIONS,
-    EXTERNAL_COMPETITORS,
     ECHO_COMPETITOR,
+    EXTERNAL_COMPETITORS,
     SCORECARD_CALIBRATION_AS_OF,
     SCORECARD_CALIBRATION_MAX_AGE_DAYS,
     SCORECARD_CALIBRATION_SOURCE_REVISION,
@@ -87,9 +87,7 @@ def compute_agent_competitor_scorecard(
         else {}
     )
     behavioral_echo = (
-        behavioral_systems.get("echo")
-        if isinstance(behavioral_systems.get("echo"), dict)
-        else {}
+        behavioral_systems.get("echo") if isinstance(behavioral_systems.get("echo"), dict) else {}
     )
     behavioral_codex = (
         behavioral_systems.get("codex") if isinstance(behavioral_systems.get("codex"), dict) else {}
@@ -99,12 +97,8 @@ def compute_agent_competitor_scorecard(
         if isinstance(behavioral_evidence.get("infrastructure"), dict)
         else {}
     )
-    echo_below_target = [
-        row for row in dimensions if row["scores"][ECHO_COMPETITOR] < target_score
-    ]
-    echo_strengths = [
-        row for row in dimensions if row["echo_surpasses_best_external"] is True
-    ]
+    echo_below_target = [row for row in dimensions if row["scores"][ECHO_COMPETITOR] < target_score]
+    echo_strengths = [row for row in dimensions if row["echo_surpasses_best_external"] is True]
     external_leaders = sorted(
         [row for row in dimensions if not row["echo_surpasses_best_external"]],
         key=lambda row: (

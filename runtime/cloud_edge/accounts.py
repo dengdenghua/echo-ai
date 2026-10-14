@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from runtime.platform.io.sqlite import connect_closing
+from runtime.safety.auth.login_throttle import AuthAttemptLimiter
 
 from .security import (
     TokenError,
@@ -545,6 +546,9 @@ def create_account_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/v1", tags=["accounts"])
     timezone = ZoneInfo(timezone_name)
+    register_limit = AuthAttemptLimiter(ip_limit=5, subject_limit=3, window_s=600)
+    login_limit = AuthAttemptLimiter(ip_limit=20, subject_limit=8, window_s=300)
+    refresh_limit = AuthAttemptLimiter(ip_limit=60, subject_limit=10, window_s=60)
 
     def tokens(account: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -556,7 +560,8 @@ def create_account_router(
         }
 
     @router.post("/accounts/register", status_code=201)
-    def register(body: RegisterBody) -> dict[str, Any]:
+    def register(body: RegisterBody, request: Request) -> dict[str, Any]:
+        register_limit.check(request, body.username)
         if not secrets.compare_digest(body.registration_code, registration_code):
             raise HTTPException(403, "invalid registration code")
         try:
@@ -569,7 +574,8 @@ def create_account_router(
             raise HTTPException(409, str(exc)) from exc
 
     @router.post("/accounts/login")
-    def login(body: LoginBody) -> dict[str, Any]:
+    def login(body: LoginBody, request: Request) -> dict[str, Any]:
+        login_limit.check(request, body.username)
         account = store.authenticate(
             tenant_id=auth.tenant_id, username=body.username, password=body.password
         )
@@ -578,7 +584,8 @@ def create_account_router(
         return tokens(account)
 
     @router.post("/accounts/refresh")
-    def refresh(body: RefreshBody) -> dict[str, Any]:
+    def refresh(body: RefreshBody, request: Request) -> dict[str, Any]:
+        refresh_limit.check(request, body.refresh_token)
         account = store.consume_session(body.refresh_token)
         if account is None:
             raise HTTPException(401, "invalid or expired refresh token")

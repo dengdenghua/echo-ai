@@ -50,6 +50,31 @@ describe("getActionDisplay", () => {
     expect(d.workbenchTab).toBe("terminal");
   });
 
+  it("strips the engine namespace from native engine tools", () => {
+    const d = getActionDisplay("opencode.bash", {
+      command: "curl -sI https://example.com",
+    });
+    expect(d.labelKey).toBe("run_command");
+    expect(d.object).toContain("curl -sI");
+  });
+
+  it("maps platform reads to browse_web instead of a raw tool name", () => {
+    const d = getActionDisplay("platform_read", {
+      url: "https://example.com",
+      command: "platform_read",
+      tool: "platform_read",
+    });
+    expect(d.labelKey).toBe("browse_web");
+    expect(d.object).toBe("example.com/");
+    expect(d.aggregateKind).toBe("web_search");
+  });
+
+  it("maps platform searches to search_web", () => {
+    const d = getActionDisplay("platform_search", { query: "echo os" });
+    expect(d.labelKey).toBe("search_web");
+    expect(d.object).toBe("echo os");
+  });
+
   it("maps read_file to read_file label + 文件名", () => {
     const d = getActionDisplay("read_file", { file_path: "package.json" });
     expect(d.labelKey).toBe("read_file");

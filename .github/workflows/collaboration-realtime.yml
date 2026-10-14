@@ -1,0 +1,57 @@
+name: Shared collaboration acceptance
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+    branches: [main, "codex/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-redis-workers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11.9", "3.12.11"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: "0.11.25"
+      - name: Install real Redis server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server
+      - name: Install locked collaboration dependencies
+        env:
+          UV_PYTHON_DOWNLOADS: never
+        run: >-
+          uv sync --locked --python ${{ matrix.python-version }}
+          --extra dev --extra web --extra serve --extra collaboration-redis
+      - name: Real broker and independent workers
+        env:
+          ECHO_REQUIRE_REDIS_TESTS: "1"
+        run: >-
+          uv run --no-sync python -m pytest -q
+          tests/test_shared_collaboration_pubsub.py tests/test_cowork_presence.py
+          tests/test_project_shared_updates.py
+          tests/test_workspace_shared_file_updates.py
+          --junitxml=shared-collaboration.xml
+          -o faulthandler_timeout=60
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: shared-collaboration-${{ matrix.python-version }}
+          path: shared-collaboration.xml

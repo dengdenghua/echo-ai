@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { renderHook, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { renderWithProviders } from "@/test/harness";
 import { ensureDefaultPanels } from "./default-panels";
 import { getPanel, registerPanel, resetPanelsForTests } from "./panel-manifest";
 import { usePanel, usePanels } from "./use-panels";
@@ -59,7 +60,8 @@ describe("reference panel rendering", () => {
   it("renders the registered component with context", () => {
     const panel = getPanel("workbench.system-status")!;
     const Component = panel.component;
-    render(
+    // The panel renders a `<Link>`, so it needs a Router in the tree.
+    renderWithProviders(
       <Component
         panel={panel}
         context={{ threadId: "t-1", agentId: "coder" }}

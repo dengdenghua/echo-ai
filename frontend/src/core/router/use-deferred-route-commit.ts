@@ -19,7 +19,7 @@ export function useDeferredRouteCommit() {
   const commitRoute = useCallback(() => {
     const path = pendingRouteRef.current;
     pendingRouteRef.current = null;
-    if (path) navigate(path, { replace: true });
+    if (path) void navigate(path, { replace: true });
   }, [navigate]);
 
   return { stageRoute, commitRoute };

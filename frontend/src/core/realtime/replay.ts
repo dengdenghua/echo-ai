@@ -37,7 +37,6 @@ import {
   type Conversation,
   type FileHunk,
   type GroundingSource,
-  type Item,
   type McpToolProgress,
   type Turn,
   type TurnStatus,
@@ -48,6 +47,9 @@ import {
   type ConversationEvent,
   type ReducerDiagnosticHandler,
 } from "./reducer";
+import { isItemRecord, isTurnRecord } from "./event-guards";
+import { looseBody } from "@/core/api/response";
+import { isRecord } from "@/core/utils/guards";
 
 /** Wire shape of one persisted log line (camelCase preserved by Pydantic
  * alias settings server-side). Intentionally loose — the Python schema is
@@ -105,9 +107,7 @@ export interface ReplayResult {
 // Python replay validates and tolerates everything else by dropping it.
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return isRecord(value) ? value : null;
 }
 
 /** Python: ``TurnStatus[status_str.upper()]`` with missing/unknown → FAILED. */
@@ -241,8 +241,9 @@ export function normalizeEvent(evt: LoggedEvent): ConversationEvent[] {
     }
 
     case "turn_compacted": {
-      const summaryTurn = asRecord(payload.summaryTurn) as Turn | null;
-      if (!summaryTurn) return [];
+      const summaryRecord = asRecord(payload.summaryTurn);
+      if (!summaryRecord) return [];
+      const summaryTurn = looseBody(summaryRecord, isTurnRecord);
       return [
         {
           method: "turn/compacted",
@@ -257,15 +258,17 @@ export function normalizeEvent(evt: LoggedEvent): ConversationEvent[] {
 
     case "item_started": {
       if (!turnId) return [];
-      const item = asRecord(payload.item) as Item | null;
-      if (!item) return [];
+      const record = asRecord(payload.item);
+      if (!record) return [];
+      const item = looseBody(record, isItemRecord);
       return [{ method: "item/started", params: { threadId, turnId, item } }];
     }
 
     case "item_completed": {
       if (!turnId) return [];
-      const item = asRecord(payload.item) as Item | null;
-      if (!item) return [];
+      const record = asRecord(payload.item);
+      if (!record) return [];
+      const item = looseBody(record, isItemRecord);
       return [{ method: "item/completed", params: { threadId, turnId, item } }];
     }
 
@@ -363,26 +366,34 @@ export function normalizeEvent(evt: LoggedEvent): ConversationEvent[] {
  * progress collapses to the latest (``applyMcpToolProgress`` replaces the
  * ``progress`` field wholesale). Hunk deltas are structured and never
  * merge. */
-const MERGEABLE_DELTA_METHODS = new Set([
+const MERGEABLE_DELTA_METHODS = [
   "item/agentMessage/delta",
   "item/reasoning/textDelta",
   "item/plan/delta",
   "item/commandExecution/outputDelta",
   "item/mcpToolCall/progress",
-]);
+] as const;
+const MERGEABLE_DELTA_METHOD_SET: ReadonlySet<string> = new Set(
+  MERGEABLE_DELTA_METHODS,
+);
+
+type MergeableDelta = Extract<
+  ConversationEvent,
+  { method: (typeof MERGEABLE_DELTA_METHODS)[number] }
+>;
+
+function isMergeableDelta(evt: ConversationEvent): evt is MergeableDelta {
+  return MERGEABLE_DELTA_METHOD_SET.has(evt.method);
+}
 
 /** Identity of the merge target — two consecutive reducer events merge
  * only when every addressing field matches. Returns null for events that
  * can never merge. */
 function deltaMergeKey(evt: ConversationEvent): string | null {
-  if (!MERGEABLE_DELTA_METHODS.has(evt.method)) return null;
-  const p = evt.params as {
-    threadId: string;
-    turnId: string;
-    itemId: string;
-    contentIndex?: number;
-  };
-  return `${evt.method}${p.threadId}${p.turnId}${p.itemId}${p.contentIndex ?? -1}`;
+  if (!isMergeableDelta(evt)) return null;
+  const p = evt.params;
+  const contentIndex = "contentIndex" in p ? p.contentIndex : undefined;
+  return `${evt.method}${p.threadId}${p.turnId}${p.itemId}${contentIndex ?? -1}`;
 }
 
 /**
@@ -434,7 +445,7 @@ export function replayEvents(
   };
 
   for (const evt of events) {
-    const sequence = (evt as SequencedLoggedEvent).sequence;
+    const sequence = "sequence" in evt ? evt.sequence : undefined;
     if (typeof sequence === "number" && sequence > cursor) {
       cursor = sequence;
     }

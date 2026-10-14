@@ -8,11 +8,14 @@
  * 未显示的入口对应 chunk 自然不会被请求。远端加载是另一条更重的路径
  * （见 docs/architecture/blocks.md §2）。
  */
-import { CheckIcon, PlusIcon } from "lucide-react";
+import { CheckIcon, CloudDownloadIcon, LockIcon, PlusIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { WebShortcutEditor } from "./web-shortcut-editor";
 
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -26,12 +29,15 @@ import {
 import {
   setModuleEnabled,
   useEnabledModuleIds,
+  useUnavailableModuleIds,
 } from "@/core/modules/enabled-modules";
 import type { ModuleGroup } from "@/core/modules/types";
 import { cn } from "@/lib/utils";
 import { useActiveAgentId } from "@/core/agents/active";
 import { DEFAULT_PRIMARY_AGENT_ID } from "@/core/agents/persona-policy";
 import { workspacePresetForAgent } from "@/core/workspace/workspace-presets";
+import { stringAt } from "@/core/utils/guards";
+import { useCanManageWorkbenches } from "@/core/workbench/workbench-permissions";
 
 export function ModuleEditorDialog({
   open,
@@ -45,9 +51,12 @@ export function ModuleEditorDialog({
   const preset = workspacePresetForAgent(activeAgentId);
   const enabledIds = useEnabledModuleIds(activeAgentId);
   const enabled = new Set(enabledIds);
+  const unavailable = new Set(useUnavailableModuleIds());
+  const navigate = useNavigate();
+  // Missing apps are machine-wide packages that only the admin installs.
+  const canInstall = useCanManageWorkbenches();
 
-  const label = (key: string) =>
-    (t.sidebar as unknown as Record<string, string>)[key] ?? key;
+  const label = (key: string) => stringAt(t.sidebar, key) ?? key;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -57,9 +66,9 @@ export function ModuleEditorDialog({
             <DialogTitle className="text-base">
               {t.sidebar.editModules}
             </DialogTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <DialogDescription className="mt-0.5 text-xs text-muted-foreground">
               {t.sidebar.editModulesHint} · {preset.direction}
-            </p>
+            </DialogDescription>
           </div>
           <Button size="sm" onClick={() => onOpenChange(false)}>
             {t.sidebar.editModulesDone}
@@ -67,14 +76,25 @@ export function ModuleEditorDialog({
         </DialogHeader>
 
         <div className="max-h-[calc(80vh-4.5rem)] overflow-y-auto px-5 py-4">
+          <WebShortcutEditor />
           {MODULE_GROUP_ORDER.map((group) => (
             <ModuleGroupSection
               key={group}
               group={group}
               enabled={enabled}
+              unavailable={unavailable}
               activeAgentId={activeAgentId}
               label={label}
               pinnedLabel={t.sidebar.modulePinned}
+              notInstalledLabel={t.sidebar.notInstalledBadge}
+              installLabel={t.sidebar.moduleInstallAction}
+              installByAdminLabel={
+                canInstall ? null : t.sidebar.moduleInstallByAdmin
+              }
+              onInstall={(to) => {
+                onOpenChange(false);
+                void navigate(to);
+              }}
             />
           ))}
         </div>
@@ -86,15 +106,26 @@ export function ModuleEditorDialog({
 function ModuleGroupSection({
   group,
   enabled,
+  unavailable,
   activeAgentId,
   label,
   pinnedLabel,
+  notInstalledLabel,
+  installLabel,
+  installByAdminLabel,
+  onInstall,
 }: {
   group: ModuleGroup;
   enabled: Set<string>;
+  unavailable: Set<string>;
   activeAgentId: string;
   label: (key: string) => string;
   pinnedLabel: string;
+  notInstalledLabel: string;
+  installLabel: string;
+  /** Set when this account cannot install; replaces the install button. */
+  installByAdminLabel: string | null;
+  onInstall: (to: string) => void;
 }) {
   const modules = MODULE_CATALOG.filter((m) => m.group === group);
   if (modules.length === 0) return null;
@@ -107,6 +138,38 @@ function ModuleGroupSection({
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {modules.map((m) => {
           const isOn = enabled.has(m.id);
+          // A missing app can't be shown in the sidebar, so a toggle would look
+          // broken; offer the install page instead.
+          if (unavailable.has(m.id)) {
+            return (
+              <li key={m.id}>
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-border-default px-3 py-2">
+                  <span className="min-w-0 truncate text-sm text-muted-foreground">
+                    {label(m.labelKey)}
+                    <span className="ml-1.5 text-xs">
+                      · {notInstalledLabel}
+                    </span>
+                  </span>
+                  {installByAdminLabel ? (
+                    <span className="flex h-7 shrink-0 items-center gap-1 px-2 text-xs text-muted-foreground">
+                      <LockIcon className="size-3.5" aria-hidden="true" />
+                      {installByAdminLabel}
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0 gap-1 px-2 text-xs"
+                      onClick={() => onInstall(m.to)}
+                    >
+                      <CloudDownloadIcon className="size-3.5" />
+                      {installLabel}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            );
+          }
           return (
             <li key={m.id}>
               <ModuleCard

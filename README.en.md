@@ -1,4 +1,4 @@
-# Echo AI v0.1.0
+# Echo AI v0.2.0
 
 Echo AI is the desktop AI workspace in the Echo family. This repository also contains the shared Python agent runtime, with planning, tool execution,
 memory, reflection, safety governance, browser/workspace access, and
@@ -34,16 +34,19 @@ Chinese readers: [README.md](README.md)
 
 ## Quick Start
 
+Dependencies are locked in `uv.lock`; install them with
+[uv](https://docs.astral.sh/uv/) (Python 3.11+). `pip install -e ".[dev,serve,web]"`
+also works but ignores the lock.
+
 ```bash
 # Minimal deterministic backend demo. No LLM key required.
-pip install -e ".[minimal]"
-python -m runtime bugfix-demo
+uv sync --locked --extra minimal
+uv run python -m runtime bugfix-demo
 
-# Development setup with tests, FastAPI UI, and web skills.
-pip install -e ".[dev,serve,web]"
-python -m runtime quickstart --non-interactive
-python -m runtime status
-python -m runtime ui --port 8310
+# Development setup with tests, the FastAPI backend, and web skills.
+uv sync --locked --extra dev --extra serve --extra web
+uv run python -m runtime quickstart --non-interactive   # writes ./config.yaml, runs doctor
+uv run python -m runtime serve --config config.yaml --port 8310
 ```
 
 Open:
@@ -52,21 +55,21 @@ Open:
 http://127.0.0.1:8310
 ```
 
-Frontend development:
+Frontend and desktop development (Node 22+; corepack provides the pinned pnpm):
 
 ```bash
 cd frontend
-corepack enable
-pnpm install --frozen-lockfile
-pnpm dev
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev            # Vite dev server
+corepack pnpm electron:dev   # Electron shell + local backend
 ```
 
 Common checks:
 
 ```bash
-python -m pytest -q
-python -m ruff check runtime tests tools
-cd frontend && pnpm typecheck
+uv run pytest -q
+uv run ruff check runtime tests tools
+cd frontend && corepack pnpm typecheck
 ```
 
 ## What It Is
@@ -193,9 +196,12 @@ Production builds:
 
 ```bash
 cd frontend
-pnpm build
-pnpm electron:build:win
+pnpm build                 # frontend/dist, served by the backend at /ui
+pnpm electron:build:win    # needs the PyInstaller backend and a signing certificate
 ```
+
+Installers are built by CI (`build-win.yml`, `build-linux.yml`); an unsigned local
+Windows build adds `-c.win.forceCodeSigning=false`. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Quality Gates
 

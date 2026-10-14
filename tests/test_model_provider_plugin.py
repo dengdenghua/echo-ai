@@ -55,6 +55,7 @@ def _item() -> dict[str, Any]:
             "display_name_zh": "OpenCode Zen 免费模型",
             "base_url": "https://opencode.ai/zen/v1",
             "models_endpoint": "https://opencode.ai/zen/v1/models",
+            "price_provider": "opencode",
             "free_models": [
                 "big-pickle",
                 "muse-spark-1.2-contributor-free",
@@ -85,16 +86,22 @@ def test_credential_reference_resolves_without_persisting_secret() -> None:
 def test_one_opencode_plugin_owns_both_channels_and_removes_both():
     state = {}
     manager = ModelProviderPluginManager(
-        custom_models=state, lock=threading.RLock(), save=lambda *ids: None,
+        custom_models=state,
+        lock=threading.RLock(),
+        save=lambda *ids: None,
         unregister_entry=lambda *args, **kwargs: True,
         rebuild_routes=lambda: {key: {"ok": True} for key in state},
         credential_store=_Credentials(),
     )
     item = _item()
-    item["model_provider"]["channels"] = {"opencode-go": {
-        "entry_id": "opencode-go", "display_name": "OpenCode Go",
-        "base_url": "https://opencode.ai/zen/go/v1", "models_are_free": False,
-    }}
+    item["model_provider"]["channels"] = {
+        "opencode-go": {
+            "entry_id": "opencode-go",
+            "display_name": "OpenCode Go",
+            "base_url": "https://opencode.ai/zen/go/v1",
+            "models_are_free": False,
+        }
+    }
     manager.configure(item, models=["big-pickle"], channels={"opencode-go": ["glm-5.3"]})
     assert set(state) == {"opencode-zen", "opencode-go"}
     assert state["opencode-go"]["managed_by_plugin"] == "opencode-zen"
@@ -488,17 +495,124 @@ def test_zen_discovers_paid_models_after_free_and_preserves_per_model_pricing(mo
     class Response:
         def raise_for_status(self):
             pass
+
         def json(self):
             return {"data": [{"id": "paid-model"}, {"id": "big-pickle"}, {"id": "new-free"}]}
+
     monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: Response())
     item = _item()
     item["model_provider"].update(discover_all_models=True, models_are_free=False)
     state = {}
-    manager = ModelProviderPluginManager(custom_models=state, lock=threading.RLock(),
-        save=lambda *args: None, unregister_entry=lambda *args, **kwargs: False,
-        rebuild_routes=lambda: {"opencode-zen": {"ok": True}}, credential_store=_Credentials())
+    manager = ModelProviderPluginManager(
+        custom_models=state,
+        lock=threading.RLock(),
+        save=lambda *args: None,
+        unregister_entry=lambda *args, **kwargs: False,
+        rebuild_routes=lambda: {"opencode-zen": {"ok": True}},
+        credential_store=_Credentials(),
+    )
     discovered = manager.validate(item, tokens={"api_key": "zen-secret"})
     assert discovered["models"] == ["big-pickle", "new-free", "paid-model"]
     manager.configure(item, models=discovered["models"])
-    assert state["opencode-zen"]["model_free_status"] == {"big-pickle": True, "new-free": True, "paid-model": False}
+    assert state["opencode-zen"]["model_free_status"] == {
+        "big-pickle": True,
+        "new-free": True,
+        "paid-model": False,
+    }
     assert state["opencode-zen"]["is_free"] is False
+
+
+def test_refresh_rewrites_the_snapshot_from_the_provider(monkeypatch) -> None:
+    class _Response:
+        status_code = 200
+
+        @staticmethod
+        def raise_for_status() -> None:
+            return None
+
+        @staticmethod
+        def json() -> dict[str, Any]:
+            return {"data": [{"id": "big-pickle"}, {"id": "mimo-v2.6-flash-free"}]}
+
+    monkeypatch.setattr(httpx, "get", lambda *_args, **_kwargs: _Response())
+    state: dict[str, dict[str, Any]] = {}
+    manager = ModelProviderPluginManager(
+        custom_models=state,
+        lock=threading.RLock(),
+        save=lambda *_ids: None,
+        unregister_entry=lambda *_args, **_kwargs: True,
+        rebuild_routes=lambda: {key: {"ok": True} for key in state},
+        credential_store=_Credentials(),
+    )
+    item = _item()
+    manager.configure(item, models=["big-pickle", "mimo-v2.5-free"])
+
+    refreshed = manager.refresh(item)
+
+    assert refreshed["models"] == ["big-pickle", "mimo-v2.6-flash-free"]
+    assert state["opencode-zen"]["models"] == ["big-pickle", "mimo-v2.6-flash-free"]
+    assert state["opencode-zen"]["model_free_status"]["mimo-v2.6-flash-free"] is True
+    assert manager.managed_connector_ids() == ["opencode-zen"]
+
+
+def test_refresh_keeps_the_snapshot_when_discovery_fails(monkeypatch) -> None:
+    def _boom(*_args: Any, **_kwargs: Any) -> Any:
+        raise httpx.ConnectError("upstream down")
+
+    monkeypatch.setattr(httpx, "get", _boom)
+    state: dict[str, dict[str, Any]] = {}
+    manager = ModelProviderPluginManager(
+        custom_models=state,
+        lock=threading.RLock(),
+        save=lambda *_ids: None,
+        unregister_entry=lambda *_args, **_kwargs: True,
+        rebuild_routes=lambda: {key: {"ok": True} for key in state},
+        credential_store=_Credentials(),
+    )
+    item = _item()
+    manager.configure(item, models=["big-pickle"])
+    before = dict(state["opencode-zen"])
+
+    with pytest.raises(ValueError):
+        manager.refresh(item)
+
+    assert state["opencode-zen"] == before
+
+
+def test_managed_connector_ids_collapse_channel_entries() -> None:
+    state: dict[str, dict[str, Any]] = {}
+    manager = ModelProviderPluginManager(
+        custom_models=state,
+        lock=threading.RLock(),
+        save=lambda *_ids: None,
+        unregister_entry=lambda *_args, **_kwargs: True,
+        rebuild_routes=lambda: {key: {"ok": True} for key in state},
+        credential_store=_Credentials(),
+    )
+    item = _item()
+    item["model_provider"]["channels"] = {
+        "opencode-go": {
+            "entry_id": "opencode-go",
+            "display_name": "OpenCode Go",
+            "base_url": "https://opencode.ai/zen/go/v1",
+            "models_are_free": False,
+        }
+    }
+    manager.configure(item, models=["big-pickle"], channels={"opencode-go": ["glm-5.3"]})
+    assert set(state) == {"opencode-zen", "opencode-go"}
+
+    assert manager.managed_connector_ids() == ["opencode-zen"]
+
+
+def test_managed_connector_ids_ignore_unmanaged_entries() -> None:
+    state = {"hand-written": {"id": "hand-written", "models": ["local-model"]}}
+    manager = ModelProviderPluginManager(
+        custom_models=state,
+        lock=threading.RLock(),
+        save=lambda *_ids: None,
+        unregister_entry=lambda *_args, **_kwargs: True,
+        rebuild_routes=lambda: {},
+        credential_store=_Credentials(),
+    )
+
+    assert manager.managed_connector_ids() == []

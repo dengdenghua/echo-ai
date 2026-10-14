@@ -1,5 +1,4 @@
-import { jsonAuthHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { EchoAPIError, apiFetch, type ApiFailure } from "@/core/api/request";
 
 import {
   buildNarrativeStagePrompt,
@@ -161,8 +160,8 @@ function isAbortFailure(error: unknown, signal?: AbortSignal): boolean {
     : asRecord(error)?.name === "AbortError";
 }
 
-async function responsePayload(response: Response): Promise<unknown> {
-  const text = await response.text();
+/** Empty body → ``null``; JSON → the parsed value; anything else → the text. */
+function payloadFromText(text: string): unknown {
   if (!text.trim()) return null;
   try {
     return JSON.parse(text) as unknown;
@@ -273,15 +272,35 @@ export async function dispatchNarrativeStage(
   };
 
   let response: Response;
+  // Filled in by ``errorMessage`` when the backend answers with a non-2xx
+  // status, so the catch below can tell HTTP failures from network ones.
+  const http: { failure?: ApiFailure } = {};
   try {
-    response = await fetch(`${getBackendBaseURL()}/api/subagents/dispatch`, {
-      method: "POST",
-      headers: jsonAuthHeaders(),
+    response = await apiFetch("post", "/api/subagents/dispatch", {
       credentials: "include",
-      body: JSON.stringify(requestBody),
+      body: requestBody,
       signal: input.signal,
+      errorMessage: (failure) => {
+        http.failure = failure;
+        return `Narrative ${stage.name} agent failed (${failure.status})`;
+      },
     });
   } catch (error) {
+    if (error instanceof EchoAPIError && http.failure) {
+      const { failure } = http;
+      const backendError =
+        errorFromPayload(payloadFromText(failure.text)) ||
+        failure.statusText ||
+        "request failed";
+      throw new NarrativeStageDispatchError({
+        message: `Narrative ${stage.name} agent failed (${failure.status}): ${backendError}`,
+        code: "http",
+        status: failure.status,
+        backendError,
+        stage: stage.name,
+        subagentType: stage.subagentType,
+      });
+    }
     if (isAbortFailure(error, input.signal)) {
       throw new NarrativeStageDispatchError({
         message: `Narrative ${stage.name} stage was cancelled`,
@@ -300,20 +319,7 @@ export async function dispatchNarrativeStage(
     });
   }
 
-  const payload = await responsePayload(response);
-  if (!response.ok) {
-    const backendError =
-      errorFromPayload(payload) || response.statusText || "request failed";
-    throw new NarrativeStageDispatchError({
-      message: `Narrative ${stage.name} agent failed (${response.status}): ${backendError}`,
-      code: "http",
-      status: response.status,
-      backendError,
-      stage: stage.name,
-      subagentType: stage.subagentType,
-    });
-  }
-
+  const payload = payloadFromText(await response.text());
   const root = asRecord(payload);
   if (!root) {
     throw new NarrativeStageDispatchError({

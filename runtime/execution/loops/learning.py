@@ -142,7 +142,7 @@ def build_loop_run_review(run: LoopRun) -> dict[str, Any]:
     findings = build_loop_run_findings(run)
     score, score_reasons = build_loop_run_review_score(run, findings)
     replay = build_loop_run_replay(run)
-    resume_available = run.status.value in {"failed", "cancelled", "interrupted"}
+    resume_available = run.status.value in {"failed", "cancelled", "interrupted", "paused"}
     latest_checkpoint = build_loop_run_checkpoint(run) if resume_available else {}
 
     if run.status.value == "completed" and attempts > 1:

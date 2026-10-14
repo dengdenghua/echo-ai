@@ -3,11 +3,12 @@ import { useLocation } from "react-router-dom";
 
 import { useI18n } from "@/core/i18n/hooks";
 import { WORKBENCH_BUILTIN_APPS } from "@/core/workbench/apps";
+import { ORG_COPY } from "@/core/organizations/copy";
 
 /** Conversation and public share views own their dynamic titles. */
 export function RouteTitle() {
   const { pathname, search } = useLocation();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   useEffect(() => {
     if (
       pathname.startsWith("/workspace/realtime/") ||
@@ -20,11 +21,15 @@ export function RouteTitle() {
     });
     const title =
       workbench?.name ??
+      (pathname === "/workspace/organizations"
+        ? ORG_COPY[locale].title
+        : undefined) ??
+      (pathname === "/workspace/devices" ? "设备互联" : undefined) ??
       (pathname.startsWith("/workspace/agents") ? "HUB" : undefined) ??
       (pathname === "/workspace/web-app"
         ? new URLSearchParams(search).get("title")
         : undefined);
     document.title = title ? `${title} - ${t.pages.appName}` : t.pages.appName;
-  }, [pathname, search, t.pages.appName]);
+  }, [pathname, search, t.pages.appName, locale]);
   return null;
 }

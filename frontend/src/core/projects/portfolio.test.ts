@@ -112,6 +112,21 @@ describe("normalizePortfolio", () => {
   it("保留后端给出的 readable=true 默认语义", () => {
     expect(normalizePortfolioEntry({ id: "p1" })!.readable).toBe(true);
   });
+
+  it("保留新建时选择的图标与分类，旧项目为 null", () => {
+    const parsed = normalizePortfolioEntry({
+      id: "p1",
+      icon: "plane",
+      category: "travel",
+    });
+    expect(parsed).toMatchObject({ icon: "plane", category: "travel" });
+    expect(toProjectRow(parsed!)).toMatchObject({
+      icon: "plane",
+      category: "travel",
+    });
+    const legacy = normalizePortfolioEntry({ id: "p2", icon: 7 });
+    expect(legacy).toMatchObject({ icon: null, category: null });
+  });
 });
 
 describe("buildTodayQueue", () => {
@@ -677,5 +692,19 @@ describe("filterProjectRows / sortProjectRows", () => {
     expect(fallback.overdue).toBe(0);
     // 降级行仍然可被搜索到，否则接口故障时导航会失效。
     expect(filterProjectRows([fallback], "新项目")).toHaveLength(1);
+  });
+
+  it("降级行同样带上图标与分类", () => {
+    const row = projectRowFromSummary({
+      id: "px",
+      name: "旅行",
+      icon: "plane",
+      category: " travel ",
+    });
+    expect(row).toMatchObject({ icon: "plane", category: "travel" });
+    expect(projectRowFromSummary({ id: "py" })).toMatchObject({
+      icon: null,
+      category: null,
+    });
   });
 });

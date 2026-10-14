@@ -17,9 +17,13 @@ platform tier where both can import it without crossing layers.
 
 from __future__ import annotations
 
+import codecs
 import contextlib
+import locale
 import os
+import re
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -27,6 +31,70 @@ from pathlib import Path
 from typing import Any
 
 _EXECUTION_POLICY_SCHEMA = "echo.execution_policy.v1"
+
+
+def _popen_args(argv: list[str]) -> list[str] | str:
+    """Keep a cmd.exe command string out of C-runtime argument escaping."""
+    if (
+        sys.platform == "win32"
+        and len(argv) >= 3
+        and Path(argv[0]).name.lower() in {"cmd", "cmd.exe"}
+        and argv[-2].lower() in {"/c", "/k"}
+    ):
+        prefix = argv[:-1]
+        if not any(option.lower() == "/s" for option in prefix[1:-1]):
+            prefix = [prefix[0], "/s", *prefix[1:]]
+        # /s removes only the outer quote pair. list2cmdline would instead
+        # insert backslashes before the command's quotes, which cmd does not
+        # treat as escapes. All sandbox checks still receive the original argv.
+        return f'{subprocess.list2cmdline(prefix)} "{argv[-1]}"'
+    return argv
+
+
+def _child_text_encoding(argv: list[str], env: Mapping[str, str] | None) -> str:
+    """Infer Python stdio settings; native programs retain the system codec."""
+    executable = Path(argv[0]).name.lower() if argv else ""
+    is_python = executable == Path(sys.executable).name.lower() or bool(
+        re.fullmatch(r"python(?:\d+(?:\.\d+)*)?(?:w)?(?:\.exe)?", executable)
+    )
+    if not is_python:
+        return locale.getencoding()
+    ignore_environment = False
+    utf8_mode: str | None = None
+    index = 1
+    while index < len(argv):
+        option = argv[index]
+        if option in {"-c", "-m", "--", "-"} or not option.startswith("-"):
+            break
+        if option == "-X":
+            index += 1
+            setting = argv[index] if index < len(argv) else ""
+        elif option.startswith("-X"):
+            setting = option[2:]
+        else:
+            setting = ""
+            if option == "-W":
+                index += 1
+            elif not option.startswith("--") and any(flag in option[1:] for flag in "EI"):
+                ignore_environment = True
+        if setting == "utf8":
+            utf8_mode = "1"
+        elif setting.startswith("utf8="):
+            utf8_mode = setting.partition("=")[2]
+        index += 1
+    environment = os.environ if env is None else env
+    if ignore_environment:
+        environment = {}
+    explicit = environment.get("PYTHONIOENCODING", "").split(":", 1)[0]
+    if explicit:
+        try:
+            return codecs.lookup(explicit).name
+        except LookupError:
+            # Keep the child's startup error readable if its setting is invalid.
+            pass
+    if (utf8_mode if utf8_mode is not None else environment.get("PYTHONUTF8")) == "1":
+        return "utf-8"
+    return locale.getencoding()
 
 
 def execution_policy_result_snapshot(
@@ -210,6 +278,7 @@ def stream_run(
     timeout: float | None,
     cwd: str | None = None,
     env: Mapping[str, str] | None = None,
+    encoding: str | None = None,
     output_cap_bytes: int = 200_000,
     on_timeout: Callable[[subprocess.Popen[str]], None] | None = None,
     sandbox_dir: str | None = None,
@@ -220,6 +289,9 @@ def stream_run(
     thread_id: str = "",
 ) -> dict[str, Any]:
     """Run ``argv`` as a subprocess, streaming output as it arrives.
+
+    ``encoding`` explicitly sets the child output/input codec. Otherwise Python
+    flags/environment are inferred and native programs use the system codec.
 
     Returns a dict with ``stdout``, ``stderr``, ``exit_code``,
     ``timed_out``, ``stdout_truncated``, ``stderr_truncated``. Callers
@@ -234,6 +306,7 @@ def stream_run(
     """
     output_cap_bytes = _coerce_nonnegative_int(output_cap_bytes, 200_000)
     timeout_value = None if timeout is None or float(timeout) <= 0 else float(timeout)
+    output_argv = list(argv)
     run_cwd = cwd
     run_env = dict(env) if env is not None else None
     sandbox_backend = "direct"
@@ -340,9 +413,7 @@ def stream_run(
             # Preserve the zero-argument seam used by embedders/tests when no
             # deployment override is configured.  Commercial/explicit modes
             # go through the mode-aware selector so they cannot downgrade.
-            if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get(
-                "ECHO_DEPLOYMENT_MODE"
-            ):
+            if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get("ECHO_DEPLOYMENT_MODE"):
                 choice = resolved_process_backend(effective_process_sandbox_mode())
             else:
                 choice = resolved_process_backend()
@@ -414,22 +485,20 @@ def stream_run(
 
     started_at = time.monotonic()
     try:
-        from runtime.platform.process.tree import (
-            process_group_kwargs,
-            terminate_process_tree,
-        )
+        from runtime.platform.process import tree
 
-        proc = subprocess.Popen(
-            argv,
+        proc = tree.spawn_in_job(
+            _popen_args(argv),
             stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding=encoding or _child_text_encoding(output_argv, run_env),
+            errors="replace",
             cwd=run_cwd,
             env=run_env,
             bufsize=1,
             shell=False,
-            **process_group_kwargs(),
         )
     except FileNotFoundError as e:
         return {
@@ -506,12 +575,12 @@ def stream_run(
         while True:
             if cancel_token.is_cancelled:
                 cancelled = True
-                killed = terminate_process_tree(proc)
+                killed = tree.terminate_process_tree(proc)
                 break
             remaining = None if deadline is None else deadline - time.monotonic()
             if remaining is not None and remaining <= 0:
                 timed_out = True
-                killed = terminate_process_tree(proc)
+                killed = tree.terminate_process_tree(proc)
                 if on_timeout is not None:
                     with contextlib.suppress(Exception):
                         on_timeout(proc)
@@ -527,6 +596,9 @@ def stream_run(
     finally:
         t_out.join(timeout=2.0)
         t_err.join(timeout=2.0)
+        # Preserve daemons after normal completion; timeout/cancel already
+        # terminated the whole job, including descendants of an exited parent.
+        tree.detach_process_job(proc)
 
     raw_stdout = "".join(stdout_parts)
     raw_stderr = "".join(stderr_parts)

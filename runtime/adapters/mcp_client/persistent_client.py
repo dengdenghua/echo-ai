@@ -77,6 +77,8 @@ class PersistentStdioMCPClient(MCPClient):
         self._thread: threading.Thread | None = None
         self._stack: AsyncExitStack | None = None
         self._session: Any = None
+        self._connection_task: asyncio.Task[None] | None = None
+        self._disconnect_event: asyncio.Event | None = None
         self._ready_event = threading.Event()
         self._connect_error: Exception | None = None
 
@@ -106,20 +108,59 @@ class PersistentStdioMCPClient(MCPClient):
         fut = asyncio.run_coroutine_threadsafe(self._connect_async(), self._loop)  # type: ignore[arg-type]
         try:
             fut.result(timeout=self.connect_timeout_ms / 1000)
-        except (OSError, ConnectionError, TimeoutError) as e:
+        except Exception as e:  # noqa: BLE001 - normalize SDK startup failures and release the loop
             self._connect_error = e
+            fut.cancel()
+            with contextlib.suppress(Exception):
+                asyncio.run_coroutine_threadsafe(self._disconnect_async(), self._loop).result(5.0)
             self._shutdown_loop()
             raise MCPClientError(f"connect failed: {type(e).__name__}: {e}") from e
 
     async def _connect_async(self) -> None:
+        ready: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._disconnect_event = asyncio.Event()
+        self._connection_task = asyncio.create_task(self._own_connection(ready))
+        try:
+            await ready
+        except BaseException:
+            self._connection_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await self._connection_task
+            raise
+
+    async def _own_connection(self, ready: asyncio.Future[None]) -> None:
+        # AnyIO scopes must be entered and exited by the same task. Keep one
+        # owner alive across all calls instead of closing a stack from a new task.
         from mcp import ClientSession
         from mcp.client.stdio import StdioServerParameters, stdio_client
 
-        self._stack = AsyncExitStack()
-        params = self._stdio_parameters(StdioServerParameters)
-        read, write = await self._stack.enter_async_context(stdio_client(params))
-        self._session = await self._stack.enter_async_context(ClientSession(read, write))
-        await self._session.initialize()
+        try:
+            async with AsyncExitStack() as stack:
+                self._stack = stack
+                params = self._stdio_parameters(StdioServerParameters)
+                read, write = await stack.enter_async_context(stdio_client(params))
+                self._session = await stack.enter_async_context(ClientSession(read, write))
+                await self._session.initialize()
+                ready.set_result(None)
+                assert self._disconnect_event is not None
+                await self._disconnect_event.wait()
+        except BaseException as exc:
+            if not ready.done():
+                ready.set_exception(exc)
+            else:
+                raise
+        finally:
+            self._session = None
+            self._stack = None
+
+    async def _disconnect_async(self) -> None:
+        event = getattr(self, "_disconnect_event", None)
+        task = getattr(self, "_connection_task", None)
+        if event is not None:
+            event.set()
+        if task is not None:
+            await task
+        self._connection_task = None
 
     def _stdio_parameters(self, parameter_type: Any) -> Any:
         """Build SDK parameters, wrapping stdio in the hard process backend.
@@ -151,6 +192,7 @@ class PersistentStdioMCPClient(MCPClient):
                 command=self.config.command,
                 args=list(self.config.args),
                 env=merged_env or None,
+                cwd=self.config.cwd,
             )
 
         if not self.config.sandbox_dir:
@@ -194,14 +236,10 @@ class PersistentStdioMCPClient(MCPClient):
         )
 
     async def _reconnect_async(self) -> None:
-        old_stack = self._stack
-        self._stack = None
-        self._session = None
-        if old_stack is not None:
-            try:
-                await old_stack.aclose()
-            except Exception as e:  # noqa: BLE001
-                _LOG.debug("old stack aclose during reconnect: %s", e)
+        try:
+            await self._disconnect_async()
+        except Exception as e:  # noqa: BLE001
+            _LOG.debug("old connection close during reconnect: %s", e)
         await self._connect_async()
 
     def close(self) -> None:
@@ -210,12 +248,12 @@ class PersistentStdioMCPClient(MCPClient):
         self._closed = True
         with _LIVE_LOCK:
             _LIVE_CLIENTS.discard(self)
-        if self._loop is not None and self._loop.is_running() and self._stack is not None:
+        if self._loop is not None and self._loop.is_running():
             try:
-                fut = asyncio.run_coroutine_threadsafe(self._stack.aclose(), self._loop)
+                fut = asyncio.run_coroutine_threadsafe(self._disconnect_async(), self._loop)
                 fut.result(timeout=5.0)
-            except (OSError, ConnectionError, TimeoutError):  # noqa: BLE001 — MCP client teardown best-effort
-                pass
+            except Exception as exc:  # noqa: BLE001 — MCP client teardown best-effort
+                _LOG.debug("MCP teardown: %s", exc)
         self._shutdown_loop()
 
     def _shutdown_loop(self) -> None:
@@ -302,7 +340,7 @@ class PersistentStdioMCPClient(MCPClient):
             MCPTool(
                 name=t.name,
                 description=(t.description or ""),
-                input_schema=(t.inputSchema or {}),
+                input_schema=(getattr(t, "input_schema", getattr(t, "inputSchema", {})) or {}),
                 server_name=self.config.name,
             )
             for t in result.tools
@@ -362,7 +400,7 @@ class PersistentStdioMCPClient(MCPClient):
             if hasattr(b, "text") and getattr(b, "text", None)
         )
         raw = [b.model_dump() if hasattr(b, "model_dump") else str(b) for b in result.content]
-        is_err = bool(getattr(result, "isError", False))
+        is_err = bool(getattr(result, "is_error", getattr(result, "isError", False)))
         return MCPInvocationResult(
             tool_name=name,
             success=not is_err,

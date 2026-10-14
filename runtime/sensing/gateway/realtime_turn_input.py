@@ -872,7 +872,12 @@ def _build_intent(
         # silently turns complete access into the default sandbox.
         execution_choices = {
             key: context_payload[key]
-            for key in ("permission_mode", "execution_environment", "network_access")
+            for key in (
+                "permission_mode",
+                "execution_environment",
+                "network_access",
+                "work_location",
+            )
             if key in context_payload
         }
         context_payload = build_turn_metadata(

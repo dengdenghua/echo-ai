@@ -17,14 +17,14 @@ const path = require("path");
 const { app } = require("electron");
 const { requirePackagedOpenCode } = require("./opencode-runtime.cjs");
 
-const PACKAGED_CODEX_VERSION = "0.149.0";
+const PACKAGED_CODEX_VERSION = "0.162.0";
 const IS_WINDOWS = process.platform === "win32";
 
-// Shared provenance of the codex 0.149.0 rust closure — identical across
+// Shared provenance of the codex 0.162.0 rust closure — identical across
 // platforms because the same crates ship in every native package.
-const CODEX_SOURCE_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0";
+const CODEX_SOURCE_COMMIT = "c1382380de69521303b416720a52f42d51af6248";
 const CODEX_CARGO_LOCK_SHA256 =
-  "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad";
+  "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117";
 const RATATUI_VERSION = "0.30.2";
 const RATATUI_CRATE_SHA256 =
   "3274ba0a2c5e1bcad2a2005d20f4dc59dad26b2eb0940fb094500dba4099d57d";
@@ -48,7 +48,7 @@ const SHARED_LICENSE_FILES = [
   {
     relative: "third-party/codex-rust/THIRD_PARTY_LICENSES.md",
     expectedSha256:
-      "198967762991bc9c638b7c304a11bf5b564cb1898e48acf35eca793c2b4557ae",
+      "72de1154b17f9d9e73ac1ff3e749dd7a2e5b2f945ddc35826007611c2bd25fef",
   },
   {
     relative: "third-party/ratatui/LICENSE",
@@ -96,7 +96,7 @@ const LINUX_VENDOR_FILES = [
   {
     relative: "third-party/codex-rust/THIRD_PARTY_LICENSES-codex-cli.html",
     expectedSha256:
-      "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771",
+      "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d",
   },
 ];
 
@@ -104,7 +104,7 @@ const LINUX_VENDOR_FILES = [
 const LINUX_ARM64_PROFILE = {
   platformPackage: "@openai/codex-linux-arm64",
   integrity:
-    "sha512-fAXPpvIob+11RNZJS9CVVTsKb+V4Hw3woGFPj42D7fU2wBJUKI2jfAc4fLJNtrpwRecLeW601mtkMHOSIbWuuA==",
+    "sha512-6NYWwy09FsZ+/0Dz/bvV/yz3aFhkNzj86fSiux9Ax9VMBOID5nPdwd51OySm7fy8TMRud4fgJFELSi3Enc1s7Q==",
   target: "aarch64-unknown-linux-musl",
   fileHashPhase: "pre-package",
   executableName: "codex",
@@ -115,7 +115,7 @@ const LINUX_ARM64_PROFILE = {
 const LINUX_X64_PROFILE = {
   platformPackage: "@openai/codex-linux-x64",
   integrity:
-    "sha512-uZXaN9JPxu0/jjnqqJeTd4kRYPnjVZK3MiVndfG1mHhEaoDKL7ScWHfPqvAEOjwsSDEmQSlMfUkmvYp/CHciYw==",
+    "sha512-qHWp6oKpf456PqjberGN8avs8zChv2oS+UuDiqVFYAuDOhq6vBc1drh8jEsnR7dBX+zcw03PN5VLtePGlMcC3w==",
   target: "x86_64-unknown-linux-musl",
   fileHashPhase: "pre-package",
   executableName: "codex",
@@ -131,7 +131,7 @@ const CODEX_PROFILE = IS_WINDOWS
   ? {
       platformPackage: "@openai/codex-win32-x64",
       integrity:
-        "sha512-qKbwSOOO/fdhQ5MlXE2fts6taPxRPZ/zqeC+eqHD72hLRymV9rFCUbUxOCquognUPRPvS/2/kRCV0UVhoDd3yQ==",
+        "sha512-W8kqHaqpW0qPz71E0rRT5dq+socGz1BbJyYN7o3SP1TWQt8Zl6ML74R9Hvt/xn1NNLVlDTRfXqNmaMkte6yEMQ==",
       target: "x86_64-pc-windows-msvc",
       fileHashPhase: "pre-authenticode",
       executableName: "codex.exe",
@@ -154,29 +154,29 @@ const CODEX_PROFILE = IS_WINDOWS
           relative:
             "third-party/codex-rust/THIRD_PARTY_LICENSES-codex-cli.html",
           expectedSha256:
-            "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771",
+            "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d",
         },
         {
           relative:
             "third-party/codex-rust/THIRD_PARTY_LICENSES-code-mode-host.html",
           expectedSha256:
-            "6b562200ef39938051e8eca39ce61a4d032752e04e1d21ba0fe216bd0ad91434",
+            "3d0d447d99ebd115a11d1c21cba0c647ed31cdde805e34b6048ac339c744b74e",
         },
         {
           relative:
             "third-party/codex-rust/THIRD_PARTY_LICENSES-windows-sandbox.html",
           expectedSha256:
-            "8858ef427eb901498d06d12d14ce6c3ef53fdeb352251006276dac8ec53ac5e4",
+            "5a54dbd5ce12664d4b3a7b841bca95fea8e99cd37a97f6e21138faf0e8ba76eb",
         },
         {
           relative: "third-party/codex-native/NATIVE_PROVENANCE.json",
           expectedSha256:
-            "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a",
+            "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564",
         },
         {
           relative: "third-party/codex-native/NATIVE_THIRD_PARTY_NOTICES.md",
           expectedSha256:
-            "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5",
+            "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd",
         },
       ],
     }
@@ -188,7 +188,7 @@ const CODEX_PROFILE = IS_WINDOWS
       ? {
           platformPackage: "@openai/codex-darwin-arm64",
           integrity:
-            "sha512-GsZJbzBWiD48RETrO8VHGAQNgfSrUVxItXZFeD87wswatPi0+lKuQo8Dx4nMYmOZhZrVtwr3al/feRrZxnDV8Q==",
+            "sha512-hyiGlMCbZog7IY2TcSWzXbsmtUnynT93QA4utqGlVmFlmz8TurADk3LV28zqUIdgh9GLOzumDIdHQbYieo9Nqw==",
           target: "aarch64-apple-darwin",
           fileHashPhase: "pre-codesign",
           executableName: "codex",
@@ -204,14 +204,14 @@ const CODEX_PROFILE = IS_WINDOWS
               relative:
                 "third-party/codex-rust/THIRD_PARTY_LICENSES-codex-cli.html",
               expectedSha256:
-                "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771",
+                "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d",
             },
           ],
         }
       : {
           platformPackage: "@openai/codex-darwin-x64",
           integrity:
-            "sha512-H+mMgW3Nhc5QzGWEklCoFqACuOc0cVpgPkPQRw0LShoK7P5664T6BRnyl1yzT6orKPKv49cXry7DIWWZ19SanQ==",
+            "sha512-4XzCUJgEDDdme6VWDEKvbWDA6f+470d4xhhorYUgNBZwY8Dq5NYqvWkO33rnc1vjxkqSj+SwkymHxRMxL6h1CA==",
           target: "x86_64-apple-darwin",
           fileHashPhase: "pre-codesign",
           executableName: "codex",
@@ -227,7 +227,7 @@ const CODEX_PROFILE = IS_WINDOWS
               relative:
                 "third-party/codex-rust/THIRD_PARTY_LICENSES-codex-cli.html",
               expectedSha256:
-                "841d5072916479fc3d6fbe8c4b240b66d468de9f625a2fcb658c34fe1a4ec771",
+                "7b1aa4f2b848e7f0e88adcf17e7a7184b454945e66a1d2967854b8a5183cb00d",
             },
           ],
         };
@@ -411,9 +411,9 @@ function requirePackagedCodexBundle() {
     if (
       manifest?.licenses?.native?.schemaVersion !== "codex-native-notices.v1" ||
       manifest?.licenses?.native?.provenanceSha256 !==
-        "65e2c0c7f7b239ee758133ce17cfb680bc38aec84876ca81015458c41a988c7a" ||
+        "5f3387fd6b2bb618e3b8e889dd5aa11d9d3aa118f1997f53f78a901e2d049564" ||
       manifest?.licenses?.native?.noticeSha256 !==
-        "da7997facd0e36f4ebca01594c60abdc1204f5421a35d28c4760b13addf247c5" ||
+        "d29f6f45e7ba6ca221326de7690739fe489709f222dc7270ab6f32feae9332fd" ||
       manifest?.licenses?.native?.componentCount !== 12 ||
       manifest?.licenses?.native?.licenseInputCount !== 80 ||
       manifest?.licenses?.ripgrep?.windowsArchiveSha256 !==
@@ -474,6 +474,38 @@ function requirePackagedCodexExecutable() {
   return requirePackagedCodexBundle();
 }
 
+function bundledEngine(name) {
+  try {
+    fs.lstatSync(path.join(resourcesPath(), name));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The standard installer ships no engines: the HUB store installs the pinned
+// Codex/OpenCode into userData/engines on demand
+// (runtime/execution/engine_packages). The full offline installer bundles
+// them, and a bundle that is present must verify or the app refuses to start.
+// Either way the backend never inherits a host PATH or host-chosen engine.
+function packagedEngineEnv(env) {
+  delete env.ECHO_CODEX_EXECUTABLE;
+  delete env.ECHO_OPENCODE_BIN;
+  env.ECHO_ENGINES_DIR = path.join(app.getPath("userData"), "engines");
+  env.ECHO_ENGINES_STRICT = "1";
+  const bundled = [];
+  if (bundledEngine("codex")) {
+    env.ECHO_CODEX_EXECUTABLE = requirePackagedCodexExecutable();
+    bundled.push("codex");
+  }
+  if (bundledEngine("opencode")) {
+    env.ECHO_OPENCODE_BIN = requirePackagedOpenCode(resourcesPath());
+    bundled.push("opencode");
+  }
+  env.ECHO_ENGINES_BUNDLED = bundled.join(",");
+  return env;
+}
+
 function developmentUvCmd() {
   if (app.isPackaged) {
     throw new Error("packaged desktop builds must not invoke uv");
@@ -504,7 +536,7 @@ const CORE_DEPS = [
   "python-docx>=1.2.0",
   "openpyxl>=3.1.5",
   "python-pptx>=1.0.2",
-  "pypdf>=6.15.0",
+  "pypdf>=6.19.0",
   "reportlab>=4.4.4",
 ];
 
@@ -513,8 +545,10 @@ const OPTIONAL_GROUPS = {
   browser: ["playwright>=1.48"],
   desktop: [
     "pyautogui>=0.9.54",
-    "pillow>=10.0",
+    "pillow>=11.2",
     "uiautomation>=2.0; platform_system == 'Windows'",
+    "pywin32>=308; platform_system == 'Windows'",
+    "windows-capture>=2.0.1,<3; platform_system == 'Windows'",
   ],
   "code-intel": [
     "tree-sitter>=0.23",
@@ -527,18 +561,18 @@ const OPTIONAL_GROUPS = {
     "opencv-python-headless>=5.0.0.93",
     "rapidocr-onnxruntime>=1.3.0",
   ],
-  extract: ["trafilatura>=2.0", "pypdf>=6.15.0"],
+  extract: ["trafilatura>=2.0", "pypdf>=6.19.0"],
   office: [
     "python-docx>=1.2.0",
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
-    "pypdf>=6.15.0",
+    "pypdf>=6.19.0",
     "reportlab>=4.4.4",
   ],
   mcp: [
     "mcp>=2.0.0,<3.0",
     "pydantic-settings>=2.14.2",
-    "pyjwt[crypto]>=2.13.0",
+    "pyjwt[crypto]>=2.15.0",
   ],
 };
 
@@ -609,9 +643,58 @@ async function ensureOptionalDeps(group, onProgress) {
 
 let backendChild = null;
 
+// The desktop owner signs in with this per-launch secret. Only the backend
+// this shell spawns receives it (as ECHO_DESKTOP_OWNER_TOKEN, which serve pops
+// from its environment), and only the main process uses it, so other local
+// processes — including other OS accounts reaching the loopback port — and
+// renderers never see it. Backend restarts within one launch reuse it.
+const DESKTOP_OWNER_TOKEN = crypto.randomBytes(32).toString("base64url");
+const DESKTOP_OWNER_USERNAME = "owner";
+let desktopOwnerTokenIssued = false;
+
+async function loginDesktopOwner(backendBaseURL, { displayName } = {}) {
+  if (!desktopOwnerTokenIssued) {
+    // A backend started outside this shell (pnpm dev:full) never got the
+    // token; the renderer falls back to its regular login page.
+    return { ok: false, reason: "backend-not-owned" };
+  }
+  const body = {
+    username: DESKTOP_OWNER_USERNAME,
+    password: DESKTOP_OWNER_TOKEN,
+  };
+  const name = String(displayName || "").trim().slice(0, 128);
+  if (name) body.display_name = name;
+  let response;
+  try {
+    response = await fetch(`${backendBaseURL}/api/auth/local/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    return { ok: false, reason: "backend-unreachable", detail: err.message };
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.access_token) {
+    return {
+      ok: false,
+      reason: "rejected",
+      status: response.status,
+      detail: typeof payload.detail === "string" ? payload.detail : undefined,
+    };
+  }
+  return {
+    ok: true,
+    access_token: payload.access_token,
+    expires_in: payload.expires_in,
+    user: payload.user,
+  };
+}
+
 // Start a fixed bundled executable in packaged mode.  The unpackaged smoke
 // path may use the development venv, but there is intentionally no packaged
-// fallback to Python, uv, PATH, or the network.
+// fallback to Python, uv or PATH, and nothing is downloaded at startup:
+// engines come from the bundle or from an install the person starts.
 async function spawnBackend(configPath, onProgress) {
   if (backendChild) return backendChild;
   const packaged = Boolean(app.isPackaged);
@@ -622,7 +705,9 @@ async function spawnBackend(configPath, onProgress) {
     ECHO_DATA_DIR: path.join(app.getPath("userData"), "data"),
     ECHO_RESOURCES_DIR: path.join(app.getPath("userData"), "resources"),
     ECHO_PACKAGED_CODEX_VERSION: PACKAGED_CODEX_VERSION,
+    ECHO_DESKTOP_OWNER_TOKEN: DESKTOP_OWNER_TOKEN,
   };
+  desktopOwnerTokenIssued = true;
   if (packaged) {
     env.ECHO_BROWSER_EXTENSION_DIR = path.join(
       resourcesPath(),
@@ -635,12 +720,7 @@ async function spawnBackend(configPath, onProgress) {
   const executable = packaged
     ? requirePackagedBackendExecutable()
     : pythonExe();
-  if (packaged) {
-    // This absolute, verified resource path is the only Codex executable the
-    // packaged backend may resolve. Never inherit a host PATH installation.
-    env.ECHO_CODEX_EXECUTABLE = requirePackagedCodexExecutable();
-    env.ECHO_OPENCODE_BIN = requirePackagedOpenCode(resourcesPath());
-  }
+  if (packaged) packagedEngineEnv(env);
   const args = packaged
     ? [
         "serve",
@@ -695,6 +775,7 @@ function killBackend() {
 module.exports = {
   spawnBackend,
   killBackend,
+  loginDesktopOwner,
   ensureOptionalDeps,
   bootstrapCore,
   venvReady,
@@ -704,4 +785,5 @@ module.exports = {
   packagedCodexExecutable,
   requirePackagedCodexBundle,
   requirePackagedCodexExecutable,
+  packagedEngineEnv,
 };

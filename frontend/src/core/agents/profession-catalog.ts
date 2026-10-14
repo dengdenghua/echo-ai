@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { listAgents } from "./api";
 import type { Agent } from "./types";
 import presets from "./profession-blueprints.json";
+import { apiGet } from "@/core/api/request";
 
 export const blueprints = presets;
 export type Profession = {
@@ -50,8 +51,12 @@ export function useProfessionCatalog() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(false);
-    listAgents({ signal: controller.signal }).then(agents => {
-      if (!controller.signal.aborted) setRoles(mergeProfessions(agents));
+    Promise.all([
+      listAgents({ signal: controller.signal }),
+      // Any failure (HTTP or network) degrades to "no catalog extras".
+      apiGet("/api/agent-market/echo/catalog", { signal: controller.signal }).then(data => data as { agents?: Agent[] }).catch(() => ({ agents: [] as Agent[] })),
+    ]).then(([agents, catalog]) => {
+      if (!controller.signal.aborted) setRoles(mergeProfessions([...agents, ...(catalog.agents ?? [])]));
     }).catch(() => { if (!controller.signal.aborted) setError(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();

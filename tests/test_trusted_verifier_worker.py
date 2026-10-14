@@ -30,6 +30,27 @@ from benchmarks.trusted_verifier_worker import (
 
 _TOKEN = re.compile(r"[0-9a-f]{64}")
 
+# The trusted supervisor and the isolated candidate API process are POSIX-only
+# by design (see benchmarks/trusted_verifier_worker.py): the supervisor accepts
+# only AF_UNIX stream-socket file descriptors and the candidate process inherits
+# its socket through ``pass_fds``. Windows has neither, and the supervisor fails
+# closed there (see ``test_supervisor_fails_closed_on_windows_socket_handles``).
+_REQUIRES_UNIX_SOCKET_FDS = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "run_trusted_supervisor accepts only AF_UNIX stream-socket file descriptors "
+        "(os.dup + os.fstat S_ISSOCK); Windows sockets are not CRT descriptors and "
+        "Python has no AF_UNIX socketpair on Windows"
+    ),
+)
+_REQUIRES_PASS_FDS = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "the isolated candidate API process inherits its AF_UNIX socket through "
+        "subprocess pass_fds, which Windows does not support"
+    ),
+)
+
 
 def _encoded(message: dict[str, Any]) -> bytes:
     payload = json.dumps(
@@ -247,6 +268,7 @@ def _return_result(call: dict[str, Any], value: str, *, kind: str) -> dict[str, 
     }
 
 
+@_REQUIRES_UNIX_SOCKET_FDS
 def test_host_driver_frame_walk_hides_outer_scope_and_reconstructs_path() -> None:
     nonce = "a" * 64
     harness = _SupervisorHarness()
@@ -319,6 +341,7 @@ def test_host_driver_frame_walk_hides_outer_scope_and_reconstructs_path() -> Non
     assert harness.finish() == 0
 
 
+@_REQUIRES_UNIX_SOCKET_FDS
 @pytest.mark.parametrize(
     "forged_kind",
     [
@@ -356,6 +379,7 @@ def test_candidate_api_cannot_forge_aggregate_or_outer_frames(forged_kind: str) 
     assert harness.finish() == CANDIDATE_FAILURE_EXIT
 
 
+@_REQUIRES_UNIX_SOCKET_FDS
 def test_cache_calls_are_dispatched_concurrently_and_reverse_rpc_is_narrow() -> None:
     nonce = "c" * 64
     harness = _SupervisorHarness()
@@ -474,6 +498,7 @@ def test_cache_calls_are_dispatched_concurrently_and_reverse_rpc_is_narrow() -> 
     assert harness.finish() == 0
 
 
+@_REQUIRES_UNIX_SOCKET_FDS
 def test_replayed_api_result_is_candidate_failure() -> None:
     harness = _SupervisorHarness()
     _send(harness.controller, _path_start("d" * 64))
@@ -491,6 +516,7 @@ def test_replayed_api_result_is_candidate_failure() -> None:
     assert harness.finish() == CANDIDATE_FAILURE_EXIT
 
 
+@_REQUIRES_UNIX_SOCKET_FDS
 def test_replayed_loader_capability_is_not_forwarded_twice() -> None:
     nonce = "7" * 64
     harness = _SupervisorHarness()
@@ -535,8 +561,9 @@ def test_candidate_api_missing_or_legacy_marker_fails_closed(
 ) -> None:
     server_socket, peer = socket.socketpair()
     peer.settimeout(2.0)
-    descriptor = os.dup(server_socket.fileno())
-    server_socket.close()
+    # detach() hands the OS socket to candidate_main on every platform; a
+    # Windows SOCKET handle is not a CRT descriptor, so os.dup() cannot copy it.
+    descriptor = server_socket.detach()
     result: list[int] = []
 
     def serve() -> None:
@@ -564,6 +591,7 @@ def test_candidate_api_missing_or_legacy_marker_fails_closed(
     peer.close()
 
 
+@_REQUIRES_PASS_FDS
 def test_candidate_process_frame_walk_cannot_find_outer_scope_or_outer_fd(
     tmp_path: Path,
 ) -> None:
@@ -644,6 +672,7 @@ def test_candidate_process_frame_walk_cannot_find_outer_scope_or_outer_fd(
     assert (result, returncode, stdout, stderr) == (0, 0, b"", b"")
 
 
+@_REQUIRES_PASS_FDS
 @pytest.mark.parametrize(
     "forged_kind",
     [
@@ -766,6 +795,7 @@ def test_candidate_process_monkeypatches_cannot_forge_passing_verdict(
     assert verdict["checks"] == []
 
 
+@_REQUIRES_PASS_FDS
 def test_candidate_process_cache_receives_eight_calls_but_controller_owns_loaders(
     tmp_path: Path,
 ) -> None:
@@ -877,6 +907,7 @@ def test_candidate_process_cache_receives_eight_calls_but_controller_owns_loader
     assert (result, returncode, stdout, stderr) == (0, 0, b"", b"")
 
 
+@_REQUIRES_UNIX_SOCKET_FDS
 def test_noncanonical_candidate_frame_fails_closed() -> None:
     harness = _SupervisorHarness()
     _send(harness.controller, _path_start("e" * 64))
@@ -892,6 +923,7 @@ def test_noncanonical_candidate_frame_fails_closed() -> None:
     assert harness.finish() == CANDIDATE_FAILURE_EXIT
 
 
+@_REQUIRES_UNIX_SOCKET_FDS
 def test_oversized_candidate_frame_fails_before_allocation() -> None:
     harness = _SupervisorHarness()
     _send(harness.controller, _path_start("f" * 64))
@@ -906,6 +938,7 @@ def test_oversized_candidate_frame_fails_before_allocation() -> None:
     assert harness.finish() == CANDIDATE_FAILURE_EXIT
 
 
+@_REQUIRES_UNIX_SOCKET_FDS
 def test_supervisor_borrows_descriptors_and_rejects_aliases() -> None:
     left, right = socket.socketpair()
     duplicate = os.dup(left.fileno())
@@ -916,5 +949,16 @@ def test_supervisor_borrows_descriptors_and_rejects_aliases() -> None:
         assert right.fileno() >= 0
     finally:
         os.close(duplicate)
+        left.close()
+        right.close()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows fail-closed contract")
+def test_supervisor_fails_closed_on_windows_socket_handles() -> None:
+    left, right = socket.socketpair()
+    try:
+        with pytest.raises(TrustedSupervisorError):
+            run_trusted_supervisor(left.fileno(), right.fileno(), timeout_seconds=0.1)
+    finally:
         left.close()
         right.close()

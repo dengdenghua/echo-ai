@@ -14,6 +14,7 @@ import {
   StopCircleIcon,
   PlusIcon,
   ChevronRightIcon,
+  LayersIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -56,6 +57,14 @@ import {
   recordBrowserAgentAudit,
   setBrowserAgentPermission,
 } from "@/core/browser/agent-permissions";
+import { translateTabInPlace } from "@/core/browser/page-translation";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 import {
@@ -69,14 +78,24 @@ import {
   type AgentAction,
   type ActionResult,
   type BrowserControlOptions,
+  pageContextBlock,
+  visibleUserText,
+  withModelContext,
 } from "./agentic-actions";
+import {
+  BROWSER_ASSISTANT_ASK_EVENT,
+  takeBrowserAssistantAsk,
+} from "./assistant-ask";
 import { useBrowserStore } from "./browser-store";
+import { QuickAction } from "./assistant-quick-action";
 import { useAssistantPresentation } from "./assistant-surface";
 
 import type { WebviewTabHandle } from "./webview-tab";
 
 interface Props {
   webviewHandle: WebviewTabHandle | null;
+  /** Handles of other open tabs, for "引用标签页". */
+  getTabHandle?: (tabId: string) => WebviewTabHandle | null;
   framed?: boolean;
 }
 
@@ -108,14 +127,24 @@ interface ResearchLogEntry {
   url?: string;
 }
 
-export function AssistantPanel({ webviewHandle, framed = false }: Props) {
+export function AssistantPanel({
+  webviewHandle,
+  getTabHandle,
+  framed = false,
+}: Props) {
   const presentation = useAssistantPresentation();
   const compact = presentation?.compact === true;
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const recorderPluginEnabled = useCapabilitySurface("browser.recorder");
   const { activeTab, state, setCopilotOpen, setCopilotWidth } =
     useBrowserStore();
   const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Last page URL whose text went to the model, per conversation, so the
+  // same page is not resent on every turn.
+  const pageContextUrlRef = useRef(new Map<string, string>());
+  const [referencedTabIds, setReferencedTabIds] = useState<string[]>([]);
+  const [gathering, setGathering] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingConfirmations, setPendingConfirmations] = useState<
@@ -219,17 +248,24 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
   const recentMessage = [...thread.messages]
     .reverse()
     .find((message) => isAIMessage(message) || isHumanMessage(message));
-  const recentText = recentMessage
-    ? (typeof recentMessage.content === "string"
-        ? recentMessage.content
-        : recentMessage.content
-            .filter((part) => part.type === "text")
-            .map((part) => (part as { text: string }).text)
-            .join(" ")
-      )
-        .replace(/\s+/g, " ")
-        .trim()
+  const recentRaw = recentMessage
+    ? typeof recentMessage.content === "string"
+      ? recentMessage.content
+      : recentMessage.content
+          .filter((part) => part.type === "text")
+          .map((part) => (part as { text: string }).text)
+          .join(" ")
     : "";
+  const recentText = (
+    recentMessage && isHumanMessage(recentMessage)
+      ? visibleUserText(recentRaw, [
+          BROWSER_ACTION_PROTOCOL,
+          t.browser.assistant.recorderProtocol,
+        ])
+      : recentRaw
+  )
+    .replace(/\s+/g, " ")
+    .trim();
   useEffect(() => {
     if (
       compact &&
@@ -373,7 +409,7 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
       await startRecording({
         thread_id: threadId,
         name: researchGoal.trim() || t.browser.assistant.recorderTitle,
-        description: "AI 浏览器中的真人示范与 Agent 操作轨迹。",
+        description: "AI 浏览器中的真人示范与智能体操作轨迹。",
         provider: "hybrid",
       });
       setRecorderMode(true);
@@ -536,7 +572,7 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
         detail: "Agent access is blocked for this site",
       });
       void sendMessage(threadId, {
-        text: `[浏览器权限] 已阻止 Agent 操作 ${origin}。可在浏览器数据与隐私中修改站点权限。`,
+        text: `[浏览器权限] 已阻止智能体操作 ${origin}。可在浏览器数据与隐私中修改站点权限。`,
         files: [],
       });
       setAgentLoopActive(false);
@@ -819,33 +855,134 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
   // Implementation note.
   // Implementation note.
   const buildOutgoingText = useCallback(
-    (raw: string): string => {
-      const recorderHeader = recorderMode
-        ? `${t.browser.assistant.recorderProtocol}\n\n---\n\n`
-        : "";
-      if (!autoBrowse) return `${recorderHeader}${raw}`;
-      if (protocolInjectedRef.current.has(threadId)) return raw;
-      protocolInjectedRef.current.add(threadId);
-      return `${recorderHeader}${BROWSER_ACTION_PROTOCOL}\n\n---\n\n${raw}`;
+    (raw: string, context: readonly string[] = []): string => {
+      const blocks: string[] = [];
+      if (recorderMode) blocks.push(t.browser.assistant.recorderProtocol);
+      if (autoBrowse && !protocolInjectedRef.current.has(threadId)) {
+        protocolInjectedRef.current.add(threadId);
+        blocks.push(BROWSER_ACTION_PROTOCOL);
+      }
+      return withModelContext([...blocks, ...context], raw);
     },
     [autoBrowse, recorderMode, threadId, t],
   );
 
-  const send = useCallback(
-    (text: string) => {
-      const t = text.trim();
-      if (!t) return;
-      void sendMessage(threadId, { text: buildOutgoingText(t), files: [] });
-      setInput("");
+  // The current web page as model context: sent with the first question on
+  // a page, then again only when the page changes (or when forced).
+  const currentPageContext = useCallback(
+    async (force: boolean): Promise<string | null> => {
+      const url = activeTab?.url ?? "";
+      // Resolve at read time: the tab's surface may have changed since render.
+      const handle =
+        (activeTab ? getTabHandle?.(activeTab.id) : null) ?? webviewHandle;
+      if (!handle || !/^https?:\/\//i.test(url)) return null;
+      if (!force && pageContextUrlRef.current.get(threadId) === url) return null;
+      try {
+        const page = await withActionTimeout(
+          handle.extractText(),
+          "extract page",
+          6000,
+        );
+        pageContextUrlRef.current.set(threadId, url);
+        return pageContextBlock(t.browser.assistant.currentPageLabel, page, {
+          pageAgentLabel: t.browser.assistant.pageAgentCapabilityLabel,
+        });
+      } catch (err) {
+        swallow(err);
+        return null;
+      }
     },
-    [buildOutgoingText, sendMessage, threadId],
+    [activeTab, getTabHandle, threadId, webviewHandle, t],
   );
+
+  const otherTabs = useMemo(
+    () =>
+      state.tabs.filter(
+        (tab) => tab.id !== activeTab?.id && /^https?:\/\//i.test(tab.url),
+      ),
+    [activeTab?.id, state.tabs],
+  );
+
+  const referencedTabsContext = useCallback(async (): Promise<string[]> => {
+    const blocks: string[] = [];
+    for (const tab of otherTabs) {
+      if (!referencedTabIds.includes(tab.id)) continue;
+      const handle = getTabHandle?.(tab.id);
+      if (!handle) continue;
+      try {
+        const page = await withActionTimeout(
+          handle.extractText(),
+          "extract tab",
+          6000,
+        );
+        blocks.push(
+          pageContextBlock(`[另一个标签页] ${tab.title || tab.url}`, page, {
+            maxChars: 6000,
+          }),
+        );
+      } catch (err) {
+        swallow(err);
+      }
+    }
+    return blocks;
+  }, [getTabHandle, otherTabs, referencedTabIds]);
+
+  const send = useCallback(
+    async (text: string, options: { pageBlock?: string } = {}) => {
+      const request = text.trim();
+      if (!request) return;
+      setInput("");
+      setGathering(true);
+      try {
+        const page = options.pageBlock ?? (await currentPageContext(false));
+        const tabs = await referencedTabsContext();
+        setReferencedTabIds([]);
+        void sendMessage(threadId, {
+          text: buildOutgoingText(request, [...(page ? [page] : []), ...tabs]),
+          files: [],
+        });
+      } finally {
+        setGathering(false);
+      }
+    },
+    [
+      buildOutgoingText,
+      currentPageContext,
+      referencedTabsContext,
+      sendMessage,
+      threadId,
+    ],
+  );
+
+  // A question from the start page or the page's right-click menu arrives
+  // here once this panel is open.
+  useEffect(() => {
+    const consume = () => {
+      const request = takeBrowserAssistantAsk();
+      if (!request) return;
+      if (request.mode === "draft") {
+        setInput(request.text);
+        requestAnimationFrame(() => {
+          const field = inputRef.current;
+          field?.focus();
+          field?.setSelectionRange(field.value.length, field.value.length);
+        });
+        return;
+      }
+      expandConversation?.(true);
+      void send(request.text);
+    };
+    consume();
+    window.addEventListener(BROWSER_ASSISTANT_ASK_EVENT, consume);
+    return () =>
+      window.removeEventListener(BROWSER_ASSISTANT_ASK_EVENT, consume);
+  }, [expandConversation, send]);
 
   const onKey = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        send(input);
+        void send(input);
       }
     },
     [input, send],
@@ -972,42 +1109,21 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
   }, [researchBrief]);
 
   // Implementation note.
+  // Quick actions always read the page fresh; the text goes to the model
+  // as context, and the bubble shows only the instruction.
   const askWithPage = useCallback(
     async (instruction: string) => {
       const c = t.browser.assistant;
-      if (webviewHandle && !window.echo) {
-        setBusy(true);
-        setErrorMsg(null);
-        try {
-          const page = await webviewHandle.extractText();
-          const pageAgent = page.pageAgent
-            ? `\n\n${c.pageAgentCapabilityLabel}\n${JSON.stringify(page.pageAgent).slice(0, 12000)}`
-            : "";
-          const prefix = `${c.currentPageLabel}\n${c.urlLabel} ${page.url}\n${c.titleLabel} ${page.title}\n\n${page.text}${pageAgent}\n${page.truncated ? `\n${c.truncatedSuffix(page.textLength ?? 0)}` : ""}`;
-          send(`${prefix}\n\n${instruction}`);
-        } catch (err) {
-          swallow(err);
-          setErrorMsg(err instanceof Error ? err.message : String(err));
-        } finally {
-          setBusy(false);
-        }
-        return;
-      }
-      if (!webviewHandle || !window.echo) {
-        setErrorMsg(c.needElectronError);
-        return;
-      }
-      const wcId = webviewHandle.getWebContentsId();
-      if (wcId == null) {
-        setErrorMsg(c.tabNotReadyError);
+      if (!webviewHandle) {
+        setErrorMsg(window.echo ? c.tabNotReadyError : c.needElectronError);
         return;
       }
       setBusy(true);
       setErrorMsg(null);
       try {
-        const page = await window.echo.browser.extractText(wcId);
-        const prefix = `${c.currentPageLabel}\n${c.urlLabel} ${page.url}\n${c.titleLabel} ${page.title}\n\n${page.text}\n${page.truncated ? `\n${c.truncatedSuffix(page.textLength ?? 0)}` : ""}`;
-        send(`${prefix}\n\n${instruction}`);
+        const pageBlock = await currentPageContext(true);
+        if (!pageBlock) throw new Error(c.tabNotReadyError);
+        await send(instruction, { pageBlock });
       } catch (err) {
         swallow(err);
         setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -1015,7 +1131,7 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
         setBusy(false);
       }
     },
-    [send, webviewHandle, t],
+    [currentPageContext, send, webviewHandle, t],
   );
 
   // Implementation note.
@@ -1142,7 +1258,8 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
           )}
         </div>
 
-        {/* quick actions */}
+        {/* quick actions — they read the page, so not on Echo's own pages */}
+        {activeTab?.url?.startsWith("echo://") ? null : (
         <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-white/20 bg-white/[0.05] px-3 py-2">
           <QuickAction
             icon={FileTextIcon}
@@ -1161,12 +1278,18 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
           <QuickAction
             icon={LanguagesIcon}
             label={t.browser.assistant.translateToChinese}
-            onClick={() =>
-              askWithPage(t.browser.assistant.translateToChinesePrompt)
-            }
+            onClick={() => {
+              // Desktop: translate in place, like the address-bar button.
+              const handle =
+                (activeTab ? getTabHandle?.(activeTab.id) : null) ??
+                webviewHandle;
+              if (translateTabInPlace(activeTab, handle, locale)) return;
+              askWithPage(t.browser.assistant.translateToChinesePrompt);
+            }}
             disabled={busy}
           />
         </div>
+        )}
 
         {recorderMode && (
           <div className="shrink-0 border-b border-white/20 bg-success/50/[0.04] px-3 py-2">
@@ -1183,7 +1306,7 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
                     ? "内置页面已接入"
                     : recorderProviderState === "relay"
                       ? "Chrome Relay 已接入"
-                      : "页面采集离线，仅记录 Agent 轨迹"}
+                      : "页面采集离线，仅记录智能体轨迹"}
                 </div>
               </div>
             </div>
@@ -1274,7 +1397,7 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
                       <span className="truncate text-micro font-medium">
                         {entry.platform} · {entry.title}
                       </span>
-                      <span className="shrink-0 text-[9px] text-muted-foreground">
+                      <span className="shrink-0 text-micro text-muted-foreground">
                         {new Date(entry.createdAt).toLocaleTimeString()}
                       </span>
                     </div>
@@ -1298,13 +1421,13 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
           <div className="shrink-0 border-b border-white/20 bg-primary/8 px-3 py-2">
             <div className="rounded-md border border-primary/25 bg-white/10 p-2 text-mini">
               <div className="font-medium text-foreground">
-                允许 Agent 操作此网站？
+                允许智能体操作此网站？
               </div>
               <div className="mt-1 break-all text-muted-foreground">
                 {pendingSiteAccess.origin}
               </div>
               <div className="mt-1 text-muted-foreground">
-                允许后，Agent
+                允许后，智能体
                 可以读取页面并点击、输入和滚动；提交、支付、删除等敏感操作仍需单独确认。
               </div>
               <div className="mt-2 flex gap-2">
@@ -1375,14 +1498,20 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
           {thread.messages.length === 0 && !thread.isLoading && (
             <div className="flex h-full flex-col items-center justify-center text-center text-xs text-muted-foreground">
               <SparklesIcon className="mb-2 size-6 opacity-50" />
-              <div>{t.browser.assistant.emptyHint}</div>
+              <div>
+                {activeTab?.url?.startsWith("echo://")
+                  ? locale.startsWith("zh")
+                    ? "直接问吧：我可以帮你搜索、打开网页并替你操作。"
+                    : "Ask anything: I can search, open pages and act on them for you."
+                  : t.browser.assistant.emptyHint}
+              </div>
             </div>
           )}
           {thread.messages.map((m) => {
             const isUser = isHumanMessage(m);
             const isAi = isAIMessage(m);
             if (!isUser && !isAi) return null;
-            const text =
+            const raw =
               typeof m.content === "string"
                 ? m.content
                 : m.content
@@ -1392,6 +1521,14 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
                     )
                     .map((c) => c.text)
                     .join("");
+            // The model also received the action protocol; the user sees
+            // only what they typed.
+            const text = isUser
+              ? visibleUserText(raw, [
+                  BROWSER_ACTION_PROTOCOL,
+                  t.browser.assistant.recorderProtocol,
+                ])
+              : raw;
             return (
               <div
                 key={m.id}
@@ -1477,7 +1614,58 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
               aria-label="正在回复"
             />
           )}
+          {otherTabs.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="引用其他标签页"
+                  title="把其他标签页的内容一起发给 AI"
+                  className={cn(
+                    "relative grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                    referencedTabIds.length > 0 && "text-primary",
+                  )}
+                >
+                  <LayersIcon className="size-4" />
+                  {referencedTabIds.length > 0 ? (
+                    <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                      {referencedTabIds.length}
+                    </span>
+                  ) : null}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-72">
+                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+                  一起发给 AI 的标签页
+                </DropdownMenuLabel>
+                {otherTabs.map((tab) => (
+                  <DropdownMenuCheckboxItem
+                    key={tab.id}
+                    checked={referencedTabIds.includes(tab.id)}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) =>
+                      setReferencedTabIds((current) =>
+                        checked
+                          ? [...current, tab.id]
+                          : current.filter((id) => id !== tab.id),
+                      )
+                    }
+                    className="text-xs"
+                  >
+                    <span className="truncate">{tab.title || tab.url}</span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+          {gathering ? (
+            <Loader2Icon
+              className="size-4 shrink-0 animate-spin text-muted-foreground"
+              aria-label="正在读取网页"
+            />
+          ) : null}
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
@@ -1488,8 +1676,8 @@ export function AssistantPanel({ webviewHandle, framed = false }: Props) {
           />
           <button
             type="button"
-            onClick={() => send(input)}
-            disabled={!input.trim() || thread.isLoading}
+            onClick={() => void send(input)}
+            disabled={!input.trim() || thread.isLoading || gathering}
             className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground text-background transition-colors hover:bg-foreground/80 disabled:bg-muted disabled:text-muted-foreground"
             title={t.codeMode.send}
             aria-label={t.codeMode.send}
@@ -1598,32 +1786,6 @@ function describePendingAction(pending: PendingConfirmation): string {
           : "";
   const reasonText = reasons.length ? ` · risk=${reasons.join(", ")}` : "";
   return `${target}${input}${reasonText}`;
-}
-
-function QuickAction({
-  icon: Icon,
-  label,
-  onClick,
-  disabled,
-}: {
-  icon: typeof FileTextIcon;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "flex items-center gap-1 rounded-full px-2.5 py-1 text-mini text-foreground disabled:opacity-50",
-        "bg-white/10",
-      )}
-    >
-      <Icon className="size-3" />
-      {label}
-    </button>
-  );
 }
 
 function buildResearchBrief(

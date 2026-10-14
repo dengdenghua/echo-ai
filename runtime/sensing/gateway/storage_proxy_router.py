@@ -14,6 +14,8 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from runtime.sensing.gateway._untrusted_content import untrusted_content_headers
+
 _REQUEST_BODY_LIMIT = 16 * 1024 * 1024
 _FORWARDED_REQUEST_HEADERS = {
     "accept",
@@ -57,11 +59,21 @@ def _upstream_headers(request: Request) -> dict[str, str]:
 
 
 def _response_headers(response: httpx.Response) -> dict[str, str]:
-    return {
+    headers = {
         name: value
         for name, value in response.headers.items()
         if name.lower() in _FORWARDED_RESPONSE_HEADERS
     }
+    # Stored files are user/agent content re-served from the app origin:
+    # sandbox anything that could render as an active document.
+    disposition = response.headers.get("content-disposition", "")
+    headers.update(
+        untrusted_content_headers(
+            response.headers.get("content-type"),
+            download=disposition.strip().lower().startswith("attachment"),
+        )
+    )
+    return headers
 
 
 def create_storage_proxy_router(
@@ -78,9 +90,9 @@ def create_storage_proxy_router(
     def _auth(request: Request) -> None:
         if require_auth and identity_store is None:
             raise HTTPException(401, "auth required")
-        from runtime.adapters.web_auth import _resolve_actor
+        from runtime.safety.auth.principal import require_operator
 
-        _resolve_actor(
+        require_operator(
             request,
             identity_store,
             require_auth,
@@ -90,7 +102,9 @@ def create_storage_proxy_router(
         )
 
     async def proxy_storage(request: Request, storage_path: str) -> Any:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; _auth requires operator before using the host storage token
         safe_path = _safe_storage_path(storage_path)
         content_length = request.headers.get("content-length")
         if content_length:

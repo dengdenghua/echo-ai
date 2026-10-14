@@ -289,7 +289,9 @@ def create_invariants_router(
 
     @router.get("/api/invariants")
     def api_invariants_list(request: Request) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; read-only shared invariant catalog; refresh requires operator
         """Catalog of every rule the running process knows about.
 
         Walks ``sys.modules`` once (then caches) and returns one entry
@@ -299,7 +301,9 @@ def create_invariants_router(
 
     @router.get("/api/invariants/{rule_id}")
     def api_invariants_detail(request: Request, rule_id: str) -> dict[str, Any]:
-        _auth(request)
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; read-only shared invariant catalog; refresh requires operator
         """Return enforcers for a single rule, or 404 if unknown.
 
         Shape matches one element of ``GET /api/invariants``'s

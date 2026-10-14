@@ -168,6 +168,11 @@ make production-readiness-static
 静态检查通过，报告的 `ready` 仍为 `false`，只有 `gate_passed` 表示本模式通过。
 行为证据状态仍保留在报告里供观察，但不会让普通 CI 因缺少真实外部模型环境而失败。
 
+插件权限覆盖读取仓库的 `extensions/codex-plugins` 包和 `.echo/plugins/codex`
+本地包。同名本地包优先，报告的 `scope` 与 `sources` 说明实际检查来源。检查
+为这些包生成拒绝策略草案并核对 payload 摘要；插件安装、启用、发布者信任与
+行为验收仍使用各自的验证流程。
+
 正式发布证据不能由普通 CI 或静态分数替代。维护者应先配置带 required reviewers 的
 GitHub Environment `behavioral-evidence`；它保存 `ECHO_API_TOKEN`、可选的
 `ECHO_EVAL_LOCAL_PASSWORD`，以及以下 environment vars：

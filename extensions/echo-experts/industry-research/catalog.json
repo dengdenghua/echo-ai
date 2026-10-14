@@ -1,0 +1,44 @@
+{
+  "displayName": {
+    "zh": "产业研究团队",
+    "en": "Industry Research Team"
+  },
+  "profession": {
+    "zh": "跨行业研究与产业链分析",
+    "en": "Industry and value-chain research"
+  },
+  "description": {
+    "zh": "围绕你指定的行业，研究市场需求、供给格局、技术趋势与产业链，核验信息来源和反例，形成有依据的研究结论。",
+    "en": "Research a chosen industry across demand, supply, technology and value chains, with verified evidence and explicit uncertainties."
+  },
+  "tags": [
+    {
+      "zh": "产业研究",
+      "en": "Industry Research"
+    },
+    {
+      "zh": "产业链分析",
+      "en": "Value Chain Analysis"
+    },
+    {
+      "zh": "趋势研判",
+      "en": "Trend Analysis"
+    }
+  ],
+  "quickPrompts": [
+    {
+      "zh": "创建产业研究团队，先介绍各自分工，再问我想研究哪个行业和问题。",
+      "en": "Introduce the research team and ask which industry and question I want to explore."
+    },
+    {
+      "zh": "帮我研究一个行业的市场需求、竞争格局和技术趋势，先确认研究对象与范围。",
+      "en": "Help research an industry; first confirm its scope and research objective."
+    }
+  ],
+  "defaultInitPrompt": {
+    "zh": "欢迎来到产业研究团队。我们可以从市场需求、供给格局、技术趋势和产业链等角度协作研究。你想了解哪个行业，解决什么问题？",
+    "en": "Welcome! Which industry and question would you like our research team to explore?"
+  },
+  "bundleUrl": "",
+  "promptFile": "agents/industry-research-lead.md"
+}

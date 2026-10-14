@@ -5,14 +5,31 @@ import binascii
 import hashlib
 import hmac
 import json
+import logging
 import os
 import threading
 import time
+import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .session_revocation import SessionRevocations
+
 ANONYMOUS_ACTOR = "anonymous"
+
+# Bounded memo of API-key verification outcomes, keyed by a per-process keyed
+# fingerprint of the presented token (never the token itself).  Without it every
+# request -- and every *invalid* bearer -- runs PBKDF2 (200k iterations) against
+# every stored key.  A cached miss is only trusted while the key set is
+# unchanged; a cached hit is re-checked against the live hash table.
+_VERIFY_CACHE_MAX = 2048
+_VERIFY_CACHE_PEPPER = os.urandom(32)
+
+
+def _token_fingerprint(plaintext: str) -> bytes:
+    return hmac.new(_VERIFY_CACHE_PEPPER, plaintext.encode("utf-8"), hashlib.sha256).digest()
 
 
 @dataclass(frozen=True)
@@ -27,6 +44,10 @@ class IdentityStore:
         self._by_hash: dict[str, Identity] = {}
         self._by_actor: dict[str, Identity] = {}
         self._lock = threading.RLock()
+        # fingerprint -> (stored hash | None for a miss, key-set generation)
+        self._verify_cache: OrderedDict[bytes, tuple[str | None, int]] = OrderedDict()
+        self._key_generation = 0
+        self._session_revocations = SessionRevocations()
 
     def add(
         self,
@@ -55,6 +76,7 @@ class IdentityStore:
                 ):
                     raise ValueError("api key hash collision with an existing identity")
                 self._by_hash[h] = identity
+                self._key_generation += 1  # invalidates cached misses
 
             self._by_actor[identity.actor_id] = identity
 
@@ -64,16 +86,42 @@ class IdentityStore:
             if identity is None:
                 return False
             self._by_hash = {h: idn for h, idn in self._by_hash.items() if idn.actor_id != actor_id}
+            self._key_generation += 1
             return True
 
     def verify_api_key(self, plaintext: str) -> Identity | None:
         if not plaintext:
             return None
+        fingerprint = _token_fingerprint(plaintext)
         with self._lock:
-            for stored, identity in self._by_hash.items():
-                if _verify_plaintext_against_hash(plaintext, stored):
-                    return identity
-            return None
+            cached = self._verify_cache.get(fingerprint)
+            if cached is not None:
+                stored, generation = cached
+                if stored is not None and stored in self._by_hash:
+                    self._verify_cache.move_to_end(fingerprint)
+                    return self._by_hash[stored]
+                if stored is None and generation == self._key_generation:
+                    self._verify_cache.move_to_end(fingerprint)
+                    return None
+            generation = self._key_generation
+            candidates = list(self._by_hash.items())
+        # PBKDF2 runs outside the lock so one slow verification cannot stall
+        # every other request's authentication.
+        match: tuple[str, Identity] | None = None
+        for stored, identity in candidates:
+            if _verify_plaintext_against_hash(plaintext, stored):
+                match = (stored, identity)
+                break
+        with self._lock:
+            if match is not None and match[0] not in self._by_hash:
+                match = None  # key removed while verifying
+            self._verify_cache[fingerprint] = (match[0] if match else None, generation)
+            self._verify_cache.move_to_end(fingerprint)
+            while len(self._verify_cache) > _VERIFY_CACHE_MAX:
+                self._verify_cache.popitem(last=False)
+            if match is None:
+                return None
+            return self._by_hash.get(match[0], match[1])
 
     def verify_jwt(
         self,
@@ -94,6 +142,8 @@ class IdentityStore:
                 required_audience=required_audience,
             )
         except JWTError:
+            return None
+        if self._session_revocations.contains(token):
             return None
         sub = claims.get("sub")
         if not isinstance(sub, str) or not sub:
@@ -120,9 +170,31 @@ class IdentityStore:
         meta.setdefault("synthesized_from_jwt", True)
         return Identity(actor_id=sub, roles=roles, metadata=meta)
 
+    def revoke_jwt(self, token: str, **verification: Any) -> bool:
+        if self.verify_jwt(token, **verification) is None:
+            return False
+        self._session_revocations.add(token)
+        return True
+
     def get(self, actor_id: str) -> Identity | None:
         with self._lock:
             return self._by_actor.get(actor_id)
+
+    def set_roles(self, actor_id: str, roles: tuple[str, ...]) -> bool:
+        """Replace durable roles while preserving actor metadata and API keys."""
+
+        normalized = tuple(dict.fromkeys(str(role) for role in roles if str(role)))
+        with self._lock:
+            identity = self._by_actor.get(actor_id)
+            if identity is None:
+                return False
+            updated = Identity(actor_id, normalized, identity.metadata)
+            self._by_actor[actor_id] = updated
+            self._by_hash = {
+                key: updated if item.actor_id == actor_id else item
+                for key, item in self._by_hash.items()
+            }
+            return True
 
     def __len__(self) -> int:
         with self._lock:
@@ -163,6 +235,168 @@ class IdentityStore:
                 api_key_hash=item.get("api_key_hash"),
             )
         return store
+
+
+class DurableIdentityStore(IdentityStore):
+    """IdentityStore that survives process restarts.
+
+    Authenticated actors used to live only in memory, so every backend
+    restart silently invalidated every outstanding JWT: ``verify_jwt`` (and
+    the realtime WebSocket handshake) requires the token's subject to be
+    registered in this store, and the login that registered it was gone.
+    The result was a client stuck in an endless reconnect loop showing
+    "restoring connection". This subclass mirrors every mutation to a JSON
+    file and reloads it on startup, so pre-restart tokens keep resolving
+    until they expire. Only hashes are persisted (PBKDF2 api_key hashes),
+    never plaintext secrets.
+    """
+
+    _VERSION = 1
+
+    def __init__(self, path: str | Path) -> None:
+        super().__init__()
+        self._path = Path(path)
+        self._session_revocations = SessionRevocations(self._path.with_suffix(".revocations.db"))
+        self._log = logging.getLogger(__name__)
+        # Set when the file exists but could not be read: writing then would
+        # replace every stored identity with whatever this process holds.
+        self._persist_blocked = False
+        self._load()
+
+    # ── disk mirror ────────────────────────────────────────────
+
+    @staticmethod
+    def _read(path: Path) -> list[Any]:
+        """The ``identities`` rows of *path*; raises ``ValueError`` if corrupt."""
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ValueError(str(exc)) from exc
+        items = raw.get("identities") if isinstance(raw, dict) else None
+        if not isinstance(items, list):
+            raise ValueError("missing identities list")
+        return items
+
+    def _load(self) -> None:
+        items: list[Any] | None = None
+        try:
+            items = self._read(self._path)
+        except FileNotFoundError:  # noqa: BLE001 — first run: fall back to .bak, else empty
+            pass
+        except ValueError as exc:
+            # Keep the damaged file for recovery instead of overwriting it on
+            # the next save, then fall back to the last good copy.
+            quarantine = self._path.with_name(
+                f"{self._path.name}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+            )
+            try:
+                os.replace(self._path, quarantine)
+                self._log.error(
+                    "identity store %s is corrupt (%s); moved to %s", self._path, exc, quarantine
+                )
+            except OSError as move_exc:
+                self._persist_blocked = True
+                self._log.error(
+                    "identity store %s is corrupt (%s) and could not be moved aside (%s); "
+                    "not saving identities this run",
+                    self._path,
+                    exc,
+                    move_exc,
+                )
+        except OSError as exc:
+            # Exists but unreadable (locked, permissions): never overwrite it.
+            self._persist_blocked = True
+            self._log.error(
+                "identity store %s unreadable (%s); not saving identities this run",
+                self._path,
+                exc,
+            )
+            return
+        if items is None:
+            backup = self._path.with_suffix(self._path.suffix + ".bak")
+            try:
+                items = self._read(backup)
+            except (OSError, ValueError):
+                return
+            self._log.warning("identity store restored from %s", backup)
+        for item in items:
+            if not isinstance(item, dict) or not str(item.get("actor_id") or "").strip():
+                continue
+            try:
+                super().add(
+                    Identity(
+                        actor_id=str(item["actor_id"]),
+                        roles=tuple(str(r) for r in (item.get("roles") or ())),
+                        metadata=dict(item.get("metadata") or {}),
+                    ),
+                    api_key_hash=item.get("api_key_hash"),
+                )
+            except ValueError:
+                # Duplicate or corrupt row — skip it, keep the rest.
+                continue
+
+    def _save(self) -> None:
+        with self._lock:
+            hash_by_actor: dict[str, str] = {}
+            for stored_hash, identity in self._by_hash.items():
+                hash_by_actor.setdefault(identity.actor_id, stored_hash)
+            rows = [
+                {
+                    "actor_id": actor_id,
+                    "roles": list(identity.roles),
+                    "metadata": identity.metadata,
+                    "api_key_hash": hash_by_actor.get(actor_id),
+                }
+                for actor_id, identity in self._by_actor.items()
+            ]
+        payload = {"version": self._VERSION, "identities": rows}
+        if self._persist_blocked:
+            self._log.warning(
+                "identity store %s left untouched (unreadable at startup)", self._path
+            )
+            return
+        from runtime.platform.io.atomic import atomic_write_json
+
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            # Rotates the previous file to ``.bak`` (the load fallback); 0600
+            # because the rows hold API-key hashes.
+            atomic_write_json(self._path, payload, mode=0o600)
+        except OSError as exc:
+            # Persisting is an optimization for token continuity; failing to
+            # write must never take down the auth path itself.
+            self._log.warning("identity store save to %s failed: %s", self._path, exc)
+
+    # ── mutators (mirror to disk) ──────────────────────────────
+
+    def add(
+        self,
+        identity: Identity,
+        *,
+        api_key_hash: str | None = None,
+        api_key_plaintext: str | None = None,
+    ) -> None:
+        with self._lock:
+            super().add(
+                identity,
+                api_key_hash=api_key_hash,
+                api_key_plaintext=api_key_plaintext,
+            )
+            self._save()
+
+    def remove(self, actor_id: str) -> bool:
+        with self._lock:
+            removed = super().remove(actor_id)
+            if removed:
+                self._save()
+            return removed
+
+    def set_roles(self, actor_id: str, roles: tuple[str, ...]) -> bool:
+        with self._lock:
+            updated = super().set_roles(actor_id, roles)
+            if updated:
+                self._save()
+            return updated
 
 
 # ═══════════════════════════════════════════════════════════
@@ -248,6 +482,9 @@ def encode_jwt_hs256(
 ) -> str:
     if not secret:
         raise ValueError("secret must be non-empty")
+    # Separate logins must remain distinct even within the same second, so
+    # revoking one session never revokes a freshly issued replacement.
+    claims = {"jti": uuid.uuid4().hex, **claims}
     header = {"alg": "HS256", "typ": "JWT", **(header_extra or {})}
     header_b = _b64url_encode(
         json.dumps(header, separators=(",", ":"), sort_keys=True).encode("utf-8")

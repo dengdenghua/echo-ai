@@ -62,7 +62,7 @@ def create_agent_trace_router(
         return principal.actor_id if principal is not None else None
 
     def _auth_dep(request: Request) -> None:
-        _auth(request)
+        _auth(request)  # AUTH-OK: actor-agnostic; _auth enforces operator access to shared traces
 
     router = APIRouter(tags=["agent-trace"], dependencies=[Depends(_auth_dep)])
 

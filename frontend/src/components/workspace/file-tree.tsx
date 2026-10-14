@@ -13,6 +13,7 @@ import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
 import { cn } from "@/lib/utils";
+import { useWorkspaceFileUpdates } from "./use-workspace-file-updates";
 
 // Pulled from backend codegen (runtime/sensing/siphon/fs_router.py
 // ``FsTreeEntry``) · ADR-004.
@@ -216,18 +217,22 @@ export function FileTree({
   useEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true;
-      fetchTree();
+      void fetchTree();
     } else {
-      fetchTree();
+      void fetchTree();
     }
     void fetchGitStatus();
   }, [fetchTree, fetchGitStatus]);
 
+  useWorkspaceFileUpdates(threadId, workDir, () => {
+    void fetchTree(true);
+    void fetchGitStatus();
+  });
+
   useEffect(() => {
     const handler = () => void fetchTree(true);
     window.addEventListener("echo:workspace-changed", handler);
-    return () =>
-      window.removeEventListener("echo:workspace-changed", handler);
+    return () => window.removeEventListener("echo:workspace-changed", handler);
   }, [fetchTree]);
 
   // Build a lookup: entry.path -> highlight expiry timestamp.
@@ -271,12 +276,12 @@ export function FileTree({
     if (latestScrollTarget) {
       setCollapsed((prev) => {
         const next = new Set(prev);
-        parentPaths(latestScrollTarget!).forEach((path) => next.delete(path));
+        parentPaths(latestScrollTarget).forEach((path) => next.delete(path));
         return next;
       });
       // Defer to next tick so the row has a chance to mount if needed.
       setTimeout(() => {
-        const el = rowRefs.current.get(latestScrollTarget!);
+        const el = rowRefs.current.get(latestScrollTarget);
         if (el && typeof el.scrollIntoView === "function") {
           el.scrollIntoView({ block: "nearest" });
         }
@@ -378,7 +383,11 @@ export function FileTree({
             style={{ paddingLeft: `${entry.depth * 14 + 8}px` }}
             role="button"
             tabIndex={0}
-            aria-label={isDir ? t.fileTree.openFolderAria(entry.name) : t.fileTree.openFileAria(entry.name)}
+            aria-label={
+              isDir
+                ? t.fileTree.openFolderAria(entry.name)
+                : t.fileTree.openFileAria(entry.name)
+            }
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
@@ -427,14 +436,10 @@ export function FileTree({
               <span
                 className={cn(
                   "ml-auto shrink-0 rounded px-1 py-0.5 text-xs font-semibold",
-                  gitStatus === "M" &&
-                    "bg-warning/10 text-warning",
-                  gitStatus === "A" &&
-                    "bg-success/10 text-success",
-                  gitStatus === "D" &&
-                    "bg-destructive/10 text-destructive",
-                  gitStatus === "R" &&
-                    "bg-info/10 text-info dark:text-info",
+                  gitStatus === "M" && "bg-warning/10 text-warning",
+                  gitStatus === "A" && "bg-success/10 text-success",
+                  gitStatus === "D" && "bg-destructive/10 text-destructive",
+                  gitStatus === "R" && "bg-info/10 text-info dark:text-info",
                 )}
               >
                 {gitStatus}

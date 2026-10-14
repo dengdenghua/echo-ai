@@ -14,6 +14,13 @@ const hooks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/core/wiki/hooks", () => hooks);
+const auth = vi.hoisted(() => ({ roles: ["user", "operator"] }));
+vi.mock("@/providers/AuthProvider", () => ({
+  useOptionalAuth: () => ({
+    authStatus: { enabled: true },
+    user: { user_id: "local:eve", roles: auth.roles },
+  }),
+}));
 vi.mock("@/core/workspace/use-active-project-root", () => ({
   useActiveProjectRoot: () => "/Users/eve/echo",
   activateProjectRoot: vi.fn(),
@@ -23,6 +30,24 @@ vi.mock("@/components/ai-elements/streamdown-host", () => ({
 }));
 
 describe("<WikiPanel />", () => {
+  it("explains the operator-only Wiki to an ordinary account without asking", () => {
+    // Regression: 知识库 for a plain local account fired /api/wiki/status and
+    // /api/wiki/docs, both 403 (operator only), on every visit.
+    auth.roles = ["user", "local"];
+    hooks.useWikiStatus.mockReturnValue({ isLoading: false, isError: false });
+    hooks.useWikiDocs.mockReturnValue({ isLoading: false, isError: false });
+    hooks.useWikiDocument.mockReturnValue({});
+    hooks.useGenerateWiki.mockReturnValue({ isPending: false });
+    hooks.useUpdateWiki.mockReturnValue({ isPending: false });
+
+    renderWithProviders(<WikiPanel />);
+
+    expect(screen.getByText("Wiki 由管理员维护")).toBeInTheDocument();
+    expect(hooks.useWikiStatus).toHaveBeenCalledWith("/Users/eve/echo", false);
+    expect(hooks.useWikiDocs).toHaveBeenCalledWith("/Users/eve/echo", false);
+    auth.roles = ["user", "operator"];
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     hooks.useWikiStatus.mockReturnValue({

@@ -14,18 +14,19 @@ from runtime.memory.cowork.group import MemberEvent
 from runtime.memory.cowork.group_store import GroupStore
 from runtime.memory.cowork.session import link_room
 from runtime.platform.process.session import Session, current_session
-from runtime.projectos import cowork_bridge
-from runtime.projectos.cowork_bridge import (
+from runtime.projectos import group_execution
+from runtime.projectos.engine import ProjectEngine, stub_decompose_tasks, stub_generate_milestones
+from runtime.projectos.group_execution import (
     engine_for_group,
     nominate_assigner,
     roster_from_group,
     run_project_from_group,
     team_execute_for_group,
 )
-from runtime.projectos.engine import ProjectEngine, stub_decompose_tasks, stub_generate_milestones
 from runtime.projectos.model import Milestone, Project, Task
 from runtime.projectos.store import ProjectStore
 from runtime.projectos.timeline import project_process_timeline
+from tests.project_governance_utils import run_governed_to_done
 
 
 def _attached_group(tmp_path):
@@ -228,11 +229,13 @@ def test_concurrent_group_runs_execute_only_the_cas_winners_task(
         original_claim = store.claim_task
 
         def synchronized_bind(*args, _bind=original_bind, **kwargs):
-            bind_barrier.wait(timeout=5)
+            # A deadlock guard, not a latency assertion: concurrent browser and
+            # xdist suites can delay the second SQLite-backed contender.
+            bind_barrier.wait(timeout=30)
             return _bind(*args, **kwargs)
 
         def synchronized_claim(*args, _claim=original_claim, **kwargs):
-            claim_barrier.wait(timeout=5)
+            claim_barrier.wait(timeout=30)
             return _claim(*args, **kwargs)
 
         monkeypatch.setattr(store, "bind_thread_if_absent_versioned", synchronized_bind)
@@ -386,7 +389,15 @@ def test_from_group_endpoint_turns_a_group_into_a_project_team(tmp_path) -> None
     assert resp.status_code == 200
     body = resp.json()
     assert set(body["roster"]) == {"research-agent", "build-agent"}
-    assert body["result"]["final_status"] == "done"
+    # A REST-created project waits for its owner: run=True executes nothing yet.
+    assert body["execution_started"] is False
+    assert body["governance"]["blocked_reason"] == "initiation"
+    assert body["tasks"] == {milestone["id"]: [] for milestone in body["milestones"]}
+    for milestone in body["milestones"]:
+        assert milestone["spec"]["phase_agents"] == ["build-agent", "research-agent"]
+    pid = body["project"]["id"]
+    assert run_governed_to_done(client, pid)["final_status"] == "done"
+    body = client.get(f"/api/projects/{pid}").json()
     # every task ran on a real group member
     pool = {"research-agent", "build-agent"}
     for tasks in body["tasks"].values():
@@ -470,7 +481,7 @@ def test_new_project_attach_failure_preserves_plan_and_returns_recovery(
     monkeypatch.setattr(project_store, "bind_thread_versioned", capture_bind)
     if failure_stage == "state":
         monkeypatch.setattr(
-            cowork_bridge,
+            group_execution,
             "full_project_state",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(
                 RuntimeError("injected attach state failure")
@@ -818,14 +829,29 @@ def test_production_team_cluster_propagates_trusted_project_session(monkeypatch)
 @pytest.mark.parametrize("missing_member", [None, "researcher-b"])
 def test_team_forwards_each_provider_receipt_without_overwriting_it(monkeypatch, missing_member):
     receipts = []
+
     def fake_call(agent_id, prompt, **kwargs):
         if agent_id != missing_member:
-            kwargs["context"]["record_project_usage"]({"governance": {"root_id": agent_id, "cost_usd": 0.25}})
-        return {"success": True, "output": "report", "governance": {"root_id": "parent", "cost_usd": None}}
+            kwargs["context"]["record_project_usage"](
+                {"governance": {"root_id": agent_id, "cost_usd": 0.25}}
+            )
+        return {
+            "success": True,
+            "output": "report",
+            "governance": {"root_id": "parent", "cost_usd": None},
+        }
+
     monkeypatch.setattr("runtime.execution.subagents.call_subagent", fake_call)
     context = _managed_project_context()
     context["record_project_usage"] = receipts.append
-    run_team = team_execute_for_group([("researcher-a", "A"), ("researcher-b", "B")], debate_rounds=0)
-    run_team(Task(id="T-cost", milestone_id="M", type="research", goal="text report", team_mode="swarm"), context)
+    run_team = team_execute_for_group(
+        [("researcher-a", "A"), ("researcher-b", "B")], debate_rounds=0
+    )
+    run_team(
+        Task(id="T-cost", milestone_id="M", type="research", goal="text report", team_mode="swarm"),
+        context,
+    )
     roots = sorted(r["governance"]["root_id"] for r in receipts)
-    assert roots == (["parent", "researcher-a"] if missing_member else ["researcher-a", "researcher-b"])
+    assert roots == (
+        ["parent", "researcher-a"] if missing_member else ["researcher-a", "researcher-b"]
+    )

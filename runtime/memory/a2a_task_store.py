@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import Migration, migrate
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS a2a_tasks (
@@ -43,6 +44,8 @@ CREATE TABLE IF NOT EXISTS a2a_task_events (
 CREATE INDEX IF NOT EXISTS idx_a2a_task_events_task
 ON a2a_task_events(local_task_id, seq);
 """
+
+_MIGRATIONS = (Migration(1, _SCHEMA),)
 
 _TASK_SCHEMA = "echo.a2a_task.v1"
 _EVENT_SCHEMA = "echo.a2a_task_event.v1"
@@ -144,13 +147,13 @@ class A2ATaskStore:
         self._db = self._dir / "tasks.db"
         self._lock = threading.RLock()
         with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
+            migrate(conn, _MIGRATIONS, name="a2a_tasks")
 
     def _connect(self) -> sqlite3.Connection:
         self._dir.mkdir(parents=True, exist_ok=True)
         conn = connect_closing(str(self._db), timeout=10.0)
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.executescript(_SCHEMA)
+        migrate(conn, _MIGRATIONS, name="a2a_tasks")
         return conn
 
     @staticmethod
@@ -209,7 +212,8 @@ class A2ATaskStore:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",  # nosec B608 # literal column list; query values are bound
+                (local_task_id,),
             ).fetchone()
             if row:
                 current = _from_row(row)
@@ -238,7 +242,8 @@ class A2ATaskStore:
                 timestamp=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",  # nosec B608 # literal column list; query values are bound
+                (local_task_id,),
             ).fetchone()
         return _from_row(row), True
 
@@ -261,7 +266,8 @@ class A2ATaskStore:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",  # nosec B608 # literal column list; query values are bound
+                (local_task_id,),
             ).fetchone()
             if not row:
                 raise KeyError(f"A2A task not found: {local_task_id}")
@@ -296,14 +302,16 @@ class A2ATaskStore:
                 timestamp=timestamp,
             )
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",  # nosec B608 # literal column list; query values are bound
+                (local_task_id,),
             ).fetchone()
         return _from_row(row)
 
     def get(self, local_task_id: str) -> dict[str, Any] | None:
         with self._lock, self._connect() as conn:
             row = conn.execute(
-                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?", (local_task_id,)
+                f"SELECT {_COLUMNS} FROM a2a_tasks WHERE local_task_id=?",  # nosec B608 # literal column list; query values are bound
+                (local_task_id,),
             ).fetchone()
         return _from_row(row) if row else None
 

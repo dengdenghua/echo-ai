@@ -1,4 +1,5 @@
-import type { AIMessage, Message, ToolMessage } from "@/core/api/types";
+import { isAIMessage, isToolMessage, type Message } from "@/core/api/types";
+import { isObjectLike } from "@/core/utils/guards";
 
 interface GenericMessageGroup<T = string> {
   type: T;
@@ -35,10 +36,8 @@ function normalizedNarrativeText(value: unknown): string {
 function publicNarrativeCandidates(message: Message): string[] {
   if (message.type !== "ai") return [];
   const additional = message.additional_kwargs;
-  const echo =
-    additional?.echo && typeof additional.echo === "object"
-      ? (additional.echo as Record<string, unknown>)
-      : null;
+  const echoField = additional?.echo;
+  const echo = isObjectLike(echoField) ? echoField : null;
   return [
     extractContentFromMessage(message),
     additional?.public_reasoning_summary,
@@ -216,8 +215,8 @@ export function groupMessages<T>(
     group: MessageGroup,
     prefer = false,
   ) {
-    if (message.type !== "ai") return;
-    for (const toolCall of (message as AIMessage).tool_calls ?? []) {
+    if (!isAIMessage(message)) return;
+    for (const toolCall of message.tool_calls ?? []) {
       if (!toolCall.id) continue;
       if (prefer || !toolCallOwners.has(toolCall.id)) {
         toolCallOwners.set(toolCall.id, group);
@@ -318,7 +317,7 @@ export function groupMessages<T>(
       continue;
     }
 
-    if (message.type === "tool") {
+    if (isToolMessage(message)) {
       if (isClarificationToolMessage(message)) {
         // Add to the preceding processing group to preserve tool-call association,
         // then also open a standalone clarification group for prominent display.
@@ -330,7 +329,7 @@ export function groupMessages<T>(
         });
       } else {
         const open =
-          groupOwningToolCall((message as ToolMessage).tool_call_id) ??
+          groupOwningToolCall(message.tool_call_id) ??
           lastProcessingGroupInCurrentTurn() ??
           lastOpenGroup();
         if (open) {
@@ -431,7 +430,7 @@ export function groupMessages<T>(
 
   return groups
     .map(mapper)
-    .filter((result) => result !== undefined && result !== null) as T[];
+    .filter((result) => result !== undefined && result !== null);
 }
 
 export function extractTextFromMessage(message: Message) {
@@ -722,14 +721,14 @@ export function stripInternalToolProtocol(content: string): string {
   if (!reactCleaned.startsWith("{")) return reactCleaned;
 
   try {
-    const payload = JSON.parse(reactCleaned) as unknown;
+    const payload: unknown = JSON.parse(reactCleaned);
     if (
       payload &&
       typeof payload === "object" &&
       "command" in payload &&
-      typeof (payload as { command?: unknown }).command === "string" &&
+      typeof payload.command === "string" &&
       /^(?:fs_writer|fs_writen|fs_written|write_file|write_text_file|edit_text_file|str_replace|apply_patch)$/i.test(
-        (payload as { command: string }).command,
+        payload.command,
       )
     ) {
       return "";
@@ -896,7 +895,7 @@ export function extractReasoningContentFromMessage(message: Message) {
   if (Array.isArray(message.content)) {
     const part = message.content[0];
     if (part && "thinking" in part) {
-      return part.thinking as string;
+      return part.thinking;
     }
   }
   if (typeof message.content === "string") {
@@ -966,7 +965,7 @@ export function hasReasoning(message: Message) {
   if (Array.isArray(message.content)) {
     const part = message.content[0];
     // Compatible with the Anthropic gateway
-    return (part as unknown as { type: "thinking" })?.type === "thinking";
+    return part?.type === "thinking";
   }
   if (typeof message.content === "string") {
     return splitInlineReasoning(message.content).reasoning !== null;
@@ -975,16 +974,14 @@ export function hasReasoning(message: Message) {
 }
 
 export function hasToolCalls(message: Message) {
-  if (message.type !== "ai") return false;
-  const aiMsg = message as AIMessage;
-  return aiMsg.tool_calls != null && aiMsg.tool_calls.length > 0;
+  if (!isAIMessage(message)) return false;
+  return message.tool_calls != null && message.tool_calls.length > 0;
 }
 
 export function hasPresentFiles(message: Message) {
-  if (message.type !== "ai") return false;
-  const aiMsg = message as AIMessage;
+  if (!isAIMessage(message)) return false;
   return (
-    aiMsg.tool_calls?.some((toolCall) => toolCall.name === "present_files") ??
+    message.tool_calls?.some((toolCall) => toolCall.name === "present_files") ??
     false
   );
 }
@@ -998,12 +995,11 @@ export function isClarificationToolMessage(message: Message) {
 }
 
 export function extractPresentFilesFromMessage(message: Message) {
-  if (message.type !== "ai" || !hasPresentFiles(message)) {
+  if (!isAIMessage(message) || !hasPresentFiles(message)) {
     return [];
   }
-  const aiMsg = message as AIMessage;
   const files: string[] = [];
-  for (const toolCall of aiMsg.tool_calls ?? []) {
+  for (const toolCall of message.tool_calls ?? []) {
     if (
       toolCall.name === "present_files" &&
       Array.isArray(toolCall.args.filepaths)
@@ -1015,9 +1011,8 @@ export function extractPresentFilesFromMessage(message: Message) {
 }
 
 export function hasSubagent(message: Message) {
-  if (message.type !== "ai") return false;
-  const aiMsg = message as AIMessage;
-  for (const toolCall of aiMsg.tool_calls ?? []) {
+  if (!isAIMessage(message)) return false;
+  for (const toolCall of message.tool_calls ?? []) {
     if (toolCall.name === "task") {
       return true;
     }
@@ -1027,10 +1022,7 @@ export function hasSubagent(message: Message) {
 
 export function findToolCallResult(toolCallId: string, messages: Message[]) {
   for (const message of messages) {
-    if (
-      message.type === "tool" &&
-      (message as ToolMessage).tool_call_id === toolCallId
-    ) {
+    if (isToolMessage(message) && message.tool_call_id === toolCallId) {
       const content = extractTextFromMessage(message);
       if (content) {
         return content;

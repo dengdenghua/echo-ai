@@ -105,6 +105,16 @@ def _expand_brace_patterns(pattern: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(expanded))
 
 
+def _display_path(path: Path, base: Path) -> str:
+    """Report a match relative to ``base`` with ``/`` separators on every OS.
+
+    Patterns are written POSIX-style (``.github/workflows/*``); echoing
+    backslash-separated paths back on Windows made the same query return a
+    different spelling per platform. Paths outside ``base`` stay native.
+    """
+    return path.relative_to(base).as_posix() if path.is_relative_to(base) else str(path)
+
+
 def _safe_resolve(
     path: str,
     *,
@@ -178,7 +188,7 @@ def _glob_files(
 
     files = [
         {
-            "path": str(p.relative_to(base) if p.is_relative_to(base) else p),
+            "path": _display_path(p, base),
             "abs_path": str(p.resolve()),
             "is_dir": p.is_dir(),
         }
@@ -291,9 +301,8 @@ def _grep_text(
         for lineno, line in enumerate(lines, start=1):
             if regex.search(line):
                 snippet = line if len(line) <= 500 else line[:497] + "..."
-                rel = p.relative_to(search_base) if p.is_relative_to(search_base) else p
                 entry: dict[str, Any] = {
-                    "path": str(rel),
+                    "path": _display_path(p, search_base),
                     "line": lineno,
                     "text": snippet,
                 }

@@ -729,6 +729,10 @@ def _format_skill_catalog(
         # discover anything, including tools omitted below).
         "todo_write",
         "search_capabilities",
+        "find_capability",
+        "visual_guidelines",
+        "show_visual",
+        "visual_status",
         "query_capability",
         "use_capability",
         "search_skills",
@@ -811,6 +815,7 @@ def _format_skill_catalog(
         *(["deep-research", "report-writing", "docx"] if _research_cap else []),
     ]
     priority_set = set(priority)
+    priority_set.update(activation.priority_skills)
     names = [n for n in priority if n in names] + [n for n in names if n not in priority_set]
     names = order_skill_names(
         names,

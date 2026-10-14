@@ -1,5 +1,8 @@
 recursive-include runtime/sensing/gateway/agent_market_sources *
 include skills.lock.json
+
+# The runtime bundle manifest describes bundle payloads to provision.
+include runtime/bundle.json
 # Ship the deterministic prompt-skill fallback inside wheels.  A clean checkout
 # keeps the registry-managed skills/public catalog out of git, so excluding this
 # package data makes an offline wheel silently register zero market skills.

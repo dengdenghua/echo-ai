@@ -1,5 +1,4 @@
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { EchoAPIError, apiGet } from "@/core/api/request";
 
 import {
   parseWorkspaceOutputRef,
@@ -63,13 +62,18 @@ async function listWorkspaceOutputArea(
   area: WorkspaceOutputArea,
   signal?: AbortSignal,
 ): Promise<WorkspaceOutputEntry[]> {
-  const params = new URLSearchParams({ area });
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/threads/${encodeURIComponent(threadId)}/outputs?${params.toString()}`,
-    { headers: authHeaders(), signal },
-  );
-  if (!response.ok) return [];
-  const data = (await response.json()) as WorkspaceOutputsResponse;
+  let data: WorkspaceOutputsResponse;
+  try {
+    data = (await apiGet("/api/threads/{thread_id}/outputs", {
+      path: { thread_id: threadId },
+      query: { area },
+      signal,
+    })) as WorkspaceOutputsResponse;
+  } catch (error) {
+    // Any HTTP failure lists nothing for this area.
+    if (error instanceof EchoAPIError) return [];
+    throw error;
+  }
   return data.files ?? [];
 }
 

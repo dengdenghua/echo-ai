@@ -135,7 +135,7 @@ export default function PrivacySettingsPage() {
       const next = (await res.json()) as LockStatus;
       if (
         typeof next?.locked !== "boolean" ||
-        !(["runtime", "env", "default"] as string[]).includes(next?.source)
+        !["runtime", "env", "default"].includes(next?.source)
       ) {
         throw new Error("invalid data");
       }
@@ -397,7 +397,7 @@ export default function PrivacySettingsPage() {
       const next: LockStatus = await res.json();
       if (
         typeof next?.locked !== "boolean" ||
-        !(["runtime", "env", "default"] as string[]).includes(next?.source)
+        !["runtime", "env", "default"].includes(next?.source)
       ) {
         throw new Error("invalid data");
       }
@@ -444,7 +444,7 @@ export default function PrivacySettingsPage() {
       toast.success(t.accountSettings.factoryResetSuccess);
       setShowFactoryResetDialog(false);
       setFactoryResetConfirmText("");
-      navigate("/workspace/realtime/new", { replace: true });
+      void navigate("/workspace/realtime/new", { replace: true });
     } catch {
       toast.error(t.accountSettings.factoryResetFailed);
     } finally {

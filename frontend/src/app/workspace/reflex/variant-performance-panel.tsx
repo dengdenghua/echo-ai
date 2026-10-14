@@ -191,7 +191,7 @@ export function VariantPerformancePanel() {
   if (recipes.length === 0 && !autoTick?.enabled) return null;
 
   return (
-    <Card className="workspace-panel border-white/40 shadow-none dark:border-white/10">
+    <Card className="workspace-panel border-border/50 shadow-none">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <BarChart3Icon className="size-4" />

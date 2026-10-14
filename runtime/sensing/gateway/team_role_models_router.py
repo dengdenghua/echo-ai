@@ -53,7 +53,7 @@ def create_team_role_models_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; shared model identifiers; writes require operator
 
     def _operator_dep(request: Request) -> None:
         from runtime.safety.auth.principal import require_roles

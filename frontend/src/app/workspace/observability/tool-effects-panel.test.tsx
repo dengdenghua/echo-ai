@@ -5,6 +5,11 @@ import { renderWithProviders } from "@/test/harness";
 
 import { ToolEffectsPanel } from "./page";
 
+const access = vi.hoisted(() => ({ global: true }));
+vi.mock("@/core/auth/use-control-plane-access", () => ({
+  useGlobalControlPlaneAccess: () => access.global,
+}));
+
 const snapshot = {
   backend: "redis",
   shared_across_hosts: true,
@@ -33,6 +38,19 @@ const snapshot = {
 describe("ToolEffectsPanel", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    access.global = true;
+  });
+
+  it("does not request the global snapshot without the cross-tenant scope", async () => {
+    access.global = false;
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    renderWithProviders(<ToolEffectsPanel />, { locale: "zh-CN" });
+
+    expect(
+      await screen.findByText("需要跨租户管理员权限。"),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("shows indeterminate receipts and submits a fenced retry authorization", async () => {

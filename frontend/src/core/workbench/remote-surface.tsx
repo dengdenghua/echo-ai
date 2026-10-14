@@ -2,23 +2,41 @@ import {
   AlertTriangleIcon,
   CloudDownloadIcon,
   Loader2Icon,
+  LockIcon,
   PowerIcon,
   RefreshCwIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
-  fetchCloudInstalled,
+  fetchWorkbenchInstalled,
   fetchRuntimePluginStatus,
+  installCloudPlugin,
   setCloudPluginEnabled,
   setRuntimePluginEnabled,
 } from "@/core/agents/agent-world-api";
-import { authHeaders } from "@/core/auth/api";
+import {
+  EchoAPIError,
+  apiGet,
+  isApiErrorStatus,
+  type ApiFailure,
+} from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
+import { useActiveAgentId } from "@/core/agents/active";
+import {
+  setModuleAvailable,
+  setModuleEnabled,
+} from "@/core/modules/enabled-modules";
 
 import type { WorkbenchBuiltinApp } from "./apps";
+import {
+  WORKBENCH_ADMIN_ONLY_HINT,
+  useCanManageWorkbenches,
+  workbenchActionErrorMessage,
+} from "./workbench-permissions";
 
 export interface RemoteWorkbenchManifest {
   schema: "echo.workbench_app.v1";
@@ -64,7 +82,7 @@ function issueFromError(error: unknown): SurfaceIssue {
   if (error instanceof TypeError) {
     return {
       kind: "offline",
-      message: "无法连接本地服务。请确认 Echo 服务正在运行，然后重试。",
+      message: "无法连接本地服务。请确认 ECHO AI 服务正在运行，然后重试。",
     };
   }
   return {
@@ -73,8 +91,9 @@ function issueFromError(error: unknown): SurfaceIssue {
   };
 }
 
-async function responseDetail(response: Response): Promise<string> {
-  const text = await response.text().catch(() => "");
+/** A string ``detail`` from a JSON error body, or the trimmed plain text. */
+function failureText(failure: ApiFailure): string {
+  const { text } = failure;
   if (!text) return "";
   try {
     const payload = JSON.parse(text) as { detail?: unknown };
@@ -82,6 +101,40 @@ async function responseDetail(response: Response): Promise<string> {
   } catch {
     return text.trim();
   }
+}
+
+function manifestLoadError(
+  status: number,
+  detail: string,
+): RemoteWorkbenchLoadError {
+  if (status === 404) {
+    return new RemoteWorkbenchLoadError(
+      "missing",
+      "应用尚未安装，或安装包缺少界面入口。",
+    );
+  }
+  if (status === 409) {
+    return new RemoteWorkbenchLoadError(
+      "incompatible",
+      detail || "当前应用版本与 ECHO AI 宿主不兼容，请更新应用。",
+    );
+  }
+  if (status === 422) {
+    return new RemoteWorkbenchLoadError(
+      "corrupt",
+      "安装包损坏或完整性校验失败，请从应用中心重新安装。",
+    );
+  }
+  if (status >= 500) {
+    return new RemoteWorkbenchLoadError(
+      "offline",
+      detail || "本地应用服务暂时不可用，请稍后重试。",
+    );
+  }
+  return new RemoteWorkbenchLoadError(
+    "unknown",
+    detail || `应用界面包加载失败（HTTP ${status}）。`,
+  );
 }
 
 function backendOrigin(): string {
@@ -96,42 +149,20 @@ export async function fetchRemoteWorkbenchManifest(
   packageId: string,
   signal?: AbortSignal,
 ): Promise<RemoteWorkbenchManifest> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/workbench-packages/${encodeURIComponent(packageId)}/manifest`,
-    { headers: authHeaders(), signal },
-  );
-  if (!response.ok) {
-    const detail = await responseDetail(response);
-    if (response.status === 404) {
-      throw new RemoteWorkbenchLoadError(
-        "missing",
-        "应用尚未安装，或安装包缺少界面入口。",
-      );
+  let manifest: RemoteWorkbenchManifest;
+  try {
+    manifest = (await apiGet("/api/workbench-packages/{plugin_id}/manifest", {
+      path: { plugin_id: packageId },
+      signal,
+      // The error message carries the body's detail text to the mapping below.
+      errorMessage: failureText,
+    })) as RemoteWorkbenchManifest;
+  } catch (error) {
+    if (error instanceof EchoAPIError) {
+      throw manifestLoadError(error.status, error.message);
     }
-    if (response.status === 409) {
-      throw new RemoteWorkbenchLoadError(
-        "incompatible",
-        detail || "当前应用版本与 Echo 宿主不兼容，请更新应用。",
-      );
-    }
-    if (response.status === 422) {
-      throw new RemoteWorkbenchLoadError(
-        "corrupt",
-        "安装包损坏或完整性校验失败，请从应用中心重新安装。",
-      );
-    }
-    if (response.status >= 500) {
-      throw new RemoteWorkbenchLoadError(
-        "offline",
-        detail || "本地应用服务暂时不可用，请稍后重试。",
-      );
-    }
-    throw new RemoteWorkbenchLoadError(
-      "unknown",
-      detail || `应用界面包加载失败（HTTP ${response.status}）。`,
-    );
+    throw error;
   }
-  const manifest = (await response.json()) as RemoteWorkbenchManifest;
   if (
     manifest.schema !== "echo.workbench_app.v1" ||
     manifest.id !== packageId ||
@@ -152,12 +183,18 @@ function SurfaceState({
   issue,
   retry,
   enable,
+  install,
+  adminOnly = false,
   actionBusy = false,
 }: {
   app: WorkbenchBuiltinApp;
   issue?: SurfaceIssue;
   retry?: () => void;
   enable?: () => void;
+  /** Install in place, so a missing app is one click away instead of a detour. */
+  install?: () => void;
+  /** This account cannot install, enable or repair machine-wide packages. */
+  adminOnly?: boolean;
   actionBusy?: boolean;
 }) {
   const navigate = useNavigate();
@@ -175,21 +212,73 @@ function SurfaceState({
       </div>
     );
   }
+  // A missing or stopped app waits for the admin; say so instead of offering
+  // a button the server would refuse.
+  const waitsForAdmin =
+    adminOnly && (issue.kind === "missing" || issue.kind === "disabled");
+  if (waitsForAdmin) {
+    return (
+      <div className="flex size-full min-h-80 items-center justify-center p-5">
+        <section className="w-full max-w-md rounded-2xl border border-border/70 bg-card/75 p-6 text-center shadow-sm">
+          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-muted text-muted-foreground">
+            <LockIcon className="size-5" />
+          </div>
+          <h1 className="mt-4 text-base font-semibold">
+            {issue.kind === "missing"
+              ? `${app.name}尚未安装`
+              : `${app.name}已停用`}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {issue.kind === "missing"
+              ? `${app.description || app.name}。`
+              : "应用仍保留在本机，但当前没有运行。"}
+            {WORKBENCH_ADMIN_ONLY_HINT}
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={retry}>
+              <RefreshCwIcon className="mr-1.5 size-3.5" />
+              重新检查
+            </Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
   return (
     <div className="flex size-full min-h-80 items-center justify-center p-5">
       <section className="w-full max-w-md rounded-2xl border border-border/70 bg-card/75 p-6 text-center shadow-sm">
-        <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
-          <AlertTriangleIcon className="size-5" />
-        </div>
+        {install ? (
+          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+            <CloudDownloadIcon className="size-5" />
+          </div>
+        ) : (
+          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
+            <AlertTriangleIcon className="size-5" />
+          </div>
+        )}
         <h1 className="mt-4 text-base font-semibold">
-          {issue.kind === "disabled"
-            ? `${app.name}已停用`
-            : `${app.name}暂时不可用`}
+          {install
+            ? `安装${app.name}`
+            : issue.kind === "disabled"
+              ? `${app.name}已停用`
+              : `${app.name}暂时不可用`}
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          {issue.message}
+          {install
+            ? `${app.description || app.name}。安装后即可在这里直接使用。`
+            : issue.message}
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {install ? (
+            <Button size="sm" disabled={actionBusy} onClick={install}>
+              {actionBusy ? (
+                <Loader2Icon className="mr-1.5 size-3.5 animate-spin" />
+              ) : (
+                <CloudDownloadIcon className="mr-1.5 size-3.5" />
+              )}
+              {actionBusy ? "正在安装…" : "安装"}
+            </Button>
+          ) : null}
           {enable ? (
             <Button size="sm" disabled={actionBusy} onClick={enable}>
               {actionBusy ? (
@@ -207,16 +296,19 @@ function SurfaceState({
             </Button>
           ) : null}
           <Button
-            variant={enable || retry ? "outline" : "default"}
+            variant={install || enable || retry ? "outline" : "default"}
             size="sm"
             onClick={() =>
               navigate("/workspace/agents?surface=chat&tab=plugins")
             }
           >
-            <CloudDownloadIcon className="mr-1.5 size-3.5" />
-            {issue.kind === "corrupt" || issue.kind === "incompatible"
-              ? "前往重新安装"
-              : "前往应用中心"}
+            {install ? null : <CloudDownloadIcon className="mr-1.5 size-3.5" />}
+            {install
+              ? "在应用中心查看"
+              : !adminOnly &&
+                  (issue.kind === "corrupt" || issue.kind === "incompatible")
+                ? "前往重新安装"
+                : "前往应用中心"}
           </Button>
         </div>
       </section>
@@ -242,6 +334,8 @@ export function RemoteWorkbenchSurface({
   const [issue, setIssue] = useState<SurfaceIssue | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const activeAgentId = useActiveAgentId();
+  const canManage = useCanManageWorkbenches();
   const packageId = app.packageId;
   const effectiveHostPath =
     hostPath ?? `${location.pathname}${location.search}${location.hash}`;
@@ -268,14 +362,12 @@ export function RemoteWorkbenchSurface({
     setManifest(null);
     setIssue(null);
     void (async () => {
-      // These reads are independent. Wait for all checks before mounting, but
-      // don't add their network latencies together on every mode switch.
-      const [installedResult, runtimeResult, manifestResult] = await Promise.allSettled([
-        fetchCloudInstalled(),
-        app.runtimePlugin
-          ? fetchRuntimePluginStatus(app.runtimePlugin)
-          : Promise.resolve(null),
-        fetchRemoteWorkbenchManifest(packageId, controller.signal),
+      // Ask the cheap local installed list first: for an app that is not
+      // installed, the package and runtime endpoints can only answer 404,
+      // which a first visit would log as failed requests. Once the app is
+      // known to be present, the remaining reads run together.
+      const [installedResult] = await Promise.allSettled([
+        fetchWorkbenchInstalled(packageId),
       ]);
       if (controller.signal.aborted) return;
       try {
@@ -291,7 +383,7 @@ export function RemoteWorkbenchSurface({
         if (packageStatus?.lifecycle_state === "incompatible") {
           throw new RemoteWorkbenchLoadError(
             "incompatible",
-            packageStatus.error || "应用版本与当前 Echo 宿主不兼容。",
+            packageStatus.error || "应用版本与当前 ECHO AI 宿主不兼容。",
           );
         }
         if (packageStatus && !packageStatus.installed) {
@@ -318,6 +410,13 @@ export function RemoteWorkbenchSurface({
         }
         // Older backends may only expose the signed package endpoint.
       }
+      const [runtimeResult, manifestResult] = await Promise.allSettled([
+        app.runtimePlugin
+          ? fetchRuntimePluginStatus(app.runtimePlugin)
+          : Promise.resolve(null),
+        fetchRemoteWorkbenchManifest(packageId, controller.signal),
+      ]);
+      if (controller.signal.aborted) return;
       if (app.runtimePlugin) {
         try {
           if (runtimeResult.status === "rejected") throw runtimeResult.reason;
@@ -343,7 +442,7 @@ export function RemoteWorkbenchSurface({
           if (status.lifecycle_state === "incompatible") {
             throw new RemoteWorkbenchLoadError(
               "incompatible",
-              status.error || "应用版本与当前 Echo 宿主不兼容。",
+              status.error || "应用版本与当前 ECHO AI 宿主不兼容。",
             );
           }
         } catch (statusError) {
@@ -376,7 +475,13 @@ export function RemoteWorkbenchSurface({
           ? await setCloudPluginEnabled(app.cloudId, true)
           : await setRuntimePluginEnabled(app.runtimePlugin as string, true);
       } catch (cloudError) {
-        if (!app.runtimePlugin || !app.cloudId) throw cloudError;
+        // A refusal is final; the runtime fallback would only refuse again.
+        if (
+          !app.runtimePlugin ||
+          !app.cloudId ||
+          isApiErrorStatus(cloudError, 403)
+        )
+          throw cloudError;
         // Compatibility fallback while older local backends are upgraded.
         status = await setRuntimePluginEnabled(app.runtimePlugin, true);
       }
@@ -387,12 +492,33 @@ export function RemoteWorkbenchSurface({
     } catch (enableError) {
       setIssue({
         kind: "unknown",
-        message: `启用失败：${enableError instanceof Error ? enableError.message : String(enableError)}`,
+        message: `启用失败：${workbenchActionErrorMessage(enableError)}`,
       });
     } finally {
       setActionBusy(false);
     }
   }, [app.cloudId, app.runtimePlugin]);
+
+  const installApp = useCallback(async () => {
+    if (!app.cloudId) return;
+    setActionBusy(true);
+    try {
+      await installCloudPlugin(app.cloudId);
+      setModuleAvailable(app.moduleId, true);
+      // Installing from here is an explicit "I want this", so it joins the
+      // sidebar, as it does when installed from the app center.
+      setModuleEnabled(app.moduleId, true, activeAgentId);
+      toast.success(`${app.name}已安装`);
+      setAttempt((value) => value + 1);
+    } catch (installError) {
+      setIssue({
+        kind: "unknown",
+        message: `安装失败：${workbenchActionErrorMessage(installError)}`,
+      });
+    } finally {
+      setActionBusy(false);
+    }
+  }, [activeAgentId, app.cloudId, app.moduleId, app.name]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -417,22 +543,23 @@ export function RemoteWorkbenchSurface({
       ) {
         return;
       }
-      navigate(`${target.pathname}${target.search}${target.hash}`);
+      void navigate(`${target.pathname}${target.search}${target.hash}`);
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
   }, [navigate]);
 
+  const entryHostPath = initialHostPathRef.current;
   const src = useMemo(() => {
     if (!manifest) return "";
     const entry = new URL(
       manifest.entry_url,
       getBackendBaseURL() || window.location.origin,
     );
-    entry.searchParams.set("echo_host_path", initialHostPathRef.current);
+    entry.searchParams.set("echo_host_path", entryHostPath);
     entry.searchParams.set("echo_host_origin", window.location.origin);
     return entry.toString();
-  }, [manifest, freshTask]);
+  }, [manifest, entryHostPath]);
 
   const sendContext = useCallback(() => {
     iframeRef.current?.contentWindow?.postMessage(
@@ -458,7 +585,15 @@ export function RemoteWorkbenchSurface({
         app={app}
         issue={issue || undefined}
         retry={issue ? () => setAttempt((value) => value + 1) : undefined}
-        enable={issue?.kind === "disabled" ? enableRuntime : undefined}
+        enable={
+          issue?.kind === "disabled" && canManage ? enableRuntime : undefined
+        }
+        install={
+          issue?.kind === "missing" && app.cloudId && canManage
+            ? installApp
+            : undefined
+        }
+        adminOnly={!canManage}
         actionBusy={actionBusy}
       />
     );

@@ -23,6 +23,7 @@ class Agent:
         extra_skills: list[str] | None = None,
         capabilities: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
+        dependencies: dict[str, Any] | None = None,
     ) -> None:
         if not agent_id:
             raise ValueError("agent_id must be non-empty")
@@ -47,6 +48,9 @@ class Agent:
         # skills & permissions system.)
         self.capabilities: dict[str, Any] = dict(capabilities or {})
         self.budget: dict[str, Any] = dict(budget or {})
+        from .dependencies import normalize_role_dependencies
+
+        self.dependencies = normalize_role_dependencies(dependencies)
 
     def affinity(self) -> list[str]:
         agg: set[str] = set(self.extra_affinity)
@@ -146,6 +150,11 @@ class AgentRegistry:
         return count
 
     def remove(self, agent_id: str) -> bool:
+        from .aliases import canonical_agent_id
+
+        canonical = canonical_agent_id(agent_id)
+        if canonical in self._by_id:
+            agent_id = canonical
         with self._lock:
             existed = self._by_id.pop(agent_id, None) is not None
             if existed:
@@ -189,12 +198,22 @@ class AgentRegistry:
         return prev
 
     def get(self, agent_id: str) -> Agent:
+        from .aliases import canonical_agent_id
+
+        canonical = canonical_agent_id(agent_id)
+        if canonical in self._by_id:
+            agent_id = canonical
         try:
             return self._by_id[agent_id]
         except KeyError as e:
             raise AgentNotFound(f"no agent named {agent_id!r}") from e
 
     def has(self, agent_id: str) -> bool:
+        from .aliases import canonical_agent_id
+
+        canonical = canonical_agent_id(agent_id)
+        if canonical in self._by_id:
+            agent_id = canonical
         return agent_id in self._by_id
 
     def all_ids(self) -> list[str]:

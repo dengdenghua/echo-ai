@@ -15,6 +15,7 @@ import shutil
 import stat
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -103,6 +104,23 @@ def _ensure_private_directory(path: Path, *, root: Path) -> None:
         _lock_down_directory(current)
 
 
+def _ensure_private_directories(paths: Sequence[Path], *, root: Path) -> None:
+    """Provision a tree once per component, without a cross-turn trust cache."""
+    directories: set[Path] = set()
+    for path in paths:
+        if not _is_within(path, root):
+            raise CodexSecurityError(f"refusing to create a sidecar directory outside {root}")
+        current = root
+        for part in path.relative_to(root).parts:
+            current /= part
+            directories.add(current)
+    _lock_down_directory(root)
+    # No await or untrusted execution occurs during this provisioning pass.
+    # Each parent is checked before a child; the next turn checks all again.
+    for directory in sorted(directories, key=lambda path: (len(path.parts), str(path))):
+        _ensure_private_directory(directory, root=directory.parent)
+
+
 def _lock_down_directory(path: Path) -> None:
     try:
         metadata = path.lstat()
@@ -110,6 +128,8 @@ def _lock_down_directory(path: Path) -> None:
         raise CodexSecurityError(f"cannot inspect sidecar directory: {path}") from exc
     if not stat.S_ISDIR(metadata.st_mode):
         raise CodexSecurityError(f"sidecar path is not a directory: {path}")
+    if getattr(metadata, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        raise CodexSecurityError(f"sidecar path cannot be a reparse point: {path}")
     if os.name == "posix" and metadata.st_uid != os.geteuid():
         raise CodexSecurityError(f"sidecar directory is not owned by the service user: {path}")
     try:
@@ -201,12 +221,47 @@ def _read_owned_private_file(path: Path, *, max_bytes: int) -> bytes | None:
     return data
 
 
+@dataclass(frozen=True, slots=True)
+class _CleanupAllocation:
+    """Server-captured identity of a provisioned tree, never caller input."""
+
+    path: Path
+    root: Path
+    kind: str
+    resolved: Path
+    device: int
+    inode: int
+
+
+def _capture_cleanup_allocation(path: Path, *, root: Path, kind: str) -> _CleanupAllocation:
+    scope = root / ("scratch" if kind == "scratch" else "realms")
+    if path == scope or not _is_within(path, scope):
+        raise CodexSecurityError(f"invalid cleanup allocation: {path}")
+    # Validate every logical component before trusting Windows' virtualized
+    # AppData namespace. Junctions/symlinks are not namespace virtualization.
+    current = root
+    _lock_down_directory(current)
+    for part in path.relative_to(root).parts:
+        current /= part
+        _lock_down_directory(current)
+    resolved = path.resolve(strict=True)
+    metadata = path.stat()
+    physical = resolved.lstat()
+    if resolved.parent == resolved or (metadata.st_dev, metadata.st_ino) != (
+        physical.st_dev,
+        physical.st_ino,
+    ):
+        raise CodexSecurityError(f"cleanup allocation changed during validation: {path}")
+    return _CleanupAllocation(path, root, kind, resolved, metadata.st_dev, metadata.st_ino)
+
+
 def _remove_marked_tree(
     path: Path,
     *,
     root: Path,
     marker_path: Path,
     expected_kind: str,
+    allocation: _CleanupAllocation | None = None,
 ) -> None:
     if root.parent == root or marker_path == root or not _is_within(marker_path, root):
         raise CodexSecurityError("refusing to use a cleanup marker outside sidecar state_root")
@@ -220,7 +275,11 @@ def _remove_marked_tree(
         return
     except OSError as exc:
         raise CodexSecurityError(f"cannot inspect sidecar cleanup path: {path}") from exc
-    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or getattr(metadata, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    ):
         raise CodexSecurityError(f"refusing to clean unsafe sidecar path: {path}")
     resolved = path.resolve(strict=True)
     # Windows packaged processes can resolve an AppData path into LocalCache.
@@ -228,7 +287,14 @@ def _remove_marked_tree(
     # scope checks above and requiring the exact expected relative location.
     canonical_root = root.resolve(strict=True)
     expected = canonical_root / path.relative_to(root)
-    if (
+    if allocation is not None:
+        # Some packaged Windows processes redirect only scratch, while the
+        # parent still resolves to ordinary AppData. Require the exact tree
+        # allocated before execution, including its filesystem identity.
+        current = _capture_cleanup_allocation(path, root=root, kind=expected_kind)
+        if current != allocation:
+            raise CodexSecurityError(f"cleanup allocation changed: {path}")
+    elif (
         canonical_root.parent == canonical_root
         or resolved != expected
         or not _is_within(resolved, canonical_root)

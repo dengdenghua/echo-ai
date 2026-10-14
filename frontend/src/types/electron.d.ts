@@ -8,6 +8,12 @@
 
 import type { DevicePreset } from "@/components/workspace/embedded-browser/browser-context";
 
+/** One back / forward history entry of a browser tab. */
+export interface BrowserNavigationEntry {
+  url: string;
+  title: string;
+}
+
 export interface BrowserExtensionInfo {
   id: string;
   name: string;
@@ -17,6 +23,36 @@ export interface BrowserExtensionInfo {
   path: string;
   enabled: boolean;
   installedAt: string;
+  /** "folder", or the store it was installed from ("chrome" / "edge"). */
+  source?: string;
+  /** Shown on the toolbar rather than only in the extensions menu. */
+  pinned?: boolean;
+}
+
+/** An extension's toolbar button as it stands for one tab. */
+export interface BrowserExtensionAction {
+  id: string;
+  name: string;
+  title: string;
+  /** data: URL, or null when the extension ships no icon. */
+  icon: string | null;
+  badgeText: string;
+  badgeColor?: string;
+  badgeTextColor?: string;
+  /** The manifest declares a toolbar action. */
+  hasAction: boolean;
+  hasPopup: boolean;
+  hasOptions: boolean;
+  enabled: boolean;
+  pinned: boolean;
+}
+
+/** Toolbar button position, in the app window's CSS pixels. */
+export interface ExtensionActionAnchor {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
 }
 
 export interface NativeDesktopItem {
@@ -26,6 +62,55 @@ export interface NativeDesktopItem {
   path: string;
   kind: "folder" | "file" | "app";
   extension: string;
+}
+
+/** ``window.echo.notifications.show`` input (validated in main). */
+export interface DesktopNotificationPayload {
+  title: string;
+  body?: string;
+  /** Same tag replaces the previous notification instead of stacking. */
+  tag?: string;
+  /** In-app route (``/workspace/...``) to open on click. */
+  href?: string;
+  threadId?: string;
+  silent?: boolean;
+}
+
+/** ``notification:clicked`` event payload. */
+export interface DesktopNotificationClick {
+  href: string | null;
+  threadId: string | null;
+  tag: string | null;
+}
+
+/** ``window.echo.auth.desktopOwnerLogin`` result. */
+export type DesktopOwnerLoginResult =
+  | {
+      ok: true;
+      access_token: string;
+      expires_in?: number;
+      user?: {
+        actor_id?: string;
+        username?: string;
+        display_name?: string | null;
+        provider?: string;
+      };
+    }
+  | {
+      ok: false;
+      reason:
+        | "forbidden"
+        | "backend-not-owned"
+        | "backend-unreachable"
+        | "rejected";
+      status?: number;
+      detail?: string;
+    };
+
+export interface ExtensionSidePanelState {
+  id: string;
+  name: string;
+  path: string;
 }
 
 export interface EchoElectronAPI {
@@ -42,6 +127,8 @@ export interface EchoElectronAPI {
       mode: DevicePreset,
     ) => Promise<{ ok: boolean; mode: DevicePreset }>;
     executeJS: (webContentsId: number, code: string) => Promise<unknown>;
+    /** Runs `code` in Echo's isolated world: the page's DOM, not its JS. */
+    executeIsolated?: (webContentsId: number, code: string) => Promise<unknown>;
     reload: (webContentsId: number) => Promise<void>;
     goBack: (webContentsId: number) => Promise<void>;
     goForward: (webContentsId: number) => Promise<void>;
@@ -167,6 +254,32 @@ export interface EchoElectronAPI {
       id: string,
     ) => Promise<{ ok: boolean; error?: string }>;
     openDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
+    print: (webContentsId: number) => Promise<{ ok: boolean; error?: string }>;
+    /** Answer a "save password?" offer; the password never leaves main. */
+    resolvePasswordOffer: (
+      token: string,
+      /** "never": don't save and never ask again for this site. */
+      save: boolean | "never",
+    ) => Promise<{ ok: boolean; saved?: boolean; error?: string }>;
+    listPasswordNeverSites: () => Promise<{ ok: boolean; origins: string[] }>;
+    removePasswordNeverSite: (origin: string) => Promise<{ ok: boolean }>;
+    getNavigationHistory: (webContentsId: number) => Promise<{
+      ok: boolean;
+      entries: BrowserNavigationEntry[];
+      index: number;
+      error?: string;
+    }>;
+    /** History for the next webview that attaches with this src. */
+    queueNavigationRestore: (
+      src: string,
+      entries: BrowserNavigationEntry[],
+      index: number,
+    ) => Promise<{ ok: boolean; error?: string }>;
+    importBookmarks: (browser: "chrome" | "edge") => Promise<{
+      ok: boolean;
+      entries: { title: string; url: string }[];
+      error?: string;
+    }>;
     pauseDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
     resumeDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
     cancelDownload: (id: string) => Promise<{ ok: boolean; error?: string }>;
@@ -194,6 +307,12 @@ export interface EchoElectronAPI {
       extension?: BrowserExtensionInfo;
       error?: string;
     }>;
+    /** Chrome Web Store / Edge Add-ons link or extension ID. */
+    installFromStore: (input: string) => Promise<{
+      ok: boolean;
+      extension?: BrowserExtensionInfo;
+      error?: string;
+    }>;
     setEnabled: (
       id: string,
       enabled: boolean,
@@ -203,6 +322,32 @@ export interface EchoElectronAPI {
       error?: string;
     }>;
     remove: (id: string) => Promise<{ ok: boolean; error?: string }>;
+    /** Toolbar buttons of the enabled extensions, for one tab. */
+    actions: (
+      tabWebContentsId: number | null,
+    ) => Promise<{ ok: boolean; actions: BrowserExtensionAction[] }>;
+    /** Open the popup / side panel, or tell the extension it was clicked. */
+    clickAction: (
+      id: string,
+      tabWebContentsId: number | null,
+      anchor: ExtensionActionAnchor,
+    ) => Promise<{ ok: boolean; error?: string }>;
+    showActionMenu: (
+      id: string,
+      tabWebContentsId: number | null,
+    ) => Promise<{ ok: boolean }>;
+    setPinned: (id: string, pinned: boolean) => Promise<{ ok: boolean }>;
+    openOptions: (id: string) => Promise<{ ok: boolean; error?: string }>;
+    sidePanelState: () => Promise<ExtensionSidePanelState | null>;
+    setSidePanelBounds: (
+      bounds: {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+      } | null,
+    ) => Promise<void>;
+    closeSidePanel: (id: string) => Promise<void>;
   };
 
   app: {
@@ -287,6 +432,7 @@ export interface EchoElectronAPI {
       height?: number;
       sourceId?: string;
       sourceName?: string;
+      iconUrl?: string;
       matched?: boolean;
       error?: string;
     }>;
@@ -301,6 +447,26 @@ export interface EchoElectronAPI {
     ensureOptionalDeps: (
       group: string,
     ) => Promise<{ ok: boolean; reason?: string }>;
+  };
+
+  /** Desktop owner sign-in. The main process signs in with the per-launch
+   * token it gave the backend it spawned and returns only the session.
+   * Optional: shells built before it existed lack it. */
+  auth?: {
+    desktopOwnerLogin: () => Promise<DesktopOwnerLoginResult>;
+  };
+
+  /** OS notifications raised by the main process. Clicking one restores and
+   * focuses the window, then emits ``notification:clicked`` with the
+   * payload's ``href`` / ``threadId``. Optional: shells built before it
+   * existed lack it. */
+  notifications?: {
+    isSupported: () => Promise<boolean>;
+    show: (payload: DesktopNotificationPayload) => Promise<{
+      ok: boolean;
+      id?: string;
+      reason?: "invalid" | "unsupported" | "forbidden";
+    }>;
   };
 
   window: {
@@ -369,10 +535,19 @@ export interface EchoElectronAPI {
       | "browser:tab-crashed"
       | "browser:keyboard-shortcut"
       | "browser:download-event"
+      | "browser:ask-selection"
+      | "browser:webview-pointer"
+      | "browser:password-offer"
+      | "browser:extension-actions-changed"
+      | "browser:extension-side-panel-changed"
+      | "browser:open-extensions"
+      | "browser:focus-webcontents"
+      | "browser:close-webcontents"
       | "desktop:organize-now"
       | "desktop:items-changed"
       | "backend:bootstrap-progress"
-      | "window:fullscreen-changed",
+      | "window:fullscreen-changed"
+      | "notification:clicked",
     listener: (...args: unknown[]) => void,
   ) => () => void;
 }

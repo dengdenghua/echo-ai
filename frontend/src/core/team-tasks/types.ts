@@ -35,6 +35,7 @@ export interface TeamTask {
   completed_at?: string | null;
   produced_artifacts: TeamTaskArtifact[];
   metadata: TeamTaskMetadata;
+  revision?: number;
 }
 
 export interface TeamTaskProcessTimelineNode {
@@ -103,6 +104,7 @@ export interface UpdateTeamTaskInput {
   status?: TeamTaskStatus;
   assignees?: TaskAssignee[];
   sop_template?: string;
+  expected_revision?: number;
 }
 
 export interface DeleteTeamTaskResponse {

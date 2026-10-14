@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { PersonaWorkbenchHome } from "./persona-workbench-home";
 
 describe("PersonaWorkbenchHome", () => {
-  it("renders the trading workbench and its real app entry", () => {
+  it("starts market research without the removed trading plugin", () => {
     render(
       <MemoryRouter>
         <PersonaWorkbenchHome personaId="market_researcher" />
@@ -13,9 +13,11 @@ describe("PersonaWorkbenchHome", () => {
     );
 
     expect(screen.getByText("交易研究台")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /打开模拟交易/ })).toHaveAttribute(
+    // The preset resolves the legacy `market_researcher` id to the `noah`
+    // persona, and its primary action links to the canonical id.
+    expect(screen.getByRole("link", { name: /开始市场研究/ })).toHaveAttribute(
       "href",
-      "/workspace/paper-trading",
+      "/workspace/realtime/new?agent=noah",
     );
   });
 

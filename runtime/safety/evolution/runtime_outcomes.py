@@ -182,9 +182,9 @@ def _mutate_inbox(
     path: Path,
     mutate: Callable[[dict[str, Any], float], JsonMutation[Any]],
 ) -> Any:
-    now = time.time()
-
     def _apply(value: dict[str, Any]) -> JsonMutation[Any]:
+        # Sample only after the transaction has loaded and locked the inbox.
+        now = time.time()
         pruned = _prune_entries(value["entries"], now)
         result = mutate(value, now)
         return JsonMutation(result.value, changed=result.changed or pruned)
@@ -251,7 +251,7 @@ def record_runtime_candidate_activation(
             return JsonMutation(False, changed=False)
         candidates.append(resolved_candidate)
         entry["candidate_ids"] = sorted(candidates)
-        entry["updated_at"] = now
+        entry["updated_at"] = max(now, float(entry["updated_at"]))
         return JsonMutation(True)
 
     try:
@@ -308,7 +308,7 @@ def _prepare_settlement(
         candidate_ids = tuple(entry["candidate_ids"])
         if current is None:
             entry["outcome"] = requested
-            entry["updated_at"] = now
+            entry["updated_at"] = max(now, float(entry["updated_at"]))
             if requested == _UNGRADABLE:
                 entry["candidate_ids"] = []
             return JsonMutation(candidate_ids)
@@ -343,7 +343,7 @@ def _acknowledge_candidates(
         if remaining == entry["candidate_ids"]:
             return JsonMutation(None, changed=False)
         entry["candidate_ids"] = remaining
-        entry["updated_at"] = now
+        entry["updated_at"] = max(now, float(entry["updated_at"]))
         return JsonMutation(None)
 
     _mutate_inbox(path, _ack)

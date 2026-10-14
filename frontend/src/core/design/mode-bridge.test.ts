@@ -13,6 +13,11 @@ import {
 } from "./mode-bridge";
 
 describe("design mode bridge", () => {
+  it("carries identifier-only capability preferences into the execution route", () => {
+    const capabilities = { mode: "manual" as const, skills: ["presentations"], plugins: ["clip_studio"] };
+    const route = embeddedDesignChatRoute({ capabilities });
+    expect(JSON.parse(new URLSearchParams(route.split("?")[1]).get("design_capabilities")!)).toEqual(capabilities);
+  });
   it("keeps selected nodes first and carries project scope", () => {
     const context = buildDesignCanvasAgentContext({
       document: DEFAULT_DESIGN_CANVAS,

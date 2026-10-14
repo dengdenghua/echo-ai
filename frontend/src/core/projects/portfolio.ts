@@ -135,6 +135,9 @@ export interface PortfolioEntry {
   started_at: string;
   finished_at: string;
   execution_thread_id: string;
+  /** Line-icon id and category picked at creation; null when none. */
+  icon?: string | null;
+  category?: string | null;
   health: ProjectHealth;
   readable: boolean;
   progress: number;
@@ -149,20 +152,16 @@ export interface PortfolioEntry {
   risks: PortfolioRisk[];
 }
 
-const EMPTY_COUNTS: PortfolioCounts = {
-  milestones: 0,
-  risks: 0,
-  blockers: 0,
-  overdue: 0,
-  next_actions: 0,
-};
-
 function num(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 function str(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function optStr(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function arr<T>(value: unknown): T[] {
@@ -191,6 +190,8 @@ export function normalizePortfolioEntry(raw: unknown): PortfolioEntry | null {
     started_at: str(value.started_at),
     finished_at: str(value.finished_at),
     execution_thread_id: str(value.execution_thread_id),
+    icon: optStr(value.icon),
+    category: optStr(value.category),
     health: normalizeHealth(value.health),
     readable: value.readable !== false,
     progress: clamp01(num(value.progress)),
@@ -561,6 +562,8 @@ export interface ProjectRow {
   goal: string;
   status: string;
   owner: string;
+  icon?: string | null;
+  category?: string | null;
   health: ProjectHealth;
   readable: boolean;
   progress: number;
@@ -578,6 +581,8 @@ export function toProjectRow(entry: PortfolioEntry): ProjectRow {
     goal: entry.goal,
     status: entry.status,
     owner: entry.owner,
+    icon: entry.icon ?? null,
+    category: entry.category ?? null,
     health: entry.health,
     readable: entry.readable,
     progress: entry.progress,
@@ -595,6 +600,8 @@ export function projectRowFromSummary(summary: {
   name?: string;
   goal?: string;
   status?: string;
+  icon?: string | null;
+  category?: string | null;
 }): ProjectRow {
   return {
     id: summary.id,
@@ -602,6 +609,8 @@ export function projectRowFromSummary(summary: {
     goal: summary.goal ?? "",
     status: summary.status ?? "planning",
     owner: "",
+    icon: optStr(summary.icon),
+    category: optStr(summary.category),
     health: "on_track",
     readable: false,
     progress: 0,
@@ -744,7 +753,7 @@ export function ganttLayout(
     return { ...EMPTY_GANTT, unscheduled };
   }
 
-  let rangeStart = startOfDay(
+  const rangeStart = startOfDay(
     Math.min(...scheduled.map((item) => item.startMs), nowMs),
   );
   let rangeEnd = Math.max(

@@ -1,9 +1,18 @@
 # Google / GitHub 登录配置
 
-登录页顺序为 Google、GitHub、邮箱验证码。本地登录默认关闭，仅用于开发调试。
-只有后端同时设置 `ECHO_ENV=development`、`ECHO_DEPLOYMENT_MODE=local`，
-并启用 `local_auth.enabled` 时，才显示「开发者登录」且允许本地登录接口。
-正式部署不要设置 `ECHO_ENV=development`；即使误保留 `local_auth.enabled=true`，本地登录也会被拒绝。
+登录页顺序为 Google、GitHub、邮箱验证码，以及（启用 `local_auth` 时）本地登录。
+`local_auth.enabled=true` 且未配置密码账户时，本地登录按运行方式区分：
+
+- 开发实例（`ECHO_ENV=development`、`ECHO_DEPLOYMENT_MODE=local`，`pnpm dev:full` 会自动设置）：
+  显示「访客模式」，输入任意用户名即可进入，只接受本机请求。
+- 桌面版：桌面外壳用每次启动生成的令牌自动登录本机账户，登录页没有表单。
+- 自托管（其余 `local` 部署）：显示「本机账户」。首次运行时服务端在控制台打印一次性设置码，
+  同时写入 `<数据目录>/auth/owner-setup-code.txt`；在登录页输入设置码、用户名和密码即创建本机账户
+  （管理员）。之后用这个密码登录。设置和登录都只接受本机与局域网（含 Tailscale 地址）的请求，
+  经反向代理转发的公网请求也会被拒绝。忘记密码时删除 `<数据目录>/auth/local-owner.json` 并重启，
+  再用新的设置码重新创建。
+
+正式的多人部署请配置密码账户（`local_auth.users`）或邮箱登录；`shared`/`commercial` 模式不会启用本机账户。
 未配置的第三方登录显示「暂未启用」，不会跳到无效授权页。
 
 在运行后端的环境中配置以下变量，重启后生效（不要把密钥提交到 Git）：

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -7,12 +8,142 @@ from pydantic import BaseModel, Field
 
 
 def development_login_enabled(config: Any) -> bool:
-    """Local credentials are an explicit development-only facility."""
+    """Passwordless and fixed-account shortcuts are development-only."""
     return bool(
         config is not None
         and getattr(config, "enabled", False)
         and os.getenv("ECHO_ENV", "").strip().lower() == "development"
         and os.getenv("ECHO_DEPLOYMENT_MODE", "local").strip().lower() == "local"
+    )
+
+
+DESKTOP_OWNER_TOKEN_ENV = "ECHO_DESKTOP_OWNER_TOKEN"
+_DESKTOP_OWNER_TOKEN_MIN_LENGTH = 32
+_desktop_owner_token: str | None = None
+
+
+def configure_desktop_owner_token(token: str | None) -> None:
+    """Install the per-launch owner token handed over by the desktop shell.
+
+    The Electron main process generates it, passes it in the backend's
+    environment and signs the owner in itself, so it never reaches a
+    renderer. ``serve`` pops it from the environment before anything can
+    inherit it and installs it only for a loopback-bound local deployment.
+    """
+    global _desktop_owner_token
+    valid = isinstance(token, str) and len(token) >= _DESKTOP_OWNER_TOKEN_MIN_LENGTH
+    _desktop_owner_token = token if valid else None
+
+
+def take_desktop_owner_token() -> str | None:
+    """Pop the shell's owner token so nothing ``serve`` starts can inherit it.
+
+    ``serve`` calls this before the execution canary, tools, MCP servers or
+    Codex can spawn, then decides with :func:`install_desktop_owner_token`.
+    """
+    return os.environ.pop(DESKTOP_OWNER_TOKEN_ENV, None)
+
+
+def install_desktop_owner_token(token: str | None, local_loopback: bool) -> None:
+    """Install ``token`` only for a desktop shell's local, loopback-bound serve."""
+    allowed = os.environ.get("ECHO_DESKTOP") == "1" and local_loopback
+    configure_desktop_owner_token(token if allowed else None)
+    if token and not allowed:
+        logging.getLogger(__name__).warning(
+            "%s ignored: desktop owner login needs ECHO_DESKTOP=1, local deployment "
+            "and a loopback bind",
+            DESKTOP_OWNER_TOKEN_ENV,
+        )
+
+
+def desktop_owner_token() -> str | None:
+    return _desktop_owner_token
+
+
+def _has_strong_jwt_secret(config: Any) -> bool:
+    secret = getattr(config, "jwt_secret", None)
+    if not isinstance(secret, str) or not secret:
+        return False
+    try:
+        LocalAuthConfig._validate_jwt_secret(secret)
+    except ValueError:
+        return False
+    return True
+
+
+def desktop_owner_login_enabled(config: Any) -> bool:
+    """A passwordless desktop config signs in only with the shell's owner token.
+
+    Any process on the machine can reach a loopback port, including other OS
+    accounts, so the desktop never gets the development any-username shortcut.
+    """
+    return bool(
+        config is not None
+        and getattr(config, "enabled", False)
+        and _desktop_owner_token
+        and os.getenv("ECHO_DESKTOP", "").strip() == "1"
+        and os.getenv("ECHO_DEPLOYMENT_MODE", "local").strip().lower() == "local"
+        and not getattr(config, "users", {})
+        and not getattr(config, "password_only_username", None)
+        and _has_strong_jwt_secret(config)
+    )
+
+
+def owner_account_candidate(config: Any) -> bool:
+    """A self-hosted passwordless config: one owner account, set up on first run.
+
+    Outside development and the desktop shell, passwordless ``local_auth``
+    no longer signs anyone in by name. Whoever holds the console setup code
+    sets the owner's password once; the owner then signs in with it, from
+    this machine or the local network only (see ``owner.py``).
+    """
+    return bool(
+        config is not None
+        and getattr(config, "enabled", False)
+        and not getattr(config, "users", {})
+        and not getattr(config, "password_only_username", None)
+        and os.getenv("ECHO_ENV", "").strip().lower() != "development"
+        and os.getenv("ECHO_DESKTOP", "").strip() != "1"
+        and os.getenv("ECHO_DEPLOYMENT_MODE", "local").strip().lower() == "local"
+    )
+
+
+def owner_account_enabled(config: Any) -> bool:
+    return owner_account_candidate(config) and _has_strong_jwt_secret(config)
+
+
+def network_bind_authenticated(config: Any, deployment_mode: str) -> bool:
+    """Whether ``local_auth`` makes a non-loopback ``serve`` bind safe.
+
+    Password accounts do, and so does the owner account (a setup code, then
+    a password). Development's sign-in-by-name never does.
+    """
+    if config is None or not getattr(config, "enabled", False):
+        return False
+    if getattr(config, "password_required", False):
+        return True
+    return deployment_mode == "local" and owner_account_candidate(config)
+
+
+def local_login_enabled(config: Any) -> bool:
+    """Allow configured password accounts in deployments, never dev shortcuts."""
+    if config is None or not getattr(config, "enabled", False):
+        return False
+    if development_login_enabled(config) or desktop_owner_login_enabled(config):
+        return True
+    if owner_account_enabled(config):
+        return True
+    if getattr(config, "password_only_username", None) or not getattr(config, "users", {}):
+        return False
+    return _has_strong_jwt_secret(config)
+
+
+def interactive_local_login_enabled(config: Any) -> bool:
+    """Whether a login form can sign in; the desktop owner token is shell-only."""
+    return local_login_enabled(config) and (
+        development_login_enabled(config)
+        or owner_account_enabled(config)
+        or bool(getattr(config, "users", {}))
     )
 
 
@@ -50,7 +181,7 @@ class LocalAuthConfig(BaseModel):
     )
     enabled: bool = Field(
         default=False,
-        description="总开关 · 生产环境慎开",
+        description="账号登录开关；生产环境必须配置密码账号和强 JWT 密钥",
     )
     allow_any_username: bool = Field(
         default=False,
@@ -125,8 +256,9 @@ class LocalAuthConfig(BaseModel):
             )
 
     jwt_expire_seconds: int = Field(
-        default=7 * 24 * 3600,
-        description="JWT exp 距 iat 多少秒 · 默认 7 天",
+        default=8 * 3600,
+        gt=0,
+        description="JWT exp 距 iat 多少秒 · 默认 8 小时",
     )
     jwt_issuer: str | None = Field(
         default="echo-ai",

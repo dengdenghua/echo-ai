@@ -1,0 +1,19 @@
+{
+  "id": "policy-test-member",
+  "templateId": "policy-test-member",
+  "source_kind": "subagent-promoted",
+  "managed_by": "agent-market",
+  "name": "Policy Test Member",
+  "icon": "🤖",
+  "description": "Auto-created from delegation (Policy Test Member)",
+  "avatar": "avatar.svg",
+  "category": "promoted-subagent",
+  "tags": [],
+  "model": {
+    "provider": "auto",
+    "name": "auto"
+  },
+  "runtime": "local",
+  "available_skills": [],
+  "key_skills": []
+}

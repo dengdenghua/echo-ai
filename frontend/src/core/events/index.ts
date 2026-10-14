@@ -13,4 +13,9 @@ export {
   emitGoToLine,
   emitTogglePanel,
 } from "./event-bus";
-export type { EventMap, EventName, EventPayload } from "./event-bus";
+export type {
+  EventMap,
+  EventName,
+  EventPayload,
+  ThreadAttentionSignal,
+} from "./event-bus";

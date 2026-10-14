@@ -79,8 +79,7 @@ class DspyGepaBackend:
                 "DSPy Program adapter before selecting this backend."
             ) from exc
         raise NotImplementedError(
-            "dspy_gepa backend is registered but no Echo->DSPy Program "
-            "adapter is configured yet."
+            "dspy_gepa backend is registered but no Echo->DSPy Program adapter is configured yet."
         )
 
 

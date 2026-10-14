@@ -50,9 +50,7 @@ def test_coding_fixture_provides_isolated_repeatable_test_command(tmp_path) -> N
             encoding="utf-8",
         )
         runner = (
-            first_workspace
-            / ".echo-eval"
-            / ("run-tests.cmd" if os.name == "nt" else "run-tests")
+            first_workspace / ".echo-eval" / ("run-tests.cmd" if os.name == "nt" else "run-tests")
         )
         provenance = python_test_runner_provenance()
         assert provenance["ownership"] == "evaluator"
@@ -223,6 +221,14 @@ def test_coding_prompts_expose_test_directory_and_repeatable_command(tmp_path) -
         assert "Do not assume bare python, pytest, or ruff" in case.prompt
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "runs the real trusted controller, which scans workspaces with descriptor-relative "
+        "POSIX calls (os.open dir_fd, os.scandir(fd)) and whose local worker uses AF_UNIX "
+        "pass_fds; Windows supports neither"
+    ),
+)
 def test_path_boundary_grader_requires_tests_directory(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     (workspace / "tests").mkdir(parents=True)

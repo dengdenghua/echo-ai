@@ -2,6 +2,7 @@ import { Fragment, lazy, Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Banner } from "@/components/ui/banner";
+import { AttentionNotifierHost } from "@/components/workspace/attention-notifier-host";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 import { WorkspaceRouteOutlet } from "@/components/workspace/workspace-route-outlet";
@@ -74,8 +75,16 @@ function StubResponseBannerHost() {
 }
 
 export default function WorkspaceLayout() {
-  const { titleBarHeight, contentTopInset, controlsSafeInset } =
-    useElectronTitleBar();
+  const {
+    titleBarHeight,
+    titleBarInset,
+    contentTopInset,
+    controlsSafeInset,
+    controlsSide,
+  } = useElectronTitleBar();
+  // Windows draws min/max/close over the top band, which is also the window's
+  // drag strip. Pages without a chat-style header reserve it with this.
+  const titleBarReserve = controlsSide === "right" ? titleBarInset : "0px";
   const navigate = useNavigate();
   const activeAgentId = useActiveAgentId() ?? "general";
   const personaThemeId = workspacePresetForAgent(activeAgentId).themeId;
@@ -92,7 +101,7 @@ export default function WorkspaceLayout() {
     "task:new",
     (taskIdentity) => {
       const taskNonce = uuid();
-      navigate(
+      void navigate(
         taskWorkspaceRoute({
           agentId: taskIdentity?.agentId,
           workspacePath: taskIdentity?.workspacePath,
@@ -130,6 +139,9 @@ export default function WorkspaceLayout() {
         </SidebarProvider>
       ) : (
         <>
+          {/* Before the sidebar and pages so it subscribes to run-status
+              events ahead of their first publish. */}
+          <AttentionNotifierHost />
           <SidebarProvider
             data-persona-theme={personaThemeId}
             className="persona-shell workspace-shell h-screen overflow-hidden"
@@ -140,6 +152,7 @@ export default function WorkspaceLayout() {
                     paddingTop: contentTopInset,
                     "--window-content-top-inset": contentTopInset,
                     "--window-controls-safe-inset": controlsSafeInset,
+                    "--window-titlebar-reserve": titleBarReserve,
                   } as React.CSSProperties)
                 : undefined
             }

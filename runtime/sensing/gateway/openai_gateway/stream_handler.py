@@ -260,9 +260,7 @@ def _stream_direct_llm_fallback(
     # pick from model_picker and should pass through verbatim.
     _is_auto_or_default = not model or model in ("echo-ai", "auto")
     effective_model = (
-        getattr(stack.planner, "planner_model", None) or "echo-ai"
-        if _is_auto_or_default
-        else model
+        getattr(stack.planner, "planner_model", None) or "echo-ai" if _is_auto_or_default else model
     )
     # Smart routing: in the chat fast-path, classify the prompt and
     # let select_model_for_complexity pick the configured tier

@@ -15,7 +15,7 @@ def register_mcp_tools_as_skills(
     client: MCPClient,
     *,
     name_prefix: str | None = None,
-    include_golden_tests: bool = True,
+    include_golden_tests: bool = False,
     require_trust: bool = True,
     server_name: str | None = None,
     tenant_id: str | None = None,
@@ -71,6 +71,9 @@ def register_mcp_tools_as_skills(
         skill_name = f"{effective_prefix}{tool.name}"
         handler = _make_handler_for(client, tool.name)
 
+        # Discovery must not execute tools: empty arguments can be valid for
+        # destructive operations (new document, disconnect, clear scene).
+        # Executable smoke cases are an explicit opt-in for controlled tests.
         tests = []
         if include_golden_tests:
             tests.append(
@@ -90,6 +93,7 @@ def register_mcp_tools_as_skills(
             trusted_source=f"mcp://{tool.server_name}/{tool.name}",
             tenant_id=tenant_id,
             handler=handler,
+            input_schema=getattr(tool, "input_schema", None),
             tests=tests,
         )
         try:

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   BrainIcon,
-  Loader2Icon,
   NetworkIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -16,13 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { authHeaders } from "@/core/auth/api";
+import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   GlobalControlPlaneAccessError,
-  globalControlPlaneUrl,
   requireGlobalControlPlaneResponse,
+  scopedControlPlaneUrl,
 } from "@/core/observability/api";
 import { KnowledgeGraphView } from "./knowledge-graph-view";
+import { serviceErrorMessage } from "@/core/utils/service-error";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 interface KGEntity {
   id: string;
@@ -46,6 +48,9 @@ interface GraphStats {
 
 export function KnowledgeGraphPanel() {
   const { t } = useI18n();
+  // With the cross-tenant scope the panel shows everyone's graph; any other
+  // account reads its own tenant/owner partition (AI-29).
+  const globalView = useGlobalControlPlaneAccess();
   const [entities, setEntities] = useState<KGEntity[]>([]);
   const [relationships, setRelationships] = useState<KGRelationship[]>([]);
   const [stats, setStats] = useState<GraphStats | null>(null);
@@ -59,10 +64,11 @@ export function KnowledgeGraphPanel() {
     setLoadError(null);
     try {
       const [entitiesRes, statsRes] = await Promise.all([
-        fetch(globalControlPlaneUrl("/api/knowledge/graph?limit=100"), {
-          headers: authHeaders(),
-        }),
-        fetch(globalControlPlaneUrl("/api/knowledge/stats"), {
+        fetch(
+          scopedControlPlaneUrl("/api/knowledge/graph?limit=100", globalView),
+          { headers: authHeaders() },
+        ),
+        fetch(scopedControlPlaneUrl("/api/knowledge/stats", globalView), {
           headers: authHeaders(),
         }),
       ]);
@@ -86,9 +92,7 @@ export function KnowledgeGraphPanel() {
       const message =
         err instanceof GlobalControlPlaneAccessError
           ? t.observabilityPage.crossTenantAdminRequired
-          : err instanceof Error
-            ? err.message
-            : t.knowledgeGraph.loadFailed;
+          : serviceErrorMessage(err);
       setLoadError(message);
       // A permission gate is expected for ordinary tenant operators. Keep it
       // as stable panel state instead of producing a toast/error loop.
@@ -98,7 +102,7 @@ export function KnowledgeGraphPanel() {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [globalView, t]);
 
   useEffect(() => {
     void loadData();
@@ -118,9 +122,11 @@ export function KnowledgeGraphPanel() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2Icon className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <BrandLoadingPanel
+        label={t.common.loading}
+        hideLabel
+        className="h-64 min-h-0"
+      />
     );
   }
 
@@ -151,7 +157,7 @@ export function KnowledgeGraphPanel() {
   if (entities.length === 0 && relationships.length === 0 && !searchQuery) {
     return (
       <div className="flex min-h-48 flex-col items-center justify-center gap-3 px-4 py-10 text-center">
-        <div className="rounded-lg bg-gradient-to-br from-violet-500/10 to-purple-500/5 p-3 text-chart-1 dark:text-chart-1">
+        <div className="rounded-lg bg-muted p-3 text-muted-foreground">
           <BrainIcon className="h-5 w-5" />
         </div>
         <div className="space-y-1">
@@ -325,7 +331,7 @@ export function KnowledgeGraphPanel() {
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-border-default bg-muted/20 px-4 py-10 text-center">
-              <SearchIcon className="mx-auto mb-2 size-5 text-muted-foreground/50" />
+              <SearchIcon className="mx-auto mb-2 size-5 text-muted-foreground" />
               <div className="text-sm font-medium">
                 {t.knowledgeGraph.noMatchingEntities}
               </div>

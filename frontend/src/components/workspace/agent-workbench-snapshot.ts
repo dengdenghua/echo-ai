@@ -606,7 +606,7 @@ function compactUnknown(value: unknown): string {
   if (typeof value === "string") {
     return value.length <= 500 ? value : value.slice(0, 500);
   }
-  const cacheKey = typeof value === "object" ? (value as object) : null;
+  const cacheKey = typeof value === "object" ? value : null;
   if (cacheKey) {
     const cached = compactObjectCache.get(cacheKey);
     if (cached !== undefined) return cached;

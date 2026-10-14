@@ -34,6 +34,7 @@ vi.mock("@/providers/AuthProvider", () => ({
 
 vi.mock("@/core/i18n/hooks", () => ({
   useI18n: () => ({
+    locale: "zh-CN",
     t: {
       conversation: {
         messageQueued: "排队中",

@@ -3,24 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Echo</title>
+    <title>ECHO AI</title>
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta
+      name="theme-color"
+      content="#090a0c"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="theme-color"
+      content="#eef0f3"
+      media="(prefers-color-scheme: light)"
+    />
     <!-- Inter is self-hosted via @fontsource/inter (imported in src/main.tsx);
          no external font CDN is required at runtime. -->
     <style>
+      /* ECHO splash: Graphite ground, snow mark, one cyan core that breathes.
+         Values are the ECHO tokens (echo-tokens.css), inlined because this
+         paints before any stylesheet loads. */
       :root {
-        --startup-background: #08080c;
-        --startup-logo-base: #8a7fff;
-        --startup-logo-shimmer-soft: rgb(255 255 255 / 0.03);
-        --startup-logo-shimmer-peak: rgb(255 255 255 / 0.55);
-        --startup-logo-shimmer-tail: rgb(255 255 255 / 0.08);
+        --startup-background: #090a0c;
+        --startup-mark: #eef1f4;
+        --startup-core: #6fe3f0;
+        --startup-label: #9aa3ae;
       }
 
       @media (prefers-color-scheme: light) {
         :root {
-          --startup-background: #ffffff;
-          --startup-logo-base: #6654ff;
-          --startup-logo-shimmer-peak: rgb(102 84 255 / 0.35);
+          --startup-background: #eef0f3;
+          --startup-mark: #111317;
+          --startup-core: #08788a;
+          --startup-label: #59616c;
         }
       }
 
@@ -29,6 +44,14 @@
         margin: 0;
         width: 100%;
         height: 100%;
+      }
+
+      /* Splash-only paint: applies before the theme provider puts .light/.dark
+         on <html>. Once booted, the app theme (--background) must win,
+         otherwise an OS "light" preference pins html/body to white even in
+         dark mode. */
+      html:not(.light):not(.dark),
+      html:not(.light):not(.dark) body {
         background: var(--startup-background);
       }
 
@@ -51,47 +74,18 @@
       }
 
       .startup-loader__logo {
-        position: relative;
+        display: block;
         width: 64px;
         height: 64px;
+        color: var(--startup-mark);
         opacity: 0;
-        animation: octo-logo-fade-in 220ms ease-out 60ms forwards;
+        animation: echo-splash-fade-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms
+          forwards;
       }
 
-      .startup-loader__base,
-      .startup-loader__overlay {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-      }
-
-      .startup-loader__base {
-        color: var(--startup-logo-base);
-      }
-
-      .startup-loader__overlay {
-        background-image: linear-gradient(
-          112deg,
-          transparent 22%,
-          var(--startup-logo-shimmer-soft) 38%,
-          var(--startup-logo-shimmer-peak) 49%,
-          var(--startup-logo-shimmer-tail) 56%,
-          transparent 74%
-        );
-        background-position: 140% 0;
-        background-repeat: no-repeat;
-        background-size: 220% 100%;
-        animation: octo-logo-shimmer 2200ms cubic-bezier(0.4, 0, 0.2, 1)
-          infinite;
-        -webkit-mask-image: url("/favicon.svg");
-        mask-image: url("/favicon.svg");
-        -webkit-mask-position: center;
-        mask-position: center;
-        -webkit-mask-repeat: no-repeat;
-        mask-repeat: no-repeat;
-        -webkit-mask-size: contain;
-        mask-size: contain;
+      .startup-loader__core {
+        fill: var(--startup-core);
+        animation: echo-core-breathe 2.4s ease-in-out infinite;
       }
 
       .startup-loader__label {
@@ -100,17 +94,17 @@
         left: 50%;
         transform: translateX(-50%);
         font-family:
-          "Inter",
-          ui-sans-serif,
-          system-ui,
-          -apple-system,
-          sans-serif;
-        font-size: 12px;
-        letter-spacing: 0.12em;
+          "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 16px;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
-        color: var(--startup-logo-base);
+        white-space: nowrap;
+        color: var(--startup-label);
         opacity: 0;
-        animation: octo-label-fade-in 400ms ease-out 320ms forwards;
+        animation: echo-label-fade-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) 320ms
+          forwards;
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -119,39 +113,39 @@
           animation: none;
           opacity: 1;
         }
-        .startup-loader__overlay {
+        .startup-loader__core {
           animation: none;
         }
       }
 
-      @keyframes octo-logo-fade-in {
+      @keyframes echo-splash-fade-in {
         from {
           opacity: 0;
-          transform: scale(0.96);
         }
         to {
           opacity: 1;
-          transform: scale(1);
         }
       }
 
-      @keyframes octo-label-fade-in {
+      @keyframes echo-label-fade-in {
         from {
           opacity: 0;
           transform: translate(-50%, 4px);
         }
         to {
-          opacity: 0.7;
+          opacity: 1;
           transform: translate(-50%, 0);
         }
       }
 
-      @keyframes octo-logo-shimmer {
-        0% {
-          background-position: 140% 0;
-        }
+      /* Echo Core breathe: 2.4s, 70%–100% brightness (ECHO motion rule). */
+      @keyframes echo-core-breathe {
+        0%,
         100% {
-          background-position: -120% 0;
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
         }
       }
     </style>
@@ -159,17 +153,21 @@
   <body>
     <div id="root">
       <div class="startup-loader" aria-hidden="true">
-        <div class="startup-loader__logo">
-          <img
-            class="startup-loader__base"
-            src="/favicon.svg"
-            alt=""
-            width="64"
-            height="64"
+        <svg
+          class="startup-loader__logo"
+          viewBox="0 0 64 64"
+          width="64"
+          height="64"
+          fill="none"
+        >
+          <path
+            d="M50 17H24a7 7 0 0 0-7 7v16a7 7 0 0 0 7 7h26"
+            stroke="currentColor"
+            stroke-width="6"
           />
-          <div class="startup-loader__overlay"></div>
-        </div>
-        <div class="startup-loader__label">Echo</div>
+          <circle class="startup-loader__core" cx="38" cy="32" r="5" />
+        </svg>
+        <div class="startup-loader__label">ECHO · AI</div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

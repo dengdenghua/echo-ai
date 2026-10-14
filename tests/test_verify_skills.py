@@ -9,7 +9,9 @@ from runtime.execution.suckers.verify_skills import (
 )
 
 
-def test_unknown_project_file_count_is_cross_platform(tmp_path: Path) -> None:
+def test_unknown_project_file_count_is_cross_platform(tmp_path: Path, monkeypatch) -> None:
+    # Exercise the check itself independently of the host's hard sandbox support.
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
     (tmp_path / "website").mkdir()
     (tmp_path / "website" / "index.html").write_text("<!doctype html>", encoding="utf-8")
 
@@ -153,7 +155,10 @@ def test_node_checks_fall_back_without_npm_or_npx(tmp_path: Path, monkeypatch) -
     assert "npx" not in argv
 
 
-def test_node_without_scripts_uses_dependency_free_manifest_check(tmp_path: Path) -> None:
+def test_node_without_scripts_uses_dependency_free_manifest_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
     (tmp_path / "package.json").write_text('{"name": "demo", "scripts": {}}', encoding="utf-8")
 
     profile = detect_project(str(tmp_path))
@@ -168,6 +173,7 @@ def test_node_without_scripts_uses_dependency_free_manifest_check(tmp_path: Path
 
 
 def test_invalid_package_json_fails_as_manifest_check(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
     import runtime.execution.suckers.verify_skills as verify_skills
 
     (tmp_path / "package.json").write_text('{"name": "demo",', encoding="utf-8")
@@ -182,7 +188,8 @@ def test_invalid_package_json_fails_as_manifest_check(tmp_path: Path, monkeypatc
     assert "invalid JSON" in result.stderr
 
 
-def test_invalid_pyproject_fails_before_syntax_check(tmp_path: Path) -> None:
+def test_invalid_pyproject_fails_before_syntax_check(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
     (tmp_path / "pyproject.toml").write_text("[project\nname = 'demo'\n", encoding="utf-8")
     (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
 
@@ -250,7 +257,8 @@ def test_run_checks_caps_mocked_output_by_utf8_bytes(tmp_path: Path, monkeypatch
     assert len(result.stderr.encode("utf-8")) <= 5
 
 
-def test_run_checks_legacy_cmd_uses_stream_policy(tmp_path: Path) -> None:
+def test_run_checks_legacy_cmd_uses_stream_policy(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
     profile = ProjectProfile(
         kind="legacy",
         root=str(tmp_path),
@@ -272,7 +280,8 @@ def test_run_checks_legacy_cmd_uses_stream_policy(tmp_path: Path) -> None:
     assert result.execution_policy["result"]["exit_code"] == 0
 
 
-def test_run_checks_legacy_cmd_timeout_has_execution_policy(tmp_path: Path) -> None:
+def test_run_checks_legacy_cmd_timeout_has_execution_policy(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "soft")
     profile = ProjectProfile(
         kind="legacy",
         root=str(tmp_path),

@@ -5,6 +5,19 @@ import { TeamGatewaySettings } from "./team-gateway-settings";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("does not mistake a failed connection lookup for an empty team list", async () => {
+  const fetchMock = vi.fn()
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({ ok: true, json: async () => ({ connections: [] }) });
+  vi.stubGlobal("fetch", fetchMock);
+  renderWithProviders(<TeamGatewaySettings onConnected={vi.fn()} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("暂时无法读取团队连接");
+  expect(screen.queryByText(/尚未加入团队/)).not.toBeInTheDocument();
+  fireEvent.focus(window);
+  expect(await screen.findByText(/尚未加入团队/)).toBeVisible();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
 it("restores saved connections and retries sync without exchanging again", async () => {
   const changed = vi.fn();
   const connection = {
@@ -63,6 +76,11 @@ it("joins with a code and receives no member token in the browser", async () => 
   vi.stubGlobal("fetch", fetchMock);
   renderWithProviders(<TeamGatewaySettings onConnected={changed} />);
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByText("加入团队"));
+  expect(screen.getByLabelText("团队网关地址")).toHaveValue("");
+  fireEvent.change(screen.getByLabelText("团队网关地址"), {
+    target: { value: "http://localhost:8333/v1" },
+  });
   fireEvent.change(screen.getByLabelText("团队邀请兑换码"), {
     target: { value: "one-time-code" },
   });

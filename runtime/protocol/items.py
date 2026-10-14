@@ -133,6 +133,9 @@ class AgentMessageItem(_ItemBase):
     # renders the ACTUAL author's avatar + name (not the turn leader's). The
     # frontend reads these off the message's additional_kwargs; when unset it
     # falls back to the turn's agent — so single-agent turns are unaffected.
+    # ``agent_id`` is the server-assigned author (a group member id); the room
+    # projection attributes the message to it instead of the thread's agent.
+    agent_id: str | None = Field(default=None, alias="agentId")
     agent_display_name: str | None = Field(default=None, alias="agentDisplayName")
     agent_avatar_url: str | None = Field(default=None, alias="agentAvatarUrl")
     agent_icon: str | None = Field(default=None, alias="agentIcon")
@@ -348,6 +351,35 @@ class FileChangeItem(_ItemBase):
     grant_root: str | None = Field(default=None, alias="grantRoot")
 
 
+class FileEditSummary(BaseModel):
+    """Per-file view of what a turn did to the working tree (P1-15).
+
+    ``FileChangeItem`` records one write *tool call* at a time; this is the
+    merged, one-entry-per-file view of the whole turn. It carries hashes and
+    the reversibility verdict rather than file contents, so the terminal
+    ``turn/completed`` frame stays bounded no matter how much was written.
+    ``before`` is only ever known or derived — ``beforeSource`` says which,
+    and ``reason`` says why a before-state is missing when it is.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    path: str
+    op: Literal["create", "update", "delete"]
+    before_sha256: str = Field(default="", alias="beforeSha256")
+    after_sha256: str = Field(default="", alias="afterSha256")
+    # ``recorded``: known without inference (a created file had no content).
+    # ``derived``: reconstructed from a complete unified diff.
+    # ``unknown``: not established; ``reason`` says why.
+    before_source: Literal["recorded", "derived", "unknown"] = Field(
+        default="unknown", alias="beforeSource"
+    )
+    # True when the content this turn recorded is enough to restore the file.
+    reversible: bool = False
+    reason: str = ""
+    touches: int = 1
+
+
 class McpToolProgress(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -533,6 +565,9 @@ class TurnParams(BaseModel):
         max_length=96,
         pattern=r"^itm_[A-Za-z0-9][A-Za-z0-9_-]*$",
     )
+    # Explicit live waiting request; it is withdrawn if the requester drops
+    # before execution. The OS claim still protects every admitted turn.
+    queue_if_busy: bool = Field(default=False, alias="queueIfBusy", strict=True)
     input: list[dict[str, Any]] = Field(default_factory=list)
     cwd: str | None = None
     approval_policy: Literal["never", "on-request", "untrusted"] = Field(
@@ -647,6 +682,11 @@ class Turn(BaseModel):
         default=None,
         alias="completionDecision",
     )
+    # Merged per-file journal of everything this turn did to the working
+    # tree, in first-touch order (see ``runtime.core.cerebrum.
+    # file_edit_journal``). Hashes and reversibility only — the contents this
+    # view is derived from never ride the turn frame.
+    file_edits: list[FileEditSummary] = Field(default_factory=list, alias="fileEdits")
 
 
 __all__ = [
@@ -660,6 +700,7 @@ __all__ = [
     "EvidenceReference",
     "FileChange",
     "FileChangeItem",
+    "FileEditSummary",
     "FileHunk",
     "GroundingSource",
     "Item",

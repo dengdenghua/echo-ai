@@ -1,6 +1,6 @@
 from urllib.parse import parse_qs, urlsplit
-import pytest
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

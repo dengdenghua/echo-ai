@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-LICENSE_ROOT = ROOT / "extras/desktop/licenses/codex-0.149.0"
+LICENSE_ROOT = ROOT / "extras/desktop/licenses/codex-0.162.0"
 PROVENANCE_PATH = LICENSE_ROOT / "NATIVE_PROVENANCE.json"
 NOTICE_PATH = LICENSE_ROOT / "NATIVE_THIRD_PARTY_NOTICES.md"
 
@@ -17,8 +17,8 @@ HEX_40 = re.compile(r"^[0-9a-f]{40}$")
 HEX_64 = re.compile(r"^[0-9a-f]{64}$")
 PLACEHOLDER = re.compile(r"\b(?:TODO|TBD|PLACEHOLDER|UNKNOWN\s+COPYRIGHT)\b", re.IGNORECASE)
 
-CODEX_COMMIT = "758ef40f50c1a458425c7cfbf1eb12cbc07af0b0"
-CODEX_LOCK_SHA256 = "0c32858e9c47d0acf82735c8620c96840a5381152eec63acad15d1acadb9edad"
+CODEX_COMMIT = "c1382380de69521303b416720a52f42d51af6248"
+CODEX_LOCK_SHA256 = "49fe417bcafe3f69f1f6636e23274f90d37e75e388127a76888c39001a4f8117"
 RIPGREP_COMMIT = "e89fff89ac9af12e8d4ce9d5fd07beb408ca730f"
 RIPGREP_LOCK_SHA256 = "7a7d39cda8a03930e578f1dbb724e055771901842eca239e03b01e19da946a64"
 
@@ -96,8 +96,8 @@ RUSTY_V8_BINDING_SHA256 = "dabf78ba1faac127660db9862b1d0354175c71b8db2d4fcb5bacb
 
 REQUIRED_COMPONENTS = {
     "aws-lc-sys": (
-        "0.39.0",
-        "1fa7e52a4c5c547c741610a2c6f123f3881e409b714cd27e6798ef020c514f0a",
+        "0.45.0",
+        "9bff6c3b54fad79a2e60b8102caf565819711497c1f5f092f49508e2f5c31b27",
     ),
     "ring": (
         "0.17.14",
@@ -258,7 +258,7 @@ def test_source_locks_and_required_native_versions_are_exact() -> None:
     assert isinstance(locks, dict)
     assert set(locks) >= {"codex", "ripgrep", "rusty_v8", "v8", "icu", "tree_sitter"}
 
-    assert locks["codex"]["tag"] == "rust-v0.149.0"
+    assert locks["codex"]["tag"] == "rust-v0.162.0"
     assert locks["codex"]["commit"] == CODEX_COMMIT
     assert locks["codex"]["cargo_lock_sha256"] == CODEX_LOCK_SHA256
     assert locks["ripgrep"]["tag"] == "15.2.0"

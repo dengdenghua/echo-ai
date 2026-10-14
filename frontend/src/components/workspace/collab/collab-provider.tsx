@@ -19,12 +19,16 @@ import { readOrCreateTeamParticipantId } from "@/core/teams";
 import type { SpeakerPolicy } from "@/core/teams";
 import { eventBus } from "@/core/events";
 import { teamTaskQueryKeys } from "@/core/team-tasks/hooks";
+import { isTeamTask } from "@/core/team-tasks/guards";
 import type { TeamTask } from "@/core/team-tasks/types";
+import { looseBody } from "@/core/api/response";
+import { isObjectLike, isOneOf } from "@/core/utils/guards";
 import type {
   CoworkMessageReaction,
   CoworkPinnedMessage,
   CoworkRoomReplyReference,
 } from "@/core/cowork/types";
+import { isCoworkRoomReplyReference } from "@/core/cowork/guards";
 import {
   createCollabAnnotation,
   createCollabAnnotationReply,
@@ -36,6 +40,25 @@ import {
   toggleCollabMessageReaction,
   toggleCollabPinnedMessage,
 } from "@/core/cowork/api";
+
+import {
+  createClientMessageId,
+  readRoomOutbox,
+  enqueueRoomOutbox,
+  removeRoomOutboxMessage,
+  upsertRoomMessage,
+  upsertRoomMessageReceipt,
+  markRoomMessageFailed,
+  type RoomMessage,
+  type RoomMessageReceipt,
+} from "./room-message-state";
+export {
+  upsertRoomMessage,
+  upsertRoomMessageReceipt,
+} from "./room-message-state";
+export type { RoomMessage, RoomMessageReceipt } from "./room-message-state";
+
+import { useRoomTranscript } from "./use-room-transcript";
 
 export interface User {
   id: string;
@@ -64,30 +87,6 @@ export interface Annotation {
   created_at: number;
   resolved: boolean;
   replies: AnnotationReply[];
-}
-
-export interface RoomMessage {
-  message_id: string;
-  client_message_id?: string;
-  seq?: number;
-  thread_id?: string;
-  participant_id: string;
-  display_name: string;
-  on_behalf_of?: string;
-  text: string;
-  reply_to?: CoworkRoomReplyReference | null;
-  created_at: string;
-  delivery_status?: "sending" | "sent" | "delivered" | "read" | "failed";
-  error?: string;
-}
-
-export interface RoomMessageReceipt {
-  room_id: string;
-  message_id: string;
-  participant_id: string;
-  status: "delivered" | "read";
-  seq?: number | null;
-  updated_at?: string;
 }
 
 export interface TeamTaskProgressEvent {
@@ -122,6 +121,7 @@ const DEFAULT_FLOOR: FloorState = {
 };
 
 interface CollabContextType {
+  canWrite: boolean;
   users: User[];
   currentUser: User | null;
   isConnected: boolean;
@@ -156,6 +156,7 @@ interface CollabContextType {
 }
 
 interface CollabProviderProps {
+  canWrite?: boolean;
   children: ReactNode;
   teamId?: string | null;
   threadId?: string | null;
@@ -168,6 +169,7 @@ interface CollabProviderProps {
 const CollabContext = createContext<CollabContextType | null>(null);
 
 export function CollabProvider({
+  canWrite = true,
   children,
   teamId,
   threadId,
@@ -186,6 +188,8 @@ export function CollabProvider({
     return value && value !== "new" ? value : "";
   }, [threadId]);
   const wsRef = useRef<WebSocket | null>(null);
+  const serverParticipantId = useRef(resolvedParticipantId);
+  const getParticipantId = useCallback(() => serverParticipantId.current, []);
   const reconnectTimerRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(true);
   const queryClient = useQueryClient();
@@ -217,11 +221,12 @@ export function CollabProvider({
   );
 
   useEffect(() => {
+    serverParticipantId.current = resolvedParticipantId;
     setTaskEvents([]);
     setRoomMessages([]);
     setMessageReceipts([]);
     setFloor(DEFAULT_FLOOR);
-  }, [teamId]);
+  }, [teamId, resolvedParticipantId]);
 
   useEffect(() => {
     if (!teamId || !normalizedThreadId) {
@@ -255,31 +260,17 @@ export function CollabProvider({
     return () => {
       disposed = true;
     };
-  }, [normalizedThreadId, teamId]);
+  }, [normalizedThreadId, teamId, isConnected]);
 
-  useEffect(() => {
-    if (!teamId || typeof window === "undefined") return;
-    const queued = readRoomOutbox(teamId, resolvedParticipantId);
-    if (queued.length === 0) return;
-    setRoomMessages((prev) => {
-      let next = prev;
-      for (const item of queued) {
-        next = upsertRoomMessage(next, {
-          message_id: `local:${item.client_message_id}`,
-          client_message_id: item.client_message_id,
-          thread_id: item.thread_id,
-          participant_id: item.on_behalf_of || resolvedParticipantId,
-          display_name: item.on_behalf_of ? "Pending" : localUser.name,
-          on_behalf_of: item.on_behalf_of,
-          reply_to: item.reply_to,
-          text: item.text,
-          created_at: item.created_at,
-          delivery_status: "sending",
-        });
-      }
-      return next;
-    });
-  }, [localUser.name, resolvedParticipantId, teamId]);
+  const recoverTranscript = useRoomTranscript({
+    teamId,
+    participantId: resolvedParticipantId,
+    threadId: normalizedThreadId,
+    displayName: localUser.name,
+    setMessages: setRoomMessages,
+    setReceipts: setMessageReceipts,
+    getParticipantId,
+  });
 
   const notifyRemoved = useCallback(
     (_reason = "removed") => {
@@ -353,6 +344,21 @@ export function CollabProvider({
         if (disposed) return;
         const msg = parseMessage(event.data);
         if (!msg) return;
+        if (
+          msg.type === "ready" &&
+          isRecord(msg.participant) &&
+          typeof msg.participant.id === "string"
+        ) {
+          serverParticipantId.current = msg.participant.id;
+          setRoomMessages((messages) =>
+            messages.map((message) =>
+              !message.seq && !message.on_behalf_of
+                ? { ...message, participant_id: getParticipantId() }
+                : message,
+            ),
+          );
+        }
+        recoverTranscript(msg);
         if (msg.type === "error") {
           const message = String(msg.message ?? "");
           const clientMessageId = String(msg.client_message_id ?? "");
@@ -439,7 +445,15 @@ export function CollabProvider({
           }
           const text = msg.text;
           const clientMessageId = String(msg.client_message_id ?? "");
-          if (clientMessageId) {
+          if (
+            clientMessageId &&
+            readRoomOutbox(teamId, resolvedParticipantId).some(
+              (item) =>
+                item.client_message_id === clientMessageId &&
+                (item.on_behalf_of || getParticipantId()) ===
+                  String(msg.participant_id ?? ""),
+            )
+          ) {
             removeRoomOutboxMessage(
               teamId,
               resolvedParticipantId,
@@ -453,11 +467,18 @@ export function CollabProvider({
               seq: Number.isFinite(Number(msg.seq))
                 ? Number(msg.seq)
                 : undefined,
+              session_seq: Number.isSafeInteger(msg.session_seq)
+                ? Number(msg.session_seq)
+                : undefined,
+              cursor_epoch:
+                typeof msg.cursor_epoch === "string"
+                  ? msg.cursor_epoch
+                  : undefined,
               thread_id: incomingThreadId || undefined,
               participant_id: String(msg.participant_id ?? ""),
               display_name: String(msg.display_name ?? "Guest"),
               reply_to: isRecord(msg.reply_to)
-                ? (msg.reply_to as CoworkRoomReplyReference)
+                ? looseBody(msg.reply_to, isCoworkRoomReplyReference)
                 : undefined,
               text,
               created_at: String(msg.created_at ?? new Date().toISOString()),
@@ -492,23 +513,35 @@ export function CollabProvider({
           }
           const senderId = String(msg.participant_id ?? "");
           if (senderId === resolvedParticipantId) return;
+          // Durable room writes can originate from HTTP or another realtime
+          // connection without a live room-message frame. Refetch the shared
+          // timeline even when this browser is in the background.
+          void queryClient.invalidateQueries({
+            queryKey: ["cowork", "session", normalizedThreadId],
+          });
           if (msg.reason === "annotation" && normalizedThreadId) {
             void getCollabAnnotations(normalizedThreadId)
-              .then(setAnnotations)
+              .then((next) => {
+                if (!disposed) setAnnotations(next);
+              })
               .catch((error) =>
                 swallow(error, "refresh-collaboration-annotations"),
               );
           }
           if (msg.reason === "reaction" && normalizedThreadId) {
             void getCollabMessageReactions(normalizedThreadId)
-              .then(setMessageReactions)
+              .then((next) => {
+                if (!disposed) setMessageReactions(next);
+              })
               .catch((error) =>
                 swallow(error, "refresh-collaboration-message-reactions"),
               );
           }
           if (msg.reason === "pin" && normalizedThreadId) {
             void getCollabPinnedMessages(normalizedThreadId)
-              .then(setPinnedMessages)
+              .then((next) => {
+                if (!disposed) setPinnedMessages(next);
+              })
               .catch((error) =>
                 swallow(error, "refresh-collaboration-pinned-messages"),
               );
@@ -599,6 +632,8 @@ export function CollabProvider({
     resolvedDisplayName,
     resolvedParticipantId,
     teamId,
+    recoverTranscript,
+    getParticipantId,
   ]);
 
   useEffect(() => {
@@ -657,7 +692,7 @@ export function CollabProvider({
         message_id: `local:${clientMessageId}`,
         client_message_id: clientMessageId,
         thread_id: normalizedThreadId || undefined,
-        participant_id: onBehalfOf || localUser.id,
+        participant_id: onBehalfOf || getParticipantId(),
         display_name: onBehalfOf ? "Pending" : localUser.name,
         on_behalf_of: onBehalfOf,
         reply_to: replyTo ?? undefined,
@@ -688,7 +723,14 @@ export function CollabProvider({
       }
       return clientMessageId;
     },
-    [localUser, normalizedThreadId, resolvedParticipantId, sendJson, teamId],
+    [
+      localUser,
+      normalizedThreadId,
+      resolvedParticipantId,
+      sendJson,
+      teamId,
+      getParticipantId,
+    ],
   );
 
   const retryRoomMessage = useCallback(
@@ -807,7 +849,11 @@ export function CollabProvider({
         display_name: author?.display_name,
         avatar_color: author?.avatar_color,
       });
-      setAnnotations((prev) => [...prev, annotation]);
+      setAnnotations((prev) =>
+        prev.some((item) => item.annotation_id === annotation.annotation_id)
+          ? prev
+          : [...prev, annotation],
+      );
       void queryClient.invalidateQueries({
         queryKey: ["cowork", "session", normalizedThreadId],
       });
@@ -929,7 +975,11 @@ export function CollabProvider({
           item.annotation_id === annotationId
             ? {
                 ...item,
-                replies: [...item.replies, reply],
+                replies: item.replies.some(
+                  (existing) => existing.reply_id === reply.reply_id,
+                )
+                  ? item.replies
+                  : [...item.replies, reply],
               }
             : item,
         ),
@@ -942,6 +992,7 @@ export function CollabProvider({
   return (
     <CollabContext.Provider
       value={{
+        canWrite,
         users,
         currentUser,
         isConnected,
@@ -988,160 +1039,11 @@ export function useOptionalCollab() {
   return useContext(CollabContext);
 }
 
-function createClientMessageId(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-  return `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-interface QueuedRoomMessage {
-  client_message_id: string;
-  text: string;
-  thread_id?: string;
-  on_behalf_of?: string;
-  created_at: string;
-  reply_to?: CoworkRoomReplyReference | null;
-}
-
-const ROOM_OUTBOX_PREFIX = "echo:room-outbox:";
-
-function roomOutboxKey(teamId: string, participantId: string): string {
-  return `${ROOM_OUTBOX_PREFIX}${teamId}:${participantId}`;
-}
-
-function readRoomOutbox(
-  teamId?: string | null,
-  participantId?: string | null,
-): QueuedRoomMessage[] {
-  if (!teamId || !participantId || typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(roomOutboxKey(teamId, participantId)) ?? "[]",
-    );
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is QueuedRoomMessage =>
-        item &&
-        typeof item === "object" &&
-        typeof item.client_message_id === "string" &&
-        typeof item.text === "string" &&
-        typeof item.created_at === "string",
-    );
-  } catch {
-    return [];
-  }
-}
-
-function writeRoomOutbox(
-  teamId: string,
-  participantId: string,
-  messages: QueuedRoomMessage[],
-) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      roomOutboxKey(teamId, participantId),
-      JSON.stringify(messages.slice(-100)),
-    );
-  } catch {
-    // Storage may be disabled or full; in-memory delivery still works.
-  }
-}
-
-function enqueueRoomOutbox(
-  teamId: string | null | undefined,
-  participantId: string,
-  message: Omit<QueuedRoomMessage, "created_at"> & { created_at?: string },
-) {
-  if (!teamId) return;
-  const queued = readRoomOutbox(teamId, participantId).filter(
-    (item) => item.client_message_id !== message.client_message_id,
-  );
-  queued.push({
-    ...message,
-    created_at: message.created_at ?? new Date().toISOString(),
-  });
-  writeRoomOutbox(teamId, participantId, queued);
-}
-
-function removeRoomOutboxMessage(
-  teamId: string | null | undefined,
-  participantId: string,
-  clientMessageId: string,
-) {
-  if (!teamId) return;
-  const queued = readRoomOutbox(teamId, participantId).filter(
-    (item) => item.client_message_id !== clientMessageId,
-  );
-  writeRoomOutbox(teamId, participantId, queued);
-}
-
-export function upsertRoomMessage(
-  messages: RoomMessage[],
-  incoming: RoomMessage,
-): RoomMessage[] {
-  const index = messages.findIndex(
-    (message) =>
-      message.message_id === incoming.message_id ||
-      Boolean(
-        incoming.client_message_id &&
-        message.client_message_id === incoming.client_message_id,
-      ),
-  );
-  if (index < 0) return [...messages, incoming].slice(-50);
-  const next = [...messages];
-  next[index] = incoming;
-  return next.slice(-50);
-}
-
-export function upsertRoomMessageReceipt(
-  receipts: RoomMessageReceipt[],
-  incoming: RoomMessageReceipt,
-): RoomMessageReceipt[] {
-  const index = receipts.findIndex(
-    (receipt) =>
-      receipt.message_id === incoming.message_id &&
-      receipt.participant_id === incoming.participant_id,
-  );
-  if (index < 0) return [...receipts, incoming].slice(-500);
-  const current = receipts[index]!;
-  const status =
-    current.status === "read" || incoming.status === "read"
-      ? "read"
-      : "delivered";
-  const next = [...receipts];
-  next[index] = {
-    ...current,
-    ...incoming,
-    status,
-    seq: incoming.seq ?? current.seq ?? null,
-  };
-  return next.slice(-500);
-}
-
-function markRoomMessageFailed(
-  messages: RoomMessage[],
-  clientMessageId: string,
-  error: string,
-): RoomMessage[] {
-  return messages.map((message) =>
-    message.client_message_id === clientMessageId
-      ? { ...message, delivery_status: "failed", error }
-      : message,
-  );
-}
-
 function parseMessage(data: unknown): Record<string, unknown> | null {
   if (typeof data !== "string") return null;
   try {
-    const parsed = JSON.parse(data);
-    return parsed && typeof parsed === "object"
-      ? (parsed as Record<string, unknown>)
-      : null;
+    const parsed: unknown = JSON.parse(data);
+    return isObjectLike(parsed) ? parsed : null;
   } catch (e) {
     swallow(e);
     return null;
@@ -1149,10 +1051,7 @@ function parseMessage(data: unknown): Record<string, unknown> | null {
 }
 
 function participantToUser(participant: unknown, avatar?: string | null): User {
-  const item =
-    participant && typeof participant === "object"
-      ? (participant as Record<string, unknown>)
-      : {};
+  const item = isObjectLike(participant) ? participant : {};
   const id = String(item.id ?? `guest-${Date.now()}`);
   const name = String(item.display_name ?? "Guest");
   return {
@@ -1167,15 +1066,13 @@ function teamHasRemovedParticipant(
   team: unknown,
   participantId: string,
 ): boolean {
-  const item =
-    team && typeof team === "object" ? (team as Record<string, unknown>) : {};
+  const item = isObjectLike(team) ? team : {};
   const participants = Array.isArray(item.participants)
     ? item.participants
     : [];
   return participants.some((participant) => {
-    if (!participant || typeof participant !== "object") return false;
-    const p = participant as Record<string, unknown>;
-    return p.id === participantId && p.status === "removed";
+    if (!isObjectLike(participant)) return false;
+    return participant.id === participantId && participant.status === "removed";
   });
 }
 
@@ -1183,7 +1080,7 @@ function parseTaskProgressEvent(
   msg: Record<string, unknown>,
   expectedTeamId?: string | null,
 ): TeamTaskProgressEvent | null {
-  const task = isRecord(msg.task) ? (msg.task as unknown as TeamTask) : null;
+  const task = isRecord(msg.task) ? looseBody(msg.task, isTeamTask) : null;
   const taskId = stringOr(msg.task_id) || task?.id || "";
   const roomId =
     stringOr(msg.room_id) || stringOr(msg.team_id) || task?.room_id || "";
@@ -1250,21 +1147,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-const FLOOR_POLICIES = new Set<SpeakerPolicy>([
+const FLOOR_POLICIES = [
   "free",
   "admin_only",
   "round_robin",
   "roll_call",
   "moderated",
-]);
+] as const satisfies readonly SpeakerPolicy[];
 
 // Extract floor state from either a dedicated ``floor`` event or a team
 // object (which carries the same fields). Tolerant of missing keys.
 function floorFrom(source: unknown): FloorState {
   const item = isRecord(source) ? source : {};
-  const policy = String(item.speaker_policy ?? "free") as SpeakerPolicy;
+  const policy = String(item.speaker_policy ?? "free");
   return {
-    speakerPolicy: FLOOR_POLICIES.has(policy) ? policy : "free",
+    speakerPolicy: isOneOf(policy, FLOOR_POLICIES) ? policy : "free",
     currentSpeakerId:
       typeof item.current_speaker_id === "string"
         ? item.current_speaker_id

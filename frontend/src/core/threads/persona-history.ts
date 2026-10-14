@@ -3,8 +3,8 @@ import { isPrimaryPersonaAgentId } from "@/core/agents/persona-policy";
 import type { AgentThread } from "./types";
 
 export function threadOwnerAgentId(thread: AgentThread): string {
-  const metadata = (thread.metadata ?? {}) as Record<string, unknown>;
-  const values = (thread.values ?? {}) as Record<string, unknown>;
+  const metadata = thread.metadata ?? {};
+  const values: Record<string, unknown> = thread.values ?? {};
   const candidates = [
     metadata.agent,
     metadata.agent_name,

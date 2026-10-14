@@ -9,6 +9,8 @@ via ``-c``. That dodges shell-builtin differences (``echo``, ``ls``,
 from __future__ import annotations
 
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -24,6 +26,11 @@ from runtime.safety.sandboxing.sandbox import (
     SeatbeltBackend,
     select_process_backend,
 )
+
+
+def _profile_paths(profile: str) -> set[str]:
+    """Decode SBPL string literals so escaped Windows paths remain testable."""
+    return {json.loads(value) for value in re.findall(r'"(?:\\.|[^"\\])*"', profile)}
 
 
 def _python(*code_chunks: str) -> list[str]:
@@ -445,7 +452,7 @@ class TestProcessBackendSelection:
         assert argv[:2] == ["/usr/bin/sandbox-exec", "-p"]
         assert "(allow network*)" in argv[2]
         assert "/dev/null" in argv[2]
-        assert str(workspace.resolve()) in argv[2]
+        assert str(workspace.resolve()) in _profile_paths(argv[2])
         assert argv[-2:] == ["python", "-V"]
         assert cwd == workspace.resolve()
 
@@ -520,7 +527,7 @@ class TestReadOnlyMode:
             SandboxPolicy(workspace=workspace, mode="read-only"),
         )
         profile = argv[2]
-        assert str(workspace) not in profile
+        assert str(workspace) not in _profile_paths(profile)
         assert "/dev/null" in profile
 
     def test_seatbelt_workspace_write_allows_workspace(self, workspace: Path, monkeypatch) -> None:
@@ -534,7 +541,7 @@ class TestReadOnlyMode:
             SandboxPolicy(workspace=workspace, mode="workspace-write"),
         )
         profile = argv[2]
-        assert str(workspace) in profile
+        assert str(workspace) in _profile_paths(profile)
 
 
 class TestAdditionalWriteRoots:
@@ -570,10 +577,13 @@ class TestAdditionalWriteRoots:
         with pytest.raises(SandboxViolation, match="cannot be a symlink"):
             SandboxPolicy(workspace=workspace, additional_write_roots=(link,))
 
+        system_directory = (
+            Path(os.environ["SYSTEMROOT"]) / "System32" if os.name == "nt" else Path("/usr/bin")
+        )
         with pytest.raises(SandboxViolation, match="must not overlap a system directory"):
             SandboxPolicy(
                 workspace=workspace,
-                additional_write_roots=(Path("/usr/bin"),),
+                additional_write_roots=(system_directory,),
             )
 
         exact_roots = self._roots(tmp_path)
@@ -646,12 +656,13 @@ class TestAdditionalWriteRoots:
             ),
         )
         profile = argv[2]
-        assert str(workspace.resolve()) not in profile
+        allowed_paths = _profile_paths(profile)
+        assert str(workspace.resolve()) not in allowed_paths
         for root in roots:
-            assert str(root.resolve()) in profile
+            assert str(root.resolve()) in allowed_paths
         adjacent = roots[0].parent / "adjacent-untrusted"
         adjacent.mkdir()
-        assert str(adjacent.resolve()) not in profile
+        assert str(adjacent.resolve()) not in allowed_paths
 
     def test_landlock_read_only_keeps_only_private_roots(
         self,

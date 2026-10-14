@@ -41,10 +41,11 @@ def test_avatar_picks_role_emoji() -> None:
     assert bridge._avatar_for_role("architect") == "🏗️"
 
 
-def test_avatar_falls_back_to_echo_for_unknown() -> None:
-    assert bridge._avatar_for_role("unknown_role") == "🐙"
-    assert bridge._avatar_for_role("") == "🐙"
-    assert bridge._avatar_for_role(None) == "🐙"  # type: ignore[arg-type]
+def test_avatar_falls_back_to_no_glyph_for_unknown() -> None:
+    # The retired octopus mascot is gone; clients draw a monogram instead.
+    assert bridge._avatar_for_role("unknown_role") == ""
+    assert bridge._avatar_for_role("") == ""
+    assert bridge._avatar_for_role(None) == ""  # type: ignore[arg-type]
 
 
 def test_spawn_event_emitted_before_runner_runs() -> None:

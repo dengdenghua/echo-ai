@@ -133,7 +133,9 @@ describe("MemorySettingsPage", () => {
   it("names search and filters and disables destructive clearing when empty", () => {
     renderWithProviders(<MemorySettingsPage />, { locale: "zh-CN" });
 
-    expect(screen.getByRole("textbox", { name: "搜索记忆" })).toBeVisible();
+    // type=search keeps browser autofill out of this field, which also makes
+    // its a11y role searchbox rather than textbox.
+    expect(screen.getByRole("searchbox", { name: "搜索记忆" })).toBeVisible();
     expect(screen.getByRole("group", { name: "筛选记忆类型" })).toBeVisible();
     expect(screen.getByRole("button", { name: "清空所有记忆" })).toBeDisabled();
   });
@@ -189,7 +191,7 @@ describe("MemorySettingsPage", () => {
     });
     renderWithProviders(<MemorySettingsPage />, { locale: "zh-CN" });
 
-    const search = screen.getByRole("textbox", { name: "搜索记忆" });
+    const search = screen.getByRole("searchbox", { name: "搜索记忆" });
     await user.type(search, "apple");
     await waitFor(() =>
       expect(mocks.searchMemory).toHaveBeenCalledWith("apple", 100),

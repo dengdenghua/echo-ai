@@ -22,6 +22,8 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
         title="Realtime workspace first-task path",
         paths=(
             "frontend/src/app/workspace/realtime/[thread_id]/page.tsx",
+            # The page's submit path moved here when the page was split.
+            "frontend/src/app/workspace/realtime/[thread_id]/use-realtime-submit.ts",
             "frontend/src/components/workspace/chat-input-box.tsx",
             "frontend/src/components/workspace/chat-input-box/ChatComposer.tsx",
             "frontend/src/components/workspace/chat-input-box.test.tsx",
@@ -41,6 +43,7 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
         title="Projects workspace empty state and first action",
         paths=(
             "frontend/src/app/workspace/projects/page.tsx",
+            "frontend/src/components/workspace/projects/project-cockpit-metrics.tsx",
             "frontend/src/app/workspace/projects/page.test.tsx",
             "frontend/src/components/workspace/create-project-dialog.tsx",
         ),
@@ -56,9 +59,7 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
     ProductExperienceCheck(
         id="work_surface_design_first_canvas",
         title="Design workspace first canvas path",
-        paths=(
-            "frontend/src/app/workspace/design/page.tsx",
-        ),
+        paths=("frontend/src/app/workspace/design/page.tsx",),
         required_terms=(
             "新建本地项目",
             "创建项目",
@@ -157,8 +158,8 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
         id="shared_quality_strip",
         title="Shared quality strip",
         paths=(
-            "frontend/src/components/workspace/capability-quality-strip.tsx",
-            "frontend/src/components/workspace/capability-quality-strip.test.tsx",
+            "frontend/src/components/workspace/agent-operator/index.tsx",
+            "frontend/src/components/workspace/agent-operator/cards/CompetitorScorecardCard.tsx",
             "frontend/src/core/agent-trace/api.ts",
         ),
         required_terms=(
@@ -173,7 +174,6 @@ CHECKS: tuple[ProductExperienceCheck, ...] = (
         id="browser_preview_product_loop",
         title="Browser preview product loop",
         paths=(
-            "frontend/src/components/workspace/embedded-browser/browser-panel.tsx",
             "frontend/src/components/workspace/browser-preview-panel.tsx",
             "runtime/platform/ui/browser_router.py",
             "tests/test_browser_router.py",

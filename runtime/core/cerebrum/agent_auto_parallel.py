@@ -418,7 +418,11 @@ def run_auto_parallel(
             # authority objects. Keep this batch in process instead of trying
             # to serialize them across the optional process-worker boundary.
             dispatch_context["subagent_worker_isolation"] = "thread"
-    except (ImportError, AttributeError, LookupError):
+    except (
+        ImportError,
+        AttributeError,
+        LookupError,
+    ):  # intentional: Optional host session lookup; dispatch retains its default context.
         pass
 
     try:

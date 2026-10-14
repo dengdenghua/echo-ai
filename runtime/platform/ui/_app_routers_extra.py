@@ -18,6 +18,7 @@ from typing import Any
 from runtime.execution.model_services import native_model_services
 from runtime.platform.process.paths import app_paths
 
+from ._app_background import stop_on_shutdown
 from ._app_context import AppContext
 
 
@@ -51,6 +52,69 @@ def _register_plugin_hub_lifecycle(app: Any, hub: Any) -> None:
 
     app.router.add_event_handler("startup", _start_plugins)
     app.router.add_event_handler("shutdown", _stop_plugins)
+
+
+def _start_ambient_scheduler(app: Any) -> None:
+    """Start periodic LLM-backed ambient suggestions; stop them on shutdown.
+
+    No-op when the flag is off; honors ``ui.ambient_suggestions_interval_sec``.
+    """
+    try:
+        from runtime.memory.skills_lib.ambient_suggestions_scheduler import (
+            AmbientSchedulerConfig,
+            get_ambient_scheduler,
+        )
+        from runtime.platform import feature_flags
+
+        scheduler = get_ambient_scheduler()
+        stop_on_shutdown(app, "ambient-suggestions-scheduler", scheduler.stop)
+        scheduler.start(
+            AmbientSchedulerConfig(
+                enabled=feature_flags.is_on("ui.ambient_suggestions"),
+                interval_sec=max(
+                    60,
+                    int(feature_flags.value("ui.ambient_suggestions_interval_sec", 21600)),
+                ),
+            )
+        )
+    except Exception as _ambs_exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "ambient_suggestions_scheduler failed to start: %s",
+            _ambs_exc,
+        )
+
+
+def _mount_workspace_api(ctx: AppContext) -> None:
+    # ─── Workspace HTTP API (feature-flag gated) ─────────────────────────
+    # Entity CRUD uses /api/workspaces; thread manifests use the explicit
+    # /api/threads/{thread_id}/workspace route in the complete application.
+    # The standalone thread router retains its deprecated legacy info alias.
+    try:
+        from runtime.sensing.gateway.workspace_api_router import (
+            create_workspace_api_router,
+        )
+
+        from ._app_workspace_services import ensure_workspace_services
+
+        ensure_workspace_services(ctx)
+
+        ctx.app.include_router(
+            create_workspace_api_router(
+                workspace_store=ctx.workspace_store,
+                lease_store=ctx.workspace_leases,
+                registry=ctx.workspace_mounts,
+                identity_store=ctx.identity_store,
+                require_auth=ctx.require_auth,
+                jwt_secret=ctx.jwt_secret,
+                jwt_issuer=ctx.jwt_issuer,
+                jwt_audience=ctx.jwt_audience,
+            )
+        )
+    except Exception as _wsa_exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning(
+            "workspace_api_router failed to mount: %s",
+            _wsa_exc,
+        )
 
 
 def mount_routers_b(
@@ -107,35 +171,7 @@ def mount_routers_b(
             _rb_exc,
         )
 
-    # ─── Workspace HTTP API (feature-flag gated) ─────────────────────────
-    # Mount + membership + file-lease CRUD on top of WorkspaceStore /
-    # MountBackendRegistry / LeaseStore. Registered AFTER the per-thread
-    # ``workspaces_router`` so that router's ``GET /api/workspaces/{thread_id}/outputs``
-    # continues to win for output listing; the new router owns the
-    # create / list / members / lease / health endpoints. The new
-    # ``GET /api/workspaces/{workspace_id}`` is shadowed by the thread
-    # router's ``GET /api/workspaces/{thread_id}`` when both are
-    # mounted — callers that need the Workspace entity by id should
-    # filter the ``GET /api/workspaces?user_id=...`` list response.
-    try:
-        from runtime.sensing.gateway.workspace_api_router import (
-            create_workspace_api_router,
-        )
-
-        app.include_router(
-            create_workspace_api_router(
-                identity_store=ctx.identity_store,
-                require_auth=ctx.require_auth,
-                jwt_secret=ctx.jwt_secret,
-                jwt_issuer=ctx.jwt_issuer,
-                jwt_audience=ctx.jwt_audience,
-            )
-        )
-    except Exception as _wsa_exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "workspace_api_router failed to mount: %s",
-            _wsa_exc,
-        )
+    _mount_workspace_api(ctx)
 
     # ─── Prompts hot-reload (feature-flag gated) ───────────────────────────
     # Lives at <data>/prompt_templates/ to stay out of the way of the
@@ -184,29 +220,7 @@ def mount_routers_b(
         )
 
     # ─── Ambient suggestions scheduler (feature-flag gated) ───────────────
-    # Periodic LLM-backed regeneration. No-op when flag is off;
-    # honors interval from ``ui.ambient_suggestions_interval_sec``.
-    try:
-        from runtime.memory.skills_lib.ambient_suggestions_scheduler import (
-            AmbientSchedulerConfig,
-            get_ambient_scheduler,
-        )
-        from runtime.platform import feature_flags
-
-        get_ambient_scheduler().start(
-            AmbientSchedulerConfig(
-                enabled=feature_flags.is_on("ui.ambient_suggestions"),
-                interval_sec=max(
-                    60,
-                    int(feature_flags.value("ui.ambient_suggestions_interval_sec", 21600)),
-                ),
-            )
-        )
-    except Exception as _ambs_exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "ambient_suggestions_scheduler failed to start: %s",
-            _ambs_exc,
-        )
+    _start_ambient_scheduler(app)
 
     # ─── Invariants catalog ────────────────────────────────────────────────
     # Read-only constitution surface: which rule_ids are enforced
@@ -327,12 +341,12 @@ def mount_routers_b(
     # Fail-soft mount: a missing organization package or a route
     # collision degrades to a warning, never breaks the whole app.
     try:
-        from runtime.sensing.gateway.organizations_router import (
-            create_organizations_router,
+        from runtime.sensing.gateway.topology_router import (
+            create_topology_router,
         )
 
         app.include_router(
-            create_organizations_router(
+            create_topology_router(
                 identity_store=ctx.identity_store,
                 require_auth=ctx.require_auth,
                 jwt_secret=ctx.jwt_secret,
@@ -424,6 +438,7 @@ def mount_routers_b(
 
                     _project_os_hooks = create_llm_hooks(
                         ctx.project_model_router,
+                        **({"model": _chat_model} if _chat_model else {}),
                         subagent_runner=ctx.subagent_runner,
                     )
                     from functools import partial
@@ -431,7 +446,9 @@ def mount_routers_b(
                     from runtime.projectos.initiation import prepare_proposal
 
                     _project_os_hooks["prepare_initiation"] = partial(
-                        prepare_proposal, ctx.project_model_router, model=_chat_model,
+                        prepare_proposal,
+                        ctx.project_model_router,
+                        model=_chat_model,
                     )
                 except Exception as exc:  # noqa: BLE001
                     logging.getLogger(__name__).warning(
@@ -480,6 +497,7 @@ def mount_routers_b(
                 "task_supervisor": getattr(state, "task_supervisor", None),
                 "allow_client_auto_approve": _allow_approval_bypass,
                 "allow_local_workspace_access": ctx.allow_local_workspace_access,
+                "team_rooms_router": ctx.team_rooms_router,
                 "cowork_group_store": (
                     getattr(ctx.cowork_runtime, "group_store", None)
                     if ctx.cowork_runtime is not None
@@ -515,6 +533,11 @@ def mount_routers_b(
         # writer guard must still consult the same durable deletion fences.
         _realtime_runtime._thread_store = ctx.thread_store  # noqa: SLF001
         _realtime_runtime._project_store = ctx.project_store  # noqa: SLF001
+        _realtime_runtime._cowork_coordination = getattr(ctx.cowork_runtime, "coordination", None)
+        # Relaying a turn to an SSH/WSL connection uses operator-held
+        # credentials; the driver checks the caller's roles against these.
+        _realtime_runtime._identity_store = ctx.identity_store  # noqa: SLF001
+        _realtime_runtime._require_auth = ctx.require_auth  # noqa: SLF001
 
         _realtime_gateway = RealtimeGateway(
             runtime=_realtime_runtime,
@@ -637,14 +660,21 @@ def mount_routers_b(
         app.state.service_bus = _service_bus
 
         plugin_dir, bundled_plugin_dir = _plugin_hub_roots()
-        _hub = PluginHub(
-            # CloudCatalog always installs workbenches below the active app
-            # data root. PluginHub must use that same root in source checkouts
-            # as well as packaged deployments or newly installed runtime
-            # plugins cannot be discovered and activated.
-            plugin_dir=plugin_dir,
-            bundled_plugin_dir=bundled_plugin_dir,
-            skill_registry=state.registry,
+        _automation_runtime = getattr(state.registry, "automation_runtime", None)
+        _hub = (
+            getattr(stack, "plugin_hub", None)
+            or getattr(_automation_runtime, "hub", None)
+            or PluginHub(
+                # CloudCatalog always installs workbenches below the active app
+                # data root. PluginHub must use that same root in source checkouts
+                # as well as packaged deployments or newly installed runtime
+                # plugins cannot be discovered and activated.
+                plugin_dir=plugin_dir,
+                bundled_plugin_dir=bundled_plugin_dir,
+                skill_registry=state.registry,
+            )
+        )
+        _hub.bind_host_services(
             channel_manager=ctx.channel_manager,
             fastapi_app=app,
             service_bus=_service_bus,
@@ -712,6 +742,7 @@ def mount_routers_b(
 
         app.include_router(
             create_design_studio_router(
+                skill_registry=state.registry,
                 project_store=ctx.project_store,
                 identity_store=ctx.identity_store,
                 require_auth=ctx.require_auth,

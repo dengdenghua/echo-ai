@@ -17,7 +17,10 @@ export interface Workspace {
   name: string;
   mount_type: MountType;
   mount_target: string;
-  mount_options: Record<string, string> | null;
+  /** Credentials (password, secret_key, token…) always come back as `null`. */
+  mount_options: Record<string, unknown> | null;
+  /** Dotted `mount_options` paths whose credential is stored, e.g. `["password"]`. */
+  secrets_set?: string[];
   owner_id: string;
   created_at: string;
 }

@@ -1,6 +1,21 @@
 import { swallow } from "@/core/utils/log";
 import { getBackendBaseURL } from "@/core/config";
 
+import { looseBody } from "@/core/api/response";
+import {
+  arrayOf,
+  isObjectLike,
+  isRecord,
+  isStringArray,
+  isUnknownArray,
+} from "@/core/utils/guards";
+
+import {
+  hasDetailMessage,
+  isAuthStatus,
+  isLoginResponse,
+  isUser,
+} from "./guards";
 import type {
   AuthStatus,
   LoginRequest,
@@ -13,6 +28,7 @@ const TOKEN_KEY = "echo_auth_token";
 const USER_KEY = "echo_user";
 const TOKEN_TIMESTAMP_KEY = "echo_auth_ts";
 const SESSION_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
+export const ACCOUNT_FREE_TOKEN = "__account_free__";
 
 function canUseBrowserStorage(): boolean {
   return typeof window !== "undefined" && import.meta.env.MODE !== "test";
@@ -84,7 +100,7 @@ export function _clearTokens(): void {
 
 export function authHeaders(): Record<string, string> {
   const token = _readToken();
-  if (!token) return {};
+  if (!token || token === ACCOUNT_FREE_TOKEN) return {};
   return { Authorization: `Bearer ${token}` };
 }
 
@@ -98,14 +114,18 @@ export function jsonAuthHeaders(): Record<string, string> {
  * the user isn't signed in or storage is unavailable, returns
  * "anonymous" so downstream callers always get a stable string.
  */
-export function currentActorId(): string {
+export function currentActorId(user?: User | null): string {
+  // Cookie-restored sessions may have no sessionStorage identity. Callers
+  // with AuthProvider state must prefer its authenticated actor.
+  const authenticatedActor = user?.actor_id?.trim() || user?.user_id?.trim();
+  if (authenticatedActor) return authenticatedActor;
   if (!canUseBrowserStorage()) return "anonymous";
   _migrateLegacyLocalStorage();
   try {
     const raw = window.sessionStorage.getItem(USER_KEY);
     if (!raw) return "anonymous";
-    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
-    if (!parsed || typeof parsed !== "object") return "anonymous";
+    const parsed: unknown = JSON.parse(raw);
+    if (!isObjectLike(parsed)) return "anonymous";
     const candidates = ["user_id", "actor_id", "id", "username", "phone"];
     for (const key of candidates) {
       const value = parsed[key];
@@ -117,10 +137,13 @@ export function currentActorId(): string {
   }
 }
 
+// raw fetch, for this whole module: core/api/request imports authHeaders from
+// here, so routing these calls through it would create an import cycle.
+// Most of these endpoints also run before any token exists.
 export async function getAuthStatus(): Promise<AuthStatus> {
   const res = await fetch(`${getBackendBaseURL()}/api/auth/status`);
   if (!res.ok) throw new Error(`Failed to get auth status: ${res.statusText}`);
-  return (await res.json()) as AuthStatus;
+  return looseBody(await res.json(), isAuthStatus);
 }
 
 export interface AuthProviderInfo {
@@ -130,6 +153,12 @@ export interface AuthProviderInfo {
   allow_any_username?: boolean;
   password_required?: boolean;
   password_only_username?: string | null;
+  /** Self-hosted install: one owner account, created on first run. */
+  owner_account?: boolean;
+  owner_setup_required?: boolean;
+  owner_username?: string | null;
+  /** Where the setup code is stored; reported to this machine only. */
+  setup_code_path?: string;
   endpoint?: string;
   endpoint_send?: string;
   endpoint_verify?: string;
@@ -138,19 +167,27 @@ export interface AuthProviderInfo {
 /** Backend reports which login providers are wired · empty list means
  * no interactive login providers are configured. Returns empty list on
  * any error so the UI fails closed (show nothing). */
+function isAuthProviderInfo(value: unknown): value is AuthProviderInfo {
+  return isRecord(value) && typeof value.id === "string";
+}
+
 export async function getAuthProviderInfo(): Promise<AuthProviderInfo[]> {
   try {
     const res = await fetch(`${getBackendBaseURL()}/api/auth/providers`);
     if (!res.ok) return [];
-    const data = (await res.json()) as {
-      providers?: AuthProviderInfo[] | string[];
-    };
-    if (!data.providers) return [];
+    const data: unknown = await res.json();
+    // A null body throws here as before, and lands in the catch below.
+    const providers: unknown = looseBody(data, isObjectLike).providers;
+    if (!providers) return [];
     // Backwards-compatible with the old string[] shape.
-    if (data.providers.length > 0 && typeof data.providers[0] === "object") {
-      return data.providers as AuthProviderInfo[];
+    if (
+      isUnknownArray(providers) &&
+      providers.length > 0 &&
+      typeof providers[0] === "object"
+    ) {
+      return looseBody(providers, arrayOf(isAuthProviderInfo));
     }
-    return (data.providers as string[]).map((id) => ({ id }));
+    return looseBody(providers, isStringArray).map((id) => ({ id }));
   } catch (e) {
     swallow(e);
     return [];
@@ -164,21 +201,43 @@ export async function getAuthProviders(): Promise<string[]> {
 export async function login(request: LoginRequest): Promise<LoginResponse> {
   const body: Record<string, unknown> = { username: request.username };
   if (request.password) body.password = request.password;
-  const res = await fetch(`${getBackendBaseURL()}/api/auth/local/login`, {
+  return postLocalSession("/api/auth/local/login", body, request.username);
+}
+
+export interface OwnerSetupRequest {
+  username: string;
+  password: string;
+  setup_code: string;
+}
+
+/** First run of a self-hosted install: create the owner and sign in. */
+export async function setupOwnerAccount(
+  request: OwnerSetupRequest,
+): Promise<LoginResponse> {
+  return postLocalSession(
+    "/api/auth/local/owner/setup",
+    { ...request },
+    request.username,
+  );
+}
+
+async function postLocalSession(
+  path: string,
+  body: Record<string, unknown>,
+  username: string,
+): Promise<LoginResponse> {
+  const res = await fetch(`${getBackendBaseURL()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
+    const err = looseBody(await res.json().catch(() => ({})), hasDetailMessage);
     throw new Error(err.detail ?? `Login failed: ${res.statusText}`);
   }
-  const data = (await res.json()) as LoginResponse & {
-    credits?: Record<string, unknown>;
-  };
+  const data = looseBody(await res.json(), isLoginResponse);
   if (data.access_token && data.user) {
-    const fallbackIdentity =
-      data.user.mobile || data.user.username || request.username;
+    const fallbackIdentity = data.user.mobile || data.user.username || username;
     _writeToken(data.access_token, {
       ...data.user,
       user_id: data.user.user_id || data.user.actor_id || fallbackIdentity,
@@ -192,6 +251,41 @@ export async function login(request: LoginRequest): Promise<LoginResponse> {
   return data;
 }
 
+export function hasDesktopOwnerLogin(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.echo?.auth?.desktopOwnerLogin === "function"
+  );
+}
+
+/**
+ * Sign the desktop owner in through the Electron shell, which holds the
+ * per-launch token of the backend it spawned. Returns null outside the
+ * desktop shell or when the shell does not own the backend (dev servers).
+ */
+export async function desktopOwnerLogin(): Promise<User | null> {
+  if (!hasDesktopOwnerLogin()) return null;
+  const result = await window.echo!.auth!.desktopOwnerLogin();
+  if (!result.ok) {
+    if (
+      result.reason === "rejected" ||
+      result.reason === "backend-unreachable"
+    ) {
+      throw new Error(result.detail ?? "本机登录失败，请重试");
+    }
+    return null;
+  }
+  const actorId = result.user?.actor_id;
+  const user: User = {
+    user_id: actorId || "local:owner",
+    ...(actorId ? { actor_id: actorId } : {}),
+    username: result.user?.display_name || result.user?.username || "owner",
+    provider: result.user?.provider ?? "local",
+  };
+  _writeToken(result.access_token, user);
+  return user;
+}
+
 export async function register(request: RegisterRequest): Promise<User> {
   const res = await fetch(`${getBackendBaseURL()}/api/auth/register`, {
     method: "POST",
@@ -199,10 +293,10 @@ export async function register(request: RegisterRequest): Promise<User> {
     body: JSON.stringify(request),
   });
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
+    const err = looseBody(await res.json().catch(() => ({})), hasDetailMessage);
     throw new Error(err.detail ?? `Registration failed: ${res.statusText}`);
   }
-  return (await res.json()) as User;
+  return looseBody(await res.json(), isUser);
 }
 
 export async function getMe(): Promise<User> {
@@ -210,15 +304,19 @@ export async function getMe(): Promise<User> {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to get user: ${res.statusText}`);
-  return (await res.json()) as User;
+  return looseBody(await res.json(), isUser);
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${getBackendBaseURL()}/api/auth/logout`, {
+  const response = await fetch(`${getBackendBaseURL()}/api/auth/logout`, {
     method: "POST",
     headers: authHeaders(),
     credentials: "include",
   });
+  // An expired/invalid session is already rejected by the server. Other
+  // failures must not pretend that server-side revocation succeeded.
+  if (!response.ok && response.status !== 401)
+    throw new Error("退出登录失败，请重试");
   clearAuth();
 }
 
@@ -228,7 +326,7 @@ export async function refreshToken(): Promise<LoginResponse> {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to refresh token: ${res.statusText}`);
-  const data = (await res.json()) as LoginResponse;
+  const data = looseBody(await res.json(), isLoginResponse);
   if (data.access_token && data.user) {
     _writeToken(data.access_token, data.user);
   }

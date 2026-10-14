@@ -15,6 +15,7 @@ from runtime.execution.subagents import bridge
 from runtime.execution.subagents.tournament import Candidate, select_winner
 from runtime.execution.suckers import delegation_skills as ds
 from runtime.execution.suckers import ephemeral_agents
+from runtime.execution.suckers._delegation_skills_vote import _VOTER_INDEPENDENT_ROLES
 from runtime.execution.suckers.delegation_budget import orchestration_budget_scope
 from runtime.platform.process.scope import resolve_execution_scope
 from runtime.platform.process.session import current_session
@@ -70,11 +71,11 @@ def test_judge_abstain_or_junk_falls_back_to_first_viable() -> None:
 
 
 @pytest.fixture
-def host(tmp_path, monkeypatch):
+def host(tmp_path, monkeypatch, installed_hub_roles):
     monkeypatch.setattr(bridge, "_REGISTRY", None)
-    monkeypatch.setattr(
-        ds, "_allowed_agent_ids", lambda: {"coder", "reviewer", "debugger", "researcher"}
-    )
+    # Candidates and judges are dispatched as installed HUB roles; the bridge
+    # refuses to substitute one that is not installed.
+    installed_hub_roles("coder", *_VOTER_INDEPENDENT_ROLES)
     return _host(tmp_path)
 
 

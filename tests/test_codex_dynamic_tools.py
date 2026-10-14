@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -120,7 +121,7 @@ def test_large_catalog_leaves_room_for_codex_and_keeps_relevant_tools(tmp_path: 
     from runtime.execution.codex_backend.tool_limits import MAX_DYNAMIC_TOOLS
 
     registry = SkillRegistry()
-    names = tuple([f"unrelated_{i}" for i in range(280)] + ["nas_research"])
+    names = tuple([f"unrelated_{i}" for i in range(280)] + ["nas_research", "call_agent"])
     for name in names:
         registry.register(
             Skill(
@@ -135,6 +136,9 @@ def test_large_catalog_leaves_room_for_codex_and_keeps_relevant_tools(tmp_path: 
     broker = _broker(tmp_path, registry, names=names, goal="NAS storage research")
     assert len(broker.catalog.specs) == MAX_DYNAMIC_TOOLS
     assert "nas_research" in broker.catalog.names
+    assert "call_agent" in broker.catalog.names
+    restricted = _broker(tmp_path, registry, names=("nas_research",), goal="delegate research")
+    assert "call_agent" not in restricted.catalog.names
     raw_tools = [
         {"type": "function", "name": spec["name"], "parameters": spec["inputSchema"]}
         for spec in broker.catalog.specs
@@ -543,9 +547,16 @@ async def test_read_before_write_evidence_survives_dynamic_tool_callbacks(
     )
     assert blocked["success"] is False
     assert "must read_file" in blocked["contentItems"][0]["text"]
+    error = json.loads(blocked["contentItems"][0]["text"])
+    assert error["error_type"] == "read_before_write_required"
+    assert error["retryable"] is True
+    assert error["blocked_operation"] == "write_text_file"
+    recovery = error["recovery"]
+    assert recovery["tool"] == "read_file"
+    assert target.read_text(encoding="utf-8") == "value = 'old'\n"
 
     read = await broker(
-        _request("read_file", {"path": "calculator.py"}, call_id="read-current-content")
+        _request(recovery["tool"], recovery["arguments"], call_id="read-current-content")
     )
     written = await broker(
         _request(

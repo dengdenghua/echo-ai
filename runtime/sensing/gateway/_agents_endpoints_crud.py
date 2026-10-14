@@ -43,6 +43,7 @@ from ._agents_helpers import (
     _to_detail_wire,
     _to_wire,
 )
+from ._untrusted_content import untrusted_content_headers
 from .agents_models import (
     AgentDetailWire,
     AgentVisualsWire,
@@ -169,7 +170,8 @@ def _register_agents_crud(router: Any, ctx: _AgentsCtx, auth: _AuthActions) -> N
             "id": agent_id,
             "templateId": agent_id,
             "templateVersion": "1.0.0",
-            "name": (body.display_name or "").strip() or agent_id.replace("-", " ").replace("_", " ").title(),
+            "name": (body.display_name or "").strip()
+            or agent_id.replace("-", " ").replace("_", " ").title(),
             "icon": "🤖",
             "did": identity_code,  # backward-compatible alias
             "identity_code": identity_code,
@@ -542,10 +544,11 @@ When making changes, first read the surrounding code.
         ):
             p = visuals_dir / f"{view}.{ext}"
             if p.is_file():
+                # Agent-authored visuals may be SVG: sandbox if opened top-level.
                 return FileResponse(
                     str(p),
                     media_type=mime,
-                    headers={"Cache-Control": "no-store"},
+                    headers={"Cache-Control": "no-store", **untrusted_content_headers(mime)},
                 )
         reference = visuals_dir / "reference.png"
         if reference.is_file():
@@ -617,6 +620,7 @@ When making changes, first read the surrounding code.
         # plain slug, not something that could climb out of ``root``.
         if "/" in agent_id or "\\" in agent_id or agent_id in ("", ".", ".."):
             raise HTTPException(400, "invalid agent_id")
+        agent_id = _require_safe_agent_id(agent_id)
         agent_dir = root / agent_id
         profile_path = agent_dir / "profile.jsonc"
         if profile_path.is_file():
@@ -641,10 +645,11 @@ When making changes, first read the surrounding code.
         ):
             p = agent_dir / f"avatar.{ext}"
             if p.is_file():
+                # Unauthenticated and possibly SVG: sandbox if opened top-level.
                 return FileResponse(
                     str(p),
                     media_type=mime,
-                    headers={"Cache-Control": "no-store"},
+                    headers={"Cache-Control": "no-store", **untrusted_content_headers(mime)},
                 )
         raise HTTPException(404, f"no avatar for agent: {agent_id}")
 

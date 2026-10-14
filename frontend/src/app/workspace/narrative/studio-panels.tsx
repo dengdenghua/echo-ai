@@ -88,7 +88,7 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+      <h3 className="text-xs font-semibold text-muted-foreground">
         {children}
       </h3>
       {typeof count === "number" ? (
@@ -114,9 +114,9 @@ function StageStatus({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2 py-0.5 text-[10px] font-medium",
-        completed && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-        failed && "bg-red-500/10 text-red-700 dark:text-red-300",
+        "rounded-full px-2 py-0.5 text-xs font-medium",
+        completed && "bg-core/10 text-core",
+        failed && "bg-breach/10 text-breach",
         !completed && !failed && "bg-muted text-muted-foreground",
       )}
     >
@@ -155,14 +155,14 @@ export function ContextPackPreview({
       <div className="flex flex-wrap items-center gap-2">
         <div className="mr-auto">
           <p className="flex items-center gap-2 text-xs font-medium">
-            <PackageSearchIcon className="size-3.5 text-violet-500" />
+            <PackageSearchIcon className="size-3.5 text-muted-foreground" />
             章节上下文包
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             只引用可追溯的世界资料、事实与连续性状态
           </p>
         </div>
-        <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
           Token 预算
           <Input
             aria-label="上下文 Token 预算"
@@ -192,7 +192,7 @@ export function ContextPackPreview({
       </div>
       {pack ? (
         <div className="mt-3 rounded-xl border border-border/60 bg-background/60 p-3">
-          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">
               {usage.used.toLocaleString()} / {usage.budget.toLocaleString()}{" "}
               tokens
@@ -206,7 +206,7 @@ export function ContextPackPreview({
             <div
               className={cn(
                 "h-full rounded-full transition-[width]",
-                usage.overBudget ? "bg-red-500" : "bg-violet-500",
+                usage.overBudget ? "bg-breach" : "bg-core",
               )}
               style={{ width: `${usage.percentage}%` }}
             />
@@ -216,7 +216,7 @@ export function ContextPackPreview({
               <div
                 key={`${source.id || source.reference}-${index}`}
                 className={cn(
-                  "min-w-0 rounded-lg bg-muted/40 p-2 text-[11px]",
+                  "min-w-0 rounded-lg bg-muted/40 p-2 text-xs",
                   !source.included && "opacity-55",
                 )}
               >
@@ -327,7 +327,7 @@ export function StudioInspector({
             type="button"
             onClick={() => onTabChange(item.id)}
             className={cn(
-              "rounded-lg px-1 py-2 text-[11px] font-medium text-muted-foreground transition-colors",
+              "rounded-lg px-1 py-2 text-xs font-medium text-muted-foreground transition-colors",
               tab === item.id && "bg-muted text-foreground",
             )}
           >
@@ -343,7 +343,7 @@ export function StudioInspector({
         ) : (
           <>
             {extensions.warnings.length ? (
-              <div className="mb-3 rounded-xl border border-amber-400/20 bg-amber-500/8 p-3 text-[11px] leading-5 text-amber-800 dark:text-amber-200">
+              <div className="mb-3 rounded-xl border border-amber-400/20 bg-amber-500/8 p-3 text-xs leading-5 text-amber-800 dark:text-amber-200">
                 <div className="flex items-center gap-2 font-medium">
                   <AlertTriangleIcon className="size-3.5" />
                   部分增强数据暂不可用
@@ -367,18 +367,18 @@ export function StudioInspector({
               <div className="space-y-5">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-xl bg-muted/35 p-3">
-                    <BoxesIcon className="size-4 text-violet-500" />
+                    <BoxesIcon className="size-4 text-muted-foreground" />
                     <p className="mt-2 text-xl font-semibold">
                       {worldPacks.length}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">世界包</p>
+                    <p className="text-xs text-muted-foreground">世界包</p>
                   </div>
                   <div className="rounded-xl bg-muted/35 p-3">
                     <NetworkIcon className="size-4 text-cyan-500" />
                     <p className="mt-2 text-xl font-semibold">
                       {extensions.entities.length}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">实体</p>
+                    <p className="text-xs text-muted-foreground">实体</p>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -392,7 +392,7 @@ export function StudioInspector({
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">
                         {pack.summary || "可追溯的世界资料集合"}
                       </p>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
+                      <p className="mt-2 text-xs text-muted-foreground">
                         {pack.resources.length} 份资料
                       </p>
                     </div>
@@ -446,7 +446,7 @@ export function StudioInspector({
                           <p className="truncate text-xs font-medium">
                             {entity.name}
                           </p>
-                          <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                             {entity.kind} · {entity.description || "暂无描述"}
                           </p>
                         </div>
@@ -464,7 +464,7 @@ export function StudioInspector({
                   {extensions.relationships.slice(0, 8).map((relationship) => (
                     <div
                       key={relationship.id}
-                      className="rounded-lg border border-border/55 p-2.5 text-[11px]"
+                      className="rounded-lg border border-border/55 p-2.5 text-xs"
                     >
                       <p className="flex items-center gap-1.5 font-medium">
                         <Link2Icon className="size-3" />
@@ -491,11 +491,11 @@ export function StudioInspector({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{item.title}</span>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {item.status}
                         </span>
                       </div>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                         {item.setup}
                       </p>
                     </div>
@@ -509,7 +509,7 @@ export function StudioInspector({
 
             {tab === "continuity" ? (
               <div className="space-y-5">
-                <div className="rounded-xl border border-violet-400/20 bg-violet-500/8 p-3">
+                <div className="rounded-xl border border-border/70 bg-muted/40 p-3">
                   <p className="flex items-center gap-2 text-sm font-medium">
                     <PackageSearchIcon className="size-4" />
                     当前上下文包
@@ -527,7 +527,7 @@ export function StudioInspector({
                           .map((source, index) => (
                             <div
                               key={`${source.id}-${index}`}
-                              className="rounded-lg bg-background/60 p-2 text-[11px]"
+                              className="rounded-lg bg-background/60 p-2 text-xs"
                             >
                               <div className="flex justify-between gap-2">
                                 <span className="truncate font-medium">
@@ -562,7 +562,7 @@ export function StudioInspector({
                       <p className="font-medium">
                         {change.entity_id} · {change.field}
                       </p>
-                      <div className="mt-2 grid grid-cols-[1fr_auto_1fr] gap-2 rounded-lg bg-muted/35 p-2 text-[11px]">
+                      <div className="mt-2 grid grid-cols-[1fr_auto_1fr] gap-2 rounded-lg bg-muted/35 p-2 text-xs">
                         <span className="break-words">
                           {String(change.before ?? "—")}
                         </span>
@@ -572,7 +572,7 @@ export function StudioInspector({
                         </span>
                       </div>
                       {change.reason ? (
-                        <p className="mt-2 text-[11px] text-muted-foreground">
+                        <p className="mt-2 text-xs text-muted-foreground">
                           {change.reason}
                         </p>
                       ) : null}
@@ -655,7 +655,7 @@ export function StudioInspector({
                               <div className="flex items-center gap-2">
                                 {stage.status === "completed" ||
                                 stage.status === "submitted" ? (
-                                  <CheckCircle2Icon className="size-3.5 text-emerald-500" />
+                                  <CheckCircle2Icon className="size-3.5 text-core" />
                                 ) : (
                                   <CircleDashedIcon className="size-3.5 text-muted-foreground" />
                                 )}
@@ -665,7 +665,7 @@ export function StudioInspector({
                                 <StageStatus status={stage.status} />
                               </div>
                               {stage.error ? (
-                                <p className="mt-2 text-[11px] text-red-600">
+                                <p className="mt-2 text-xs text-red-600">
                                   {stage.error}
                                 </p>
                               ) : null}
@@ -676,7 +676,7 @@ export function StudioInspector({
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-8 text-[11px]"
+                                        className="h-8 text-xs"
                                         onClick={onCancelAgentStage}
                                       >
                                         <XIcon className="size-3" />
@@ -686,7 +686,7 @@ export function StudioInspector({
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-8 text-[11px]"
+                                        className="h-8 text-xs"
                                         onClick={() =>
                                           onRunAgentStage(run, stage.id)
                                         }
@@ -703,7 +703,7 @@ export function StudioInspector({
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="h-8 text-[11px]"
+                                      className="h-8 text-xs"
                                       onClick={() =>
                                         onSubmitStage(run, stage.id)
                                       }
@@ -721,13 +721,13 @@ export function StudioInspector({
                                     </Button>
                                   </div>
                                   {!activeContextPack ? (
-                                    <p className="text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                                    <p className="text-xs leading-4 text-amber-700 dark:text-amber-300">
                                       先构建章节上下文包，才能安全运行 AI 阶段。
                                     </p>
                                   ) : null}
                                   {agentRunning ? (
                                     <div
-                                      className="flex items-center gap-2 rounded-lg border border-violet-400/20 bg-violet-500/8 p-2 text-[11px] text-violet-700 dark:text-violet-200"
+                                      className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/40 p-2 text-xs text-foreground"
                                       role="status"
                                     >
                                       <LoaderCircleIcon className="size-3 animate-spin" />
@@ -737,7 +737,7 @@ export function StudioInspector({
                                   {stageAgentMessage ? (
                                     <div
                                       className={cn(
-                                        "rounded-lg border p-2 text-[11px] leading-5",
+                                        "rounded-lg border p-2 text-xs leading-5",
                                         stageAgentMessage.kind === "cancelled"
                                           ? "border-amber-400/25 bg-amber-500/8 text-amber-800 dark:text-amber-200"
                                           : "border-red-400/25 bg-red-500/8 text-red-700 dark:text-red-200",
@@ -754,14 +754,14 @@ export function StudioInspector({
                                           <SparklesIcon className="size-3.5 text-cyan-600 dark:text-cyan-300" />
                                           AI 候选预览
                                         </p>
-                                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
+                                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300">
                                           尚未提交
                                         </span>
                                       </div>
-                                      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/50 bg-background/70 p-2.5 font-sans text-[11px] leading-5 text-foreground">
+                                      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/50 bg-background/70 p-2.5 font-sans text-xs leading-5 text-foreground">
                                         {stageCandidate.output}
                                       </pre>
-                                      <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] text-muted-foreground">
+                                      <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs text-muted-foreground">
                                         <span>
                                           模型：
                                           {stageCandidate.model || "未返回"}
@@ -798,12 +798,12 @@ export function StudioInspector({
                                           {stageCandidate.omittedUpstreamStages}
                                         </span>
                                       </div>
-                                      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+                                      <p className="mt-2 text-xs leading-4 text-muted-foreground">
                                         这是隔离生成的候选内容，不会自动进入流水线、审核或正典。
                                       </p>
                                       <Button
                                         size="sm"
-                                        className="mt-2 h-8 w-full text-[11px]"
+                                        className="mt-2 h-8 w-full text-xs"
                                         onClick={() =>
                                           onSubmitAgentCandidate(stageCandidate)
                                         }
@@ -844,10 +844,9 @@ export function StudioInspector({
                     人工正典防线
                   </p>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    Agent
-                    只能生成候选内容。审核、法定票数和阻塞项全部通过后，仍需人工二次确认才能提交正典。
+                    智能体只能生成候选内容。审核、法定票数和阻塞项全部通过后，仍需人工二次确认才能提交正典。
                   </p>
-                  <p className="mt-2 text-[11px] text-muted-foreground">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     项目规则：quorum{" "}
                     {project.governance?.quorum ?? "由服务端决定"} · 通过率{" "}
                     {project.governance
@@ -883,17 +882,17 @@ export function StudioInspector({
                           <p className="truncate text-sm font-medium">
                             {review.title}
                           </p>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             修订 {review.revision} · {review.status}
                           </p>
                         </div>
                         {committed ? (
-                          <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-700 dark:text-emerald-300">
+                          <span className="rounded-full bg-core/10 px-2 py-1 text-xs text-core">
                             已入正典
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-center text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
                         <div className="rounded-lg bg-muted/35 p-2">
                           <p className="text-base font-semibold">
                             {review.quorum_received}/{review.quorum_required}
@@ -908,7 +907,7 @@ export function StudioInspector({
                         </div>
                       </div>
                       {review.blockers.length ? (
-                        <div className="mt-3 rounded-lg border border-red-400/20 bg-red-500/8 p-2 text-[11px] text-red-700 dark:text-red-300">
+                        <div className="mt-3 rounded-lg border border-red-400/20 bg-red-500/8 p-2 text-xs text-red-700 dark:text-red-300">
                           <p className="font-medium">阻塞项</p>
                           <ul className="mt-1 list-disc space-y-1 pl-4">
                             {review.blockers.map((blocker, index) => (
@@ -918,7 +917,7 @@ export function StudioInspector({
                         </div>
                       ) : null}
                       {review.votes.length ? (
-                        <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
+                        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                           {review.votes.slice(-4).map((vote, index) => (
                             <p key={vote.id || `${vote.actor}-${index}`}>
                               {vote.actor} · {vote.decision}
@@ -1121,7 +1120,7 @@ export function GovernanceActionDialog({
         className="w-full max-w-md rounded-2xl border border-border/70 bg-background p-5 shadow-2xl"
       >
         <div className="flex items-start gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-600">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-foreground">
             <VoteIcon className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -1142,7 +1141,7 @@ export function GovernanceActionDialog({
             <XIcon className="size-4" />
           </Button>
         </div>
-        <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-violet-400/20 bg-violet-500/8 p-3 text-xs leading-5">
+        <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-border/70 bg-muted/40 p-3 text-xs leading-5">
           <input
             type="checkbox"
             checked={confirmed}

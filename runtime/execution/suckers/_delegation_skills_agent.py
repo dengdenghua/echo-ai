@@ -105,6 +105,36 @@ def _call_agent(
             "error": "agent_id is required",
         }
 
+    # Group work must share the durable queue, roster and result ledger used
+    # by collaboration.delegate. A synchronous host RPC can time out while
+    # its worker keeps running, losing the only return path to the leader.
+    from runtime.execution.tool_engine.coordination_guard import current_group_coordination
+
+    coordination = current_group_coordination()
+    if coordination is not None:
+        if any(
+            (
+                context,
+                skills,
+                tools,
+                skill_pack,
+                skill_packs,
+                plugin,
+                plugins,
+                tool_allowlist,
+                output_schema,
+                input_files,
+                output_files,
+                isolate,
+                continue_session_id,
+            )
+        ):
+            raise ValueError(
+                "Group delegation accepts agent_id and prompt only; put delivery requirements in prompt. Task permissions come from the host."
+            )
+        brief = prompt or task or message or query
+        return coordination.delegate_agent(str(target_raw), brief)
+
     allowed = _allowed_agent_ids()
     target, role_label = _resolve_custom_agent_id(str(target_raw), allowed)
     if target not in allowed:
@@ -113,10 +143,9 @@ def _call_agent(
             "output": "",
             "success": False,
             "error": (
-                f"unknown subagent {target_raw!r} and no fallback builtin "
-                f"available. Available: {sorted(allowed)}. "
-                "If you really need delegation, pick one of these; "
-                "otherwise just do the work yourself."
+                f"HUB role {target_raw!r} is not installed or not runnable. "
+                f"Choose an installed role ID: {sorted(allowed)}. "
+                "No substitute role was spawned. Install a suitable role in HUB if needed."
             ),
         }
 
@@ -186,6 +215,7 @@ def _call_agent(
         },
         context,
     )
+    subagent_context = {**(subagent_context or {}), "_require_installed_market_role": True}
     if orch_budget is not None and not orch_budget.try_charge():
         return {
             "agent_id": target_raw,

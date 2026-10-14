@@ -56,14 +56,18 @@ def test_task_count_limit_blocks_model_expansion_before_execution(tmp_path):
     ms = store.get_milestone("phase")
     ms.spec["max_tasks"] = 1
     store.save_milestone(project.id, ms)
-    store.append_event(project.id, kind="project.phase_authorized",
-                       payload={"fingerprint": phase_fingerprint(ms)})
+    store.append_event(
+        project.id, kind="project.phase_authorized", payload={"fingerprint": phase_fingerprint(ms)}
+    )
     result = engine.run(project.id)
     assert result["final_status"] == "blocked"
     assert not calls
     assert not store.tasks_for_milestone(ms.id)
-    errors = [e["payload"].get("error", "") for e in store.events_for_project(project.id)
-              if e["kind"] == "project.decompose_failed"]
+    errors = [
+        e["payload"].get("error", "")
+        for e in store.events_for_project(project.id)
+        if e["kind"] == "project.decompose_failed"
+    ]
     assert any("数量上限" in error for error in errors)
 
 
@@ -71,8 +75,9 @@ def test_task_count_limit_blocks_model_expansion_before_execution(tmp_path):
 def test_changed_approved_scope_requires_new_approval(tmp_path, change):
     store, engine, project, calls = setup(tmp_path)
     ms = store.get_milestone("phase")
-    store.append_event(project.id, kind="project.phase_authorized",
-                       payload={"fingerprint": phase_fingerprint(ms)})
+    store.append_event(
+        project.id, kind="project.phase_authorized", payload={"fingerprint": phase_fingerprint(ms)}
+    )
     if change == "criteria":
         ms.success_criteria = ["new acceptance standard"]
     elif change == "brief":
@@ -106,8 +111,9 @@ def test_pre_execution_context_failure_does_not_record_unknown_cost(tmp_path, mo
 
     store, engine, project, calls = setup(tmp_path, cap=2)
     ms = store.get_milestone("phase")
-    store.append_event(project.id, kind="project.phase_authorized",
-                       payload={"fingerprint": phase_fingerprint(ms)})
+    store.append_event(
+        project.id, kind="project.phase_authorized", payload={"fingerprint": phase_fingerprint(ms)}
+    )
 
     def fail_context(*_):
         raise RuntimeError("workspace unavailable")
@@ -142,7 +148,9 @@ def test_missing_usage_identifies_task_without_inventing_zero_cost(tmp_path):
     status = budget_status(store, project.id, ms)
     assert status["missing_task_ids"] == ["phase-T1"]
     assert "phase-T1" in budget_pause_message(status)
-    event = next(e for e in store.events_for_project(project.id) if e["kind"] == "project.usage_missing")
+    event = next(
+        e for e in store.events_for_project(project.id) if e["kind"] == "project.usage_missing"
+    )
     assert event["payload"]["cost_usd"] is None
     assert event["payload"]["milestone_id"] == ms.id
 
@@ -153,7 +161,9 @@ def test_late_receipt_resolves_only_matching_execution_and_survives_restart(tmp_
     store, _, project, _ = setup(tmp_path, cap=2)
     ms = store.get_milestone("phase")
     for root, task in [("member-a", "T1"), ("member-b", "T2")]:
-        record_usage(store, project.id, {"governance": {"root_id": root, "cost_usd": None}}, task_id=task)
+        record_usage(
+            store, project.id, {"governance": {"root_id": root, "cost_usd": None}}, task_id=task
+        )
     record_usage(store, project.id, {"governance": {"root_id": "unrelated", "cost_usd": 0}})
     assert budget_status(store, project.id, ms)["missing_task_ids"] == ["T1", "T2"]
     receipt = {"governance": {"root_id": "member-a", "cost_usd": 0.5}}
@@ -185,7 +195,9 @@ def test_uncorrelated_gap_cannot_be_cleared_by_another_receipt(tmp_path, root):
 
     store, _, project, _ = setup(tmp_path, cap=2)
     ms = store.get_milestone("phase")
-    assert not record_usage(store, project.id, {"governance": {"root_id": root, "cost_usd": 0}}, task_id="T1")
+    assert not record_usage(
+        store, project.id, {"governance": {"root_id": root, "cost_usd": 0}}, task_id="T1"
+    )
     record_usage(store, project.id, {"governance": {"root_id": "new-run", "cost_usd": 0}})
     assert budget_status(store, project.id, ms)["reason"] == "usage_missing"
 
@@ -197,7 +209,9 @@ def test_legacy_missing_marker_is_not_erased_by_new_receipt(tmp_path):
     ms = store.get_milestone("phase")
     record_usage(store, project.id, {"governance": {"root_id": "a", "cost_usd": 0}})
     with store._conn() as conn:
-        conn.execute("INSERT INTO project_reported_usage VALUES (?,?,?)", (project.id, "__unreported__", 0))
+        conn.execute(
+            "INSERT INTO project_reported_usage VALUES (?,?,?)", (project.id, "__unreported__", 0)
+        )
     record_usage(store, project.id, {"governance": {"root_id": "a", "cost_usd": 0.2}})
     assert budget_status(store, project.id, ms)["reason"] == "usage_missing"
 
@@ -226,8 +240,9 @@ def test_budget_reason_and_workbench_agree(tmp_path, missing):
 
     store, engine, project, _ = setup(tmp_path, cap=1)
     ms = store.get_milestone("phase")
-    store.append_event(project.id, kind="project.phase_authorized",
-                       payload={"fingerprint": phase_fingerprint(ms)})
+    store.append_event(
+        project.id, kind="project.phase_authorized", payload={"fingerprint": phase_fingerprint(ms)}
+    )
     if missing:
         record_usage(store, project.id, {})
     else:
@@ -293,14 +308,31 @@ def test_unknown_cost_pauses_configured_budget(tmp_path):
 @pytest.mark.parametrize("action", ["accept", "decline"])
 def test_budget_change_requires_approval_and_invalidates_phase_authority(tmp_path, action):
     from runtime.projectos.governance import phase_authorized
+
     store, engine, project, calls = setup(tmp_path, cap=1)
     store.project_for_thread = lambda _: store.get_project(project.id)
     ms = store.get_milestone("phase")
-    store.append_event(project.id, kind="project.phase_authorized", payload={"fingerprint": phase_fingerprint(ms)})
-    emitter = SimpleNamespace(request_approval=AsyncMock(return_value={"action": action}), is_turn_interrupted=lambda _: False)
+    store.append_event(
+        project.id, kind="project.phase_authorized", payload={"fingerprint": phase_fingerprint(ms)}
+    )
+    emitter = SimpleNamespace(
+        request_approval=AsyncMock(return_value={"action": action}),
+        is_turn_interrupted=lambda _: False,
+    )
     runtime = SimpleNamespace(_emit_agent_message=AsyncMock())
-    asyncio.run(adjust_budget(runtime, Turn(threadId="thread"), None, emitter,
-                             store=store, project=project, value="2", owner_id="", tenant_id=""))
+    asyncio.run(
+        adjust_budget(
+            runtime,
+            Turn(threadId="thread"),
+            None,
+            emitter,
+            store=store,
+            project=project,
+            value="2",
+            owner_id="",
+            tenant_id="",
+        )
+    )
     fresh = store.get_milestone("phase")
     assert fresh.spec["ai_budget_usd"] == (2 if action == "accept" else 1)
     assert phase_authorized(store, project.id, fresh) == (action == "decline")

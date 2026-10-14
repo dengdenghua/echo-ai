@@ -60,6 +60,7 @@ SERVER_METHODS_NOT_IN_REDUCER: frozenset[str] = frozenset(
         # Cross-cutting concerns
         "error",
         "model/rerouted",
+        "turn/projectIntent/hint",
         # Reserved but currently not emitted on the wire (see comments in
         # events.py). Reducer handler may exist for forward compat — we
         # don't fail on these being "missing on wire" but do detect their

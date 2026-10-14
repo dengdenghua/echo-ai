@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import math
 import re
@@ -25,12 +26,27 @@ except ImportError:  # pragma: no cover
 
 from runtime.sensing._fastapi_guard import require_fastapi
 
-from .config import LocalAuthConfig, development_login_enabled, verify_password
+from .config import (
+    LocalAuthConfig,
+    desktop_owner_token,
+    development_login_enabled,
+    local_login_enabled,
+    owner_account_enabled,
+    verify_password,
+)
+from .owner import (
+    DUMMY_BCRYPT_HASH,
+    OwnerAccountStore,
+    OwnerSetupError,
+    announce_setup_code,
+    owner_account_store,
+    request_from_local_network,
+)
 
 logger = logging.getLogger(__name__)
 
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9._@\-]{1,64}$")
-_DUMMY_BCRYPT_HASH = "bcrypt:$2b$12$i97XS4XVBLbe1Ipw01D4C.KRRk3TznyetM5gIwNVmEc5gb8LS2Nzi"
+_DUMMY_BCRYPT_HASH = DUMMY_BCRYPT_HASH
 
 
 @dataclass
@@ -143,10 +159,181 @@ if FASTAPI_AVAILABLE:
         expires_in: int | None = None
         user: dict[str, Any] = Field(default_factory=dict)
 
+    class OwnerSetupRequest(BaseModel):
+        username: str = Field(..., min_length=1, max_length=64)
+        password: str = Field(..., min_length=1, max_length=256)
+        display_name: str | None = Field(default=None, max_length=128)
+        setup_code: str = Field(..., min_length=1, max_length=64)
+
     class WhoamiResponse(BaseModel):
         actor_id: str
         roles: list[str] = Field(default_factory=list)
         metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+def _raise_rate_limited(retry_after: int) -> None:
+    raise HTTPException(
+        status_code=429,
+        detail="登录失败过多 · 请稍后重试",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def _limited_credential_check(
+    limiters: tuple[_LoginFailureLimiter, _LoginFailureLimiter],
+    key: tuple[str, str],
+    verify: Callable[[], bool],
+    failure_detail: str,
+) -> None:
+    """Run ``verify`` behind the account/IP and IP-wide failure limiters."""
+    pair_limiter, ip_limiter = limiters
+    ip_key = (key[0], "*")
+    retry_after = max(pair_limiter.retry_after(key), ip_limiter.retry_after(ip_key))
+    if retry_after:
+        _raise_rate_limited(retry_after)
+    if not verify():
+        retry_after = max(pair_limiter.record_failure(key), ip_limiter.record_failure(ip_key))
+        if retry_after:
+            _raise_rate_limited(retry_after)
+        raise HTTPException(status_code=401, detail=failure_detail)
+    # A valid credential clears only this account/IP pair. The IP-wide
+    # spray counter deliberately survives, otherwise rotating through
+    # one known-good account would reset failures for every username.
+    pair_limiter.clear(key)
+
+
+def _desktop_owner_token_matches(password: str | None) -> bool:
+    expected = desktop_owner_token()
+    return bool(
+        expected
+        and password is not None
+        and hmac.compare_digest(password.encode("utf-8"), expected.encode("utf-8"))
+    )
+
+
+def _direct_client_ip(request: Request) -> str:
+    # Deliberately ignore X-Forwarded-For/X-Real-IP. Trusting those here
+    # lets an attacker rotate a client-controlled header to bypass limits.
+    client = getattr(request, "client", None)
+    host = str(getattr(client, "host", "") or "").strip()
+    return host or "unknown"
+
+
+def _require_local_client(config: LocalAuthConfig, request: Request) -> None:
+    """Keep passwordless and owner sign-in off the public network.
+
+    Development shortcuts (a fixed account, or no password check at all) and
+    the desktop owner token stay on this machine even when the server is
+    bound to the LAN; otherwise anyone on the network could sign in (possibly
+    as admin). The owner account also admits the local network.
+    """
+    if owner_account_enabled(config):
+        if not request_from_local_network(request):
+            raise HTTPException(status_code=403, detail="本机账户只能在本机或局域网内使用")
+        return
+    if config.password_required and not config.password_only_username:
+        return
+    import ipaddress
+    from urllib.parse import urlsplit
+
+    try:
+        local_client = ipaddress.ip_address(_direct_client_ip(request)).is_loopback
+    except ValueError:
+        local_client = False
+    origin = request.headers.get("origin")
+    local_origin = not origin or urlsplit(origin).hostname in {"localhost", "127.0.0.1", "::1"}
+    if not local_client or not local_origin:
+        raise HTTPException(status_code=403, detail="开发登录仅限本机")
+
+
+def _upsert_identity(
+    identity_store: Any,
+    config: LocalAuthConfig,
+    username: str,
+    display_name: str | None,
+    *,
+    owner: bool,
+) -> bool:
+    """Create or re-role ``local:<username>``; returns whether it was created."""
+    if identity_store is None:
+        return False
+    from runtime.safety.auth.identity import Identity
+
+    actor_id = f"{config.actor_prefix}{username}"
+    existing = identity_store.get(actor_id) if hasattr(identity_store, "get") else None
+    admin_usernames = {
+        str(name).strip().lower()
+        for name in getattr(config, "admin_usernames", ())
+        if str(name).strip()
+    }
+    # The owner of a self-hosted install administers it.
+    grant_admin = owner or "*" in admin_usernames or username.strip().lower() in admin_usernames
+    desired_roles = tuple(
+        dict.fromkeys([*config.default_roles, "admin"] if grant_admin else config.default_roles)
+    )
+    if existing is not None:
+        if set(existing.roles) != set(desired_roles):
+            identity_store.set_roles(actor_id, desired_roles)
+        return False
+    meta: dict[str, Any] = {"provider": "local", "username": username, "created_at": time.time()}
+    if display_name:
+        meta["display_name"] = display_name
+    try:
+        identity_store.add(Identity(actor_id=actor_id, roles=desired_roles, metadata=meta))
+    except ValueError:  # noqa: BLE001 — duplicate identity silently skipped
+        return False
+    return True
+
+
+def _session_response(
+    config: LocalAuthConfig,
+    request: Request,
+    response: Response,
+    username: str,
+    display_name: str | None,
+    created: bool,
+) -> LoginResponse:
+    """Sign ``local:<username>`` in: JWT, session cookie and the login body."""
+    actor_id = f"{config.actor_prefix}{username}"
+    access_token: str | None = None
+    expires_in: int | None = None
+    if config.jwt_secret:
+        from runtime.safety.auth.identity import encode_jwt_hs256
+
+        now = int(time.time())
+        claims: dict[str, Any] = {
+            "sub": actor_id,
+            "iat": now,
+            "exp": now + config.jwt_expire_seconds,
+            "provider": "local",
+            "username": username,
+        }
+        if config.jwt_issuer:
+            claims["iss"] = config.jwt_issuer
+        if config.jwt_audience:
+            claims["aud"] = config.jwt_audience
+        access_token = encode_jwt_hs256(claims, secret=config.jwt_secret)
+        expires_in = config.jwt_expire_seconds
+
+    if access_token and expires_in:
+        from runtime.safety.auth.principal import set_session_cookie
+
+        set_session_cookie(response, request, access_token, max_age=expires_in)
+
+    logger.info("local_auth login · actor=%s created=%s", actor_id, created)
+    return LoginResponse(
+        success=True,
+        actor_id=actor_id,
+        access_token=access_token,
+        expires_in=expires_in,
+        user={
+            "actor_id": actor_id,
+            "username": username,
+            "display_name": display_name,
+            "provider": "local",
+            "created": created,
+        },
+    )
 
 
 def create_local_auth_router(
@@ -154,6 +341,7 @@ def create_local_auth_router(
     config: LocalAuthConfig,
     identity_store: Any = None,
     clock: Callable[[], float] | None = None,
+    owner_store: OwnerAccountStore | None = None,
 ) -> Any:
     require_fastapi(__name__)
 
@@ -175,12 +363,10 @@ def create_local_auth_router(
     )
 
     def _require_enabled() -> None:
-        if not development_login_enabled(config):
+        if not local_login_enabled(config):
             raise HTTPException(
                 status_code=503,
-                detail=(
-                    "本地登录仅用于开发环境，当前未启用。"
-                ),
+                detail="账号登录未配置；部署环境需密码账号和强 JWT 密钥，快捷登录仅限本地开发。",
             )
 
     def _check_username(username: str) -> None:
@@ -193,18 +379,8 @@ def create_local_auth_router(
     def _normalized_username(username: str) -> str:
         return username.strip().casefold()
 
-    def _direct_client_ip(request: Request) -> str:
-        # Deliberately ignore X-Forwarded-For/X-Real-IP. Trusting those here
-        # lets an attacker rotate a client-controlled header to bypass limits.
-        client = getattr(request, "client", None)
-        host = str(getattr(client, "host", "") or "").strip()
-        return host or "unknown"
-
     def _failure_key(request: Request, username: str) -> tuple[str, str]:
         return _direct_client_ip(request), _normalized_username(username)
-
-    def _ip_failure_key(pair_key: tuple[str, str]) -> tuple[str, str]:
-        return pair_key[0], "*"
 
     def _dummy_password_check(password: str | None) -> None:
         # Hashing first keeps the bcrypt input within its portable 72-byte
@@ -232,38 +408,45 @@ def create_local_auth_router(
             _dummy_password_check(password)
         return password is not None and matches
 
-    def _raise_rate_limited(retry_after: int) -> None:
-        raise HTTPException(
-            status_code=429,
-            detail="登录失败过多 · 请稍后重试",
-            headers={"Retry-After": str(retry_after)},
-        )
+    def _owners() -> OwnerAccountStore:
+        return owner_store or owner_account_store()
+
+    if owner_account_enabled(config):
+        announce_setup_code(_owners())
 
     def _check_credentials(username: str, password: str | None, request: Request) -> None:
         _check_username(username)
 
-        if config.password_required:
-            key = _failure_key(request, username)
-            ip_key = _ip_failure_key(key)
-            retry_after = max(
-                failure_limiter.retry_after(key),
-                ip_failure_limiter.retry_after(ip_key),
+        limiters = (failure_limiter, ip_failure_limiter)
+        if owner_account_enabled(config):
+            if _owners().setup_required():
+                raise HTTPException(status_code=409, detail="本机账户尚未设置，请先用设置码创建")
+            _limited_credential_check(
+                limiters,
+                _failure_key(request, username),
+                lambda: _owners().verify(username, password),
+                "用户名或密码错误",
             )
-            if retry_after:
-                _raise_rate_limited(retry_after)
-            if not _password_matches(username, password):
-                retry_after = max(
-                    failure_limiter.record_failure(key),
-                    ip_failure_limiter.record_failure(ip_key),
-                )
-                if retry_after:
-                    _raise_rate_limited(retry_after)
-                raise HTTPException(status_code=401, detail="用户名或密码错误")
-            # A valid credential clears only this account/IP pair. The IP-wide
-            # spray counter deliberately survives, otherwise rotating through
-            # one known-good account would reset failures for every username.
-            failure_limiter.clear(key)
             return
+        if config.password_required:
+            _limited_credential_check(
+                limiters,
+                _failure_key(request, username),
+                lambda: _password_matches(username, password),
+                "用户名或密码错误",
+            )
+            return
+
+        if not development_login_enabled(config):
+            # local_login_enabled admits a passwordless config outside
+            # development only for the desktop owner, who must present the
+            # shell's per-launch token.
+            _limited_credential_check(
+                limiters,
+                _failure_key(request, username),
+                lambda: _desktop_owner_token_matches(password),
+                "本机登录凭证无效",
+            )
 
         if not config.allow_any_username:
             if username not in config.allowed_usernames:
@@ -277,106 +460,60 @@ def create_local_auth_router(
         response: Response,
     ) -> LoginResponse:
         _require_enabled()
-        if config.password_only_username:
-            import ipaddress
-            from urllib.parse import urlsplit
-
-            try:
-                local_client = ipaddress.ip_address(_direct_client_ip(request)).is_loopback
-            except ValueError:
-                local_client = False
-            origin = request.headers.get("origin")
-            local_origin = not origin or urlsplit(origin).hostname in {"localhost", "127.0.0.1", "::1"}
-            if not local_client or not local_origin:
-                raise HTTPException(status_code=403, detail="开发登录仅限本机")
+        _require_local_client(config, request)
         _check_credentials(body.username, body.password, request)
-
-        actor_id = f"{config.actor_prefix}{body.username}"
-        created = False
-
-        if identity_store is not None:
-            from runtime.safety.auth.identity import Identity
-
-            existing = identity_store.get(actor_id) if hasattr(identity_store, "get") else None
-            if existing is None:
-                meta: dict[str, Any] = {
-                    "provider": "local",
-                    "username": body.username,
-                    "created_at": time.time(),
-                }
-                if body.display_name:
-                    meta["display_name"] = body.display_name
-                try:
-                    identity_store.add(
-                        Identity(
-                            actor_id=actor_id,
-                            roles=tuple(
-                                dict.fromkeys(
-                                    [*config.default_roles, "admin"]
-                                    if body.username in getattr(config, "admin_usernames", ())
-                                    else config.default_roles
-                                )
-                            ),
-                            metadata=meta,
-                        ),
-                    )
-                    created = True
-                except ValueError:  # noqa: BLE001 — duplicate identity silently skipped
-                    pass
-
-        access_token: str | None = None
-        expires_in: int | None = None
-        if config.jwt_secret:
-            from runtime.safety.auth.identity import encode_jwt_hs256
-
-            now = int(time.time())
-            claims: dict[str, Any] = {
-                "sub": actor_id,
-                "iat": now,
-                "exp": now + config.jwt_expire_seconds,
-                "provider": "local",
-                "username": body.username,
-            }
-            if config.jwt_issuer:
-                claims["iss"] = config.jwt_issuer
-            if config.jwt_audience:
-                claims["aud"] = config.jwt_audience
-            access_token = encode_jwt_hs256(claims, secret=config.jwt_secret)
-            expires_in = config.jwt_expire_seconds
-
-        if access_token and expires_in:
-            from runtime.safety.auth.principal import set_session_cookie
-
-            set_session_cookie(
-                response,
-                request,
-                access_token,
-                max_age=expires_in,
-            )
-
-        logger.info(
-            "local_auth login · actor=%s created=%s",
-            actor_id,
-            created,
+        owner = _owners().owner() if owner_account_enabled(config) else None
+        username = owner.username if owner else body.username
+        display_name = body.display_name or (owner.display_name if owner else None)
+        created = _upsert_identity(
+            identity_store, config, username, display_name, owner=owner is not None
         )
-        return LoginResponse(
-            success=True,
-            actor_id=actor_id,
-            access_token=access_token,
-            expires_in=expires_in,
-            user={
-                "actor_id": actor_id,
-                "username": body.username,
-                "display_name": body.display_name,
-                "provider": "local",
-                "created": created,
-            },
+        return _session_response(config, request, response, username, display_name, created)
+
+    @router.post("/owner/setup", response_model=LoginResponse)
+    def owner_setup(
+        body: OwnerSetupRequest,
+        request: Request,
+        response: Response,
+    ) -> LoginResponse:
+        """First run: whoever holds the console setup code creates the owner."""
+        if not owner_account_enabled(config):
+            raise HTTPException(status_code=404, detail="这台服务器不使用本机账户")
+        _require_local_client(config, request)
+        _check_username(body.username)
+        store = _owners()
+        if not store.setup_required():
+            raise HTTPException(status_code=409, detail="本机账户已经设置，请直接登录")
+        _limited_credential_check(
+            (failure_limiter, ip_failure_limiter),
+            (_direct_client_ip(request), "owner-setup"),
+            lambda: store.setup_code_matches(body.setup_code),
+            "设置码不正确，请核对启动 ECHO AI 时显示的设置码",
+        )
+        try:
+            owner = store.create(body.username, body.password, body.display_name)
+        except OwnerSetupError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        created = _upsert_identity(
+            identity_store, config, owner.username, owner.display_name, owner=True
+        )
+        logger.warning("本机账户已设置: %s", owner.username)
+        return _session_response(
+            config, request, response, owner.username, owner.display_name, created
         )
 
     @router.post("/logout", status_code=204, response_class=Response, response_model=None)
     def logout(request: Request, response: Response):
         from runtime.safety.auth.principal import clear_session_cookie
+        from runtime.safety.auth.session_revocation import revoke_request_session
 
+        revoke_request_session(
+            request,
+            identity_store,
+            secret=config.jwt_secret,
+            issuer=config.jwt_issuer,
+            audience=config.jwt_audience,
+        )
         clear_session_cookie(response, request)
 
     @router.get("/whoami", response_model=WhoamiResponse)

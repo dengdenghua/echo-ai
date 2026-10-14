@@ -8,7 +8,7 @@ vi.mock("@/core/i18n/hooks", () => ({
       modes: {
         develop: "编程",
         developDesc: "",
-        developEffect: "",
+        developEffect: "按请求自动选择工作方式",
         developTooltip: "",
         audit: "审查",
         auditDesc: "",
@@ -49,7 +49,13 @@ function mockFetch() {
       if (url.includes("/agent-modes")) {
         return new Response(
           JSON.stringify({
-            modes: [{ name: "develop", display_name: "编程" }],
+            modes: [
+              {
+                name: "develop",
+                display_name: "编程",
+                description: "Build, fix, review, analyze, and research.",
+              },
+            ],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
@@ -94,6 +100,32 @@ describe("ModeSelector.onManualOverrideChange", () => {
     expect(onManualOverrideChange).toHaveBeenCalledWith(true);
     expect(onUserModeChange).toHaveBeenCalledOnce();
     expect(onUserModeChange).toHaveBeenCalledWith("uxui");
+  });
+
+  it("marks the active mode with the core selection, not a category colour", async () => {
+    const user = userEvent.setup();
+    render(
+      <ModeSelector
+        workDir="/workspace/a"
+        sessionId="s1"
+        mode="develop"
+        onModeChange={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { haspopup: "listbox" }));
+    const selected = (await screen.findAllByRole("option")).find(
+      (option) => option.getAttribute("aria-selected") === "true",
+    );
+    expect(selected).toHaveClass("ring-core/30");
+    expect(selected?.className).not.toMatch(/info|chart-/);
+    // The panel footer explains the mode in the UI language.
+    expect(
+      await screen.findByText("按请求自动选择工作方式"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Build, fix, review, analyze, and research."),
+    ).not.toBeInTheDocument();
   });
 
   it("migrates a persisted audit mode to general on mount", () => {

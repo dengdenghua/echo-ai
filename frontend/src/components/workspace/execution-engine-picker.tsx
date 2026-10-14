@@ -1,4 +1,5 @@
 import { CheckIcon, SparklesIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -6,41 +7,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  engineMegabytes,
+  useEngineAction,
+  useEngines,
+  type EngineStatus,
+} from "@/core/engines/api";
+import {
+  engineNeedsInstall,
+  engineStatusLine,
+} from "@/core/engines/status-line";
 import { useI18n } from "@/core/i18n/hooks";
-import { engineVerificationLabel, type EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
+import { engineStoreCopy } from "@/core/i18n/locales/engine-store";
+import { executionEngineCopy } from "@/core/i18n/locales/execution-engine";
+import { workbenchActionErrorMessage } from "@/core/workbench/workbench-permissions";
+import {
+  engineVerificationLabel,
+  type EngineCapabilityChecks,
+} from "@/core/agents/engine-capability-checks";
 import type { ExecutionEnginePreference } from "@/core/realtime/execution-policy";
-
-const REASONS: Record<string, [string, string]> = {
-  checking: ["正在检查 Codex 配置", "Checking Codex configuration"],
-  disabled: ["Codex 引擎未启用", "Codex is disabled"],
-  tools_unavailable: ["共享工具尚未就绪", "Shared tools are not ready"],
-  executable_unavailable: [
-    "需要安装或配置 Codex",
-    "Install or configure Codex",
-  ],
-  model_incompatible: [
-    "选取后，在输入框选择订阅或 API 模型",
-    "Select this engine, then choose a subscription or API model",
-  ],
-  account_required: [
-    "需要在模型设置中连接 Codex 账号",
-    "Connect a Codex account in model settings",
-  ],
-  account_unavailable: [
-    "请检查 Codex 账号设置",
-    "Check Codex account settings",
-  ],
-  workspace_required: ["需要先选择工作目录", "Select a workspace first"],
-  configuration_unavailable: [
-    "暂时无法读取 Codex 配置",
-    "Codex configuration is unavailable",
-  ],
-};
 
 /** Official OpenCode square mark.
  * Source: anomalyco/opencode packages/ui/src/assets/favicon/favicon.svg
  */
-function OpenCodeIcon({ className }: { className?: string }) {
+export function OpenCodeIcon({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 512 512"
@@ -61,7 +51,7 @@ function OpenCodeIcon({ className }: { className?: string }) {
 }
 
 /** Exact light/dark Blossom assets shipped with the official Codex desktop app. */
-function CodexIcon({ className }: { className?: string }) {
+export function CodexIcon({ className }: { className?: string }) {
   return (
     <span className={className} data-testid="codex-logo" aria-hidden="true">
       <img
@@ -104,41 +94,69 @@ export function ExecutionEnginePicker({
   disabled?: boolean;
 }) {
   const { locale } = useI18n();
-  const zh = locale.startsWith("zh");
+  const copy = executionEngineCopy(locale);
   // Model readiness gates execution, not access to the engine's model picker.
   const codexSelectable =
     codexAvailable || unavailableReason === "model_incompatible";
-  const title = zh ? "执行引擎" : "Execution engine";
+  const title = copy.title;
   const labels = {
-    auto: zh ? "自动" : "Auto",
-    echo: zh ? "原生兼容模式" : "Legacy native mode",
+    auto: copy.auto,
+    echo: copy.legacyNative,
     codex: "Codex",
     opencode: "OpenCode",
   };
+  // Auto on Echo's own models (no OpenCode installed yet) reads as "Echo",
+  // not as the legacy native mode a stored preference can select.
+  const resolvedLabel =
+    resolvedEngine === "echo"
+      ? "Echo"
+      : resolvedEngine
+        ? labels[resolvedEngine]
+        : undefined;
+  // Reason codes come from the backend; unknown ones read as unavailable.
+  const reasonTexts: Partial<Record<string, string>> = copy.reasons;
   const unavailable = !codexAvailable
-    ? (REASONS[unavailableReason ?? "configuration_unavailable"] ??
-        REASONS.configuration_unavailable)![zh ? 0 : 1]
+    ? (reasonTexts[unavailableReason ?? "configuration_unavailable"] ??
+      copy.reasons.configuration_unavailable)
     : null;
   const selectedUnavailable =
     value === "codex"
       ? unavailable
       : value === "opencode" && !opencodeAvailable
-        ? opencodeUnavailableReason ||
-          (zh
-            ? "请检查 OpenCode 安装和模型配置"
-            : "Check the OpenCode installation and model configuration")
+        ? opencodeUnavailableReason || copy.opencodeCheckSetup
         : null;
   const visibleEngine = value === "auto" ? resolvedEngine : value;
+  // An engine this computer does not have yet installs right from the menu.
+  const store = engineStoreCopy(locale);
+  const engines = useEngines(!codexAvailable || !opencodeAvailable);
+  const engineAction = useEngineAction();
+  const installable = (
+    engine: "auto" | "codex" | "opencode",
+  ): EngineStatus | undefined => {
+    if (engine === "auto") return undefined;
+    if (engine === "codex" ? codexAvailable : opencodeAvailable)
+      return undefined;
+    const status = engines.data?.engines.find((item) => item.id === engine);
+    return status?.state === "installing" || engineNeedsInstall(status)
+      ? status
+      : undefined;
+  };
+  const installText = (status: EngineStatus) =>
+    status.state === "installing" || status.job?.state === "failed"
+      ? engineStatusLine(status, store).text
+      : status.state === "update_available"
+        ? store.updateAvailable(status.version)
+        : store.menuInstall(engineMegabytes(status.download_size));
   const triggerTitle =
     selectedUnavailable ||
-    `${title}: ${labels[value]}${value === "auto" && resolvedEngine ? ` · ${labels[resolvedEngine]}` : ""}`;
+    `${title}: ${labels[value]}${value === "auto" && resolvedLabel ? ` · ${resolvedLabel}` : ""}`;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           disabled={disabled}
-          aria-label={`${title}: ${labels[value]}`}
+          aria-label={`${title}: ${labels[value]}${selectedUnavailable ? copy.unavailableSuffix(selectedUnavailable) : ""}`}
           title={triggerTitle}
           data-testid="execution-engine-trigger"
           className="relative flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-50"
@@ -159,65 +177,84 @@ export function ExecutionEnginePicker({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
-        <p className="px-2 py-2 text-ui font-medium">
-          {zh ? "执行引擎" : "Execution engine"}
-        </p>
-        {value === "echo" ? (
-          <p className="px-2 pb-2 text-ui text-muted-foreground">
-            {zh
-              ? "此会话保留了旧版原生配置，可切换到下方执行引擎。"
-              : "This session retains a legacy native setting. Choose an engine below to switch."}
+        <p className="px-2 py-2 text-ui font-medium">{title}</p>
+        {/* The red dot on the trigger means this; say it where it is read. */}
+        {selectedUnavailable ? (
+          <p
+            role="status"
+            className="mx-2 mb-2 rounded-md bg-destructive/10 px-2 py-1.5 text-ui leading-relaxed text-destructive"
+          >
+            {copy.selectedUnavailable(labels[value], selectedUnavailable)}
           </p>
         ) : null}
-        {(["auto", "opencode", "codex"] as const).map((engine) => (
-          <DropdownMenuItem
-            key={engine}
-            disabled={
-              (engine === "codex" && !codexSelectable) ||
-              (engine === "opencode" && !opencodeAvailable)
-            }
-            onSelect={() => onChange(engine)}
-            className={`items-start gap-2.5 py-2 ${value === engine ? "bg-accent" : ""}`}
-          >
-            {engine === "auto" ? (
-              <SparklesIcon className="mt-0.5 size-4 shrink-0" />
-            ) : engine === "opencode" ? (
-              <OpenCodeIcon className="mt-0.5 size-4 shrink-0" />
-            ) : (
-              <CodexIcon className="mt-0.5 size-4 shrink-0" />
-            )}
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium">{labels[engine]}</span>
-              <span className="mt-0.5 block text-ui leading-relaxed text-muted-foreground">
-                {engine === "auto"
-                  ? zh
-                    ? `按任务自动选择${resolvedEngine ? ` · 当前 ${labels[resolvedEngine]}` : ""}`
-                    : `Choose per task${resolvedEngine ? ` · currently ${labels[resolvedEngine]}` : ""}`
-                  : engine === "opencode"
-                    ? !opencodeAvailable
-                      ? opencodeUnavailableReason ||
-                        (zh
-                          ? "请检查 OpenCode 安装和模型配置"
-                          : "Check the OpenCode installation and model configuration")
-                      : zh
-                        ? "使用 OpenCode 身份，支持官方免费模型"
-                        : "Use the OpenCode identity with official free or connected Zen models"
-                    : (unavailable ??
-                      (zh
-                        ? "使用 Codex 身份执行当前任务"
-                        : "Run this task with the Codex identity"))}
-              </span>
-              {(engine === "codex" && codexAvailable) || (engine === "opencode" && opencodeAvailable) ? (
+        {value === "echo" ? (
+          <p className="px-2 pb-2 text-ui text-muted-foreground">
+            {copy.legacyNotice}
+          </p>
+        ) : null}
+        {(["auto", "opencode", "codex"] as const).map((engine) => {
+          const missing = installable(engine);
+          return (
+            <DropdownMenuItem
+              key={engine}
+              disabled={
+                !missing &&
+                ((engine === "codex" && !codexSelectable) ||
+                  (engine === "opencode" && !opencodeAvailable))
+              }
+              onSelect={(event) => {
+                if (!missing) return onChange(engine);
+                // Stay open so the row can show the download's progress.
+                event.preventDefault();
+                if (missing.state === "installing") return;
+                engineAction.mutate(
+                  { id: missing.id, action: "install" },
+                  {
+                    onError: (error) =>
+                      toast.error(workbenchActionErrorMessage(error)),
+                  },
+                );
+              }}
+              className={`items-start gap-2.5 py-2 ${value === engine ? "bg-accent" : ""}`}
+            >
+              {engine === "auto" ? (
+                <SparklesIcon className="mt-0.5 size-4 shrink-0" />
+              ) : engine === "opencode" ? (
+                <OpenCodeIcon className="mt-0.5 size-4 shrink-0" />
+              ) : (
+                <CodexIcon className="mt-0.5 size-4 shrink-0" />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{labels[engine]}</span>
                 <span className="mt-0.5 block text-ui leading-relaxed text-muted-foreground">
-                  {engineVerificationLabel(engine === "codex" ? codexCapabilityChecks : opencodeCapabilityChecks, zh)}
+                  {missing
+                    ? installText(missing)
+                    : engine === "auto"
+                      ? copy.autoDescription(resolvedLabel)
+                      : engine === "opencode"
+                        ? !opencodeAvailable
+                          ? opencodeUnavailableReason || copy.opencodeCheckSetup
+                          : copy.opencodeDescription
+                        : (unavailable ?? copy.codexDescription)}
                 </span>
+                {(engine === "codex" && codexAvailable) ||
+                (engine === "opencode" && opencodeAvailable) ? (
+                  <span className="mt-0.5 block text-ui leading-relaxed text-muted-foreground">
+                    {engineVerificationLabel(
+                      engine === "codex"
+                        ? codexCapabilityChecks
+                        : opencodeCapabilityChecks,
+                      locale,
+                    )}
+                  </span>
+                ) : null}
+              </span>
+              {value === engine ? (
+                <CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
               ) : null}
-            </span>
-            {value === engine ? (
-              <CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
-            ) : null}
-          </DropdownMenuItem>
-        ))}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -232,12 +269,8 @@ export function ExecutionEngineBadge({ engine }: { engine: unknown }) {
     engine === "opencode" ? "OpenCode" : engine === "codex" ? "Codex" : "Echo";
   return (
     <span
-      className="mb-1 inline-block rounded border border-border/60 px-1.5 text-[10px] leading-4 text-muted-foreground"
-      title={
-        locale.startsWith("zh")
-          ? `实际执行引擎：${name}`
-          : `Executed by ${name}`
-      }
+      className="mb-1 inline-block rounded border border-border/60 px-1.5 text-xs leading-4 text-muted-foreground"
+      title={executionEngineCopy(locale).executedBy(name)}
       data-execution-engine={engine}
     >
       {name}

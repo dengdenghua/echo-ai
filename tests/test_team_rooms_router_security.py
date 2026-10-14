@@ -683,6 +683,54 @@ def test_room_websocket_allows_invited_actor_and_resolves_stale_client_id(
         assert ready["participant"]["display_name"] == "bob"
 
 
+@pytest.mark.parametrize("status", ["active", "removed"])
+def test_closed_socket_during_broadcast_does_not_abort_other_delivery(status):
+    import asyncio
+    from threading import Lock
+    from types import SimpleNamespace
+
+    from anyio import ClosedResourceError
+
+    from runtime.sensing.gateway.team_rooms_ws import broadcast_authorized_team_sockets
+
+    received = []
+
+    class ClosedSocket:
+        async def send_json(self, payload):
+            raise ClosedResourceError
+
+        async def close(self, *, code):
+            raise ClosedResourceError
+
+    class LiveSocket:
+        async def send_json(self, payload):
+            received.append(payload)
+
+    good, closed = LiveSocket(), ClosedSocket()
+    room = SimpleNamespace(
+        participants=[
+            SimpleNamespace(id="closed", status=status),
+            SimpleNamespace(id="live", status="active"),
+        ]
+    )
+    sockets = {"room": {"closed": closed, "live": good}}
+    loops = {"room": {"closed": None, "live": None}}
+    asyncio.run(
+        broadcast_authorized_team_sockets(
+            team_id="room",
+            payload={"type": "presence"},
+            teams={"room": room},
+            lock=Lock(),
+            live_sockets=sockets,
+            socket_loops=loops,
+            refresh=lambda: None,
+        )
+    )
+    assert received == [{"type": "presence"}]
+    assert sockets["room"] == {"live": good}
+    assert loops["room"] == {"live": None}
+
+
 @pytest.mark.parametrize("push_kind", ["team:update", "presence", "message"])
 def test_cross_worker_push_evicts_revoked_websocket_before_payload(
     tmp_path: Path,

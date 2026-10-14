@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from runtime.execution.arms.promise_gate import GateError, PromiseGate
+from runtime.execution.arms.promise_gate import GateError, PromiseGate, SessionLock
 
 
 class TestPromiseGate:
@@ -158,3 +158,26 @@ class TestPromiseGate:
 
         # Multiple tasks with same session should work
         await asyncio.gather(task(), task(), task())
+
+
+def test_cleanup_preserves_live_owner_and_removes_exited_owner(tmp_path):
+    import json
+    import subprocess
+    import sys
+
+    path = tmp_path / "promise.lock"
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        path.write_text(json.dumps({"pid": child.pid}), encoding="utf-8")
+        for _ in range(3):
+            assert SessionLock.cleanup_stale_lock(str(path)) is False
+            assert child.poll() is None
+            assert path.exists()
+        child.terminate()
+        child.wait(timeout=10)
+        assert SessionLock.cleanup_stale_lock(str(path)) is True
+        assert not path.exists()
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.wait(timeout=10)

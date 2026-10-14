@@ -15,6 +15,11 @@ from runtime.platform.io.atomic import (
     debounced_json_writer,
     read_json_with_backup,
 )
+from runtime.platform.io.read_snapshot import (
+    forget_snapshot_read,
+    read_snapshot,
+    snapshot_read,
+)
 from runtime.platform.io.transactional import (
     JsonMutation,
     TransactionalFileError,
@@ -31,6 +36,9 @@ __all__ = [
     "atomic_write_text",
     "debounced_json_writer",
     "read_json_with_backup",
+    "forget_snapshot_read",
+    "read_snapshot",
+    "snapshot_read",
     "JsonMutation",
     "TransactionalFileError",
     "create_file_exclusive",

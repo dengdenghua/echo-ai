@@ -21,18 +21,33 @@
  * 因此列表退回元数据行、聚合块整体不渲染，且不弹 alert、不打断既有错误态。
  */
 
+import type {
+  PmeReport,
+  ProjectFull,
+  ProjectSummary,
+} from "@/core/projects/cockpit-types";
+import {
+  ProjectLoadFailure,
+  ProjectRequestError,
+  traceIdFromDetail,
+  traceIdFromResponse,
+  withTraceId,
+} from "@/components/workspace/projects/project-request-feedback";
+import {
+  EmptyHint,
+  MetricCard,
+  healthIcon,
+} from "@/components/workspace/projects/project-cockpit-metrics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   ActivityIcon,
   AlertTriangleIcon,
   ArrowRightIcon,
   CalendarRangeIcon,
   CheckCircle2Icon,
-  CircleIcon,
   ClipboardListIcon,
-  FlagIcon,
   LayersIcon,
   ListChecksIcon,
   MessageSquareIcon,
@@ -46,7 +61,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +78,8 @@ import {
   useEnsureProjectHome,
   usePortfolio,
 } from "@/core/projects/hooks";
+import { projectCategoryLabel } from "@/core/projects/project-categories";
+import { ProjectIcon } from "@/core/projects/project-icons";
 import {
   type ProjectRow,
   type ProjectStatusFilter,
@@ -77,6 +94,11 @@ import { TodayQueuePanel } from "@/components/workspace/projects/today-queue";
 import { ProjectSwitcher } from "@/components/workspace/projects/project-switcher";
 import { ProjectTimeline } from "@/components/workspace/projects/project-timeline";
 import {
+  projectActionLabel,
+  useProjectExecution,
+} from "@/components/workspace/projects/use-project-execution";
+import { ProjectExecutionStatus } from "@/components/workspace/projects/project-execution-status";
+import {
   EstimateStack,
   HealthDonut,
   ProjectProgressBars,
@@ -88,193 +110,19 @@ import {
   STATUS_LABEL,
   STATUS_TONE,
   fmtDate,
-  fmtDateTime,
 } from "@/components/workspace/projects/project-meta";
-
-// ─── types（与 runtime/projectos/pm.py 的返回结构对应）───────────────
-
-type Health = "on_track" | "at_risk" | "overdue" | "blocked" | "completed";
-
-interface MilestonePM {
-  id: string;
-  name: string;
-  status: string;
-  health: Health;
-  priority: string;
-  planned_start: string;
-  due_at: string;
-  done: number;
-  total: number;
-  failed: number;
-  progress: number;
-  total_estimate: number;
-  remaining_estimate: number;
-  overdue_tasks: Array<{
-    id: string;
-    goal: string;
-    due_at: string;
-    priority: string;
-  }>;
-  success_criteria: string[];
-}
-
-interface PmeReport {
-  project_id: string;
-  name: string;
-  status: string;
-  overall_progress: number;
-  done_tasks: number;
-  total_tasks: number;
-  total_estimate: number;
-  remaining_estimate: number;
-  milestones: MilestonePM[];
-  burndown: Array<{
-    milestone: string;
-    health: Health;
-    done: number;
-    total: number;
-    remaining_estimate: number;
-  }>;
-  risks: Array<{
-    type: "milestone" | "task";
-    milestone?: string;
-    task_id?: string;
-    task?: string;
-    health: string;
-    detail: string;
-  }>;
-  blockers: string[];
-  overdue: Array<{ milestone: string; tasks: MilestonePM["overdue_tasks"] }>;
-  next_actions: Array<{
-    milestone: string;
-    task_id: string;
-    task: string;
-    priority: string;
-    estimate: number;
-    due_at: string;
-  }>;
-  assignments: Record<string, string[]>;
-}
-
-interface Retro {
-  project_id: string;
-  name: string;
-  goal: string;
-  status: string;
-  milestone_count: number;
-  task_count: number;
-  done_tasks: number;
-  failed_tasks: number;
-  rejected_tasks: number;
-  attempts_total: number;
-  total_estimate: number;
-  duration_days: number | null;
-  blocked_milestones: string[];
-  risks_hit: string[];
-  recommendations: string[];
-}
-
-interface ActionSpec {
-  action: string;
-  label: string;
-  api: { method: string; path: string; body?: Record<string, unknown> };
-  realtime_command?: string;
-}
-
-interface TaskReadModel {
-  id: string;
-  milestone_id: string;
-  type: string;
-  goal: string;
-  assigned_role: string;
-  assigned_agent: string;
-  team_mode: string;
-  priority: string;
-  estimate: number;
-  due_at: string;
-  acceptance_criteria: string[];
-  status: string;
-  attempts: number;
-}
-
-interface ProjectFull {
-  project: {
-    id: string;
-    name: string;
-    goal: string;
-    status: string;
-    owner: string;
-    created_at: string;
-    started_at: string;
-    finished_at: string;
-    execution_thread_id?: string;
-  };
-  milestones: Array<Record<string, unknown> & { id: string; name: string }>;
-  tasks: Record<string, TaskReadModel[]>;
-  pm: PmeReport | null;
-  retro: Retro | null;
-  available_actions: string[];
-  action_specs: ActionSpec[];
-}
-
-interface ProjectSummary {
-  id: string;
-  name: string;
-  goal?: string;
-  status?: string;
-  created_at?: string;
-  execution_thread_id?: string;
-}
+import { ProjectLifecycleDates } from "@/components/workspace/projects/project-lifecycle-dates";
+import { StandingAuthorizationPanel } from "@/components/workspace/projects/standing-authorization-panel";
+import { ProjectLifecycleActions } from "@/components/workspace/projects/project-lifecycle-actions";
+import {
+  ProjectGovernancePanel,
+  governanceRunBlock,
+} from "@/components/workspace/projects/project-governance-panel";
 
 const BASE = () => `${getBackendBaseURL()}/api/projects`;
-const PROJECT_LOAD_ERROR_MESSAGE = "项目加载失败，请稍后重试。";
 const PROJECT_ACTION_ERROR_MESSAGE = "操作失败，请稍后重试。";
-const TRACE_HEADER_NAMES = [
-  "x-trace-id",
-  "x-request-id",
-  "trace-id",
-  "request-id",
-] as const;
-
-class ProjectRequestError extends Error {
-  readonly traceId: string | null;
-
-  constructor(traceId: string | null) {
-    super(PROJECT_LOAD_ERROR_MESSAGE);
-    this.name = "ProjectRequestError";
-    this.traceId = traceId;
-  }
-}
-
-function normalizeTraceId(value: string | null | undefined): string | null {
-  const traceId = value?.trim();
-  if (!traceId || traceId.length > 128) return null;
-  return /^[A-Za-z0-9._:/-]+$/.test(traceId) ? traceId : null;
-}
-
-function traceIdFromResponse(response: Response): string | null {
-  for (const header of TRACE_HEADER_NAMES) {
-    const traceId = normalizeTraceId(response.headers.get(header));
-    if (traceId) return traceId;
-  }
-  return null;
-}
-
-function traceIdFromError(error: unknown): string | null {
-  return error instanceof ProjectRequestError ? error.traceId : null;
-}
-
-function traceIdFromDetail(detail: string): string | null {
-  const match = detail.match(
-    /\b(?:trace[_ -]?id|request[_ -]?id)\s*[:=]\s*([A-Za-z0-9._/-]{6,128})/i,
-  );
-  return normalizeTraceId(match?.[1]);
-}
-
-function withTraceId(message: string, traceId: string | null): string {
-  return traceId ? `${message} 追踪 ID：${traceId}` : message;
-}
-
+// Actions that execute the project: unavailable while governance blocks them.
+const RUN_ACTIONS = new Set(["run", "tick", "recover_and_run"]);
 function safeRiskDetail(risk: PmeReport["risks"][number]): string {
   if (risk.type === "milestone") {
     return "里程碑存在阻塞或延期，请检查相关任务状态。";
@@ -288,104 +136,18 @@ function safeRiskDetail(risk: PmeReport["risks"][number]): string {
   return "任务状态需要关注，请检查任务详情。";
 }
 
-function ProjectLoadFailure({
-  error,
-  onRetry,
-  className = "",
-}: {
-  error: unknown;
-  onRetry: () => void;
-  className?: string;
-}) {
-  const traceId = traceIdFromError(error);
-  return (
-    <div
-      role="alert"
-      className={`flex flex-col items-center justify-center gap-3 px-4 text-center ${className}`}
-    >
-      <div>
-        <p className="text-sm font-medium text-foreground">
-          {PROJECT_LOAD_ERROR_MESSAGE}
-        </p>
-        {traceId && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            追踪 ID：<code>{traceId}</code>
-          </p>
-        )}
-      </div>
-      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-        <RefreshCwIcon className="size-3.5" />
-        重试
-      </Button>
-    </div>
-  );
-}
-
-function healthIcon(health: Health) {
-  if (health === "on_track") return <CheckCircle2Icon className="size-3.5" />;
-  if (health === "at_risk") return <AlertTriangleIcon className="size-3.5" />;
-  if (health === "overdue") return <TimerIcon className="size-3.5" />;
-  if (health === "blocked") return <FlagIcon className="size-3.5" />;
-  return <CircleIcon className="size-3.5" />;
-}
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: React.ReactNode;
-  tone?: "danger" | "warn" | "ok";
-}) {
-  const toneClass =
-    tone === "danger"
-      ? "text-orange-600"
-      : tone === "warn"
-        ? "text-amber-600"
-        : tone === "ok"
-          ? "text-emerald-600"
-          : "";
-  return (
-    <Card className="bg-card/60">
-      <CardContent className="flex items-start gap-3 p-4">
-        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">{label}</div>
-          <div className={`mt-0.5 truncate text-lg font-semibold ${toneClass}`}>
-            {value}
-          </div>
-          {sub && (
-            <div className="mt-0.5 truncate text-xs text-muted-foreground">
-              {sub}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** 空态里的「下一步该做什么」提示 —— 不再只写「暂无 X。」 */
-function EmptyHint({ text }: { text: string }) {
-  return (
-    <div className="rounded-md border border-dashed px-2.5 py-2 text-xs text-muted-foreground">
-      {text}
-    </div>
-  );
-}
-
 export default function ProjectsPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const ensureProjectHome = useEnsureProjectHome();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(
+    searchParams.get("project"),
+  );
+  useEffect(() => {
+    const id = searchParams.get("project");
+    if (id) setSelectedId(id);
+  }, [searchParams]);
   const [createOpen, setCreateOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProjectStatusFilter>("all");
@@ -402,14 +164,15 @@ export default function ProjectsPage() {
     queryFn: async () => {
       const res = await fetch(BASE(), { headers: authHeaders() });
       if (!res.ok) throw new ProjectRequestError(traceIdFromResponse(res));
-      const data = (await res.json()) as unknown;
+      const data: unknown = await res.json();
       if (Array.isArray(data)) return data as ProjectSummary[];
       if (
         data &&
         typeof data === "object" &&
-        Array.isArray((data as { projects?: unknown }).projects)
+        "projects" in data &&
+        Array.isArray(data.projects)
       ) {
-        return (data as { projects: ProjectSummary[] }).projects;
+        return data.projects as ProjectSummary[];
       }
       return [];
     },
@@ -462,42 +225,33 @@ export default function ProjectsPage() {
   });
 
   const detail = detailQuery.data;
+  const detailCategory = projectCategoryLabel(
+    detail?.project.category,
+    t.createProjectDialog,
+  );
+  const runBlock = governanceRunBlock(detail?.governance);
   const pm = detail?.pm ?? null;
   const retro = detail?.retro ?? null;
-
-  const executeAction = async (
-    spec: ActionSpec,
-    overrides?: Record<string, unknown>,
-  ) => {
-    if (!spec.api) return;
-    try {
-      const res = await fetch(spec.api.path, {
-        method: spec.api.method,
-        headers: jsonAuthHeaders(),
-        body:
-          spec.api.body || overrides
-            ? JSON.stringify({ ...(spec.api.body ?? {}), ...(overrides ?? {}) })
-            : undefined,
-      });
-      if (!res.ok) {
-        toast.error(
-          withTraceId(PROJECT_ACTION_ERROR_MESSAGE, traceIdFromResponse(res)),
-        );
-        return;
-      }
-      toast.success(`${spec.label} 已执行`);
-      detailQuery.refetch();
-      projectsQuery.refetch();
-      void portfolioQuery.refetch();
-    } catch {
-      toast.error(PROJECT_ACTION_ERROR_MESSAGE);
-    }
-  };
 
   const refresh = () => {
     void detailQuery.refetch();
     void projectsQuery.refetch();
     void portfolioQuery.refetch();
+  };
+  const { job, isRunning, executeAction, cancelExecution } =
+    useProjectExecution({
+      projectId: selectedId,
+      refresh,
+      errorMessage: (failure) =>
+        withTraceId(
+          PROJECT_ACTION_ERROR_MESSAGE,
+          traceIdFromResponse({ headers: failure.headers ?? new Headers() }),
+        ),
+    });
+
+  const handleProjectDeleted = (projectId: string) => {
+    setSelectedId(projects.find((p) => p.id !== projectId)?.id ?? null);
+    refresh();
   };
 
   const selectProject = (projectId: string) => {
@@ -515,7 +269,7 @@ export default function ProjectsPage() {
   const openProjectGroup = (project: Project) => {
     ensureProjectHome.mutate(project, {
       onSuccess: ({ threadId }) =>
-        navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
+        void navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
           state: { openProjectWorkbench: true },
         }),
       onError: () => toast.error("项目工作群打开失败，请重试"),
@@ -615,21 +369,21 @@ export default function ProjectsPage() {
                       <CardHeader className="pb-2">
                         <CardTitle className="flex flex-wrap items-center gap-2 text-sm">
                           <span className="flex items-center gap-1.5">
-                            <LayersIcon className="size-4 text-indigo-500" />
+                            <LayersIcon className="size-4 text-muted-foreground" />
                             项目总览
                           </span>
-                          <span className="flex flex-wrap items-center gap-1.5 text-[11px] font-normal text-muted-foreground">
-                            <Badge variant="outline" className="text-[10px]">
+                          <span className="flex flex-wrap items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                            <Badge variant="outline" className="text-xs">
                               {totals.projects} 个项目
                             </Badge>
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               {totals.doneTasks}/{totals.tasks} 任务
                             </Badge>
                             <Badge
                               variant="outline"
-                              className={`text-[10px] ${
+                              className={`text-xs ${
                                 totals.overdue > 0
-                                  ? "border-orange-500/30 bg-orange-500/15 text-orange-600"
+                                  ? "border-warning/30 bg-warning/15 text-warning"
                                   : ""
                               }`}
                             >
@@ -637,21 +391,21 @@ export default function ProjectsPage() {
                             </Badge>
                             <Badge
                               variant="outline"
-                              className={`text-[10px] ${
+                              className={`text-xs ${
                                 totals.atRisk > 0
-                                  ? "border-amber-500/30 bg-amber-500/15 text-amber-600"
+                                  ? "border-warning/30 bg-warning/15 text-warning"
                                   : ""
                               }`}
                             >
                               风险里程碑 {totals.atRisk}
                             </Badge>
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               剩余估时 {totals.remainingEstimate}d
                             </Badge>
                             {totals.unreadable > 0 && (
                               <Badge
                                 variant="outline"
-                                className="border-rose-500/30 bg-rose-500/15 text-[10px] text-rose-600"
+                                className="border-breach/30 bg-breach/15 text-xs text-breach"
                               >
                                 {totals.unreadable} 个读取失败
                               </Badge>
@@ -687,9 +441,18 @@ export default function ProjectsPage() {
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
+                                <ProjectIcon
+                                  icon={detail.project.icon}
+                                  className="size-4 text-muted-foreground"
+                                />
                                 <h2 className="text-base font-semibold">
                                   {detail.project.name || detail.project.id}
                                 </h2>
+                                {detailCategory && (
+                                  <Badge variant="outline">
+                                    {detailCategory}
+                                  </Badge>
+                                )}
                                 <Badge
                                   variant="outline"
                                   className={
@@ -726,11 +489,30 @@ export default function ProjectsPage() {
                                 <MessageSquareIcon className="size-3.5" />
                                 进入项目群
                               </Button>
+                              <ProjectExecutionStatus
+                                job={job}
+                                isRunning={isRunning}
+                                cancel={() => void cancelExecution()}
+                              />
+                              <ProjectLifecycleActions
+                                project={detail.project}
+                                onDeleted={handleProjectDeleted}
+                                onChanged={refresh}
+                              />
                               {detail.action_specs.map((spec) => (
                                 <Button
                                   key={spec.action}
                                   size="sm"
                                   className="gap-1.5 text-xs"
+                                  disabled={
+                                    (!!runBlock || isRunning) &&
+                                    RUN_ACTIONS.has(spec.action)
+                                  }
+                                  title={
+                                    RUN_ACTIONS.has(spec.action)
+                                      ? (runBlock ?? undefined)
+                                      : undefined
+                                  }
                                   onClick={() => executeAction(spec)}
                                 >
                                   {spec.action.startsWith("recover") ? (
@@ -740,31 +522,24 @@ export default function ProjectsPage() {
                                   ) : (
                                     <ArrowRightIcon className="size-3.5" />
                                   )}
-                                  {spec.label}
+                                  {projectActionLabel(spec)}
                                 </Button>
                               ))}
                             </div>
                           </div>
 
-                          {/* lifecycle timestamps */}
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <CalendarRangeIcon className="size-3.5" />
-                              创建 {fmtDateTime(detail.project.created_at)}
-                            </span>
-                            {detail.project.started_at && (
-                              <span className="inline-flex items-center gap-1">
-                                <PlayIcon className="size-3.5" />
-                                启动 {fmtDateTime(detail.project.started_at)}
-                              </span>
-                            )}
-                            {detail.project.finished_at && (
-                              <span className="inline-flex items-center gap-1">
-                                <CheckCircle2Icon className="size-3.5" />
-                                完成 {fmtDateTime(detail.project.finished_at)}
-                              </span>
-                            )}
-                          </div>
+                          <ProjectGovernancePanel
+                            projectId={detail.project.id}
+                            governance={detail.governance}
+                            onChanged={refresh}
+                          />
+
+                          <StandingAuthorizationPanel
+                            projectId={detail.project.id}
+                            ownerId={detail.project.owner_id}
+                            phases={detail.milestones}
+                          />
+                          <ProjectLifecycleDates project={detail.project} />
 
                           {pm && (
                             <div className="space-y-1.5">
@@ -773,8 +548,8 @@ export default function ProjectsPage() {
                                   整体进度
                                 </span>
                                 <span>
-                                  {pm.done_tasks}/{pm.total_tasks} 任务 · 剩余估时{" "}
-                                  {pm.remaining_estimate}d / 共{" "}
+                                  {pm.done_tasks}/{pm.total_tasks} 任务 ·
+                                  剩余估时 {pm.remaining_estimate}d / 共{" "}
                                   {pm.total_estimate}d
                                 </span>
                               </div>
@@ -809,12 +584,10 @@ export default function ProjectsPage() {
                             <MetricCard
                               label="风险"
                               value={`${pm.risks.length}`}
-                              sub={`${pm.blockers.length} 个阻塞里程碑 · ${
-                                pm.overdue.reduce(
-                                  (sum, group) => sum + group.tasks.length,
-                                  0,
-                                )
-                              } 个逾期任务`}
+                              sub={`${pm.blockers.length} 个阻塞里程碑 · ${pm.overdue.reduce(
+                                (sum, group) => sum + group.tasks.length,
+                                0,
+                              )} 个逾期任务`}
                               tone={pm.risks.length > 0 ? "warn" : undefined}
                               icon={<AlertTriangleIcon className="size-4" />}
                             />
@@ -830,7 +603,7 @@ export default function ProjectsPage() {
                           <Card>
                             <CardHeader className="pb-2">
                               <CardTitle className="flex items-center gap-1.5 text-sm">
-                                <CalendarRangeIcon className="size-4 text-indigo-500" />
+                                <CalendarRangeIcon className="size-4 text-muted-foreground" />
                                 里程碑时间轴
                               </CardTitle>
                             </CardHeader>
@@ -849,7 +622,7 @@ export default function ProjectsPage() {
                               <CardTitle className="flex items-center justify-between gap-2 text-sm">
                                 <span>里程碑健康度</span>
                                 {pm.milestones.length > 0 && (
-                                  <span className="text-[11px] font-normal text-muted-foreground">
+                                  <span className="text-xs font-normal text-muted-foreground">
                                     共 {pm.milestones.length} 个 · 剩余估时{" "}
                                     {pm.remaining_estimate}d
                                   </span>
@@ -859,13 +632,13 @@ export default function ProjectsPage() {
                             <CardContent className="space-y-3">
                               {pm.milestones.length === 0 && (
                                 <div className="text-sm text-muted-foreground">
-                                  还没有里程碑 —— 先执行 Run 让引擎拆解计划。
+                                  还没有里程碑 —— 先点「运行」让引擎拆解计划。
                                 </div>
                               )}
                               {pm.milestones.length > 0 && (
                                 <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)]">
                                   <div className="rounded-lg border bg-card/50 p-3 lg:w-52">
-                                    <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+                                    <div className="mb-1 text-xs font-medium text-muted-foreground">
                                       健康度分布
                                     </div>
                                     <HealthDonut
@@ -892,14 +665,15 @@ export default function ProjectsPage() {
                                             </span>
                                             <Badge
                                               variant="outline"
-                                              className={`gap-1 text-[10px] ${HEALTH_TONE[m.health] ?? ""}`}
+                                              className={`gap-1 text-xs ${HEALTH_TONE[m.health] ?? ""}`}
                                             >
                                               {healthIcon(m.health)}
-                                              {HEALTH_LABEL[m.health] ?? m.health}
+                                              {HEALTH_LABEL[m.health] ??
+                                                m.health}
                                             </Badge>
                                             <Badge
                                               variant="outline"
-                                              className={`text-[10px] ${PRIORITY_TONE[m.priority] ?? ""}`}
+                                              className={`text-xs ${PRIORITY_TONE[m.priority] ?? ""}`}
                                             >
                                               优先级 {m.priority}
                                             </Badge>
@@ -916,8 +690,7 @@ export default function ProjectsPage() {
                                             )}
                                             {m.planned_start && (
                                               <span>
-                                                计划{" "}
-                                                {fmtDate(m.planned_start)}
+                                                计划 {fmtDate(m.planned_start)}
                                               </span>
                                             )}
                                             <span>
@@ -935,8 +708,8 @@ export default function ProjectsPage() {
                                           </span>
                                         </div>
                                         {m.overdue_tasks.length > 0 && (
-                                          <div className="mt-3 space-y-2 border-t border-orange-500/15 pt-2.5">
-                                            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-orange-600/90">
+                                          <div className="mt-3 space-y-2 border-t border-warning/30 pt-2.5">
+                                            <div className="flex items-center gap-1.5 text-xs font-semibold text-warning">
                                               <TimerIcon className="size-3" />
                                               逾期任务 ·{" "}
                                               {m.overdue_tasks.length}
@@ -944,12 +717,12 @@ export default function ProjectsPage() {
                                             {m.overdue_tasks.map((o) => (
                                               <div
                                                 key={o.id}
-                                                className="rounded-lg bg-orange-500/[0.07] px-3 py-2"
+                                                className="rounded-lg bg-warning/[0.07] px-3 py-2"
                                               >
-                                                <div className="text-xs leading-relaxed text-orange-800">
+                                                <div className="text-xs leading-relaxed text-warning">
                                                   {o.goal}
                                                 </div>
-                                                <div className="mt-1 flex items-center gap-1 text-[11px] text-orange-600/80">
+                                                <div className="mt-1 flex items-center gap-1 text-xs text-warning">
                                                   <CalendarRangeIcon className="size-3" />
                                                   截止 {fmtDate(o.due_at)} ·
                                                   已逾期
@@ -971,13 +744,13 @@ export default function ProjectsPage() {
                             <Card>
                               <CardHeader className="pb-2">
                                 <CardTitle className="flex items-center gap-1.5 text-sm">
-                                  <AlertTriangleIcon className="size-4 text-rose-500" />
+                                  <AlertTriangleIcon className="size-4 text-breach" />
                                   风险与阻塞
                                 </CardTitle>
                               </CardHeader>
                               <CardContent className="space-y-2">
                                 {pm.risks.length === 0 && (
-                                  <EmptyHint text="暂无风险。下次 Run 前检查里程碑依赖与指派，可以提前暴露阻塞。" />
+                                  <EmptyHint text="暂无风险。下次运行前检查里程碑依赖与指派，可以提前暴露阻塞。" />
                                 )}
                                 {pm.risks.map((r, i) => {
                                   const traceId = traceIdFromDetail(r.detail);
@@ -986,7 +759,7 @@ export default function ProjectsPage() {
                                       key={`${r.type}-${i}`}
                                       className="flex items-start gap-2 rounded-md border bg-card/50 px-2.5 py-2 text-xs"
                                     >
-                                      <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+                                      <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
                                       <div className="min-w-0">
                                         <div className="font-medium">
                                           {r.type === "milestone"
@@ -1011,13 +784,13 @@ export default function ProjectsPage() {
                             <Card>
                               <CardHeader className="pb-2">
                                 <CardTitle className="flex items-center gap-1.5 text-sm">
-                                  <ListChecksIcon className="size-4 text-emerald-500" />
+                                  <ListChecksIcon className="size-4 text-muted-foreground" />
                                   下一步动作
                                 </CardTitle>
                               </CardHeader>
                               <CardContent className="space-y-2">
                                 {pm.next_actions.length === 0 && (
-                                  <EmptyHint text="当前没有就绪任务。执行 Run 让引擎推进，或到项目群里补充任务描述。" />
+                                  <EmptyHint text="当前没有就绪任务。点「运行」让引擎推进，或到项目群里补充任务描述。" />
                                 )}
                                 {pm.next_actions.map((a) => (
                                   <div
@@ -1026,7 +799,7 @@ export default function ProjectsPage() {
                                   >
                                     <Badge
                                       variant="outline"
-                                      className={`mt-0.5 shrink-0 text-[10px] ${PRIORITY_TONE[a.priority] ?? ""}`}
+                                      className={`mt-0.5 shrink-0 text-xs ${PRIORITY_TONE[a.priority] ?? ""}`}
                                     >
                                       {a.priority}
                                     </Badge>
@@ -1053,7 +826,7 @@ export default function ProjectsPage() {
                             <Card>
                               <CardHeader className="pb-2">
                                 <CardTitle className="flex items-center gap-1.5 text-sm">
-                                  <UsersIcon className="size-4 text-sky-500" />
+                                  <UsersIcon className="size-4 text-muted-foreground" />
                                   人员指派
                                 </CardTitle>
                               </CardHeader>
@@ -1084,7 +857,7 @@ export default function ProjectsPage() {
                               <CardHeader className="pb-2">
                                 <CardTitle className="flex items-center justify-between gap-2 text-sm">
                                   <span>里程碑估时</span>
-                                  <span className="text-[11px] font-normal text-muted-foreground">
+                                  <span className="text-xs font-normal text-muted-foreground">
                                     已完成 / 剩余
                                   </span>
                                 </CardTitle>
@@ -1101,10 +874,10 @@ export default function ProjectsPage() {
 
                       {/* Retro */}
                       {retro && (
-                        <Card className="border-sky-500/30 bg-sky-500/[0.03]">
+                        <Card className="border-core/30 bg-core/[0.03]">
                           <CardHeader className="pb-2">
                             <CardTitle className="flex items-center gap-1.5 text-sm">
-                              <ClipboardListIcon className="size-4 text-sky-500" />
+                              <ClipboardListIcon className="size-4 text-core" />
                               项目复盘
                             </CardTitle>
                           </CardHeader>
@@ -1157,7 +930,7 @@ export default function ProjectsPage() {
                                     key={i}
                                     className="flex items-start gap-1.5 text-xs"
                                   >
-                                    <ArrowRightIcon className="mt-0.5 size-3 shrink-0 text-sky-500" />
+                                    <ArrowRightIcon className="mt-0.5 size-3 shrink-0 text-core" />
                                     <span>{r}</span>
                                   </li>
                                 ))}

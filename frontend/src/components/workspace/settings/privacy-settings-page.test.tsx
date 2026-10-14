@@ -250,7 +250,7 @@ describe("PrivacySettingsPage · path denylist section", () => {
     });
     expect(
       within(dialog).getByText(
-        "移除“C:/Users/me/secrets”后，Agent 将不再自动拒绝访问该路径。",
+        "移除“C:/Users/me/secrets”后，智能体将不再自动拒绝访问该路径。",
       ),
     ).toBeInTheDocument();
     expect(

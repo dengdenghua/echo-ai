@@ -7,7 +7,8 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { TerminalIcon, XIcon, RotateCcwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { swallow } from "@/core/utils/log";
-import { getToken } from "@/core/auth/api";
+import { authHeaders, getToken } from "@/core/auth/api";
+import { openAuthenticatedWebSocket } from "@/core/auth/websocket";
 import { getBackendBaseURL, getBackendWebSocketBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
 import "@xterm/xterm/css/xterm.css";
@@ -19,10 +20,34 @@ interface TerminalPanelProps {
   onClose?: () => void;
 }
 
+/** ECHO mono stack (--font-mono, JetBrains Mono first); used if the CSS
+ *  variable is unavailable, e.g. before styles load or under tests. */
+const TERMINAL_FONT_FALLBACK =
+  '"JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace';
+
+/** xterm draws on a canvas and needs a concrete family list, not var(). */
+function terminalFontFamily(): string {
+  if (typeof window === "undefined") return TERMINAL_FONT_FALLBACK;
+  const value = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue("--font-mono")
+    .trim();
+  return value || TERMINAL_FONT_FALLBACK;
+}
+
 function terminalShellLabel(platform: string): string {
   if (/win/i.test(platform)) return "PowerShell";
   if (/mac|iphone|ipad/i.test(platform)) return "zsh";
   return "shell";
+}
+
+// The bearer token travels in Sec-WebSocket-Protocol (openAuthenticatedWebSocket),
+// never in the URL, where it would leak into proxy/access logs and history.
+function terminalSocketURL(wsBase: string, sessionId: string, cwd?: string) {
+  const params = new URLSearchParams();
+  if (cwd) params.set("cwd", cwd);
+  const query = params.size ? `?${params.toString()}` : "";
+  return `${wsBase}/api/terminal/ws/${sessionId}${query}`;
 }
 
 export function TerminalPanel({
@@ -36,6 +61,7 @@ export function TerminalPanel({
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connected, setConnected] = useState(false);
   const [hasOutput, setHasOutput] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
@@ -43,15 +69,8 @@ export function TerminalPanel({
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const wsBase = getBackendWebSocketBaseURL();
-    const params = new URLSearchParams();
-    if (cwd) params.set("cwd", cwd);
-    const token = getToken();
-    if (token) params.set("token", token);
-    const query = params.size ? `?${params.toString()}` : "";
-    const url = `${wsBase}/api/terminal/ws/${sessionId}${query}`;
-
-    const ws = new WebSocket(url);
+    const url = terminalSocketURL(getBackendWebSocketBaseURL(), sessionId, cwd);
+    const ws = openAuthenticatedWebSocket(url, getToken());
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -95,7 +114,7 @@ export function TerminalPanel({
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
+      fontFamily: terminalFontFamily(),
       theme: {
         background: "#ffffff",
         foreground: "#111827",
@@ -136,6 +155,11 @@ export function TerminalPanel({
 
     return () => {
       ro.disconnect();
+      // A pending restart must not reopen a shell socket after unmount.
+      if (restartTimerRef.current !== null) {
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
+      }
       wsRef.current?.close();
       wsRef.current = null;
       term.dispose();
@@ -148,14 +172,23 @@ export function TerminalPanel({
     wsRef.current?.close();
     const base = getBackendBaseURL();
     try {
-      await fetch(`${base}/api/terminal/kill/${sessionId}`, { method: "POST" });
+      await fetch(`${base}/api/terminal/kill/${sessionId}`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
     } catch (e) {
       swallow(e);
     }
-    termRef.current?.clear();
+    // Unmounted while the kill request was in flight: nothing to restart.
+    if (!termRef.current) return;
+    termRef.current.clear();
     setHasOutput(false);
     setConnectionError(false);
-    setTimeout(connect, 300);
+    if (restartTimerRef.current !== null) clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = setTimeout(() => {
+      restartTimerRef.current = null;
+      connect();
+    }, 300);
   }, [sessionId, connect]);
 
   return (
@@ -205,7 +238,7 @@ export function TerminalPanel({
       <div className="relative min-h-0 flex-1 bg-background">
         <div ref={containerRef} className="absolute inset-0" />
         {!hasOutput && (
-          <div className="pointer-events-none absolute inset-0 px-6 py-5 font-mono text-sm leading-6 text-muted-foreground/70">
+          <div className="pointer-events-none absolute inset-0 px-6 py-5 font-mono text-sm leading-6 text-muted-foreground">
             {connectionError
               ? t.codeMode.terminalConnectionFailed
               : connected
@@ -218,4 +251,4 @@ export function TerminalPanel({
   );
 }
 
-export const __testing = { terminalShellLabel };
+export const __testing = { terminalShellLabel, terminalSocketURL };

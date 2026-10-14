@@ -14,6 +14,8 @@ export type PromptInputFilePart = FileUIPart & {
 
 /** A composed message from the input box: plain text plus uploaded files. */
 export type PromptInputMessage = {
+  /** Stable ID for a user-initiated native form retry; reconciled by the server. */
+  clientMessageId?: string;
   text: string;
   files: PromptInputFilePart[];
 };
@@ -43,6 +45,7 @@ export async function promptInputFilePartToFile(
   }
 
   try {
+    // raw fetch: reads the attachment's own blob:/data: (or external) URL, not a backend route; it must stay unauthenticated
     const response = await fetch(filePart.url);
     if (!response.ok) {
       throw new Error(

@@ -280,7 +280,7 @@ describe("liveToolEventsFromConversation", () => {
     ]);
   });
 
-  it("renders a user-redirected tool as a neutral finished event", () => {
+  it("preserves interruption instead of claiming a completed operation", () => {
     const events = liveToolEventsFromConversation(
       makeConversation([
         makeTurn([
@@ -294,7 +294,7 @@ describe("liveToolEventsFromConversation", () => {
 
     expect(events[0]).toMatchObject({
       id: "cmd-1",
-      status: "done",
+      status: "interrupted",
       output: "cancelled after live steering",
     });
   });

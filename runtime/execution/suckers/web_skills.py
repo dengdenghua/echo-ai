@@ -9,6 +9,10 @@ import time
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from runtime.execution.suckers._html_text import (
+    _strip_html_fallback as _strip_html_fallback,
+)
+
 from .registry import Skill, SkillRegistry
 from .testing import SkillExpect, SkillTestCase
 
@@ -525,13 +529,24 @@ def _web_search_impl(
 
 
 def _web_search(
-    query: str = "", *, max_results: int = 5, timeout_ms: int = 8000,
-    client: Any = None, backend: str | None = None, **kwargs: Any,
+    query: str = "",
+    *,
+    max_results: int = 5,
+    timeout_ms: int = 8000,
+    client: Any = None,
+    backend: str | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """One result contract for shared search, preserving provider fallback policy."""
     started = time.monotonic()
-    result = _web_search_impl(query, max_results=max_results, timeout_ms=timeout_ms,
-                              client=client, backend=backend, **kwargs)
+    result = _web_search_impl(
+        query,
+        max_results=max_results,
+        timeout_ms=timeout_ms,
+        client=client,
+        backend=backend,
+        **kwargs,
+    )
     provider = str(result.get("backend") or result.get("provider") or backend or _resolve_backend())
     seen: set[str] = set()
     normalized = []
@@ -549,12 +564,25 @@ def _web_search(
         if key in seen:
             continue
         seen.add(key)
-        normalized.append({**item, "url": url, "title": str(item.get("title") or ""),
-                           "snippet": str(item.get("snippet") or item.get("content") or ""),
-                           "source": parsed.hostname, "provider": provider})
-    return {**result, "query": result.get("query", query), "results": normalized,
-            "result_count": len(normalized), "provider": provider,
-            "elapsed_ms": round((time.monotonic() - started) * 1000), "schema_version": 1}
+        normalized.append(
+            {
+                **item,
+                "url": url,
+                "title": str(item.get("title") or ""),
+                "snippet": str(item.get("snippet") or item.get("content") or ""),
+                "source": parsed.hostname,
+                "provider": provider,
+            }
+        )
+    return {
+        **result,
+        "query": result.get("query", query),
+        "results": normalized,
+        "result_count": len(normalized),
+        "provider": provider,
+        "elapsed_ms": round((time.monotonic() - started) * 1000),
+        "schema_version": 1,
+    }
 
 
 def _dispatch_search(
@@ -930,41 +958,6 @@ def set_web_fetch_router(router: Any, *, default_model: str | None = None) -> No
     provider = get_provider()
     provider.register_instance("web_fetch_cheap", router)
     provider.register_instance("web_fetch_default_model", default_model)
-
-
-def _strip_html_fallback(html: str) -> str:
-    """Regex-based fallback when trafilatura is unavailable.
-
-    Strips <script>/<style> blocks then tags via html.parser, collapsing
-    whitespace. Lossy but enough for ad-hoc Q&A.
-    """
-    import re
-    from html.parser import HTMLParser
-
-    cleaned = re.sub(
-        r"<(script|style)\b[^>]*>.*?</\1>",
-        " ",
-        html,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-
-    class _Stripper(HTMLParser):
-        def __init__(self) -> None:
-            super().__init__(convert_charrefs=True)
-            self._chunks: list[str] = []
-
-        def handle_data(self, data: str) -> None:
-            self._chunks.append(data)
-
-        def text(self) -> str:
-            return "".join(self._chunks)
-
-    parser = _Stripper()
-    try:  # noqa: SIM105
-        parser.feed(cleaned)
-    except Exception:  # noqa: BLE001 — malformed HTML; return what we got
-        pass
-    return re.sub(r"\s+", " ", parser.text()).strip()
 
 
 def _extract_text_for_prompt(html: str, url: str) -> str:

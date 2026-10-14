@@ -38,6 +38,12 @@ vi.mock("@/core/browser/api", () => ({
   updateBrowserConfig: api.updateBrowserConfig,
 }));
 
+vi.mock("@/core/plugins/api", () => ({
+  hubAutomationDiagnostics: async () => ({ execution_status: "unverified", checks: [] }),
+  hubListPlugins: async () => [],
+  hubChangeLifecycle: vi.fn(),
+}));
+
 describe("automation capability settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -188,11 +194,11 @@ describe("automation capability settings", () => {
 
     await user.click(target);
     await user.click(
-      await screen.findByRole("option", { name: "Echo 应用内" }),
+      await screen.findByRole("option", { name: "ECHO AI 应用内" }),
     );
 
     expect(getLinkOpenTarget()).toBe("in_app");
-    expect(target).toHaveTextContent("Echo 应用内");
+    expect(target).toHaveTextContent("ECHO AI 应用内");
   });
 
   it("does not pretend macOS permissions are known in web mode", async () => {

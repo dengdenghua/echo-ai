@@ -28,10 +28,13 @@ WORKDIR /webui
 
 # 利用 Docker 层缓存: 先复制清单 + pnpm 锁文件 -> 安装依赖 -> 再复制源码
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+COPY frontend/patches/ ./patches/
 RUN corepack enable && pnpm install --frozen-lockfile
 
 # 源码变更不影响依赖缓存层
 COPY frontend/ ./
+# The frontend consumes this shared role catalog from its canonical location.
+COPY runtime/projectos/role_catalog.json /runtime/projectos/role_catalog.json
 # The Vite closeBundle guard proves the historical public pet assets are byte
 # identical to their canonical Godot sources before omitting them from dist.
 # Copy only those two authoring sources into this throw-away builder stage;
@@ -67,7 +70,7 @@ COPY echo_runtime/ ./echo_runtime/
 # --no-sources 禁止本地 tool.uv.sources 在发布镜像中替换 registry 来源。
 RUN uv sync --locked --no-dev --no-editable --no-sources \
     --python /usr/local/bin/python \
-    --extra serve --extra tracing --extra web --extra hearts-redis
+    --extra serve --extra tracing --extra web --extra hearts-redis --extra a2a
 
 
 # ═══════════════════════════════════════════════════════════

@@ -17,7 +17,10 @@ import os
 import re
 from typing import Any
 
-from runtime.protocol import AgentMessageItem, ErrorItem, ItemMarker, ItemStatus, ItemType, Turn
+from runtime.protocol import ErrorItem, ItemMarker, ItemStatus, ItemType, Turn
+from runtime.sensing.gateway._cowork_room_projection import (  # noqa: F401 - re-export
+    _persist_cowork_agent_messages,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -118,72 +121,79 @@ _COORDINATION_TOOL_NAMES = frozenset(
 )
 
 
+def _coordination_item_evidence(item: Any) -> tuple[bool, bool]:
+    """Distinguish an accepted durable task from a delivered member result."""
+    if getattr(item, "status", None) != ItemStatus.COMPLETED or getattr(item, "error", None):
+        return False, False
+    if getattr(item, "type", None) == ItemType.SUBAGENT:
+        return True, True
+    name = str(getattr(item, "tool", "") or getattr(item, "command", ""))
+    name = name.rsplit("__", 1)[-1]
+    if name == ItemMarker.SUBAGENT_FINISHED.value:
+        return True, True
+    if name not in _COORDINATION_TOOL_NAMES | {"collaboration"}:
+        return False, False
+    value = getattr(item, "result", None) or getattr(item, "aggregated_output", "")
+    # MCP engines may wrap the same JSON tool result in text content blocks.
+    for _ in range(5):
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except (ValueError, TypeError):
+                break
+        elif isinstance(value, dict) and value.get("isError"):
+            return False, False
+        elif isinstance(value, dict) and isinstance(value.get("content"), list):
+            value = value["content"]
+        elif isinstance(value, list):
+            value = next(
+                (v.get("text") for v in value if isinstance(v, dict) and v.get("type") == "text"),
+                None,
+            )
+        else:
+            break
+    if isinstance(value, dict):
+        if value.get("success") is False or value.get("ok") is False or value.get("error"):
+            return False, False
+        if name == "collaboration":
+            current = value.get("current_task_id")
+            records = (
+                [value["task"]]
+                if isinstance(value.get("task"), dict)
+                else [
+                    task
+                    for task in value.get("tasks", [])
+                    if current and task.get("parent_task_id") == current
+                ]
+            )
+            return bool(records), bool(records) and all(
+                task.get("status") == "done" and bool(task.get("result")) for task in records
+            )
+        if value.get("accepted") is True:
+            records = value.get("results") or [value]
+            return True, all(
+                record.get("status") == "done" and bool(record.get("output")) for record in records
+            )
+    return (True, True) if name in _COORDINATION_TOOL_NAMES else (False, False)
+
+
 def _turn_has_cowork_coordination_evidence(turn: Turn) -> bool:
-    """Return whether an orchestrated turn actually delegated member work.
-
-    Coordinator prose and todo lists are intentions, not execution evidence.
-    Accept only a successfully completed delegation tool or member lifecycle
-    record.  This keeps a TL from satisfying the durable execution contract by
-    merely saying that work was assigned.
-    """
-
-    for item in turn.items:
-        item_type = getattr(item, "type", None)
-        status = getattr(item, "status", None)
-        if status != ItemStatus.COMPLETED:
-            continue
-        if item_type == ItemType.SUBAGENT:
-            if not str(getattr(item, "error", "") or "").strip():
-                return True
-            continue
-        if item_type == ItemType.MCP_TOOL_CALL:
-            tool = str(getattr(item, "tool", "") or "").strip()
-            if tool == ItemMarker.SUBAGENT_FINISHED.value:
-                return True
-            if (
-                tool in _COORDINATION_TOOL_NAMES
-                and not str(getattr(item, "error", "") or "").strip()
-            ):
-                return True
-            continue
-        if item_type == ItemType.COMMAND_EXECUTION:
-            command = str(getattr(item, "command", "") or "").strip()
-            if command in _COORDINATION_TOOL_NAMES:
-                return True
-    return False
+    return any(_coordination_item_evidence(item)[0] for item in turn.items)
 
 
 def _turn_has_cowork_delivery_evidence(turn: Turn) -> bool:
-    """Require a coordinator answer after the last successful delegation."""
-
-    last_coordination_index = -1
+    """Require actual member results followed by a coordinator answer."""
+    last_delivery = -1
     for index, item in enumerate(turn.items):
-        item_type = getattr(item, "type", None)
-        status = getattr(item, "status", None)
-        if status != ItemStatus.COMPLETED:
-            continue
-        if item_type == ItemType.SUBAGENT and not str(getattr(item, "error", "") or "").strip():
-            last_coordination_index = index
-        elif item_type == ItemType.MCP_TOOL_CALL:
-            tool = str(getattr(item, "tool", "") or "").strip()
-            if tool == ItemMarker.SUBAGENT_FINISHED.value or (
-                tool in _COORDINATION_TOOL_NAMES
-                and not str(getattr(item, "error", "") or "").strip()
-            ):
-                last_coordination_index = index
-        elif (
-            item_type == ItemType.COMMAND_EXECUTION
-            and str(getattr(item, "command", "") or "").strip() in _COORDINATION_TOOL_NAMES
-        ):
-            last_coordination_index = index
-    if last_coordination_index < 0:
-        return False
-    return any(
+        delegated, delivered = _coordination_item_evidence(item)
+        if delegated:
+            last_delivery = index if delivered else -1
+    return last_delivery >= 0 and any(
         getattr(item, "type", None) == ItemType.AGENT_MESSAGE
         and getattr(item, "status", None) == ItemStatus.COMPLETED
         and getattr(item, "message_kind", None) == "answer"
         and bool(str(getattr(item, "text", "") or "").strip())
-        for item in turn.items[last_coordination_index + 1 :]
+        for item in turn.items[last_delivery + 1 :]
     )
 
 
@@ -430,6 +440,8 @@ def _sync_cowork_orchestration_run(
     }.get(status_value)
     if target is None:
         return
+    if target == "completed" and turn.outcome_reason == "completed_with_background":
+        target = "waiting"
     store = _collaboration_store(runtime)
     transition = getattr(store, "transition_collaboration_run", None)
     if not callable(transition):
@@ -516,99 +528,6 @@ def _sync_cowork_orchestration_run(
         _logger.warning("cowork orchestration run sync failed: %s", exc, exc_info=True)
 
 
-def _persist_cowork_agent_messages(
-    runtime: Any,
-    *,
-    thread_id: str,
-    turns: list[Turn],
-    intent: Any,
-) -> int:
-    """Project completed realtime agent prose into the linked room timeline.
-
-    Human prompts already enter ``collaboration_messages`` through the turn
-    input bridge. Without the symmetric agent side, a group refresh could show
-    the question but lose the answer because the answer lived only in the
-    thread event log. Item ids become stable source ids, making repeated
-    snapshots (and reconnect recovery) idempotent.
-    """
-
-    context = getattr(intent, "user_context", None)
-    if not isinstance(context, dict) or not context.get("cowork_persistent_group"):
-        return 0
-    room_id = str(context.get("cowork_room_id") or "").strip()
-    store = _collaboration_store(runtime)
-    append_message = getattr(store, "append_message", None)
-    if not room_id or not callable(append_message):
-        return 0
-
-    agent_id = str(context.get("agent") or context.get("agent_name") or "assistant").strip()
-    safe_agent_id = re.sub(r"[^A-Za-z0-9._:@-]+", "-", agent_id).strip("-") or "assistant"
-    projected = 0
-    for turn in turns:
-        for item in getattr(turn, "items", ()):
-            if not isinstance(item, (AgentMessageItem, ErrorItem)):
-                continue
-            text = str(
-                item.text if isinstance(item, AgentMessageItem) else item.message or ""
-            ).strip()
-            # Streaming snapshots may run before the final item snapshot. Do
-            # not persist a partial answer; the terminal snapshot will retry.
-            if not text or item.status == ItemStatus.IN_PROGRESS:
-                continue
-            source_message_id = (
-                f"thread:{'agent' if isinstance(item, AgentMessageItem) else 'error'}:{item.id}"
-            )
-            display_name = str(
-                item.agent_display_name
-                if isinstance(item, AgentMessageItem)
-                else agent_id or "Assistant"
-            ).strip()
-            message_type = "message" if isinstance(item, AgentMessageItem) else "system_card"
-            metadata: dict[str, Any] = {
-                "source_message_id": source_message_id,
-                "message_type": message_type,
-                "sender_type": "agent",
-                "agent_id": safe_agent_id,
-                "turn_id": turn.id,
-                "item_id": item.id,
-                "message_kind": (
-                    item.message_kind if isinstance(item, AgentMessageItem) else "error"
-                ),
-            }
-            if isinstance(item, AgentMessageItem) and item.reply_to:
-                metadata["reply_to"] = item.reply_to
-            if isinstance(item, ErrorItem):
-                metadata["system_card"] = {
-                    "type": "error",
-                    "title": "执行失败",
-                    "summary": text,
-                    "status": "failed",
-                }
-            try:
-                append_message(
-                    thread_id,
-                    room_id=room_id,
-                    text=text,
-                    participant_id=f"agent:{safe_agent_id}",
-                    display_name=display_name,
-                    metadata=metadata,
-                )
-                projected += 1
-            except ValueError:
-                # A prior snapshot already wrote this source id. The
-                # collaboration store validates that any conflicting rewrite
-                # is rejected; either way the room already has the answer.
-                continue
-            except Exception as exc:  # noqa: BLE001 — projection is a read-model bridge
-                _logger.warning(
-                    "cowork agent-message projection failed for %s/%s: %s",
-                    thread_id,
-                    item.id,
-                    exc,
-                )
-    return projected
-
-
 def _inject_cowork_turn_plan(
     runtime: Any,
     *,
@@ -631,7 +550,8 @@ def _inject_cowork_turn_plan(
     if store is None:
         return
     try:
-        from runtime.memory.cowork.turn_plan import plan_turn_for_thread
+        from runtime.memory.cowork.group import answerable_members
+        from runtime.memory.cowork.turn_plan import plan_turn
 
         state = store.state(thread_id)
         canonical_room: dict[str, Any] | None = None
@@ -661,9 +581,9 @@ def _inject_cowork_turn_plan(
         from runtime.sensing.gateway.remote_group_member import resolve_remote_mentions
 
         planning_text = resolve_remote_mentions(text, [member.id for member in state.roster])
-        plan = plan_turn_for_thread(
-            store,
-            thread_id,
+        # Same folded snapshot as the execution roster below: no takeover race.
+        plan = plan_turn(
+            state,
             planning_text,
             persistent_group=persistent_group,
             mode_override=mode_override,
@@ -692,13 +612,12 @@ def _inject_cowork_turn_plan(
             or any(member.id.startswith("a2a_") for member in state.roster)
         )
     )
+    # Same eligibility as the plan: 数字员工 answer like agents, and a member a
+    # person has taken over is never answered for by the AI.
     active_agents = [
         member.id
-        for member in state.roster
-        if member.kind == "agent"
-        and member.role == "participant"
-        and not member.muted
-        and (not member.id.startswith("a2a_") or member.id in responders)
+        for member in answerable_members(state)
+        if not member.id.startswith("a2a_") or member.id in responders
     ]
     try:
         from runtime.execution.agents.team_patterns import (
@@ -986,12 +905,23 @@ def _persist_cowork_user_message(
     if not room_id or not callable(append_message):
         return None
     participant_id = str(actor_id or "anonymous").strip() or "anonymous"
+    display_name = participant_id
+    participant_lookup = getattr(
+        getattr(runtime, "_team_rooms_router", None), "get_room_participant", None
+    )
+    if callable(participant_lookup):
+        with contextlib.suppress(Exception):
+            participant = participant_lookup(room_id, participant_id)
+            if isinstance(participant, dict):
+                display_name = str(participant.get("display_name") or participant_id)
     source_message_id = f"thread:{item_id}"
     reply_to = context.get("cowork_reply_to")
     reply_metadata = dict(reply_to) if isinstance(reply_to, dict) and reply_to else None
     message_metadata: dict[str, Any] = {
         "source_message_id": source_message_id,
         "message_type": "message",
+        "sender_kind": "human",
+        "sender_driver": "human",
     }
     if reply_metadata:
         message_metadata["reply_to"] = {
@@ -1005,7 +935,7 @@ def _persist_cowork_user_message(
             room_id=room_id,
             text=text,
             participant_id=participant_id,
-            display_name="我",
+            display_name=display_name,
             metadata=message_metadata,
         )
         context.setdefault("cowork_room_message_seq", int(seq))

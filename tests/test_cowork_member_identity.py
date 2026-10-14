@@ -60,11 +60,7 @@ def test_fold_assigns_owners_and_default_drivers() -> None:
 
 
 def test_role_invite_without_owner_is_unattributed() -> None:
-    events = [
-        MemberEvent(
-            action="invite", actor="boss", target_id="R9", target_kind="role", seq=1
-        )
-    ]
+    events = [MemberEvent(action="invite", actor="boss", target_id="R9", target_kind="role", seq=1)]
     state = fold_state(events)
     member = state.member("R9")
     assert member.identity_problem() == "role member without an accountable owner"
@@ -190,9 +186,7 @@ def test_service_set_driver_enforces_takeover_gates(tmp_path) -> None:
     # unattributable 数字员工 must not be creatable.
     with pytest.raises(ValueError, match="accountable owner"):
         invite_member(store, thread_id, actor="boss", target_id="R1", kind="role")
-    invite_member(
-        store, thread_id, actor="boss", target_id="R1", kind="role", owner="U1"
-    )
+    invite_member(store, thread_id, actor="boss", target_id="R1", kind="role", owner="U1")
 
     # 接管 → the roster answers "who is driving" and responders drop the member.
     set_driver(store, thread_id, actor="U1", target_id="R1", driver="human")

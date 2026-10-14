@@ -273,7 +273,7 @@ export function TemplateCover({
         )}
       </svg>
       {!compact && <div
-        className="absolute inset-x-3 bottom-1 flex justify-between text-[10px] text-muted-foreground"
+        className="absolute inset-x-3 bottom-1 flex justify-between text-xs text-muted-foreground"
         aria-hidden="true"
       >
         {steps.map((step) => (

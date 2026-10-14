@@ -16,21 +16,21 @@ def _clear_capability_cache():
     caps.reset_capability_cache()
 
 
-def _write_snapshot(tmp_path, models: dict) -> None:
+def _write_snapshot(tmp_path, models: dict, free_by_provider: dict | None = None) -> None:
     target = tmp_path / "resources" / "models"
     target.mkdir(parents=True)
-    (target / "capabilities.json").write_text(
-        json.dumps({"source": "test", "models": models}),
-        encoding="utf-8",
-    )
+    payload: dict = {"source": "test", "models": models}
+    if free_by_provider is not None:
+        payload["free_by_provider"] = free_by_provider
+    (target / "capabilities.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 @pytest.fixture
 def snapshot(tmp_path, monkeypatch):
     """Point the loader at a snapshot we control."""
 
-    def _install(models: dict) -> None:
-        _write_snapshot(tmp_path, models)
+    def _install(models: dict, free_by_provider: dict | None = None) -> None:
+        _write_snapshot(tmp_path, models, free_by_provider)
         monkeypatch.setenv("ECHO_RESOURCES_DIR", str(tmp_path))
         caps.reset_capability_cache()
 
@@ -125,6 +125,44 @@ def test_distill_keeps_the_first_provider_for_a_duplicated_model() -> None:
 
     assert distill(raw)["shared"]["context"] in (100_000, 999_999)
     assert len(distill(raw)) == 1
+
+
+def test_free_is_read_under_the_provider_actually_being_billed(snapshot) -> None:
+    """The bug this guards: a paid model wearing a Free badge.
+
+    ``qwen3.5-plus`` costs 0.2 on ``opencode`` and 0 on
+    ``alibaba-coding-plan-cn``. Flattening prices by bare model id let the zero
+    win, so Echo's picker marked a billed Zen model Free.
+    """
+    snapshot(
+        {"qwen3.5-plus": {"context": 1000}},
+        {"opencode": ["big-pickle"], "alibaba-coding-plan-cn": ["qwen3.5-plus"]},
+    )
+
+    assert caps.model_is_free("qwen3.5-plus", "opencode") is False
+    assert caps.model_is_free("qwen3.5-plus", "alibaba-coding-plan-cn") is True
+    assert caps.model_is_free("big-pickle", "opencode") is True
+
+
+def test_a_model_published_after_the_last_refresh_still_reads_free(snapshot) -> None:
+    """A provider-table miss is not a verdict; the snapshot lags the catalog."""
+    snapshot({}, {"opencode": ["big-pickle"]})
+
+    assert caps.model_is_free("brand-new-model-free", "opencode") is True
+    assert caps.model_is_free("brand-new-paid", "opencode") is False
+
+
+def test_the_flattened_flag_needs_every_provider_to_agree() -> None:
+    """Without a provider in hand, only unanimous zero pricing counts as free."""
+    raw = {
+        "relay": {"models": {"mixed": {"cost": {"input": 0}}, "always": {"cost": {"input": 0}}}},
+        "vendor": {"models": {"mixed": {"cost": {"input": 2.0}}}},
+    }
+
+    distilled = distill(raw)
+
+    assert distilled["always"]["free"] is True
+    assert "free" not in distilled.get("mixed", {})
 
 
 def test_distill_tolerates_malformed_upstream_shapes() -> None:

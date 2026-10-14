@@ -58,6 +58,7 @@ class LoopController(
         trace_store: AgentTraceStore | None = None,
         task_supervisor: TaskSupervisor | None = None,
         react_runner: Any = None,
+        pause_controller: Any = None,
     ) -> None:
         self.store = store
         self.stack = stack
@@ -70,6 +71,9 @@ class LoopController(
         self.trace_store = trace_store
         self.task_supervisor = task_supervisor
         self.react_runner = react_runner
+        # ReAct pause records (budget / unanswerable approval / wall time).
+        # ``None`` resolves the process-wide controller the ReAct loop uses.
+        self.pause_controller = pause_controller
         self._lock = threading.Lock()
         self._executing: set[str] = set()
 
@@ -87,6 +91,9 @@ class LoopController(
             LoopRunStatus.FAILED,
             LoopRunStatus.CANCELLED,
             LoopRunStatus.INTERRUPTED,
+            # Paused runs continue through ``resume`` (a child run that
+            # may carry a raised budget / different permission policy).
+            LoopRunStatus.PAUSED,
         }:
             return run
         with self._lock:
@@ -178,6 +185,7 @@ class LoopController(
             LoopRunStatus.FAILED,
             LoopRunStatus.CANCELLED,
             LoopRunStatus.INTERRUPTED,
+            LoopRunStatus.PAUSED,
         }:
             raise ValueError("loop run is not resumable")
         return self._spawn_child_run(
@@ -388,12 +396,12 @@ class LoopController(
             if not self._supervisor_heartbeat(run_id):
                 return self._latest_run(run_id)
             run = self._record_attempt_result(run_id, attempt_index, react_result)
-            if cancelled := self._check_for_cancellation(
+            if stopped := self._stopped_after_attempt(
                 run_id,
                 cancellation_token=cancellation_token,
                 latest_result=react_result,
             ):
-                return cancelled
+                return stopped
             if not requires_verifier:
                 product_attempt_succeeded = react_result is not None and react_result.success
                 product_attempt_error = (

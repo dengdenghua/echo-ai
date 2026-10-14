@@ -32,6 +32,7 @@ tier: "standard"
 - `@fontsource/inter`
 - `@radix-ui/react-avatar`
 - `@radix-ui/react-collapsible`
+- `@radix-ui/react-context-menu`
 - `@radix-ui/react-dialog`
 - `@radix-ui/react-dropdown-menu`
 - `@radix-ui/react-hover-card`
@@ -43,6 +44,5 @@ tier: "standard"
 - `@radix-ui/react-switch`
 - `@radix-ui/react-tabs`
 - `@radix-ui/react-toggle`
-- `@radix-ui/react-toggle-group`
-- … 共 68 个依赖
+- … 共 69 个依赖
 

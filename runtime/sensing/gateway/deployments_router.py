@@ -8,6 +8,11 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from runtime.platform.process.paths import app_paths
+from runtime.sensing.gateway._untrusted_content import untrusted_file_response
+
+# Manifest fields safe to expose. ``source``/``path`` are absolute server paths
+# (the agent's workspace and the data dir) and are never returned.
+_PUBLIC_DEPLOYMENT_FIELDS = ("id", "label", "url", "created_at")
 
 
 def _deployments_root() -> Path:
@@ -29,6 +34,18 @@ def _load_manifest() -> dict[str, Any]:
     return data if isinstance(data, dict) else {"deployments": []}
 
 
+def _public_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    raw = manifest.get("deployments")
+    entries = raw if isinstance(raw, list) else []
+    return {
+        "deployments": [
+            {key: entry[key] for key in _PUBLIC_DEPLOYMENT_FIELDS if key in entry}
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
+    }
+
+
 def _resolve_file(deployment_id: str, file_path: str) -> Path:
     clean_id = Path(deployment_id).name
     if clean_id != deployment_id or not clean_id:
@@ -40,6 +57,17 @@ def _resolve_file(deployment_id: str, file_path: str) -> Path:
     if not target.is_file():
         raise HTTPException(404, "file not found")
     return target
+
+
+def _serve(deployment_id: str, file_path: str) -> FileResponse:
+    # Deployed sites are agent-built web apps served from the API origin. They
+    # legitimately need JavaScript, so the CSP sandbox allows scripts but never
+    # ``allow-same-origin``: the site runs in an opaque origin and cannot read
+    # the app's token storage or call its APIs as the signed-in user.
+    return untrusted_file_response(
+        str(_resolve_file(deployment_id, file_path)),
+        allow_scripts=True,
+    )
 
 
 def create_deployments_router(
@@ -68,13 +96,19 @@ def create_deployments_router(
 
     @router.get("/api/deployments")
     def list_deployments(request: Request) -> dict[str, Any]:
-        _auth(request)
-        return _load_manifest()
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; shared published artifacts confined to the deployments root
+        # ``deploy_website`` records no owner, so the list cannot be scoped per
+        # actor; it is reduced to public fields (no absolute server paths).
+        return _public_manifest(_load_manifest())
 
     @router.get("/api/deployments/{deployment_id}")
     def deployment_index(request: Request, deployment_id: str) -> FileResponse:
-        _auth(request)
-        return FileResponse(str(_resolve_file(deployment_id, "index.html")))
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; shared published artifacts confined to the deployments root
+        return _serve(deployment_id, "index.html")
 
     @router.get("/api/deployments/{deployment_id}/{file_path:path}")
     def deployment_file(
@@ -82,8 +116,10 @@ def create_deployments_router(
         deployment_id: str,
         file_path: str,
     ) -> FileResponse:
-        _auth(request)
-        return FileResponse(str(_resolve_file(deployment_id, file_path)))
+        _auth(
+            request
+        )  # AUTH-OK: actor-agnostic; shared published artifacts confined to the deployments root
+        return _serve(deployment_id, file_path)
 
     return router
 

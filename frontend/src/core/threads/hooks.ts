@@ -8,6 +8,7 @@ import type { LiveToolEvent } from "@/components/workspace/live-tool-timeline";
 
 import type { AgentThread, AgentThreadState } from "./types";
 import { threadVisibleInPersonaHistory } from "./persona-history";
+import { threadDeleteErrorMessage } from "./errors";
 import { useThreadStreamRealtime } from "./use-thread-stream-realtime";
 import { isPrimaryPersonaAgentId } from "@/core/agents/persona-policy";
 
@@ -39,12 +40,8 @@ export function upsertLiveToolEvent(
   const updated = [...events];
   const existing = updated[existingIndex]!;
   const merged: LiveToolEvent = { ...existing };
-  for (const [key, value] of Object.entries(nextEvent) as Array<
-    [keyof LiveToolEvent, LiveToolEvent[keyof LiveToolEvent]]
-  >) {
-    if (value !== undefined) {
-      (merged as unknown as Record<string, unknown>)[key] = value;
-    }
+  for (const [key, value] of Object.entries(nextEvent)) {
+    if (value !== undefined) Object.assign(merged, { [key]: value });
   }
   updated[existingIndex] = {
     ...merged,
@@ -287,9 +284,13 @@ export function useThreadStream({
 
   return useThreadStreamRealtime({
     threadId: typeof threadId === "string" ? threadId : "",
+    // ``model_name`` is not part of the composer context type, but older
+    // callers still pass it through.
     model:
-      typeof (context as { model_name?: unknown })?.model_name === "string"
-        ? ((context as { model_name?: string }).model_name as string)
+      context &&
+      "model_name" in context &&
+      typeof context.model_name === "string"
+        ? context.model_name
         : undefined,
     onStart,
     onFinish,
@@ -319,9 +320,9 @@ export function useThreads(
   // threads; used by search dialogs and admin views that want the
   // full cross-agent history.
   if (mode || (agent && !personaHistoryAgent)) {
-    const metadata = {
-      ...((params.metadata as Record<string, unknown>) || {}),
-    } as Record<string, unknown>;
+    const metadata: Record<string, unknown> = {
+      ...(typeof params.metadata === "object" ? params.metadata : {}),
+    };
     if (mode) metadata.mode = mode;
     if (agent && !personaHistoryAgent) metadata.agent = agent;
     params = { ...params, metadata };
@@ -330,15 +331,17 @@ export function useThreads(
   return useQuery<AgentThread[]>({
     queryKey: ["threads", "search", params, personaHistoryAgent],
     queryFn: async () => {
-      const maxResults = params.limit as number | undefined;
-      const initialOffset = (params.offset ?? 0) as number;
+      const maxResults =
+        typeof params.limit === "number" ? params.limit : undefined;
+      const initialOffset =
+        typeof params.offset === "number" ? params.offset : 0;
       const DEFAULT_PAGE_SIZE = 50;
 
       // Preserve prior semantics: if a non-positive limit is explicitly provided,
       // delegate to a single search call with the original parameters.
       if (maxResults !== undefined && maxResults <= 0) {
-        const response = await apiClient.threads.search(params);
-        const result = response as AgentThread[];
+        const result =
+          await apiClient.threads.search<AgentThreadState>(params);
         return personaHistoryAgent
           ? result.filter((thread) =>
               threadVisibleInPersonaHistory(thread, personaHistoryAgent),
@@ -371,11 +374,11 @@ export function useThreads(
           break;
         }
 
-        const response = (await apiClient.threads.search({
+        const response = await apiClient.threads.search<AgentThreadState>({
           ...params,
           limit: currentLimit,
           offset,
-        })) as AgentThread[];
+        });
 
         threads.push(
           ...(personaHistoryAgent
@@ -435,14 +438,42 @@ export function useDeleteThread() {
       // so the call is pure double-delete bug.
       await apiClient.threads.delete(threadId);
     },
-    onError(_error, _variables, context) {
+    onError(error, _variables, context) {
       for (const [queryKey, data] of context?.previousThreads ?? []) {
         queryClient.setQueryData(queryKey, data);
       }
-      toast.error("删除对话失败，已恢复列表");
+      toast.error(threadDeleteErrorMessage(error), { duration: 8000 });
     },
     onSettled() {
       void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
+    },
+  });
+}
+
+/** Personal list preference only; never call the shared thread DELETE API. */
+export function useThreadListVisibility() {
+  const queryClient = useQueryClient();
+  const apiClient = getAPIClient();
+  return useMutation({
+    mutationFn: ({ threadId, hidden = true }: { threadId: string; hidden?: boolean }) =>
+      apiClient.threads.setListVisibility(threadId, hidden),
+    onSuccess(_data, { threadId, hidden = true }) {
+      // Invalidate after persistence; a failed request leaves every list intact.
+      void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
+      toast.success(hidden ? "已从我的列表移除，群聊和项目数据已保留" : "已恢复到我的列表", {
+        duration: 8000,
+        ...(hidden ? { action: {
+          label: "撤销",
+          onClick: () => {
+            void apiClient.threads.setListVisibility(threadId, false).then(() => {
+              void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });
+            }).catch(() => toast.error("恢复失败，请在已移除列表中重试"));
+          },
+        } } : {}),
+      });
+    },
+    onError() {
+      toast.error("列表更新失败，请重试。群聊和项目数据未改变。");
     },
   });
 }
@@ -500,7 +531,7 @@ export function useForkThread() {
       atMessageIndex?: number;
     }) => apiClient.threads.forkThread(threadId, atMessageIndex),
     onSuccess() {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ["threads", "search"],
         exact: false,
       });

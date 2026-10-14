@@ -13,6 +13,7 @@ vi.mock("sonner", () => ({ toast: toastMocks }));
 vi.mock("@/core/auth/api", () => ({
   authHeaders: () => ({ Authorization: "Bearer test-token" }),
   getToken: () => "test-token",
+  currentActorId: () => "test-owner",
   jsonAuthHeaders: () => ({
     Authorization: "Bearer test-token",
     "Content-Type": "application/json",
@@ -21,6 +22,7 @@ vi.mock("@/core/auth/api", () => ({
 vi.mock("@/core/config", () => ({
   getBackendBaseURL: () => "",
   getEchoBaseURL: () => "",
+  getBackendWebSocketBaseURL: () => "ws://localhost",
 }));
 vi.mock("@/components/workspace/create-project-dialog", () => ({
   CreateProjectDialog: ({ open }: { open: boolean }) =>
@@ -255,9 +257,7 @@ describe("ProjectsPage production error states", () => {
     });
 
     renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
-    await user.click(
-      await screen.findByRole("button", { name: "Run project" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "运行" }));
 
     await waitFor(() =>
       expect(toastMocks.error).toHaveBeenCalledWith(
@@ -310,29 +310,6 @@ function portfolioEntry(overrides: Record<string, unknown> = {}) {
     overdue: [],
     next_actions: [],
     risks: [],
-    ...overrides,
-  };
-}
-
-function portfolioMilestone(
-  id: string,
-  name: string,
-  overrides: Record<string, unknown> = {},
-) {
-  return {
-    id,
-    name,
-    status: "running",
-    health: "on_track",
-    priority: "P2",
-    planned_start: isoDaysFromNow(-5),
-    due_at: isoDaysFromNow(5),
-    done: 0,
-    total: 2,
-    failed: 0,
-    progress: 0.25,
-    remaining_estimate: 4,
-    overdue_count: 0,
     ...overrides,
   };
 }
@@ -491,9 +468,13 @@ describe("ProjectsPage cross-project cockpit", () => {
     expect(screen.getByText(/已逾期 1 天/)).toBeInTheDocument();
     // 「今天到期」同时是分组标题和 duePhrase(0) 的行内文案，用分组副标题断言。
     expect(screen.getByText("今天内完成")).toBeInTheDocument();
-    // 逾期项用暖色容器，而不是普通卡片。
-    expect(screen.getByText("修复登录回归").closest(".border-orange-500\\/25"))
-      .not.toBeNull();
+    // 逾期项用加重的 warning 容器（今天到期只用 /25），而不是普通卡片。
+    expect(
+      screen.getByText("修复登录回归").closest(".border-warning\\/50"),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("写完结论文档").closest(".border-warning\\/50"),
+    ).toBeNull();
   });
 
   it("点「去处理」切到对应项目", async () => {
@@ -559,9 +540,7 @@ describe("ProjectsPage cross-project cockpit", () => {
 
     renderWithProviders(<ProjectsPage />, { locale: "zh-CN" });
 
-    expect(
-      await screen.findByText(/今天没有逾期或到期项/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/今天没有逾期或到期项/)).toBeInTheDocument();
   });
 
   it("portfolio 接口挂了也不挡路：列表降级、聚合块不渲染、不额外弹 alert", async () => {
@@ -608,7 +587,13 @@ describe("ProjectsPage cross-project cockpit", () => {
     route({
       list,
       portfolio: [
-        portfolioEntry({ id: "project-1", name: "投资", progress: 0.5, total_tasks: 4, done_tasks: 2 }),
+        portfolioEntry({
+          id: "project-1",
+          name: "投资",
+          progress: 0.5,
+          total_tasks: 4,
+          done_tasks: 2,
+        }),
         portfolioEntry({ id: "project-2", name: "规格书" }),
       ],
       detail: detailPayload([]),

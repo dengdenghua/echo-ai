@@ -150,6 +150,18 @@ describe("<MarkdownContent /> web links", () => {
     expect(window.location.hash).toBe("#/browser");
   });
 
+  it("renders citation-labelled links as source badges", () => {
+    renderMarkdown("[citation:官方发布说明](https://example.com/notes)");
+
+    // The prompt asks the model for the `citation:` label prefix; the renderer
+    // strips it and shows the bare title inside the source badge.
+    expect(screen.getByText("官方发布说明")).toBeTruthy();
+    expect(screen.queryByText("citation:官方发布说明")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: /官方发布说明/ }).getAttribute("href"),
+    ).toBe("https://example.com/notes");
+  });
+
   it("opens generated office links in the artifact workbench", () => {
     let opened: OpenArtifactDetail | null = null;
     const openArtifact = (event: Event) => {
@@ -194,6 +206,21 @@ describe("<MarkdownContent /> Mermaid", () => {
       );
     });
     expect(await screen.findByText("Rendered Mermaid")).toBeInTheDocument();
+  });
+
+  it("caps a small diagram at its natural width instead of filling the column", async () => {
+    mermaidMock.render.mockResolvedValue({
+      svg: '<svg role="img" viewBox="0 0 104 254" style="max-width: 104px;"><text>Small flow</text></svg>',
+    });
+    renderMarkdown("```mermaid\ngraph TD\nA-->B-->C\n```");
+
+    const svg = (await screen.findByText("Small flow")).closest("svg");
+    const style = svg?.getAttribute("style") ?? "";
+    expect(style).toContain(
+      "max-width:min(100%, calc(104px * var(--mermaid-zoom, 1)))",
+    );
+    expect(style).not.toContain("max-width:none");
+    expect(style).not.toContain("max-width: 104px");
   });
 
   it("settles streaming blocks once without remounting the tree", async () => {

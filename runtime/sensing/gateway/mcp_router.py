@@ -167,7 +167,7 @@ def create_mcp_router(
             jwt_secret=jwt_secret,
             jwt_issuer=jwt_issuer,
             jwt_audience=jwt_audience,
-        )
+        )  # AUTH-OK: actor-agnostic; resolved request principal supplies the tenant key for MCP operations
 
     def _operator_dep(request: Request) -> None:
         if request.url.path.endswith("/api/mcp/oauth/callback"):
@@ -297,6 +297,7 @@ def create_mcp_router(
                 url=url,
                 headers=dict(entry.get("headers") or {}),
                 tenant_id=tenant_id,
+                timeout_ms=entry.get("timeout_ms", 30_000),
             )
             summary: dict[str, Any] = {"transport": transport, "url": url}
         else:
@@ -326,13 +327,21 @@ def create_mcp_router(
                 env=dict(env),
                 tenant_id=tenant_id,
                 sandbox_dir=(str(entry.get("sandbox_dir")) if entry.get("sandbox_dir") else None),
+                cwd=str(entry["cwd"]) if entry.get("cwd") else None,
+                timeout_ms=entry.get("timeout_ms", 30_000),
             )
             summary = {"command": command, "args": list(args), "env": dict(env)}
 
         before = set(registry.all_names())
         client = None
         try:
-            client = HttpMCPClient(config) if is_remote else PersistentStdioMCPClient(config)
+            client = (
+                HttpMCPClient(config)
+                if is_remote
+                else PersistentStdioMCPClient(
+                    config, connect_timeout_ms=int(entry.get("connect_timeout_ms", 10_000))
+                )
+            )
             # Production path · enforce user trust approval. The
             # frontend Settings → MCP page surfaces an "Approve" CTA
             # that calls ``/api/mcp/trust``; until then the bridge
@@ -424,6 +433,10 @@ def create_mcp_router(
                 "transport",
                 "url",
                 "headers",
+                "cwd",
+                "sandbox_dir",
+                "timeout_ms",
+                "connect_timeout_ms",
             ):
                 if key in payload:
                     entry[key] = payload[key]

@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = ROOT / "deploy" / "quote-hub"
@@ -174,12 +177,29 @@ def test_quotes_tls_vhost_is_independent_authenticated_and_narrow() -> None:
     assert "location = /readyz" not in nginx
 
 
+def _usable_bash() -> str:
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash is not installed")
+    try:
+        probe = subprocess.run([bash, "-c", "exit 0"], capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        probe = None
+    if probe is None or probe.returncode != 0:
+        # e.g. the Windows WSL launcher (System32\bash.exe) with no distro.
+        pytest.skip(f"bash at {bash} is not runnable")
+    return bash
+
+
 def test_release_scripts_are_executable_syntax_checked_and_atomic() -> None:
+    bash = _usable_bash()
     for name in ("build-release-artifact.sh", "deploy-release.sh", "rollback-release.sh"):
         path = DEPLOY / name
         script = path.read_text(encoding="utf-8")
         assert os.access(path, os.X_OK)
-        subprocess.run(["bash", "-n", str(path)], check=True)
+        # Feed the script on stdin: a Windows ``bash`` may be the WSL launcher,
+        # which cannot resolve Windows paths passed as arguments.
+        subprocess.run([bash, "-n"], input=path.read_bytes(), check=True)
         assert "rm -rf" not in script
 
     for name in ("deploy-release.sh", "rollback-release.sh"):

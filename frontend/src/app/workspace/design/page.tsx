@@ -1,8 +1,8 @@
 "use client";
 import { ChatInputBox } from "@/components/workspace/chat-input-box";
 import { useThreadSettings } from "@/core/settings";
-import { useHubPlugins } from "@/core/plugins/hooks";
-import { designMediaPlugins } from "./media-plugins";
+import { AUTO_DESIGN_CAPABILITIES, resolveDesignCapabilities, type DesignCapabilities } from "@/core/design/capabilities";
+import { MediaModelSelectors } from "./media-model-selectors";
 import { TemplateCover } from "./template-cover";
 import { normalizePermissionMode } from "@/core/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type SetStateAction,
@@ -38,16 +39,14 @@ import {
   GroupIcon,
   HandIcon,
   ImageIcon,
-  LayoutPanelLeftIcon,
+  EllipsisIcon,
   LibraryIcon,
   ListIcon,
   Loader2Icon,
-  Maximize2Icon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
   MinusIcon,
   MousePointer2Icon,
-  PanelLeftCloseIcon,
   PanelRightIcon,
   PencilIcon,
   PlusIcon,
@@ -68,7 +67,6 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { MarkdownContent } from "@/components/workspace/messages/markdown-content";
 import {
   Dialog,
   DialogContent,
@@ -77,14 +75,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useAgents } from "@/core/agents/hooks";
 import { useActiveAgentId } from "@/core/agents/active";
 import { DEFAULT_PRIMARY_AGENT_ID } from "@/core/agents/persona-policy";
 import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
-import { useStreamdownPlugins } from "@/core/streamdown";
 import {
   CREATIVE_PROJECTS_CHANGED_EVENT,
   createLocalCreativeProject,
@@ -148,27 +149,6 @@ import { PluginNodeFrame } from "./plugin-node-frame";
 
 type ToolMode = "select" | "hand";
 type EmbeddedSurface = "director" | "editor" | "comfyui" | null;
-type DesignModelTab = "agent" | "image" | "video" | "audio";
-
-const DESIGN_MODEL_SELECTION_KEY = "echo-design-enabled-models-v1";
-const CREATIVE_SKILL_COVERS = [
-  "/community/game-guide(1).jpg",
-  "/community/weekly-highlights.jpg",
-  "/community/memory-video(1).jpg",
-  "/community/daily-album.jpg",
-  "/community/study-paper(1).jpg",
-  "/community/travel-plan(1).jpg",
-  "/community/food-delivery(1).jpg",
-  "/community/web-summary.jpg",
-  "/community/mock-interview.jpg",
-  "/community/gacha.jpg",
-  "/community/smart-home.jpg",
-  "/community/language-coach.jpg",
-  "/community/voice-reply.jpg",
-  "/community/weekend.jpg",
-  "/community/meeting-notes.jpg",
-  "/community/price-watch(1).jpg",
-] as const;
 
 const COMFY_WORKFLOW_COVERS = [
   "/images/browser-wallpapers/aurora-lab.png",
@@ -215,21 +195,32 @@ type CanvasBackgroundTone =
   | "blush"
   | "sand";
 
+// Each tone has a dark counterpart: an inline light color used to override the
+// dark theme, leaving a white canvas under dark toolbars and unreadable hints.
 const CANVAS_BACKGROUND_TONES: Array<{
   id: CanvasBackgroundTone;
   label: string;
   color: string;
+  darkColor: string;
 }> = [
-  { id: "default", label: "默认", color: "#fafafa" },
-  { id: "paper", label: "纸白", color: "#f8f5ee" },
-  { id: "cool-gray", label: "冷灰", color: "#f0f2f4" },
-  { id: "warm-gray", label: "暖灰", color: "#f4f0ec" },
-  { id: "mist-blue", label: "雾蓝", color: "#edf4f7" },
-  { id: "sage", label: "雾绿", color: "#eef3ec" },
-  { id: "lavender", label: "淡紫", color: "#f2eff8" },
-  { id: "blush", label: "浅粉", color: "#f8eff1" },
-  { id: "sand", label: "沙色", color: "#f5f0e6" },
+  { id: "default", label: "默认", color: "#fafafa", darkColor: "#0f0f10" },
+  { id: "paper", label: "纸白", color: "#f8f5ee", darkColor: "#15130f" },
+  { id: "cool-gray", label: "冷灰", color: "#f0f2f4", darkColor: "#101317" },
+  { id: "warm-gray", label: "暖灰", color: "#f4f0ec", darkColor: "#151210" },
+  { id: "mist-blue", label: "雾蓝", color: "#edf4f7", darkColor: "#0e1418" },
+  { id: "sage", label: "雾绿", color: "#eef3ec", darkColor: "#101510" },
+  { id: "lavender", label: "淡紫", color: "#f2eff8", darkColor: "#131119" },
+  { id: "blush", label: "浅粉", color: "#f8eff1", darkColor: "#171012" },
+  { id: "sand", label: "沙色", color: "#f5f0e6", darkColor: "#16130d" },
 ];
+
+/** Light and dark tone colors as CSS variables; `dark:` picks between them. */
+function canvasToneStyle(tone: { color: string; darkColor: string }) {
+  return {
+    "--canvas-tone": tone.color,
+    "--canvas-tone-dark": tone.darkColor,
+  } as CSSProperties;
+}
 type CanvasSyncState =
   | "local"
   | "loading"
@@ -289,7 +280,7 @@ const KIND_STYLE: Record<
 > = {
   brief: { label: "需求", tint: "bg-amber-50", accent: "bg-amber-400" },
   agent: { label: "角色", tint: "bg-violet-50", accent: "bg-violet-500" },
-  skill: { label: "Skill", tint: "bg-blue-50", accent: "bg-blue-500" },
+  skill: { label: "技能", tint: "bg-blue-50", accent: "bg-blue-500" },
   plugin: { label: "插件", tint: "bg-emerald-50", accent: "bg-emerald-500" },
   frame: { label: "画板", tint: "bg-blue-50", accent: "bg-blue-600" },
   component: { label: "组件", tint: "bg-violet-50", accent: "bg-violet-600" },
@@ -331,8 +322,8 @@ const STAGE_STATUS_STYLE: Record<
   },
   approved: {
     label: "已通过",
-    dot: "bg-emerald-500",
-    pill: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    dot: "bg-core",
+    pill: "bg-core/10 text-core",
   },
   failed: {
     label: "失败",
@@ -437,7 +428,7 @@ function EdgeLayer({
         <path
           d={`M ${connectionSource.x + (connectionSource.width ?? NODE_WIDTH)} ${connectionSource.y + (connectionSource.height ?? NODE_HEIGHT) / 2} C ${connectionSource.x + (connectionSource.width ?? NODE_WIDTH) + 80} ${connectionSource.y + (connectionSource.height ?? NODE_HEIGHT) / 2}, ${pointer.x - 80} ${pointer.y}, ${pointer.x} ${pointer.y}`}
           fill="none"
-          className="stroke-violet-500"
+          className="stroke-core"
           strokeWidth="1.5"
           strokeDasharray="5 4"
         />
@@ -545,7 +536,7 @@ function CanvasNode({
           "pointer-events-auto absolute rounded-[18px] border border-dashed transition",
           tone.frame,
           mode === "select" && "cursor-grab active:cursor-grabbing",
-          selected && "ring-[3px] ring-purple-500/12",
+          selected && "ring-[3px] ring-core/15",
         )}
         style={{
           width: node.width ?? NODE_WIDTH,
@@ -555,7 +546,7 @@ function CanvasNode({
       >
         <span
           className={cn(
-            "absolute left-3 top-2 rounded-md bg-white/90 px-2 py-1 text-[10px] font-medium shadow-sm backdrop-blur dark:bg-[#1a1a1a]/90",
+            "absolute left-3 top-2 rounded-md bg-white/90 px-2 py-1 text-xs font-medium shadow-sm backdrop-blur dark:bg-[#1a1a1a]/90",
             tone.label,
           )}
         >
@@ -589,7 +580,7 @@ function CanvasNode({
           transform: `translate(${node.x}px, ${node.y}px)`,
         }}
       >
-        <div className="flex h-[21px] items-start gap-1.5 px-0.5 text-[11px] leading-4">
+        <div className="flex h-[21px] items-start gap-1.5 px-0.5 text-xs leading-4">
           {node.kind === "image" ? (
             <ImageIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
           ) : node.kind === "video" ? (
@@ -603,14 +594,14 @@ function CanvasNode({
           {stageStyle ? (
             <span
               className={cn(
-                "shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-medium",
+                "shrink-0 rounded-full px-1.5 py-0.5 text-micro font-medium",
                 stageStyle.pill,
               )}
             >
               {stageStyle.label}
             </span>
           ) : (
-            <span className="shrink-0 text-[9px] text-muted-foreground opacity-0 transition-opacity group-hover/media:opacity-100">
+            <span className="shrink-0 text-micro text-muted-foreground opacity-0 transition-opacity group-hover/media:opacity-100">
               {style.label}
             </span>
           )}
@@ -694,7 +685,7 @@ function CanvasNode({
               event.stopPropagation();
               onCompleteConnection();
             }}
-            className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-violet-500 dark:border-[#1a1a1a]"
+            className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]"
             style={{ top: height / 2 - 6 }}
           />
         ) : null}
@@ -708,8 +699,8 @@ function CanvasNode({
             }}
             onClick={(event) => event.stopPropagation()}
             className={cn(
-              "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-violet-500 dark:border-[#1a1a1a]",
-              connecting && "scale-125 bg-violet-500 ring-4 ring-violet-500/15",
+              "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]",
+              connecting && "scale-125 bg-core ring-4 ring-core/15",
             )}
             style={{ top: height / 2 - 6 }}
           />
@@ -754,21 +745,21 @@ function CanvasNode({
             <div className="truncate text-[13px] font-semibold">
               {node.title}
             </div>
-            <div className="mt-0.5 text-[10px] text-muted-foreground">
+            <div className="mt-0.5 text-xs text-muted-foreground">
               {style.label}
             </div>
           </div>
           {stageStyle ? (
             <span
               className={cn(
-                "shrink-0 rounded-full px-2 py-1 text-[8px] font-medium",
+                "shrink-0 rounded-full px-2 py-1 text-micro font-medium",
                 stageStyle.pill,
               )}
             >
               {stageStyle.label}
             </span>
           ) : (
-            <span className="size-1.5 rounded-full bg-emerald-500" />
+            <span className="size-1.5 rounded-full bg-core" />
           )}
         </div>
         {node.kind === "image" && assetPreviewUrl ? (
@@ -778,7 +769,7 @@ function CanvasNode({
             className="mt-2.5 h-24 w-full rounded-[10px] border border-black/[0.06] object-cover"
           />
         ) : null}
-        <p className="mt-2.5 line-clamp-2 text-[11px] leading-[17px] text-muted-foreground">
+        <p className="mt-2.5 line-clamp-2 text-xs leading-[17px] text-muted-foreground">
           {node.description}
         </p>
       </div>
@@ -792,7 +783,7 @@ function CanvasNode({
             event.stopPropagation();
             onCompleteConnection();
           }}
-          className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-violet-500 dark:border-[#1a1a1a]"
+          className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]"
           style={{ top: (node.height ?? NODE_HEIGHT) / 2 - 6 }}
         />
       ) : null}
@@ -806,8 +797,8 @@ function CanvasNode({
           }}
           onClick={(event) => event.stopPropagation()}
           className={cn(
-            "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-violet-500 dark:border-[#1a1a1a]",
-            connecting && "scale-125 bg-violet-500 ring-4 ring-violet-500/15",
+            "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]",
+            connecting && "scale-125 bg-core ring-4 ring-core/15",
           )}
           style={{ top: (node.height ?? NODE_HEIGHT) / 2 - 6 }}
         />
@@ -856,29 +847,29 @@ function ChatPanel({
   const profile =
     surface === "editor"
       ? {
-          title: "剪辑 Agent",
+          title: "剪辑智能体",
           intro:
             "告诉我想处理的片段、字幕或画面效果，我会直接修改当前剪辑工程并复核成片。",
-          skill: "剪辑 Skill",
+          skill: "剪辑技能",
         }
       : surface === "director"
         ? {
-            title: "导演台 Agent",
+            title: "导演台智能体",
             intro:
               "告诉我镜头、角色走位和空间关系，我会直接修改当前 3D 场景并做多视角检查。",
-            skill: "导演 Skill",
+            skill: "导演技能",
           }
         : surface === "comfyui"
           ? {
-              title: "ComfyUI Agent",
+              title: "ComfyUI 智能体",
               intro:
                 "描述目标和本地依赖，我会检查当前工作流、修改节点并提交本机队列。",
-              skill: "工作流 Skill",
+              skill: "工作流技能",
             }
           : {
               title: "个人工作台",
               intro: "把想法说给我，产物会直接落在画布上。",
-              skill: "Skill",
+              skill: "技能",
             };
   if (chatUrl) {
     return (
@@ -893,7 +884,7 @@ function ChatPanel({
       >
         <iframe
           ref={frameRef}
-          title="Echo 设计工作台"
+          title="ECHO AI 设计工作台"
           data-echo-design-chat="true"
           src={chatUrl}
           onLoad={() => {
@@ -941,13 +932,13 @@ function ChatPanel({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 text-[13px] leading-6">
         <div className="flex gap-2.5">
-          <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-600">
+          <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-muted text-foreground">
             <SparklesIcon className="size-3.5" />
           </span>
           <div>
             <p className="font-medium">{profile.intro}</p>
             <p className="mt-2 text-muted-foreground">
-              我会先拆解任务，再调用画布里绑定的角色、Skill
+              我会先拆解任务，再调用画布里绑定的角色、技能
               和插件。工作流模式按连线执行，自由画布模式由我自主编排。
             </p>
           </div>
@@ -963,7 +954,7 @@ function ChatPanel({
             className="min-h-20 resize-none border-0 bg-transparent px-2 py-1 text-xs shadow-none focus-visible:ring-0"
           />
           <div className="flex items-center gap-1 pt-1">
-            <span className="inline-flex h-8 items-center gap-1.5 px-2 text-[11px] text-muted-foreground">
+            <span className="inline-flex h-8 items-center gap-1.5 px-2 text-xs text-muted-foreground">
               <PuzzleIcon className="size-3.5" /> {profile.skill}
             </span>
             <span className="flex-1" />
@@ -978,7 +969,7 @@ function ChatPanel({
             </Button>
           </div>
         </div>
-        <p className="pt-1.5 text-center text-[9px] text-muted-foreground">
+        <p className="pt-1.5 text-center text-micro text-muted-foreground">
           内容会自动保存到当前项目
         </p>
       </div>
@@ -1036,7 +1027,7 @@ function AddNodePopover({
                   <span className="flex items-center gap-1.5 text-[12px] font-semibold">
                     {item.title}
                     {"badge" in item && item.badge ? (
-                      <span className="rounded bg-foreground px-1 py-px text-[8px] text-background">
+                      <span className="rounded bg-foreground px-1 py-px text-micro text-background">
                         {item.badge}
                       </span>
                     ) : null}
@@ -1106,13 +1097,13 @@ function CreativeProjectSelector({
           aria-expanded={open}
         >
           {brand ? (
-            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600">
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
               <WandSparklesIcon className="size-3.5" />
             </span>
           ) : current ? (
             <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
           ) : (
-            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400" aria-hidden="true">
+            <span className="grid size-5 shrink-0 place-items-center rounded-md bg-muted text-foreground" aria-hidden="true">
                 <SparklesIcon className="size-3.5" strokeWidth={1.75} />
               </span>
           )}
@@ -1129,7 +1120,7 @@ function CreativeProjectSelector({
                 setOpen(false);
                 setCreateOpen(true);
               }}
-              className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[11px] font-semibold hover:bg-muted"
+              className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs font-semibold hover:bg-muted"
             >
               <PlusIcon className="size-3.5" />
               新建本地项目
@@ -1146,7 +1137,7 @@ function CreativeProjectSelector({
                         setOpen(false);
                         onSelect(project.id);
                       }}
-                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[11px] hover:bg-muted"
+                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs hover:bg-muted"
                     >
                       <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">
@@ -1167,14 +1158,14 @@ function CreativeProjectSelector({
                 setOpen(false);
                 onSelect(null);
               }}
-              className="flex h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[11px] hover:bg-muted"
+              className="flex h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs hover:bg-muted"
             >
-              <span className="grid size-5 shrink-0 place-items-center rounded-md bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400" aria-hidden="true">
+              <span className="grid size-5 shrink-0 place-items-center rounded-md bg-muted text-foreground" aria-hidden="true">
                 <SparklesIcon className="size-3.5" strokeWidth={1.75} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">创作空间</span>
-                <span className="block truncate text-[9px] text-muted-foreground">
+                <span className="block truncate text-micro text-muted-foreground">
                   未选择项目
                 </span>
               </span>
@@ -1208,7 +1199,7 @@ function CreativeProjectSelector({
               autoFocus
             />
           </div>
-          <div className="rounded-xl bg-muted/55 px-4 py-3 text-[11px] leading-5 text-muted-foreground">
+          <div className="rounded-xl bg-muted/55 px-4 py-3 text-xs leading-5 text-muted-foreground">
             本地项目用于整理当前角色的创作页面和资产。项目内容保存在这个角色的创作空间中，不会与工作空间、协作项目或其他角色自动共享。
           </div>
           <DialogFooter>
@@ -1230,13 +1221,13 @@ function DesignHomeView({
   onStart,
   threadId,
   onUseTemplate,
-  onOpenSkills,
+  onOpenWorkflow,
 }: {
   spaceSelector: React.ReactNode;
   threadId?: string;
-  onStart: (prompt: string, enabledModels: string[], files?: File[]) => void | Promise<void>;
+  onStart: (prompt: string, capabilities: DesignCapabilities, files?: File[]) => void | Promise<void>;
   onUseTemplate: (templateId: "ai-drama-series") => void;
-  onOpenSkills: () => void;
+  onOpenWorkflow: () => void;
 }) {
   const navigate = useNavigate();
   const navigateWorkspace = (href: string) => {
@@ -1248,20 +1239,18 @@ function DesignHomeView({
         workspaceHostOrigin(),
       );
     } else {
-      navigate(href);
+      void navigate(href);
     }
   };
   const [settings, setSetting] = useThreadSettings(threadId ?? "");
-  const { plugins, isLoading: modelsLoading, error: pluginsError, refetch: refetchPlugins } = useHubPlugins();
-  const { agents, isLoading: agentsLoading } = useAgents();
   const [prompt, setPrompt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [category, setCategory] = useState("全部");
   const [templatesVisible, setTemplatesVisible] = useState(() => {
     try {
-      return window.localStorage.getItem("echo:design:templates-visible") !== "false";
+      return window.localStorage.getItem("echo:design:templates-visible") === "true";
     } catch {
-      return true;
+      return false;
     }
   });
   const toggleTemplates = () => {
@@ -1273,59 +1262,12 @@ function DesignHomeView({
       // Collapsing still works when browser storage is unavailable.
     }
   };
-  const [modelOpen, setModelOpen] = useState(false);
   const [guide, setGuide] = useState<"design" | "models" | null>(null);
-  const [modelTab, setModelTab] = useState<DesignModelTab>("agent");
-  const [enabledModels, setEnabledModels] = useState<Set<string>>(() => {
-    try {
-      const stored = window.localStorage.getItem(DESIGN_MODEL_SELECTION_KEY);
-      return new Set(stored ? (JSON.parse(stored) as string[]) : []);
-    } catch {
-      return new Set();
-    }
-  });
-  const modelDefaultsAppliedRef = useRef(
-    typeof window !== "undefined" &&
-      window.localStorage.getItem(DESIGN_MODEL_SELECTION_KEY) !== null,
-  );
   const [previewTitle, setPreviewTitle] = useState<string | null>(null);
-  const modelItems = useMemo(
-    () => [
-      ...agents.map((agent) => ({
-        id: `role:${agent.name}`,
-        tab: "agent" as const,
-        name: agent.display_name || agent.name,
-        detail: agent.description || "Echo Agent",
-        badge: "Agent",
-      })),
-      ...designMediaPlugins(plugins),
-    ],
-    [agents, plugins],
-  );
-  const visibleModelItems = modelItems.filter((item) => item.tab === modelTab);
-  const allModelIds = modelItems.map((item) => item.id);
-  const allModelsEnabled =
-    allModelIds.length > 0 && allModelIds.every((id) => enabledModels.has(id));
-
-  useEffect(() => {
-    if (
-      modelsLoading ||
-      agentsLoading ||
-      !modelItems.length ||
-      modelDefaultsAppliedRef.current
-    )
-      return;
-    modelDefaultsAppliedRef.current = true;
-    setEnabledModels(new Set(modelItems.map((item) => item.id)));
-  }, [agentsLoading, modelItems, modelsLoading]);
-
-  useEffect(() => {
-    if (!modelDefaultsAppliedRef.current) return;
-    window.localStorage.setItem(
-      DESIGN_MODEL_SELECTION_KEY,
-      JSON.stringify(Array.from(enabledModels)),
-    );
-  }, [enabledModels]);
+  const [capabilityError, setCapabilityError] = useState("");
+  // New design tasks always infer capabilities; obsolete manual preferences
+  // from the former picker must not silently restrict a fresh task.
+  const [capabilities, setCapabilities] = useState<DesignCapabilities>(AUTO_DESIGN_CAPABILITIES);
   const showcases: Array<{
     category: string;
     title: string;
@@ -1473,8 +1415,7 @@ function DesignHomeView({
               if (mode === "develop") navigateWorkspace("/workspace/realtime/new");
             }}
             contextActions={<>
-            <button type="button" className="h-8 rounded-md px-2 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { setModelOpen((value) => !value); void refetchPlugins(); }} aria-expanded={modelOpen}>创作插件</button>
-            <button type="button" className="h-8 rounded-md px-2 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={onOpenSkills}>技能库</button>
+            <MediaModelSelectors value={capabilities} onChange={setCapabilities} />
             <button type="button" onClick={toggleTemplates} aria-expanded={templatesVisible} aria-controls="design-home-templates" className="flex h-8 items-center gap-1.5 rounded-md px-2 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {templatesVisible ? "收起模板" : "展开模板"}
               <span className="text-muted-foreground">{showcases.length}</span>
@@ -1492,123 +1433,25 @@ function DesignHomeView({
             placeholder="描述创作需求，@ 引用文件，/ 调用技能…"
             onSubmit={({ text, images, files }) => {
               const attached = [...(images ?? []), ...(files ?? [])];
-              const labels = modelItems.filter((item) => enabledModels.has(item.id)).map((item) => item.id.startsWith("plugin:") ? `${item.name} (${item.id})` : item.name);
               setSubmitting(true);
-              void Promise.resolve(onStart(text, labels, attached)).finally(() => setSubmitting(false));
+              setCapabilityError("");
+              void resolveDesignCapabilities(text, capabilities, true)
+                .then(async plan => {
+                  if (!plan.ready) throw new Error(plan.blockers.join("；"));
+                  await onStart(text, capabilities, attached);
+                })
+                .catch(error => setCapabilityError(error instanceof Error ? error.message : "设计能力检查失败，请重试"))
+                .finally(() => setSubmitting(false));
               return false;
             }}
           />
-          {modelOpen ? (
-            <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-[330px] overflow-hidden rounded-[16px] border border-border-default bg-background text-left shadow-[0_16px_40px_rgba(0,0,0,.16)]">
-              <div className="flex h-10 items-center gap-1 px-3">
-                <span className="text-[11px] font-semibold">创作插件</span>
-                <CircleHelpIcon
-                  className="size-3 text-muted-foreground"
-                  aria-label="勾选后，Agent 可在任务中调用这些能力"
-                />
-                <span className="flex-1" />
-                <span className="text-[10px] text-muted-foreground">全选</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={allModelsEnabled}
-                  onClick={() =>
-                    setEnabledModels(
-                      allModelsEnabled ? new Set() : new Set(allModelIds),
-                    )
-                  }
-                  className={cn(
-                    "relative h-5 w-9 rounded-full transition",
-                    allModelsEnabled ? "bg-violet-600" : "bg-muted",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-all",
-                      allModelsEnabled ? "left-[18px]" : "left-0.5",
-                    )}
-                  />
-                </button>
-              </div>
-              <div className="mx-2 grid grid-cols-4 rounded-[9px] bg-muted/70 p-0.5">
-                {(
-                  [
-                    ["agent", "Agent"],
-                    ["image", "图片"],
-                    ["video", "视频"],
-                    ["audio", "音频"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setModelTab(id)}
-                    className={cn(
-                      "h-7 rounded-[7px] text-[10px] text-muted-foreground",
-                      modelTab === id &&
-                        "bg-background font-medium text-foreground shadow-sm",
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="max-h-[300px] overflow-y-auto p-2">
-                {(modelsLoading || agentsLoading) ? (
-                  <div className="grid h-24 place-items-center">
-                    <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                  </div>
-                ) : visibleModelItems.length ? (
-                  visibleModelItems.map((item) => {
-                    const selected = enabledModels.has(item.id);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        role="switch"
-                        aria-checked={selected}
-                        onClick={() =>
-                          setEnabledModels((current) => {
-                            const next = new Set(current);
-                            if (next.has(item.id)) next.delete(item.id);
-                            else next.add(item.id);
-                            return next;
-                          })
-                        }
-                        className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left hover:bg-muted/65"
-                      >
-                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-[9px] font-semibold">
-                          {item.name.slice(0, 1).toUpperCase()}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1.5 truncate text-[11px] font-medium">
-                            {item.name}
-                            <span className="rounded bg-violet-100 px-1 py-px text-[8px] text-violet-700 dark:bg-violet-950 dark:text-violet-300">
-                              {item.badge}
-                            </span>
-                          </span>
-                          <span className="mt-0.5 block truncate text-[9px] text-muted-foreground">
-                            {item.detail}
-                          </span>
-                        </span>
-                        {selected ? (
-                          <CheckIcon className="size-3.5 shrink-0" />
-                        ) : null}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="p-8 text-center text-[10px] text-muted-foreground">
-                    {pluginsError && modelTab !== "agent" ? "插件加载失败，请重新打开重试" : "暂无已启用的插件，请前往插件管理安装或启用"}
-                  </div>
-                )}
-              </div>
-              <p className="border-t border-border-subtle px-3 py-2 text-[9px] leading-4 text-muted-foreground">
-                按需选择已启用的创作插件，语言模型在输入框中选择。
-                <button type="button" className="ml-2 underline" onClick={() => navigateWorkspace("/workspace/agents?tab=plugins")}>管理插件</button>
-              </p>
-            </div>
-          ) : null}
+          {submitting && <p role="status" className="mt-2 text-xs text-muted-foreground">正在检查设计能力…</p>}
+          {capabilityError && <p role="alert" className="mt-2 text-xs text-destructive">{capabilityError}。草稿已保留。
+            {/ComfyUI|凭据|生成服务|插件|技能/.test(capabilityError) && <button type="button" className="ml-2 underline" onClick={() => {
+              if (capabilityError.includes("ComfyUI")) onOpenWorkflow();
+              else navigateWorkspace(/凭据|生成服务/.test(capabilityError) ? "/workspace/settings?section=models" : `/workspace/agents?tab=${capabilityError.includes("技能") ? "skills" : "plugins"}`);
+            }}>去设置</button>}
+          </p>}
         </div>
 
         <div id="design-home-templates" hidden={!templatesVisible}>
@@ -1703,7 +1546,7 @@ function DesignHomeView({
                 <DialogTitle className="text-[15px]">
                   {preview.title}
                 </DialogTitle>
-                <DialogDescription className="mt-1 text-[11px] leading-5">
+                <DialogDescription className="mt-1 text-xs leading-5">
                   {preview.description} 封面为流程示意，实际成果根据你的素材与需求制作。
                 </DialogDescription>
                 <Button
@@ -1981,7 +1824,7 @@ function AssetsView({
               onChange={(event) =>
                 setAssetSort(event.target.value as "recent" | "name")
               }
-              className="ml-2 h-8 rounded-lg border border-border-default bg-background px-2 text-[10px] text-muted-foreground outline-none"
+              className="ml-2 h-8 rounded-lg border border-border-default bg-background px-2 text-xs text-muted-foreground outline-none"
               aria-label="排序方式"
             >
               <option value="recent">最近添加</option>
@@ -2009,7 +1852,7 @@ function AssetsView({
             </Button>
           </div>
           {artifactsLoading ? (
-            <div className="mt-6 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2Icon className="size-3.5 animate-spin" />
               正在读取项目产物
             </div>
@@ -2018,7 +1861,7 @@ function AssetsView({
             <>
               <div className="mt-6 flex items-center gap-2">
                 <h2 className="text-[13px] font-semibold">资产</h2>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {visibleArtifacts.length}
                 </span>
               </div>
@@ -2071,7 +1914,7 @@ function AssetsView({
                           />
                         )}
                         {grid ? (
-                          <span className="absolute left-2.5 top-2.5 rounded-md bg-black/65 px-1.5 py-0.5 text-[8px] font-medium text-white">
+                          <span className="absolute left-2.5 top-2.5 rounded-md bg-black/65 px-1.5 py-0.5 text-micro font-medium text-white">
                             {artifact.category || KIND_STYLE[kind].label}
                           </span>
                         ) : null}
@@ -2082,13 +1925,13 @@ function AssetsView({
                         <div className="truncate text-[12px] font-semibold">
                           {artifact.name}
                         </div>
-                        <p className="mt-1 line-clamp-2 min-h-8 text-[10px] leading-4 text-muted-foreground">
+                        <p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-muted-foreground">
                           {artifact.summary ||
                             artifact.path ||
                             artifact.kind ||
                             "项目交付产物"}
                         </p>
-                        <div className="mt-2 flex items-center text-[9px] text-muted-foreground">
+                        <div className="mt-2 flex items-center text-micro text-muted-foreground">
                           <span>
                             {artifact.category ||
                               (artifact.milestone_id
@@ -2112,7 +1955,7 @@ function AssetsView({
           {visibleArtifacts.length === 0 && !artifactsLoading ? (
             <div className="grid min-h-[420px] place-items-center text-center">
               <div>
-                <ArchiveIcon className="mx-auto size-7 text-muted-foreground/50" />
+                <ArchiveIcon className="mx-auto size-7 text-muted-foreground" />
                 <p className="mt-4 text-sm font-semibold">
                   {query
                     ? "没有匹配的资产"
@@ -2120,7 +1963,7 @@ function AssetsView({
                       ? "还没有资产"
                       : `还没有${category}资产`}
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                   点击上方添加资产，或从画布节点保存为可复用资产
                 </p>
               </div>
@@ -2150,8 +1993,8 @@ function AssetsView({
         <DialogContent className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]">
           <DialogHeader className="shrink-0 border-b border-border-subtle px-5 py-4 pr-12">
             <DialogTitle className="text-[15px]">添加资产</DialogTitle>
-            <DialogDescription className="text-[11px] leading-5">
-              填写清晰的名称、描述和标签，让 Agent 能搜索并在不同项目中复用。
+            <DialogDescription className="text-xs leading-5">
+              填写清晰的名称、描述和标签，让智能体能搜索并在不同项目中复用。
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
@@ -2188,7 +2031,7 @@ function AssetsView({
               <Textarea
                 value={assetDescription}
                 onChange={(event) => setAssetDescription(event.target.value)}
-                placeholder="输入清晰的描述，帮助 Agent 更好地搜索和复用…"
+                placeholder="输入清晰的描述，帮助智能体更好地搜索和复用…"
                 className="min-h-20 resize-none rounded-lg text-xs leading-5"
                 maxLength={1200}
               />
@@ -2221,10 +2064,10 @@ function AssetsView({
             >
               <span>
                 <ArchiveIcon className="mx-auto size-5 text-muted-foreground" />
-                <span className="mt-2 block text-[11px] font-medium">
+                <span className="mt-2 block text-xs font-medium">
                   {assetFile ? assetFile.name : "将素材文件拖入 / 点击上传"}
                 </span>
-                <span className="mt-1 block text-[9px] text-muted-foreground">
+                <span className="mt-1 block text-micro text-muted-foreground">
                   单个文件最大 64 MB
                 </span>
               </span>
@@ -2382,7 +2225,7 @@ function CanvasAssetsPanel({
   return (
     <aside className="flex h-full w-full md:w-[280px] shrink-0 flex-col border-l border-border-subtle bg-background">
       <div className="flex h-11 items-center border-b border-border-subtle px-2">
-        <div className="grid flex-1 grid-cols-2 rounded-lg bg-muted/60 p-0.5 text-[11px]">
+        <div className="grid flex-1 grid-cols-2 rounded-lg bg-muted/60 p-0.5 text-xs">
           {(["canvas", "assets"] as const).map((item) => (
             <button
               key={item}
@@ -2441,14 +2284,14 @@ function CanvasAssetsPanel({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索文件"
-            className="h-8 rounded-lg pl-8 text-[10px]"
+            className="h-8 rounded-lg pl-8 text-xs"
           />
         </div>
         <div className="grid grid-cols-3 gap-1">
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
-            className="h-7 rounded-md border border-border-default bg-background px-1.5 text-[9px]"
+            className="h-7 rounded-md border border-border-default bg-background px-1.5 text-micro"
           >
             <option value="all">类型</option>
             <option value="image">图片</option>
@@ -2456,10 +2299,10 @@ function CanvasAssetsPanel({
             <option value="audio">音频</option>
             <option value="file">文件</option>
           </select>
-          <button className="h-7 rounded-md border border-border-default text-[9px] text-muted-foreground">
+          <button className="h-7 rounded-md border border-border-default text-micro text-muted-foreground">
             标签
           </button>
-          <button className="h-7 rounded-md border border-border-default text-[9px] text-muted-foreground">
+          <button className="h-7 rounded-md border border-border-default text-micro text-muted-foreground">
             时间
           </button>
         </div>
@@ -2499,10 +2342,10 @@ function CanvasAssetsPanel({
                 )}
               </div>
               <span className={cn("min-w-0", grid && "block p-2")}>
-                <span className="block truncate text-[10px] font-medium">
+                <span className="block truncate text-xs font-medium">
                   {item.name}
                 </span>
-                <span className="block truncate text-[8px] text-muted-foreground">
+                <span className="block truncate text-micro text-muted-foreground">
                   {item.category || item.kind || "文件"}
                 </span>
               </span>
@@ -2510,7 +2353,7 @@ function CanvasAssetsPanel({
           );
         })}
         {!loading && items.length === 0 ? (
-          <div className="col-span-2 px-3 py-12 text-center text-[10px] text-muted-foreground">
+          <div className="col-span-2 px-3 py-12 text-center text-xs text-muted-foreground">
             {query
               ? "没有匹配文件"
               : tab === "canvas"
@@ -2535,7 +2378,7 @@ function CanvasAssetsPanel({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-full justify-center text-[10px]"
+            className="h-8 w-full justify-center text-xs"
             onClick={() => uploadRef.current?.click()}
             disabled={!projectId}
           >
@@ -3006,13 +2849,13 @@ function ComfyUIView({
         window.setTimeout(() => void check(), 900);
       } else {
         setOnline(false);
-        toast.success("已停止由 Echo 启动的 ComfyUI");
+        toast.success("已停止由 ECHO AI 启动的 ComfyUI");
       }
     } catch {
       toast.error(
         action === "start"
           ? "未能启动，请确认本地 ComfyUI 安装完整"
-          : "该服务不是由 Echo 启动，无法代为停止",
+          : "该服务不是由 ECHO AI 启动，无法代为停止",
       );
     } finally {
       setChecking(false);
@@ -3301,14 +3144,14 @@ function ComfyUIView({
               ComfyUI 工作流
             </h1>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              支持本地部署，可手动运行，也可作为画布节点由 Agent 调用
+              支持本地部署，可手动运行，也可作为画布节点由智能体调用
             </p>
           </div>
         </div>
         <div className="mt-7 flex gap-2">
           <div ref={workflowCreateMenuRef} className="relative">
             <Button
-              className="h-9 rounded-[10px] bg-foreground px-4 text-[11px] text-background"
+              className="h-9 rounded-[10px] bg-foreground px-4 text-xs text-background"
               aria-haspopup="menu"
               aria-expanded={workflowCreateOpen}
               onClick={() => setWorkflowCreateOpen((value) => !value)}
@@ -3329,7 +3172,7 @@ function ComfyUIView({
                     setWorkflowCreateOpen(false);
                     importRef.current?.click();
                   }}
-                  className="flex h-9 w-full items-center rounded-lg px-3 text-left text-[11px] font-medium hover:bg-muted"
+                  className="flex h-9 w-full items-center rounded-lg px-3 text-left text-xs font-medium hover:bg-muted"
                 >
                   导入本地工作流
                 </button>
@@ -3340,7 +3183,7 @@ function ComfyUIView({
                     setWorkflowCreateOpen(false);
                     onUse("blank", "空白 ComfyUI 工作流");
                   }}
-                  className="flex h-9 w-full items-center rounded-lg px-3 text-left text-[11px] font-medium hover:bg-muted"
+                  className="flex h-9 w-full items-center rounded-lg px-3 text-left text-xs font-medium hover:bg-muted"
                 >
                   在画布中创建
                 </button>
@@ -3360,7 +3203,7 @@ function ComfyUIView({
           />
           <Button
             variant="outline"
-            className="h-9 rounded-[10px] px-4 text-[11px]"
+            className="h-9 rounded-[10px] px-4 text-xs"
             onClick={() =>
               toast.info(
                 "可从 Comfy Registry 安装节点，也可导入开源 workflow JSON",
@@ -3372,16 +3215,16 @@ function ComfyUIView({
           </Button>
           <Button
             variant="ghost"
-            className="ml-auto h-9 rounded-[10px] px-3 text-[10px] text-muted-foreground"
+            className="ml-auto h-9 rounded-[10px] px-3 text-xs text-muted-foreground"
             onClick={() => setEnvironmentOpen((value) => !value)}
           >
             <span
               className={cn(
                 "mr-1.5 size-1.5 rounded-full",
                 online === true
-                  ? "bg-emerald-500"
+                  ? "bg-core"
                   : online === false
-                    ? "bg-red-500"
+                    ? "bg-breach"
                     : "bg-zinc-400",
               )}
             />
@@ -3425,7 +3268,7 @@ function ComfyUIView({
               !dependencies.manager.job.running ? (
                 <Button
                   variant="outline"
-                  className="rounded-xl border-violet-200 text-violet-700"
+                  className="rounded-xl"
                   onClick={() => void controlManagedComfy("install")}
                   disabled={checking}
                 >
@@ -3480,12 +3323,12 @@ function ComfyUIView({
         {environmentOpen && dependencies ? (
           <div className="mt-4 grid grid-cols-[1.35fr_0.65fr_0.65fr] overflow-hidden rounded-2xl border bg-muted/20">
             <div className="min-w-0 px-4 py-3.5">
-              <div className="flex items-center gap-2 text-[11px] font-medium">
+              <div className="flex items-center gap-2 text-xs font-medium">
                 <FolderIcon className="size-3.5 text-sky-600" />
                 本地创作环境
               </div>
               <p
-                className="mt-1.5 truncate text-[10px] text-muted-foreground"
+                className="mt-1.5 truncate text-xs text-muted-foreground"
                 title={dependencies.path ?? undefined}
               >
                 {dependencies.detected
@@ -3497,7 +3340,7 @@ function ComfyUIView({
               <div className="text-lg font-semibold tabular-nums">
                 {dependencies.totalModels}
               </div>
-              <div className="mt-0.5 text-[9px] text-muted-foreground">
+              <div className="mt-0.5 text-micro text-muted-foreground">
                 本地模型
               </div>
             </div>
@@ -3505,7 +3348,7 @@ function ComfyUIView({
               <div className="text-lg font-semibold tabular-nums">
                 {dependencies.totalCustomNodes}
               </div>
-              <div className="mt-0.5 text-[9px] text-muted-foreground">
+              <div className="mt-0.5 text-micro text-muted-foreground">
                 节点扩展
               </div>
             </div>
@@ -3516,10 +3359,10 @@ function ComfyUIView({
           dependencies?.manager.job.state === "failed" ? (
             <div
               className={cn(
-                "mt-3 rounded-xl border px-4 py-3 text-[10px]",
+                "mt-3 rounded-xl border px-4 py-3 text-xs",
                 dependencies.manager.job.state === "failed"
-                  ? "border-red-200 bg-red-50 text-red-800"
-                  : "border-violet-200 bg-violet-50 text-violet-800",
+                  ? "border-breach/30 bg-breach/10 text-breach"
+                  : "border-signal/30 bg-signal/10 text-signal",
               )}
             >
               <div className="flex items-center gap-2 font-medium">
@@ -3554,12 +3397,12 @@ function ComfyUIView({
             <div className="flex items-start gap-3">
               <div>
                 <h2 className="text-[13px] font-semibold">模型中心</h2>
-                <p className="mt-0.5 text-[9px] text-muted-foreground">
+                <p className="mt-0.5 text-micro text-muted-foreground">
                   仅支持 Hugging Face / Civitai 公开链接 · 每个模型单独授权
                 </p>
               </div>
               <span className="flex-1" />
-              <span className="rounded-md bg-muted px-2 py-1 text-[9px] text-muted-foreground">
+              <span className="rounded-md bg-muted px-2 py-1 text-micro text-muted-foreground">
                 {localModels.length} 个模型 ·{" "}
                 {formatModelSize(
                   localModels.reduce((sum, model) => sum + model.size_bytes, 0),
@@ -3577,12 +3420,12 @@ function ComfyUIView({
                 value={modelUrl}
                 onChange={(event) => setModelUrl(event.target.value)}
                 placeholder="粘贴 Hugging Face 文件链接或 Civitai 模型链接"
-                className="h-9 rounded-lg text-[10px]"
+                className="h-9 rounded-lg text-xs"
               />
               <select
                 value={modelGroup}
                 onChange={(event) => setModelGroup(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2 text-[10px] outline-none"
+                className="h-9 rounded-lg border border-input bg-background px-2 text-xs outline-none"
                 aria-label="模型目录"
               >
                 {modelGroups.map((group) => (
@@ -3593,7 +3436,7 @@ function ComfyUIView({
               </select>
               <Button
                 type="submit"
-                className="h-9 rounded-lg px-3 text-[10px]"
+                className="h-9 rounded-lg px-3 text-xs"
                 disabled={
                   modelLoading ||
                   !modelUrl.trim() ||
@@ -3619,10 +3462,10 @@ function ComfyUIView({
                     <ArchiveIcon className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[10px] font-medium">
+                    <div className="truncate text-xs font-medium">
                       {model.name}
                     </div>
-                    <div className="mt-0.5 text-[8px] text-muted-foreground">
+                    <div className="mt-0.5 text-micro text-muted-foreground">
                       {model.group} · {formatModelSize(model.size_bytes)}
                     </div>
                   </div>
@@ -3634,7 +3477,7 @@ function ComfyUIView({
                       })
                     }
                     disabled={modelLoading || online === true}
-                    className="rounded px-2 py-1 text-[9px] text-red-600 hover:bg-red-50 disabled:opacity-40"
+                    className="rounded px-2 py-1 text-micro text-red-600 hover:bg-red-50 disabled:opacity-40"
                   >
                     移除
                   </button>
@@ -3643,7 +3486,7 @@ function ComfyUIView({
             </div>
             {modelBackups.length > 0 ? (
               <div className="mt-3 border-t border-border-subtle pt-3">
-                <div className="mb-2 text-[9px] font-medium text-muted-foreground">
+                <div className="mb-2 text-micro font-medium text-muted-foreground">
                   可恢复模型
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -3654,7 +3497,7 @@ function ComfyUIView({
                         void controlModel("restore", { backupId: backup.id })
                       }
                       disabled={modelLoading || online === true}
-                      className="rounded-lg border px-2.5 py-1.5 text-[9px] hover:bg-muted disabled:opacity-40"
+                      className="rounded-lg border px-2.5 py-1.5 text-micro hover:bg-muted disabled:opacity-40"
                     >
                       恢复 {backup.name} · {formatModelSize(backup.size_bytes)}
                     </button>
@@ -3669,7 +3512,7 @@ function ComfyUIView({
             <div className="flex items-center gap-3">
               <div>
                 <h2 className="text-[13px] font-semibold">节点扩展</h2>
-                <p className="mt-0.5 text-[9px] text-muted-foreground">
+                <p className="mt-0.5 text-micro text-muted-foreground">
                   来自官方 Comfy Registry · 修改前需停止本地服务
                 </p>
               </div>
@@ -3685,7 +3528,7 @@ function ComfyUIView({
                   value={nodeQuery}
                   onChange={(event) => setNodeQuery(event.target.value)}
                   placeholder="输入 Registry ID 精确搜索"
-                  className="h-8 rounded-lg text-[10px]"
+                  className="h-8 rounded-lg text-xs"
                 />
                 <Button
                   type="submit"
@@ -3709,29 +3552,29 @@ function ComfyUIView({
                   className="rounded-xl border border-border-subtle bg-muted/15 p-3"
                 >
                   <div className="flex items-start gap-2">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
                       <PuzzleIcon className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="truncate text-[11px] font-semibold">
+                        <span className="truncate text-xs font-semibold">
                           {node.name}
                         </span>
                         {node.installed ? (
-                          <span className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-[8px] text-emerald-700">
+                          <span className="shrink-0 rounded bg-core/10 px-1 py-0.5 text-micro text-core">
                             已安装
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-0.5 truncate text-[8px] text-muted-foreground">
+                      <div className="mt-0.5 truncate text-micro text-muted-foreground">
                         {node.id} · v{node.version || "latest"}
                       </div>
                     </div>
                   </div>
-                  <p className="mt-2 line-clamp-2 min-h-7 text-[9px] leading-3.5 text-muted-foreground">
+                  <p className="mt-2 line-clamp-2 min-h-7 text-micro leading-3.5 text-muted-foreground">
                     {node.description || "ComfyUI 节点扩展"}
                   </p>
-                  <div className="mt-2 flex items-center gap-1.5 text-[8px] text-muted-foreground">
+                  <div className="mt-2 flex items-center gap-1.5 text-micro text-muted-foreground">
                     <span>{node.downloads.toLocaleString()} 下载</span>
                     <span>★ {node.stars.toLocaleString()}</span>
                     <span className="flex-1" />
@@ -3793,10 +3636,10 @@ function ComfyUIView({
             className={cn(
               "mt-4 rounded-xl border px-4 py-3 text-xs",
               runState.state === "error"
-                ? "border-red-200 bg-red-50 text-red-800"
+                ? "border-breach/30 bg-breach/10 text-breach"
                 : runState.state === "completed"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-violet-200 bg-violet-50 text-violet-800",
+                  ? "border-core/30 bg-core/10 text-core"
+                  : "border-signal/30 bg-signal/10 text-signal",
             )}
           >
             <div className="flex items-center gap-2 font-medium">
@@ -3871,7 +3714,7 @@ function ComfyUIView({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="h-9 rounded-[10px] pl-9 text-[11px]"
+              className="h-9 rounded-[10px] pl-9 text-xs"
               placeholder="搜索工作流"
             />
           </div>
@@ -3897,7 +3740,7 @@ function ComfyUIView({
                 {selectedWorkflow.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-md bg-muted px-2 py-1 text-[9px] text-muted-foreground"
+                    className="rounded-md bg-muted px-2 py-1 text-micro text-muted-foreground"
                   >
                     {tag}
                   </span>
@@ -3907,11 +3750,11 @@ function ComfyUIView({
                 {selectedWorkflow.description}
                 {"\n"}
                 {selectedWorkflow.availability === "dependency"
-                  ? "这是能力目录，需要先安装页面列出的模型或扩展，Echo 不会静默下载大模型。"
-                  : "工作流可在本机手动运行，也可加入画布交给 Agent 调用。模型和输入文件始终由你选择。"}
+                  ? "这是能力目录，需要先安装页面列出的模型或扩展，ECHO AI 不会静默下载大模型。"
+                  : "工作流可在本机手动运行，也可加入画布交给智能体调用。模型和输入文件始终由你选择。"}
               </p>
               <Button
-                className="mt-7 h-11 w-full max-w-xl rounded-xl bg-violet-600 text-white hover:bg-violet-700"
+                className="mt-7 h-11 w-full max-w-xl rounded-xl"
                 disabled={selectedWorkflow.availability === "dependency"}
                 onClick={() =>
                   onUse(selectedWorkflow.id, selectedWorkflow.title)
@@ -3925,16 +3768,16 @@ function ComfyUIView({
                 <div className="flex items-center gap-2">
                   <h3 className="text-[12px] font-semibold">资源文件</h3>
                   {selectedWorkflowDetail ? (
-                    <span className="text-[9px] text-muted-foreground">
+                    <span className="text-micro text-muted-foreground">
                       {selectedWorkflowNodes.length} 个节点 ·{" "}
                       {selectedWorkflowResources.length + 1} 个文件/输入
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-[9px] text-muted-foreground">
+                <p className="mt-1 text-micro text-muted-foreground">
                   工作流文件以及运行时需要由用户选择的本地资源
                 </p>
-                <div className="mt-3 space-y-2 text-[10px]">
+                <div className="mt-3 space-y-2 text-xs">
                   <div className="flex items-center gap-2 rounded-lg bg-muted/45 px-3 py-2">
                     <WorkflowIcon className="size-3.5" />
                     <span className="min-w-0 flex-1 truncate">
@@ -3974,7 +3817,7 @@ function ComfyUIView({
                     {selectedWorkflowNodeTypes.map((nodeType) => (
                       <span
                         key={nodeType}
-                        className="rounded bg-muted px-1.5 py-1 text-[8px] text-muted-foreground"
+                        className="rounded bg-muted px-1.5 py-1 text-micro text-muted-foreground"
                       >
                         {nodeType}
                       </span>
@@ -3987,15 +3830,15 @@ function ComfyUIView({
                   className={cn(
                     "mt-4 max-w-xl rounded-2xl border p-4",
                     selectedWorkflowDiagnostics.compatible
-                      ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/25"
+                      ? "border-core/30 bg-core/[0.06]"
                       : selectedWorkflowDiagnostics.counts.errors
-                        ? "border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/25"
-                        : "border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/25",
+                        ? "border-breach/30 bg-breach/[0.06]"
+                        : "border-warning/30 bg-warning/[0.06]",
                   )}
                 >
                   <div className="flex items-center gap-2">
                     <h3 className="text-[12px] font-semibold">兼容性诊断</h3>
-                    <span className="text-[9px] text-muted-foreground">
+                    <span className="text-micro text-muted-foreground">
                       {selectedWorkflowDiagnostics.compatible &&
                       selectedWorkflowDiagnostics.fullyChecked
                         ? "本机可运行"
@@ -4004,7 +3847,7 @@ function ComfyUIView({
                           : "检查未完成"}
                     </span>
                   </div>
-                  <p className="mt-1 text-[9px] leading-4 text-muted-foreground">
+                  <p className="mt-1 text-micro leading-4 text-muted-foreground">
                     {selectedWorkflowDiagnostics.fullyChecked
                       ? "已核对节点类型、输入与本地模型文件。"
                       : "尚未完成本机依赖检查，请先连接 ComfyUI 后重新检测。"}{" "}
@@ -4017,7 +3860,7 @@ function ComfyUIView({
                         .map((issue, index) => (
                           <div
                             key={`${issue.kind}:${issue.nodeId ?? "global"}:${index}`}
-                            className="flex gap-2 rounded-lg bg-background/75 px-2.5 py-2 text-[9px]"
+                            className="flex gap-2 rounded-lg bg-background/75 px-2.5 py-2 text-micro"
                           >
                             <span
                               className={cn(
@@ -4038,8 +3881,8 @@ function ComfyUIView({
               ) : null}
               <div className="mt-5 max-w-xl">
                 <h3 className="text-[12px] font-semibold">来源与许可</h3>
-                <div className="mt-2 rounded-xl border border-border-default px-3 py-2.5 text-[10px]">
-                  <div className="font-medium">Echo 原创工作流模板</div>
+                <div className="mt-2 rounded-xl border border-border-default px-3 py-2.5 text-xs">
+                  <div className="font-medium">ECHO 原创工作流模板</div>
                   <div className="mt-0.5 text-muted-foreground">
                     Apache-2.0 · 兼容 ComfyUI 工作流格式
                   </div>
@@ -4054,14 +3897,14 @@ function ComfyUIView({
                   className={cn(
                     "w-full rounded-xl border p-3 text-left transition hover:bg-muted/50",
                     workflow.id === selectedWorkflow.id
-                      ? "border-violet-300 bg-violet-50/60"
+                      ? "border-core/40 bg-core/5"
                       : "border-border-subtle",
                   )}
                 >
-                  <div className="truncate text-[10px] font-semibold">
+                  <div className="truncate text-xs font-semibold">
                     {workflow.title}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-muted-foreground">
+                  <p className="mt-1 line-clamp-2 text-micro leading-4 text-muted-foreground">
                     {workflow.description}
                   </p>
                 </button>
@@ -4109,21 +3952,21 @@ function ComfyUIView({
                     />
                     <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent" />
                     <div className="absolute left-4 top-4 text-white drop-shadow-sm">
-                      <div className="text-[8px] font-semibold tracking-[0.22em] text-white/70">
+                      <div className="text-micro font-semibold tracking-[0.22em] text-white/70">
                         ECHO FLOW
                       </div>
                       <div className="mt-1.5 max-w-36 text-[15px] font-semibold leading-[18px]">
                         {workflow.title}
                       </div>
                     </div>
-                    <span className="absolute bottom-3 left-4 rounded-full border border-white/25 bg-black/20 px-2 py-1 text-[7px] font-medium text-white/85 backdrop-blur-sm">
+                    <span className="absolute bottom-3 left-4 rounded-full border border-white/25 bg-black/20 px-2 py-1 text-micro font-medium text-white/85 backdrop-blur-sm">
                       {workflow.tags[0] || "WORKFLOW"}
                     </span>
                     <WorkflowIcon className="absolute bottom-3 right-3 size-8 text-white/65 transition-transform group-hover:scale-110" />
                     <span className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity group-hover:opacity-100">
                       <span
                         className={cn(
-                          "rounded-lg px-3 py-1.5 text-[9px] font-medium",
+                          "rounded-lg px-3 py-1.5 text-micro font-medium",
                           workflow.availability === "dependency"
                             ? "bg-white/85 text-zinc-500"
                             : "bg-white text-zinc-950",
@@ -4142,10 +3985,10 @@ function ComfyUIView({
                       </span>
                       <span
                         className={cn(
-                          "shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-medium",
+                          "shrink-0 rounded-full px-1.5 py-0.5 text-micro font-medium",
                           workflow.availability !== "dependency"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-amber-50 text-amber-700",
+                            ? "bg-core/10 text-core"
+                            : "bg-warning/10 text-warning",
                         )}
                       >
                         {workflow.availability === "bundled"
@@ -4155,12 +3998,12 @@ function ComfyUIView({
                             : "需依赖"}
                       </span>
                     </div>
-                    <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">
+                    <p className="mt-1 line-clamp-2 text-xs leading-4 text-muted-foreground">
                       {workflow.description}
                     </p>
-                    <div className="mt-2 flex items-center text-[8px] text-muted-foreground">
+                    <div className="mt-2 flex items-center text-micro text-muted-foreground">
                       <span className="rounded bg-muted px-1.5 py-0.5">
-                        {workflow.source === "user" ? "用户导入" : "Echo 原创"}
+                        {workflow.source === "user" ? "用户导入" : "ECHO 原创"}
                       </span>
                       <span className="ml-auto">{workflow.tags[0]}</span>
                     </div>
@@ -4170,7 +4013,7 @@ function ComfyUIView({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 flex-1 rounded-lg text-[9px]"
+                    className="h-7 flex-1 rounded-lg text-micro"
                     disabled={workflow.availability === "dependency"}
                     onClick={() => onUse(workflow.id, workflow.title)}
                   >
@@ -4179,7 +4022,7 @@ function ComfyUIView({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 flex-1 rounded-lg text-[9px]"
+                    className="h-7 flex-1 rounded-lg text-micro"
                     disabled={
                       workflow.availability === "dependency" ||
                       (runState?.workflowId === workflow.id &&
@@ -4198,7 +4041,7 @@ function ComfyUIView({
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
             <div className="font-semibold">没有发现 ComfyUI</div>
             <p className="mt-1 leading-5 text-amber-800">
-              启动本机 ComfyUI 并监听 127.0.0.1:8188 后再检测。Echo
+              启动本机 ComfyUI 并监听 127.0.0.1:8188 后再检测。ECHO AI
               只连接你的本地服务，不会自动下载数十 GB 的模型。
             </p>
           </div>
@@ -4275,7 +4118,8 @@ export default function DesignPage({
       ? saved
       : "chat-left";
   });
-  const [layoutOpen, setLayoutOpen] = useState(false);
+  const [projectDetailsOpen, setProjectDetailsOpen] = useState(false);
+  const [stagePlanOpen, setStagePlanOpen] = useState(false);
   const isMobile = useIsMobile();
   const [mobileView, setMobileView] = useState<"chat" | "canvas">("canvas");
   const displayLayout = isMobile ? mobileView : layout;
@@ -4302,7 +4146,7 @@ export default function DesignPage({
       }
       setSection("canvas");
       const query = next.toString();
-      navigate(`/workspace/design${query ? `?${query}` : ""}`);
+      void navigate(`/workspace/design${query ? `?${query}` : ""}`);
     },
     [navigate, searchParams],
   );
@@ -4312,7 +4156,7 @@ export default function DesignPage({
     const next = new URLSearchParams(searchParams);
     next.delete("workspace_path");
     const query = next.toString();
-    navigate(`/workspace/design${query ? `?${query}` : ""}`, {
+    void navigate(`/workspace/design${query ? `?${query}` : ""}`, {
       replace: true,
     });
   }, [embeddedProject, navigate, searchParams]);
@@ -4538,6 +4382,7 @@ export default function DesignPage({
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [embeddedSurface, setEmbeddedSurface] = useState<EmbeddedSurface>(null);
   const [comfyNative, setComfyNative] = useState(false);
+  const [activeDesignCapabilities, setActiveDesignCapabilities] = useState<DesignCapabilities>();
   const [designThreadId, setDesignThreadId] = useState<string | null>(
     sourceThreadId,
   );
@@ -4992,7 +4837,7 @@ export default function DesignPage({
             const next = new URLSearchParams(searchParams);
             next.set("thread", nextThreadId);
             next.delete("new_task");
-            navigate(`/workspace/design?${next.toString()}`, { replace: true });
+            void navigate(`/workspace/design?${next.toString()}`, { replace: true });
           }
         }
         return;
@@ -5001,7 +4846,7 @@ export default function DesignPage({
         const nextThreadId = String(
           event.data.threadId || designThreadId || "",
         ).trim();
-        navigate(
+        void navigate(
           nextThreadId && nextThreadId !== "new"
             ? `/workspace/realtime/${encodeURIComponent(nextThreadId)}`
             : "/workspace/realtime/new",
@@ -5050,7 +4895,7 @@ export default function DesignPage({
             {
               id: nodeId,
               kind: "output",
-              title: result.title || "设计 Agent 输出",
+              title: result.title || "设计智能体输出",
               description,
               x: anchor
                 ? anchor.x + (anchor.width ?? NODE_WIDTH) + 80
@@ -5110,7 +4955,7 @@ export default function DesignPage({
                 node.id === groupId
                   ? {
                       ...node,
-                      title: `本轮输出 · ${result.title || "设计 Agent"}`,
+                      title: `本轮输出 · ${result.title || "设计智能体"}`,
                     }
                   : node,
               ),
@@ -5139,7 +4984,7 @@ export default function DesignPage({
         toast.success(
           result.targetStageNodeId
             ? "阶段结果已放回画布，请审核后继续"
-            : "Agent 结果已放回画布",
+            : "智能体结果已放回画布",
         );
       }
     };
@@ -5149,6 +4994,7 @@ export default function DesignPage({
     creativeProjectId,
     designThreadId,
     navigate,
+    personaId,
     projectId,
     searchParams,
     selectedId,
@@ -5699,7 +5545,7 @@ export default function DesignPage({
     [canvasSyncState, creativeProjectId, document, projectId, selectedIds],
   );
   const runCanvas = useCallback(
-    (extra?: string) => {
+    (extra?: string, capabilities?: DesignCapabilities) => {
       const activeStage = selectedId
         ? document.nodes.find(
             (node) => node.id === selectedId && Boolean(node.stage),
@@ -5733,12 +5579,14 @@ export default function DesignPage({
         creativeProjectId: !embeddedProject ? creativeProjectId : undefined,
         parentOrigin: window.location.origin,
         targetStageNodeId: activeStage?.id,
+        capabilities: capabilities ?? activeDesignCapabilities,
       });
       setEmbeddedChatUrl(`${workspaceShellBase()}#${route}`);
       if (layout === "canvas") setLayout("chat-left");
     },
     [
       creativeProjectId,
+      activeDesignCapabilities,
       designThreadId,
       document,
       embeddedProject,
@@ -6131,11 +5979,11 @@ export default function DesignPage({
       }}
       onWheel={handleWheel}
       className={cn(
-        "relative min-h-0 min-w-0 flex-1 touch-none overflow-clip transition-colors dark:bg-[#0a0a0a]",
+        "relative min-h-0 min-w-0 flex-1 touch-none overflow-clip transition-colors bg-[var(--canvas-tone)] dark:bg-[var(--canvas-tone-dark)]",
         (toolMode === "hand" || spacePanning) &&
           "cursor-grab active:cursor-grabbing",
       )}
-      style={{ backgroundColor: canvasTone.color }}
+      style={canvasToneStyle(canvasTone)}
     >
       <input
         ref={canvasFileInputRef}
@@ -6152,23 +6000,24 @@ export default function DesignPage({
       {workflowStages.length > 0 ? (
         <div
           data-testid="design-stage-plan"
-          className="absolute left-3 top-3 z-20 w-[min(420px,calc(100%-24px))] rounded-[14px] border border-black/[0.08] bg-white/92 p-2.5 shadow-[0_8px_24px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/92"
+          className={cn(stagePlanOpen ? "w-[min(420px,calc(100%-24px))]" : "w-auto", "absolute left-3 top-14 z-20 rounded-[14px] border border-black/[0.08] bg-white/92 p-2.5 shadow-[0_8px_24px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/92")}
         >
-          <div className="flex items-center gap-2 px-1">
-            <span className="text-[10px] font-semibold">阶段计划</span>
-            <span className="text-[9px] text-muted-foreground">
-              {completedWorkflowStages}/{workflowStages.length} 已完成
+          <button type="button" onClick={() => setStagePlanOpen((open) => !open)} aria-expanded={stagePlanOpen} aria-controls="design-stage-list" className="flex w-full items-center gap-2 px-1">
+            <span className="text-xs font-semibold">进度</span>
+            <span className="text-micro text-muted-foreground">
+              {completedWorkflowStages}/{workflowStages.length}
             </span>
+            <ChevronDownIcon className={cn("size-3 transition-transform", stagePlanOpen && "rotate-180")} />
             <span className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
               <span
-                className="block h-full rounded-full bg-emerald-500 transition-all"
+                className="block h-full rounded-full bg-core transition-all"
                 style={{
                   width: `${(completedWorkflowStages / workflowStages.length) * 100}%`,
                 }}
               />
             </span>
-          </div>
-          <div className="mt-2 flex gap-1 overflow-x-auto pb-0.5">
+          </button>
+          <div id="design-stage-list" hidden={!stagePlanOpen} className={cn("mt-2 gap-1 overflow-x-auto pb-0.5", stagePlanOpen && "flex")}>
             {workflowStages.map((stage) => {
               const status = STAGE_STATUS_STYLE[stage.status];
               return (
@@ -6180,7 +6029,7 @@ export default function DesignPage({
                     setSelectedIds([stage.nodeId]);
                   }}
                   className={cn(
-                    "flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-[9px] transition hover:bg-muted",
+                    "flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-micro transition hover:bg-muted",
                     selectedId === stage.nodeId
                       ? "border-foreground/30 bg-muted font-medium"
                       : "border-transparent",
@@ -6286,7 +6135,7 @@ export default function DesignPage({
         {selectionRect ? (
           <div
             aria-hidden
-            className="absolute border border-violet-500/70 bg-violet-500/10"
+            className="absolute border border-core/70 bg-core/10"
             style={{
               transform: `translate(${selectionRect.x}px, ${selectionRect.y}px)`,
               width: selectionRect.width,
@@ -6297,11 +6146,11 @@ export default function DesignPage({
       </div>
       {!document.nodes.length ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="rounded-[14px] border border-black/[0.06] bg-white/75 px-5 py-3 text-center shadow-[0_8px_28px_-20px_rgba(0,0,0,.35)] backdrop-blur dark:border-white/10 dark:bg-black/45">
-            <div className="text-[11px] font-medium">
+          <div className="rounded-[14px] border border-black/[0.06] bg-white/75 px-5 py-3 text-center text-foreground shadow-[0_8px_28px_-20px_rgba(0,0,0,.35)] backdrop-blur dark:border-white/10 dark:bg-white/[0.06]">
+            <div className="text-xs font-medium">
               双击画布，自由生成节点
             </div>
-            <div className="mt-1 text-[9px] text-muted-foreground">
+            <div className="mt-1 text-xs text-muted-foreground">
               拖动框选 · 滚动缩放 · 按住 Space 拖动画布
             </div>
           </div>
@@ -6339,7 +6188,7 @@ export default function DesignPage({
               />
             </svg>
             <span
-              className="absolute left-3 top-4 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[9px] font-medium text-white shadow-sm"
+              className="absolute left-3 top-4 whitespace-nowrap rounded-md px-1.5 py-0.5 text-micro font-medium text-white shadow-sm"
               style={{ backgroundColor: member.color }}
             >
               {member.display_name}
@@ -6646,7 +6495,7 @@ export default function DesignPage({
               >
                 <Trash2Icon className="size-3.5" />
                 <span className="flex-1">删除</span>
-                <kbd className="text-[9px] opacity-65">⌫</kbd>
+                <kbd className="text-micro opacity-65">⌫</kbd>
               </button>
             </>
           ) : null}
@@ -6659,7 +6508,7 @@ export default function DesignPage({
           aria-label="小地图，点击适配全部内容"
           className="absolute bottom-16 right-3 z-20 h-28 w-40 overflow-hidden rounded-[12px] border border-black/[0.08] bg-white/88 shadow-[0_8px_24px_-16px_rgba(0,0,0,.4)] backdrop-blur dark:border-white/10 dark:bg-black/70"
         >
-          <span className="absolute left-2 top-1.5 text-[8px] font-medium text-muted-foreground">
+          <span className="absolute left-2 top-1.5 text-micro font-medium text-muted-foreground">
             小地图
           </span>
           <span className="absolute inset-x-2 bottom-2 top-6 rounded-lg bg-black/[0.035] dark:bg-white/[0.05]">
@@ -6668,7 +6517,7 @@ export default function DesignPage({
                 key={node.id}
                 className={cn(
                   "absolute min-h-1 min-w-1 rounded-[2px] border border-black/10 bg-foreground/35",
-                  node.id === selectedId && "bg-violet-500/80",
+                  node.id === selectedId && "bg-core/80",
                 )}
                 style={{
                   left: `${((node.x - minimapBounds.minX) / minimapBounds.width) * 100}%`,
@@ -6772,7 +6621,7 @@ export default function DesignPage({
               onMouseEnter={() => setTidyGroup(id)}
               onClick={() => setTidyGroup(id)}
               className={cn(
-                "flex h-8 w-full items-center rounded-lg px-2 text-left text-[10px] hover:bg-muted",
+                "flex h-8 w-full items-center rounded-lg px-2 text-left text-xs hover:bg-muted",
                 tidyGroup === id && "bg-muted",
               )}
             >
@@ -6800,10 +6649,10 @@ export default function DesignPage({
                   className="flex w-full items-center rounded-lg px-2 py-2 text-left hover:bg-muted"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[10px] font-medium">
+                    <span className="block text-xs font-medium">
                       {label}
                     </span>
-                    <span className="block text-[9px] text-muted-foreground">
+                    <span className="block text-micro text-muted-foreground">
                       {description}
                     </span>
                   </span>
@@ -6814,7 +6663,7 @@ export default function DesignPage({
         </div>
       ) : null}
       {tidySnapshot ? (
-        <div className="absolute bottom-16 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-[12px] border border-black/[0.08] bg-white/95 px-3 py-2 text-[10px] shadow-[0_12px_30px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
+        <div className="absolute bottom-16 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-[12px] border border-black/[0.08] bg-white/95 px-3 py-2 text-xs shadow-[0_12px_30px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
           <span className="font-medium">已整理画布</span>
           <button
             type="button"
@@ -6837,8 +6686,17 @@ export default function DesignPage({
       ) : null}
       {canvasSettingsOpen ? (
         <div className="absolute right-3 top-14 z-40 w-64 max-w-[calc(100%-1.5rem)] max-h-[calc(100%-5rem)] overflow-y-auto rounded-[14px] border border-black/[0.08] bg-white/95 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
-          <div className="text-[10px] font-semibold">画布设置</div>
-          <div className="mt-3 text-[9px] text-muted-foreground">背景样式</div>
+          <div className="text-xs font-semibold">画布设置</div>
+          <div className="mt-3 text-micro text-muted-foreground">画布模式</div>
+          <div className="mt-1.5 grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1">
+            {([["freeform", "自由画布"], ["workflow", "工作流"]] as const).map(([id, label]) => (
+              <button key={id} type="button" aria-pressed={document.mode === id}
+                onClick={() => setDocument((current) => switchDesignCanvasMode(current, id))}
+                className={cn("h-8 rounded-md text-xs", document.mode === id ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              >{label}</button>
+            ))}
+          </div>
+          <div className="mt-3 text-micro text-muted-foreground">背景样式</div>
           <div className="mt-1.5 grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1">
             {(
               [
@@ -6853,7 +6711,7 @@ export default function DesignPage({
                   setCanvasView((current) => ({ ...current, pattern: id }))
                 }
                 className={cn(
-                  "h-7 rounded-md text-[9px]",
+                  "h-7 rounded-md text-micro",
                   canvasView.pattern === id
                     ? "bg-background font-medium shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
@@ -6863,7 +6721,7 @@ export default function DesignPage({
               </button>
             ))}
           </div>
-          <div className="mt-3 text-[9px] text-muted-foreground">背景颜色</div>
+          <div className="mt-3 text-micro text-muted-foreground">背景颜色</div>
           <div className="mt-2 grid grid-cols-9 gap-1.5">
             {CANVAS_BACKGROUND_TONES.map((tone) => (
               <button
@@ -6877,21 +6735,21 @@ export default function DesignPage({
                 title={tone.label}
                 aria-label={`背景颜色：${tone.label}`}
                 className={cn(
-                  "size-5 rounded-full border border-black/10",
+                  "size-5 rounded-full border border-black/10 bg-[var(--canvas-tone)] dark:border-white/15 dark:bg-[var(--canvas-tone-dark)]",
                   canvasView.tone === tone.id &&
                     "ring-2 ring-foreground ring-offset-1",
                 )}
-                style={{ backgroundColor: tone.color }}
+                style={canvasToneStyle(tone)}
               />
             ))}
           </div>
-          <div className="mt-3 border-t border-border-subtle pt-2 text-[9px] text-muted-foreground">
+          <div className="mt-3 border-t border-border-subtle pt-2 text-micro text-muted-foreground">
             画布偏好会自动保存在本机
           </div>
         </div>
       ) : null}
       {connectionSourceId ? (
-        <div className="absolute bottom-[68px] left-1/2 z-30 -translate-x-1/2 rounded-full border border-violet-200 bg-white/92 px-3 py-1.5 text-[9px] font-medium text-violet-700 shadow-sm backdrop-blur dark:border-violet-400/30 dark:bg-[#1a1a1a]/92 dark:text-violet-300">
+        <div className="absolute bottom-[68px] left-1/2 z-30 -translate-x-1/2 rounded-full border border-border bg-background/92 px-3 py-1.5 text-micro font-medium text-foreground shadow-sm backdrop-blur">
           拖到目标端口完成连接 · 落到空白处新建并连接 · Esc 取消
         </div>
       ) : null}
@@ -6952,11 +6810,11 @@ export default function DesignPage({
                     setToolMode(id);
                     setToolModeOpen(false);
                   }}
-                  className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-[11px] font-medium hover:bg-muted"
+                  className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-xs font-medium hover:bg-muted"
                 >
                   <Icon className="size-3.5" />
                   <span>{label}</span>
-                  <kbd className="ml-auto text-[9px] text-muted-foreground">
+                  <kbd className="ml-auto text-micro text-muted-foreground">
                     {shortcut}
                   </kbd>
                 </button>
@@ -7009,11 +6867,11 @@ export default function DesignPage({
                     if (id === "tutorial" || id === "shortcuts")
                       setHelpDialog(id);
                     else {
-                      setFeedbackDialog(id as "feedback" | "wish");
+                      setFeedbackDialog(id);
                       setFeedbackText("");
                     }
                   }}
-                  className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-[11px] font-medium hover:bg-muted"
+                  className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-xs font-medium hover:bg-muted"
                 >
                   <Icon className="size-3.5" />
                   {label}
@@ -7032,7 +6890,7 @@ export default function DesignPage({
               type="button"
               onClick={() => setClearStickersConfirmOpen(true)}
               disabled={!document.nodes.some((node) => node.kind === "sticker")}
-              className="text-[9px] text-muted-foreground hover:text-foreground disabled:opacity-35"
+              className="text-micro text-muted-foreground hover:text-foreground disabled:opacity-35"
             >
               清空全部贴纸
             </button>
@@ -7066,7 +6924,7 @@ export default function DesignPage({
               </button>
             ))}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-muted/65 p-1 text-[9px]">
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-muted/65 p-1 text-micro">
             <button
               type="button"
               onClick={() => setStickerMode("follow")}
@@ -7092,7 +6950,7 @@ export default function DesignPage({
               自由贴纸
             </button>
           </div>
-          <p className="mt-2 text-[9px] leading-4 text-muted-foreground">
+          <p className="mt-2 text-micro leading-4 text-muted-foreground">
             {stickerMode === "follow"
               ? selectedNode &&
                 selectedNode.kind !== "sticker" &&
@@ -7281,7 +7139,7 @@ export default function DesignPage({
             <div className="space-y-3 text-[12px] leading-5 text-muted-foreground">
               <p>1. 从底部“+”添加媒体、导演台、剪辑或 ComfyUI 节点。</p>
               <p>2. 工作流模式下拖动端口建立依赖；落到空白处可新建并连接。</p>
-              <p>3. 从资产中心和 Skill 市场加入真实项目素材与执行能力。</p>
+              <p>3. 从资产中心和技能市场加入真实项目素材与执行能力。</p>
               <p>
                 4. 在个人工作台发送需求时，会自动附带当前节点、连线和资产身份。
               </p>
@@ -7304,7 +7162,7 @@ export default function DesignPage({
               {feedbackDialog === "wish" ? "功能许愿" : "反馈"}
             </DialogTitle>
             <DialogDescription>
-              内容会保存到 Echo 的反馈记录，便于后续产品迭代。
+              内容会保存到 ECHO AI 的反馈记录，便于后续产品迭代。
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -7456,22 +7314,22 @@ export default function DesignPage({
                     STAGE_STATUS_STYLE[selectedNode.stage.status].dot,
                   )}
                 />
-                <span className="text-[10px] font-semibold">
+                <span className="text-xs font-semibold">
                   {STAGE_STATUS_STYLE[selectedNode.stage.status].label}
                 </span>
                 <span className="flex-1" />
-                <span className="text-[9px] text-muted-foreground">
+                <span className="text-micro text-muted-foreground">
                   尝试 {selectedNode.stage.attempt} 次
                 </span>
               </div>
               {selectedStageBlockers.length > 0 ? (
-                <p className="mt-2 text-[9px] leading-4 text-amber-700 dark:text-amber-300">
+                <p className="mt-2 text-micro leading-4 text-amber-700 dark:text-amber-300">
                   等待前置阶段：
                   {selectedStageBlockers.map((stage) => stage.title).join("、")}
                 </p>
               ) : null}
               {selectedNode.stage.lastError ? (
-                <p className="mt-2 line-clamp-3 text-[9px] leading-4 text-red-600">
+                <p className="mt-2 line-clamp-3 text-micro leading-4 text-red-600">
                   {selectedNode.stage.lastError}
                 </p>
               ) : null}
@@ -7479,7 +7337,7 @@ export default function DesignPage({
                 {selectedNode.stage.status === "review" ? (
                   <Button
                     size="sm"
-                    className="h-7 flex-1 rounded-lg text-[10px]"
+                    className="h-7 flex-1 rounded-lg text-xs"
                     onClick={() => {
                       setDocument((current) =>
                         setDesignStageStatus(
@@ -7502,7 +7360,7 @@ export default function DesignPage({
                       ? "outline"
                       : "default"
                   }
-                  className="h-7 flex-1 rounded-lg text-[10px]"
+                  className="h-7 flex-1 rounded-lg text-xs"
                   disabled={
                     selectedNode.stage.status === "running" ||
                     selectedStageBlockers.length > 0
@@ -7525,7 +7383,7 @@ export default function DesignPage({
               selectedStageBlockers.length === 0 ? (
                 <button
                   type="button"
-                  className="mt-2 w-full text-center text-[9px] text-muted-foreground hover:text-foreground"
+                  className="mt-2 w-full text-center text-micro text-muted-foreground hover:text-foreground"
                   onClick={() => {
                     setDocument((current) =>
                       setDesignStageStatus(current, selectedNode.id, "skipped"),
@@ -7545,7 +7403,7 @@ export default function DesignPage({
               edge.target === selectedNode.id,
           ) ? (
             <div className="mt-3 border-t border-border-subtle pt-2">
-              <div className="text-[9px] text-muted-foreground">节点关系</div>
+              <div className="text-micro text-muted-foreground">节点关系</div>
               <div className="mt-1 space-y-1">
                 {document.edges
                   .filter(
@@ -7562,7 +7420,7 @@ export default function DesignPage({
                     return (
                       <div
                         key={edge.id}
-                        className="flex h-7 items-center gap-1.5 rounded-lg bg-muted/60 px-2 text-[9px]"
+                        className="flex h-7 items-center gap-1.5 rounded-lg bg-muted/60 px-2 text-micro"
                       >
                         <span className="text-muted-foreground">
                           {outgoing ? "输出到" : "来自"}
@@ -7590,7 +7448,7 @@ export default function DesignPage({
           ) : null}
           {selectedNode.kind === "group" ? (
             <div className="mt-3 border-t border-border-subtle pt-2">
-              <div className="text-[9px] text-muted-foreground">分组颜色</div>
+              <div className="text-micro text-muted-foreground">分组颜色</div>
               <div className="mt-2 flex gap-1.5">
                 {(Object.keys(GROUP_TONES) as GroupTone[]).map((color) => (
                   <button
@@ -7638,7 +7496,7 @@ export default function DesignPage({
           ) : null}
           <button
             onClick={removeSelected}
-            className="mt-2 flex items-center gap-1.5 text-[10px] text-destructive"
+            className="mt-2 flex items-center gap-1.5 text-xs text-destructive"
           >
             <Trash2Icon className="size-3" />
             删除节点
@@ -7656,9 +7514,10 @@ export default function DesignPage({
             <PluginNodeFrame
               title="AI 剪辑工坊"
               src={`${getBackendBaseURL()}/api/plugins/clip-studio/page?project=${encodeURIComponent(projectId || selectedNode?.id || "default")}`}
-              projectId={projectId}
+              projectId={projectId || selectedNode?.id || "default"}
               pluginId="clip-studio"
               nodeId={selectedNode?.id || "clip-studio"}
+              onRequestClose={() => setEmbeddedSurface(null)}
               className="min-h-0 flex-1 border-0 bg-background"
             />
           ) : !comfyNative ? (
@@ -7675,17 +7534,17 @@ export default function DesignPage({
             <>
               <div className="flex h-11 shrink-0 items-center border-b border-border-subtle px-3">
                 <span className="text-xs font-semibold">ComfyUI 工作流</span>
-                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[8px] text-muted-foreground">
+                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
                   本机原生界面
                 </span>
                 <span className="flex-1" />
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="mr-1 h-8 text-[10px]"
+                  className="mr-1 h-8 text-xs"
                   onClick={() => setComfyNative(false)}
                 >
-                  返回 Echo 编辑器
+                  返回 ECHO AI 编辑器
                 </Button>
                 <Button
                   variant="ghost"
@@ -7711,60 +7570,25 @@ export default function DesignPage({
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
-      <header className="flex min-h-11 shrink-0 flex-wrap items-center gap-y-1 border-b border-border-subtle bg-background px-2.5 py-1 md:h-11 md:flex-nowrap md:py-0">
-        <div className="ml-1 flex min-w-0 max-w-full items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSection("home")}
-            aria-current={activeDesignSection === "home" ? "page" : undefined}
-            className={cn(
-              "relative flex h-10 shrink-0 items-center gap-2 px-1.5 text-[13px] font-semibold transition-colors hover:text-foreground",
-              activeDesignSection === "home"
-                ? "text-foreground after:absolute after:bottom-0 after:left-1.5 after:right-1.5 after:h-0.5 after:rounded-full after:bg-foreground"
-                : "text-muted-foreground",
-            )}
-          >
-            <span className="grid size-7 place-items-center rounded-lg bg-violet-100 text-violet-600">
-              <WandSparklesIcon className="size-3.5" />
-            </span>
-            Echo Design
-          </button>
-          {activeDesignSection !== "home" && (
-            <>
-              {projectId ? (
-                <span className="flex h-8 max-w-44 items-center gap-1.5 px-2 text-[11px] font-medium">
-                  <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{projectName || "当前项目"}</span>
-                </span>
-              ) : (
-                <CreativeProjectSelector
-                  personaId={personaId}
-                  projects={creativeProjects}
-                  currentProjectId={creativeProjectId}
-                  onSelect={handleCreativeProjectChange}
-                  className="w-28 md:w-44"
-                />
-              )}
-              <span className="text-muted-foreground/50">/</span>
-              <input
-                value={document.title}
-                onFocus={beginCanvasTransaction}
-                onBlur={endCanvasTransaction}
-                onChange={(event) =>
-                  setDocumentState((current) => ({
-                    ...current,
-                    title: event.target.value,
-                  }))
-                }
-                className="w-28 md:w-40 truncate bg-transparent text-[13px] font-semibold outline-none"
-                aria-label="画布名称"
-              />
-            </>
-          )}
+      <header data-testid="design-header" className="flex h-11 shrink-0 items-center gap-1 border-b border-border-subtle bg-background px-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label="作品菜单" className="flex h-9 min-w-0 max-w-72 items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <span className="truncate">{activeDesignSection === "home" ? "创作空间" : document.title || "未命名作品"}</span>
+                <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel className="truncate text-xs text-muted-foreground">{canvasScopeName}</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setProjectDetailsOpen(true)}><PencilIcon />作品设置</DropdownMenuItem>
+              {!canvasOnly && <DropdownMenuItem onSelect={() => setSection("home")}><PlusIcon />返回创作首页</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {projectId ? (
             <span
               className={cn(
-                "hidden text-[9px] text-muted-foreground xl:inline",
+                "hidden text-micro text-muted-foreground xl:inline",
                 canvasSyncState === "conflict" && "text-amber-600",
                 canvasSyncState === "error" && "text-red-600",
               )}
@@ -7787,13 +7611,13 @@ export default function DesignPage({
               className="hidden items-center -space-x-1.5 sm:flex"
               title={`${presenceMembers.length + 1} 位成员在线`}
             >
-              <span className="grid size-6 place-items-center rounded-full border-2 border-background bg-foreground text-[8px] font-semibold text-background">
+              <span className="grid size-6 place-items-center rounded-full border-2 border-background bg-foreground text-micro font-semibold text-background">
                 {presenceDisplayName.slice(0, 1).toUpperCase()}
               </span>
               {presenceMembers.slice(0, 3).map((member) => (
                 <span
                   key={member.id}
-                  className="grid size-6 place-items-center rounded-full border-2 border-background text-[8px] font-semibold text-white"
+                  className="grid size-6 place-items-center rounded-full border-2 border-background text-micro font-semibold text-white"
                   style={{ backgroundColor: member.color }}
                   title={`${member.display_name} · ${member.section === "canvas" ? "画布" : member.section}`}
                 >
@@ -7801,7 +7625,7 @@ export default function DesignPage({
                 </span>
               ))}
               {presenceMembers.length > 3 ? (
-                <span className="grid size-6 place-items-center rounded-full border-2 border-background bg-muted text-[8px] font-medium text-muted-foreground">
+                <span className="grid size-6 place-items-center rounded-full border-2 border-background bg-muted text-micro font-medium text-muted-foreground">
                   +{presenceMembers.length - 3}
                 </span>
               ) : null}
@@ -7812,7 +7636,7 @@ export default function DesignPage({
               <button
                 type="button"
                 onClick={() => resolveCanvasConflict("merge")}
-                className="rounded-md bg-amber-100 px-2 py-1 text-[9px] font-medium text-amber-800 transition hover:bg-amber-200"
+                className="rounded-md bg-amber-100 px-2 py-1 text-micro font-medium text-amber-800 transition hover:bg-amber-200"
                 title={`本地优先合并 ${pendingCanvasConflict.conflicts.length} 处冲突`}
               >
                 合并保存
@@ -7820,117 +7644,58 @@ export default function DesignPage({
               <button
                 type="button"
                 onClick={() => resolveCanvasConflict("remote")}
-                className="rounded-md px-2 py-1 text-[9px] text-muted-foreground transition hover:bg-muted"
+                className="rounded-md px-2 py-1 text-micro text-muted-foreground transition hover:bg-muted"
               >
                 载入新版
               </button>
             </span>
           ) : null}
         </div>
-        {!canvasOnly && <nav
-          className={cn(
-            "order-last flex h-9 w-full shrink-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-[13px] md:order-none md:ml-3 md:h-full md:w-auto",
-            projectId ? "md:hidden xl:flex" : "",
-          )}
-        >
-          {(
-            [
-              ["canvas", "创作画布"],
-              ["assets", "资产中心"],
-              ["comfyui", "高级工作流"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
+        {!canvasOnly && <nav aria-label="设计导航" className="flex h-full shrink-0 items-center gap-1 text-[13px]">
+          {([["canvas", "画布"], ["assets", "资产"]] as const).map(([id, label]) => (
+            <button key={id} type="button" aria-current={activeDesignSection === id ? "page" : undefined}
               onClick={() => { setSection(id); if (id === "canvas" && displayLayout === "chat") { setLayout("canvas"); setMobileView("canvas"); } }}
-              className={cn(
-                "relative h-full px-2.5 text-muted-foreground",
-                activeDesignSection === id &&
-                  "font-medium text-foreground after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-foreground",
-              )}
-            >
-              {label}
-            </button>
+              className={cn("relative h-full px-2.5 text-muted-foreground", activeDesignSection === id && "font-medium text-foreground after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-foreground")}
+            >{label}</button>
           ))}
         </nav>}
-        <span className="flex-1" />
-        {section === "canvas" ? (
-          <>
-            <div className="mr-1 flex rounded-lg bg-muted/70 p-0.5 text-[10px]">
-              <button
-                onClick={() =>
-                  setDocument((current) =>
-                    switchDesignCanvasMode(current, "freeform"),
-                  )
-                }
-                className={cn(
-                  "rounded-md px-2.5 py-1.5",
-                  document.mode === "freeform" &&
-                    "bg-background font-medium shadow-sm",
-                )}
-              >
-                自由画布
-              </button>
-              <button
-                onClick={() =>
-                  setDocument((current) =>
-                    switchDesignCanvasMode(current, "workflow"),
-                  )
-                }
-                className={cn(
-                  "rounded-md px-2.5 py-1.5",
-                  document.mode === "workflow" &&
-                    "bg-background font-medium shadow-sm",
-                )}
-              >
-                工作流
-              </button>
-            </div>
-            <div className="relative hidden md:block">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                onClick={() => setLayoutOpen((value) => !value)}
-                aria-label="工作区布局"
-              >
-                <LayoutPanelLeftIcon className="size-4" />
-              </Button>
-              {layoutOpen ? (
-                <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-border-default bg-background p-2 shadow-xl">
-                  <div className="px-2 pb-2 pt-1 text-[10px] font-semibold text-muted-foreground">
-                    布局模式
-                  </div>
-                  {(
-                    [
-                      ["split", "画布 + 个人工作台", PanelRightIcon],
-                      ["chat-left", "工作台在左", PanelLeftCloseIcon],
-                      ["chat", "仅个人工作台", MessageSquareIcon],
-                      ["canvas", "仅画布", Maximize2Icon],
-                    ] as const
-                  ).map(([id, label, Icon]) => (
-                    <button
-                      key={id}
-                      onClick={() => {
-                        setLayout(id);
-                        setLayoutOpen(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] hover:bg-muted"
-                    >
-                      <Icon className="size-3.5" />
-                      {label}
-                      <span className="flex-1" />
-                      {layout === id ? (
-                        <CheckIcon className="size-3.5" />
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </>
-        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8 shrink-0" aria-label="更多设计选项"><EllipsisIcon className="size-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {!canvasOnly && <DropdownMenuItem onSelect={() => setSection("comfyui")}><WorkflowIcon />高级工作流</DropdownMenuItem>}
+            {section === "canvas" && <>
+              {!canvasOnly && <DropdownMenuSeparator />}
+              <DropdownMenuLabel>工作区布局</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={displayLayout} onValueChange={(value) => { setLayout(value as WorkspaceLayout); if (value === "canvas" || value === "chat") setMobileView(value); }}>
+                {([
+                  ["split", "画布 + 个人工作台"], ["chat-left", "工作台在左"],
+                  ["chat", "仅个人工作台"], ["canvas", "仅画布"],
+                ] as const).filter(([id]) => !isMobile || id === "chat" || id === "canvas").map(([id, label]) => (
+                  <DropdownMenuRadioItem key={id} value={id}>{label}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </>}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
+      <Dialog open={projectDetailsOpen} onOpenChange={setProjectDetailsOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>作品设置</DialogTitle></DialogHeader>
+          <label className="space-y-2 text-sm">作品名称
+            <Input value={document.title} aria-label="画布名称" onFocus={beginCanvasTransaction} onBlur={endCanvasTransaction}
+              onChange={(event) => setDocumentState((current) => ({ ...current, title: event.target.value }))} />
+          </label>
+          <div className="space-y-1 text-sm">
+            <span>所属空间</span>
+            {projectId ? <p className="py-2 text-muted-foreground">{projectName || "当前项目"}</p> :
+              <CreativeProjectSelector personaId={personaId} projects={creativeProjects} currentProjectId={creativeProjectId}
+                onSelect={(id) => { setProjectDetailsOpen(false); handleCreativeProjectChange(id); }} />}
+          </div>
+          <DialogFooter><Button onClick={() => setProjectDetailsOpen(false)}>完成</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       {section === "canvas" && isMobile && (
         <div
           className="flex shrink-0 gap-2 border-b bg-background p-2"
@@ -7963,16 +7728,14 @@ export default function DesignPage({
             }
             key={newTaskNonce || "current-design-task"}
             threadId={designThreadId ?? undefined}
-            onStart={async (prompt, enabledModels, files) => {
+            onStart={async (prompt, capabilities, files) => {
               const artifacts = files?.length ? await uploadHomeFiles(files) : [];
               if (files?.length && !artifacts?.length) return;
               const attachmentNote = artifacts?.length ? `\n\n参考附件：${artifacts.map((item) => item.url).join("\n")}` : "";
-              const capabilityNote = enabledModels.length
-                ? `\n\n可调用创作能力：${enabledModels.join("、")}`
-                : "";
-              addNode("brief", "创作需求", `${prompt}${capabilityNote}`);
+              setActiveDesignCapabilities(capabilities);
+              addNode("brief", "创作需求", prompt);
               setSection("canvas");
-              runCanvas(`${prompt}${capabilityNote}${attachmentNote}`);
+              runCanvas(`${prompt}${attachmentNote}`, capabilities);
             }}
             onUseTemplate={() => {
               const template = createDramaSeriesCanvas();
@@ -7983,17 +7746,7 @@ export default function DesignPage({
               if (layout === "canvas") setLayout("chat-left");
               toast.success("AI 漫剧工作流已创建，可从第一阶段开始");
             }}
-            onOpenSkills={() => {
-              const href = "/workspace/agents?tab=skills";
-              if (window.parent !== window) {
-                window.parent.postMessage(
-                  { type: "echo.workbench.navigate", href },
-                  workspaceHostOrigin(),
-                );
-              } else {
-                navigate(href);
-              }
-            }}
+            onOpenWorkflow={() => setSection("comfyui")}
           />
         ) : null}
         {section === "assets" ? (

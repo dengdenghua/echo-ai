@@ -672,7 +672,11 @@ def _browser_type(
                 # fill/press API without a full Locator implementation.
                 if clear_first:
                     p.fill(selector, "", timeout=timeout_ms)
-                p.fill(selector, text, timeout=timeout_ms)
+                    p.fill(selector, text, timeout=timeout_ms)
+                else:
+                    p.focus(selector, timeout=timeout_ms)
+                    p.press(selector, "ControlOrMeta+End", timeout=timeout_ms)
+                    p.type(selector, text, timeout=timeout_ms)
                 if press_enter:
                     p.press(selector, "Enter", timeout=timeout_ms)
                 input_kind = "text"
@@ -687,9 +691,15 @@ def _browser_type(
                         locator.select_option(value=text, timeout=timeout_ms)
                     input_kind = "select"
                 else:
-                    if clear_first:
-                        locator.fill("", timeout=timeout_ms)
-                    locator.fill(text, timeout=timeout_ms)
+                    replacement = text
+                    if not clear_first:
+                        existing = (
+                            locator.input_value(timeout=timeout_ms)
+                            if str(tag_name).upper() in {"INPUT", "TEXTAREA"}
+                            else locator.inner_text(timeout=timeout_ms)
+                        )
+                        replacement = existing + text
+                    locator.fill(replacement, timeout=timeout_ms)
                     input_kind = "text"
                 if press_enter:
                     locator.press("Enter", timeout=timeout_ms)

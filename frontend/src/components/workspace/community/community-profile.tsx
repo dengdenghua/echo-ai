@@ -172,7 +172,7 @@ export function CommunityProfile({
               "flex items-center gap-1.5 rounded-md px-5 py-1.5 text-sm font-semibold transition-colors",
               subscribed
                 ? "border border-border-default text-muted-foreground hover:bg-muted/60"
-                : "bg-chart-3 text-white hover:bg-chart-3/90",
+                : "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
             <BellRingIcon className="size-3.5" />
@@ -211,8 +211,7 @@ export function CommunityProfile({
                     alt={p.title}
                     loading="lazy"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display =
-                        "none";
+                      e.currentTarget.style.display = "none";
                     }}
                     className="size-full object-cover transition-transform duration-slow group-hover:scale-[1.03]"
                   />

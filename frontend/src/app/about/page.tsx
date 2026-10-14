@@ -9,7 +9,11 @@ import { WhatsNewSection } from "@/components/landing/sections/whats-new-section
 
 export default function AboutPage() {
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#08080c]">
+    // The landing is always ECHO Graphite, whatever the app scheme.
+    <div
+      data-echo-theme="graphite"
+      className="relative min-h-screen w-full overflow-hidden bg-[var(--echo-ground)] text-foreground"
+    >
       <div className="absolute inset-0 css-starfield opacity-60" />
       <Header />
       <main className="relative z-10 flex w-full flex-col">

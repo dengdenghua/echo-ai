@@ -48,7 +48,7 @@ const VIEW_OPTIONS: ReadonlyArray<{
   { value: "all", label: "全部应用", icon: LayoutGrid },
   { value: "codex", label: "Codex 插件", icon: Sparkles },
   { value: "library", label: "我的库", icon: Library },
-  { value: "remote", label: "远程Agent", icon: Network },
+  { value: "remote", label: "远程智能体", icon: Network },
 ];
 
 export function AppMarketplacePanel({

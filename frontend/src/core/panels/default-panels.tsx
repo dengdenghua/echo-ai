@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import type { PanelProps } from "./panel-manifest";
 import { definePanel, getPanel, registerPanel } from "./panel-manifest";
 
-function SystemStatusPanel({ panel }: PanelProps) {
+function SystemStatusPanel({ panel, context }: PanelProps) {
   return (
     <div
       data-testid="system-status-panel"
@@ -19,6 +19,12 @@ function SystemStatusPanel({ panel }: PanelProps) {
       <p className="mt-2 text-muted-foreground">
         查看当前部署的运行状态、服务连接与诊断记录。
       </p>
+      {/* The reference panel exists to demonstrate the manifest contract, so it
+          renders the PanelContext it receives instead of ignoring it. */}
+      <dl className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+        {context.threadId ? <dd>thread: {context.threadId}</dd> : null}
+        {context.agentId ? <dd>agent: {context.agentId}</dd> : null}
+      </dl>
       <Link
         to="/workspace/observability"
         className="mt-3 inline-flex rounded-md border px-3 py-2 text-sm hover:bg-muted"

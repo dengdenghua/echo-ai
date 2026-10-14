@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -50,7 +51,11 @@ def test_share_store_persists_only_a_capability_token_hash(tmp_path: Path) -> No
     assert persisted["token_hash"] == token_hash
     assert persisted["share_id"].startswith("shr_")
     assert persisted["expires_at"]
-    assert files[0].stat().st_mode & 0o777 == 0o600
+    if os.name == "posix":
+        # Windows has no POSIX mode bits (chmod only toggles read-only); the
+        # record holds only a token hash plus the already-public snapshot, and
+        # inherits the per-user profile ACL of the data directory there.
+        assert files[0].stat().st_mode & 0o777 == 0o600
 
     loaded = store.get(token)
     assert loaded is not None

@@ -8,6 +8,7 @@ including static permission rules, risk category, and final action.
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -23,6 +24,8 @@ from runtime.safety.approval.approval_gate import (
 )
 
 TrustDecisionSource = Literal["static_policy", "risk_policy"]
+
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,8 +157,15 @@ class TrustGatewayApprovalProvider(ApprovalProvider):
                     static_policy=self._static_policy,
                 ),
             )
-        except Exception:
-            return
+        except Exception:  # noqa: BLE001 — never block the decision on its audit trail
+            # The decision stands, but a missing audit row must be visible.
+            _LOG.warning(
+                "failed to record %s approval decision for tool %s (call %s)",
+                "approved" if decision.approved else "rejected",
+                req.tool_name,
+                req.tool_call_id,
+                exc_info=True,
+            )
 
 
 def summarize_trust_denials(

@@ -64,10 +64,10 @@ function StatusBadge({ status }: { status: string }) {
       "bg-warning/10 text-warning dark:bg-warning/30 dark:text-warning",
     failed: "bg-destructive/10 text-destructive dark:bg-destructive/30 dark:text-destructive",
     running: "bg-primary/10 text-primary dark:bg-primary/30 dark:text-primary",
-    pending: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground/70",
+    pending: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground",
     success:
       "bg-success/10 text-success dark:bg-success/30 dark:text-success",
-    skipped: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground/70",
+    skipped: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground",
   };
 
   return (
@@ -91,9 +91,9 @@ function StepResultIcon({ status }: { status: string }) {
     case "failed":
       return <XCircleIcon className="size-3.5 text-destructive" />;
     case "skipped":
-      return <CircleIcon className="size-3.5 text-muted-foreground/70" />;
+      return <CircleIcon className="size-3.5 text-muted-foreground" />;
     default:
-      return <CircleDotIcon className="size-3.5 text-muted-foreground/70" />;
+      return <CircleDotIcon className="size-3.5 text-muted-foreground" />;
   }
 }
 
@@ -476,12 +476,19 @@ function TemplateLibrary({
         <div className="border-input bg-background flex flex-1 items-center gap-1.5 rounded-lg border px-2 py-1">
           <SearchIcon className="text-muted-foreground size-3.5" />
           <input
-            type="text"
+            // Autofill guard: a bare text input gets the saved account
+            // auto-filled by the browser, which then filters by it.
+            type="search"
+            name="echo-teach-repeat-search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             placeholder={t.teachRepeat.searchWorkflows}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label={t.teachRepeat.searchWorkflows}
-            className="w-full bg-transparent text-sm outline-none"
+            className="w-full bg-transparent text-sm outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
         </div>
         <button

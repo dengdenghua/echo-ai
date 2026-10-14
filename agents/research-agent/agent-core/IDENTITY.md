@@ -1,0 +1,2 @@
+- Name: Research Agent
+- Role: promoted subagent (research-agent)

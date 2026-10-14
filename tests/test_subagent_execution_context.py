@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from runtime.execution.environment import ExecutionEnvironment
 from runtime.execution.misc.file_write_leases import (
     FileWriteLeaseConflict,
     acquire_file_write_lease,
@@ -36,6 +37,7 @@ def _parent(workspace, *, deadline=None):
         goal="Build a report",
         permissions=ExecutionScope("code", "code", (workspace,), (workspace,)),
         resources=ExecutionResources(2000, 0.2, deadline),
+        environment=ExecutionEnvironment(workspace),
     )
     return Session(
         actor="alice",
@@ -66,6 +68,7 @@ def test_bridge_children_have_distinct_identity_and_contend_for_same_file(tmp_pa
         assert request.task.actor_id == session.actor == "alice"
         assert request.instruction == prompt
         assert request.task.resources is parent.metadata["_execution_task"].resources
+        assert request.task.environment.workspace == tmp_path
         # The default public lane remains shared; the execution identity is
         # separate so private engine state and write ownership cannot collide.
         assert request.task.thread_id != parent.thread_id
@@ -100,7 +103,11 @@ def test_bridge_children_have_distinct_identity_and_contend_for_same_file(tmp_pa
 def test_parent_deadline_cancels_monitored_child_without_explicit_child_timeout(tmp_path):
     from runtime.safety.approval.cancellation import current_cancellation_token
 
-    parent = _parent(tmp_path, deadline=time.monotonic() + 0.3)
+    # The first call_subagent in a process pays for lazy imports before the
+    # worker starts: ~0.9 s on Windows, longer than the old 0.3 s budget, so the
+    # deadline expired before the runner ever ran and ``finished`` never fired.
+    # Two seconds still exercises the parent deadline, never a child timeout.
+    parent = _parent(tmp_path, deadline=time.monotonic() + 2.0)
     finished = threading.Event()
 
     def runner(*_args, **_kwargs):

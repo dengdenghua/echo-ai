@@ -14,8 +14,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from runtime.platform.integrity.chain import GENESIS, seal_step
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import configure, migrate
+from runtime.projectos._store_event_write import insert_sealed_event
 from runtime.projectos._store_helpers import (
     _MAX_NAME_LENGTH,
     _available_milestone_id,
@@ -43,7 +44,6 @@ from runtime.projectos._store_project_deletion import (
     ProjectDeletionStoreMixin,
     assert_project_not_deleting,
     assert_task_not_deleted,
-    ensure_project_delete_schema,
 )
 from runtime.projectos._store_project_deletion import (
     ProjectThreadBoundError as _ProjectThreadBoundError,
@@ -51,6 +51,7 @@ from runtime.projectos._store_project_deletion import (
 from runtime.projectos._store_project_deletion import (
     ProjectThreadDeletingError as _ProjectThreadDeletingError,
 )
+from runtime.projectos._store_schema import _MIGRATIONS
 from runtime.projectos._store_task_claims import ProjectClaimStoreMixin
 from runtime.projectos._store_thread_bindings import (
     ProjectAlreadyBoundError as _ProjectAlreadyBoundError,
@@ -75,6 +76,7 @@ from runtime.projectos._store_thread_bindings import (
 from runtime.projectos._store_thread_bindings import (
     delete_project as _delete_project,
 )
+from runtime.projectos.commit_notifications import ProjectCommitObserverMixin
 from runtime.projectos.model import Milestone, Project, Task
 from runtime.safety.auth.scope import TenantScope
 
@@ -92,69 +94,6 @@ ProjectThreadBoundError = _ProjectThreadBoundError
 ProjectThreadDeletingError = _ProjectThreadDeletingError
 
 
-def _migrate_project_event_seal_columns(conn: sqlite3.Connection) -> None:
-    """Backfill the tamper-evident seal columns on older databases.
-
-    ``seq`` is the per-project monotonic counter the chain folds in — without
-    it, deleting a middle row would go undetected because the remaining rows
-    re-seal consistently. Sealed rows keep their original seq; legacy unsealed
-    rows (seq=0) are left alone and verified as a gap-free prefix failure.
-    """
-    columns = {
-        str(row[1]) for row in conn.execute("PRAGMA table_info(project_events)").fetchall()
-    }
-    if "seq" not in columns:
-        conn.execute("ALTER TABLE project_events ADD COLUMN seq INTEGER NOT NULL DEFAULT 0")
-        # Legacy rows get their insertion order (rowid is monotonic on this
-        # append-only table); new rows take MAX(seq)+1 per project from here on.
-        conn.execute("UPDATE project_events SET seq = rowid WHERE seq = 0")
-    if "seal_prev" not in columns:
-        conn.execute(
-            "ALTER TABLE project_events ADD COLUMN seal_prev TEXT NOT NULL DEFAULT ''"
-        )
-    if "seal" not in columns:
-        conn.execute("ALTER TABLE project_events ADD COLUMN seal TEXT NOT NULL DEFAULT ''")
-
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, doc TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS milestones (
-    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, doc TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY, milestone_id TEXT NOT NULL, doc TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS task_claims (
-    task_id TEXT PRIMARY KEY, claim_id TEXT NOT NULL, claimed_at REAL NOT NULL
-);
-CREATE TABLE IF NOT EXISTS milestone_claims (
-    milestone_id TEXT PRIMARY KEY, claim_id TEXT NOT NULL, claimed_at REAL NOT NULL
-);
-CREATE TABLE IF NOT EXISTS thread_projects (
-    thread_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS thread_project_generations (
-    thread_id TEXT PRIMARY KEY,
-    generation INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS project_events (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    created_at REAL NOT NULL,
-    seq INTEGER NOT NULL DEFAULT 0,
-    seal_prev TEXT NOT NULL DEFAULT '',
-    seal TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS idx_ms_project ON milestones(project_id);
-CREATE INDEX IF NOT EXISTS idx_task_ms ON tasks(milestone_id);
-CREATE INDEX IF NOT EXISTS idx_project_events_project
-    ON project_events(project_id, created_at);
-"""
-
-
 def _default_dir() -> Path:
     from runtime.platform.process.paths import app_paths
 
@@ -162,6 +101,7 @@ def _default_dir() -> Path:
 
 
 class ProjectStore(
+    ProjectCommitObserverMixin,
     ProjectBindingStoreMixin,
     ProjectClaimStoreMixin,
     ProjectMessageActionStoreMixin,
@@ -178,10 +118,9 @@ class ProjectStore(
         self._db = d / "projectos.db"
         self._lock = threading.Lock()
         self._scope = scope
-        with self._lock, connect_closing(str(self._db)) as conn:
-            conn.executescript(_SCHEMA)
-            ensure_project_delete_schema(conn)
-            _migrate_project_event_seal_columns(conn)
+        self._commit_listeners = []
+        with self._lock, configure(connect_closing(str(self._db)), wal=False) as conn:
+            migrate(conn, _MIGRATIONS, name="projectos")
             conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 "INSERT OR IGNORE INTO thread_project_generations(thread_id, generation) "
@@ -195,6 +134,7 @@ class ProjectStore(
         view._db = self._db
         view._lock = self._lock
         view._scope = scope
+        view._commit_listeners = self._commit_listeners
         return view
 
     def _effective_scope(self, scope: TenantScope | None) -> TenantScope | None:
@@ -238,9 +178,6 @@ class ProjectStore(
         return (
             project if self._scope_project_allowed(project, self._effective_scope(scope)) else None
         )
-
-    def _conn(self) -> sqlite3.Connection:
-        return connect_closing(str(self._db), timeout=10.0)
 
     # ── projects ─────────────────────────────────────────────────────────────
     def save_project(
@@ -287,6 +224,9 @@ class ProjectStore(
                 project.started_at = existing.started_at or project.started_at
                 project.finished_at = existing.finished_at or project.finished_at
                 project.execution_thread_id = existing.execution_thread_id
+                # The planning surface is decided once, at creation; a later
+                # writer must not relabel an app project as CLI-drivable.
+                project.origin = existing.origin
                 project = self._prepare_project(_normalize_project(project), scope)
             conn.execute(
                 "INSERT INTO projects(id, doc) VALUES (?, ?) "
@@ -392,15 +332,15 @@ class ProjectStore(
                         json.dumps(milestone.to_dict(), ensure_ascii=False),
                     ),
                 )
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at) "
-                "VALUES (?, ?, 'project.planned', ?, ?)",
-                (
-                    event_id,
-                    candidate_project.id,
-                    json.dumps(event_payload, ensure_ascii=False),
-                    created_at,
-                ),
+            insert_sealed_event(
+                conn,
+                {
+                    "id": event_id,
+                    "project_id": candidate_project.id,
+                    "kind": "project.planned",
+                    "payload": event_payload,
+                    "created_at": created_at,
+                },
             )
         return candidate_project, resolved
 
@@ -478,37 +418,7 @@ class ProjectStore(
                 )
             if self._project_doc_for_scope(conn, project, scope) is None:
                 raise PermissionError("project belongs to another tenant or does not exist")
-            last = conn.execute(
-                "SELECT seq, seal FROM project_events "
-                "WHERE project_id=? ORDER BY seq DESC LIMIT 1",
-                (project,),
-            ).fetchone()
-            seq = (int(last[0]) + 1) if last else 1
-            prev_seal = str(last[1]) if last and last[1] else GENESIS
-            event["seq"] = seq
-            event["seal_prev"] = prev_seal
-            event["seal"] = seal_step(
-                prev_seal,
-                scope=project,
-                seq=seq,
-                record_id=event["id"],
-                payload=json.dumps(event["payload"], ensure_ascii=False),
-                ts=event["created_at"],
-            )
-            conn.execute(
-                "INSERT INTO project_events(id, project_id, kind, payload, created_at, "
-                "seq, seal_prev, seal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    event["id"],
-                    event["project_id"],
-                    event["kind"],
-                    json.dumps(event["payload"], ensure_ascii=False),
-                    event["created_at"],
-                    seq,
-                    event["seal_prev"],
-                    event["seal"],
-                ),
-            )
+            insert_sealed_event(conn, event)
         return event
 
     def events_for_project(

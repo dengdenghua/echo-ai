@@ -14,7 +14,7 @@ import os
 import shutil
 import signal
 import subprocess
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -113,7 +113,7 @@ async def stream_workbuddy(
     prompt: str,
     workspace: Path,
     resume: str | None = None,
-) -> AsyncIterator[dict[str, Any]]:
+) -> AsyncGenerator[dict[str, Any], None]:
     """Yield native JSON events; cancellation always reaps the process tree."""
     args = [
         *config.command,

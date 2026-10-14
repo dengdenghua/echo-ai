@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -35,6 +36,7 @@ def delete_team_room_fail_safe(
     save: Callable[[], None],
     delete_reserved_state: Callable[[str, str, str], Any],
     delete_projection: Callable[[str], None],
+    notify_deleted: Callable[[str, str], None] | None = None,
 ) -> dict[str, Any]:
     """Delete a room only after winning the canonical GroupStore reservation.
 
@@ -129,6 +131,11 @@ def delete_team_room_fail_safe(
         if lease is not None:
             raise _recovery_pending(team_id, token, exc) from exc
         raise
+    if notify_deleted is not None:
+        try:
+            notify_deleted(team_id, tenant_id)
+        except Exception:  # noqa: BLE001 - committed deletion survives notification failure
+            logging.getLogger(__name__).warning("room deletion notification failed")
     return {"ok": True, "deleted": existing is not None, "team_id": team_id}
 
 

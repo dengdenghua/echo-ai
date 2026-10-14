@@ -91,21 +91,9 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   session: HistoryIcon,
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  file: "text-info",
-  symbol: "text-chart-1",
-  folder: "text-warning",
-  git: "text-chart-7",
-  docs: "text-success",
-  web: "text-info",
-  terminal: "text-muted-foreground",
-  agent: "text-chart-6",
-  plugin: "text-chart-3",
-  skill: "text-warning",
-  pack: "text-chart-5",
-  database: "text-success",
-  session: "text-chart-2",
-};
+// ECHO: categories are told apart by icon and label, never by colour, and
+// state colours (warning, breach, nano…) stay reserved for states.
+const MENTION_ICON_CLASS = "text-muted-foreground";
 
 // Echo Native mention encoding — canonical ``echo-session:`` URI of the
 // session id (base64url of ASCII-escaped JSON), mirrored from
@@ -204,8 +192,8 @@ async function fetchSessionCandidates(
 
 const LOCAL_FILE_AGENT_MENTION: MentionItem = {
   type: "agent",
-  label: "本地数据库",
-  value: "本地数据库",
+  label: "资料库",
+  value: "资料库",
   description: "只在本机索引和检索授权资料，确认后再带入任务上下文",
   icon: "database",
 };
@@ -217,7 +205,7 @@ function withLocalFileAgentMention(
   const normalized = query.trim().toLowerCase();
   const shouldShow =
     normalized === "" ||
-    "本地数据库".includes(normalized) ||
+    "资料库".includes(normalized) ||
     "私域资料库".includes(normalized) ||
     "本地资料官".includes(normalized) ||
     "local database".includes(normalized) ||
@@ -226,7 +214,7 @@ function withLocalFileAgentMention(
     "nas".includes(normalized) ||
     "storage".includes(normalized) ||
     normalized === "agent:" ||
-    normalized.startsWith("agent:本地数据库") ||
+    normalized.startsWith("agent:资料库") ||
     normalized.startsWith("agent:私域") ||
     normalized.startsWith("agent:本地") ||
     normalized.startsWith("agent:local");
@@ -239,6 +227,7 @@ function withLocalFileAgentMention(
 
 /** A team member offered by the @ typeahead (group roster). */
 export interface MentionMemberInput {
+  kind?: "human" | "agent" | "role";
   name: string;
   display_name?: string | null;
   icon?: string | null;
@@ -266,9 +255,7 @@ function withMemberMentions(
   // WeChat-style: a team @ is for mentioning people, so drop the tool/skill
   // category noise (the "Bundled skills:" packs and bare category rows). Keep
   // people + 本地数据库 + any concrete file/symbol hits the user typed.
-  const peopleFocused = results.filter(
-    (r) => !/^Bundled skills:/.test(String(r.description ?? "")),
-  );
+  const peopleFocused = results.filter((r) => r.type !== "pack");
   results = peopleFocused;
   const existing = new Set(results.map((r) => r.value));
   const matched: MentionItem[] = members
@@ -819,7 +806,7 @@ export function MentionAutocompletePopup({
           <span>{t.mentions.mentions}</span>
           {mentionQuery && (
             <>
-              <span className="text-muted-foreground/40">|</span>
+              <span className="text-muted-foreground">|</span>
               <span className="text-foreground/70 normal-case tracking-normal font-normal">
                 {mentionQuery}
               </span>
@@ -845,8 +832,7 @@ export function MentionAutocompletePopup({
               CATEGORY_ICONS[item.icon] ||
               CATEGORY_ICONS[item.type] ||
               FileIcon;
-            const colorClass =
-              CATEGORY_COLORS[item.type] || "text-muted-foreground";
+            const colorClass = MENTION_ICON_CLASS;
             const isSelected = index === selectedIndex;
 
             return (
@@ -887,14 +873,16 @@ export function MentionAutocompletePopup({
                   </div>
                   {item.description && (
                     <div className="text-muted-foreground truncate text-xs leading-tight">
-                      {item.description}
+                      {item.type === "pack"
+                        ? t.mentions.skillPack(
+                            item.description.replace(/^Bundled skills:\s*/, ""),
+                          )
+                        : item.description}
                     </div>
                   )}
                 </div>
                 {item.value.endsWith(":") && (
-                  <div className="text-muted-foreground/50 text-xs">
-                    &rsaquo;
-                  </div>
+                  <div className="text-muted-foreground text-xs">&rsaquo;</div>
                 )}
               </button>
             );
@@ -904,7 +892,7 @@ export function MentionAutocompletePopup({
 
       {/* Footer hint */}
       <div className="border-t px-3 py-1">
-        <div className="text-muted-foreground/60 flex items-center gap-3 text-xs">
+        <div className="text-muted-foreground flex items-center gap-3 text-xs">
           <span>
             <kbd className="bg-muted rounded px-1 font-mono text-xs">
               &uarr;&darr;
@@ -942,7 +930,7 @@ export function MentionBadge({
 }: MentionBadgeProps) {
   const IconComponent =
     CATEGORY_ICONS[type] || CATEGORY_ICONS[type] || FileIcon;
-  const colorClass = CATEGORY_COLORS[type] || "text-muted-foreground";
+  const colorClass = MENTION_ICON_CLASS;
 
   return (
     <span
@@ -984,7 +972,7 @@ export function useFileMention({
       items.map((item) => ({
         name: item.label,
         path: item.description || item.value,
-        type: (item.type === "folder" ? "dir" : "file") as "file" | "dir",
+        type: item.type === "folder" ? "dir" : "file",
       })),
     [items],
   );

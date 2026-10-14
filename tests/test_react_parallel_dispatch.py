@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from contextlib import suppress
 from types import SimpleNamespace
 from typing import Any
 
@@ -53,6 +54,27 @@ def _dispatch(
             parallel_batch_timeout_s=timeout_s,
         )
     )
+
+
+def _warm_up_dispatch() -> None:
+    """Absorb first-call lazy imports before any deadline is timed.
+
+    ``_dispatch_parallel_actions`` imports executor/approval/cancellation
+    modules lazily on first execution; on Windows that cold call costs
+    ~0.4s of wall clock which would otherwise land inside the first
+    test's elapsed-time assertion (threshold 0.3s). Import-time warmup
+    keeps the deadline contract meaningful while staying out of any
+    measured window.
+    """
+    with suppress(Exception):
+        _dispatch(
+            ['read_file({"path":"warm1"})', 'read_file({"path":"warm2"})'],
+            _executor("read_file"),
+            timeout_s=5.0,
+        )
+
+
+_warm_up_dispatch()
 
 
 def test_parallel_deadline_returns_without_waiting_for_noncooperative_lane(

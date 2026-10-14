@@ -41,6 +41,8 @@ from runtime.tentacle.mobile.apks.version import ECHO_MOBILE_VERSION, is_compati
 from runtime.tentacle.mobile.capabilities import android_capabilities
 from runtime.tentacle.mobile.mcp_server import TentacleMcpServer
 
+pytestmark = pytest.mark.usefixtures("enabled_device_plugin_manifests")
+
 # ── 1. 包导入测试 ─────────────────────────────────────────
 
 
@@ -105,11 +107,14 @@ def test_android_capabilities_complete():
         "android.browser.install_extension",
     ]
     expected = set(basic + perception + management + composite + control + files + clip + browser)
-    actual = set(ANDROID_CAPABILITIES)
+    actual = set(android_capabilities())
     assert len(expected) == 30
     assert expected == actual, f"missing: {expected - actual}, extra: {actual - expected}"
-    # device.py is a compatibility export; manifests remain the source of truth.
-    assert tuple(sorted(ANDROID_CAPABILITIES)) == android_capabilities()
+    # The compatibility export is an import-time snapshot; active manifests
+    # change when plugins are enabled or disabled after import.
+    from runtime.tentacle.mobile import device
+
+    assert ANDROID_CAPABILITIES is device.ANDROID_CAPABILITIES
 
 
 def test_tentacle_mcp_tool_name_maps_to_canonical_skill():

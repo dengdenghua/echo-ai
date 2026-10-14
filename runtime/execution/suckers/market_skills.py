@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from runtime.execution.skill_aliases import canonical_skill_id
+
 from .registry import Skill, SkillRegistry
 
 _log = logging.getLogger(__name__)
@@ -339,12 +341,12 @@ def register_market_skills(
     for skill_md in sorted(all_skills_dir.glob("*/SKILL.md")):
         skill_dir = skill_md.parent
         dir_name = skill_dir.name
-        # Bundled prompt skills are required to use their directory slug as
-        # the canonical name.  register_all() deliberately makes one final
+        # Bundled prompt skills can retain a legacy directory slug while the
+        # registry exposes their canonical alias target. register_all() makes one final
         # pass with the enabled flag ignored so disabled bundled fallbacks can
         # fill gaps.  Almost every entry is already present by then, so avoid
         # reopening and reparsing the same SKILL.md files in that pass.
-        if dir_name in registered_names:
+        if canonical_skill_id(dir_name) in registered_names:
             continue
         try:
             text = skill_md.read_text(encoding="utf-8")
@@ -353,7 +355,7 @@ def register_market_skills(
             continue
 
         meta, body = _parse_frontmatter(text)
-        name = _sanitize_skill_name(str(meta.get("name") or dir_name), dir_name)
+        name = canonical_skill_id(_sanitize_skill_name(str(meta.get("name") or dir_name), dir_name))
         if name in seen_names:
             _log.warning("market_skills: duplicate name %r in %s · skip", name, skill_dir)
             continue

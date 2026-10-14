@@ -34,6 +34,12 @@ import {
   useCreateProject,
 } from "@/core/projects/hooks";
 import { useI18n } from "@/core/i18n/hooks";
+import { PROJECT_CATEGORY_PRESETS } from "@/core/projects/project-categories";
+import {
+  DEFAULT_PROJECT_ICON,
+  ProjectIcon,
+  type ProjectIconId,
+} from "@/core/projects/project-icons";
 import { isIMEComposing } from "@/lib/ime";
 import { cn } from "@/lib/utils";
 
@@ -49,37 +55,22 @@ export function CreateProjectDialog({
   const { t } = useI18n();
   const navigate = useNavigate();
   const CATEGORY_PRESETS = useMemo(
-    () => [
-      {
-        label: t.createProjectDialog.categoryInvest,
-        icon: "📈",
-        category: "investment",
-      },
-      {
-        label: t.createProjectDialog.categoryHomework,
-        icon: "📝",
-        category: "homework",
-      },
-      {
-        label: t.createProjectDialog.categoryWriting,
-        icon: "✍️",
-        category: "writing",
-      },
-      {
-        label: t.createProjectDialog.categoryTravel,
-        icon: "✈️",
-        category: "travel",
-      },
-    ],
+    () =>
+      PROJECT_CATEGORY_PRESETS.map((preset) => ({
+        ...preset,
+        label: t.createProjectDialog[preset.labelKey],
+      })),
     [t],
   );
   const [name, setName] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedIcon, setSelectedIcon] = useState<string>("📁");
+  const [selectedIcon, setSelectedIcon] =
+    useState<ProjectIconId>(DEFAULT_PROJECT_ICON);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[] | null>(
     null,
   );
   const [invitePeopleAfterCreate, setInvitePeopleAfterCreate] = useState(false);
+  const [aiBudget, setAiBudget] = useState("");
   const [advanced, setAdvanced] = useState(false);
   const [agentSearch, setAgentSearch] = useState("");
   const { agents, isLoading: agentsLoading } = useAgents();
@@ -125,9 +116,10 @@ export function CreateProjectDialog({
   const resetForm = () => {
     setName("");
     setSelectedCategory(null);
-    setSelectedIcon("📁");
+    setSelectedIcon(DEFAULT_PROJECT_ICON);
     setSelectedAgentIds(null);
     setInvitePeopleAfterCreate(false);
+    setAiBudget("");
     setAdvanced(false);
     setAgentSearch("");
   };
@@ -140,7 +132,7 @@ export function CreateProjectDialog({
   const handleCategorySelect = (preset: (typeof CATEGORY_PRESETS)[number]) => {
     if (selectedCategory === preset.category) {
       setSelectedCategory(null);
-      setSelectedIcon("📁");
+      setSelectedIcon(DEFAULT_PROJECT_ICON);
     } else {
       setSelectedCategory(preset.category);
       setSelectedIcon(preset.icon);
@@ -152,6 +144,15 @@ export function CreateProjectDialog({
 
   const handleSubmit = () => {
     if (!name.trim() || isPending) return;
+    // Optional cap; the project waits for the owner's initiation approval.
+    const aiBudgetUsd = aiBudget.trim() === "" ? undefined : Number(aiBudget);
+    if (
+      aiBudgetUsd !== undefined &&
+      !(Number.isFinite(aiBudgetUsd) && aiBudgetUsd >= 0)
+    ) {
+      toast.error(t.createProjectDialog.invalidAiBudget);
+      return;
+    }
     const initialAgents: ProjectInitialAgent[] = effectiveSelectedAgentIds.map(
       (id) => {
         const agent = agents.find((candidate) => candidate.name === id);
@@ -170,12 +171,13 @@ export function CreateProjectDialog({
         icon: selectedIcon,
         category: selectedCategory ?? undefined,
         initialAgents,
+        aiBudgetUsd,
       },
       {
         onSuccess: ({ threadId }) => {
           resetForm();
           onOpenChange(false);
-          navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
+          void navigate(`/workspace/realtime/${encodeURIComponent(threadId)}`, {
             state: {
               openProjectWorkbench: true,
               ...(invitePeopleAfterCreate
@@ -241,7 +243,7 @@ export function CreateProjectDialog({
                   size="sm"
                   onClick={() => handleCategorySelect(preset)}
                 >
-                  <span className="mr-1">{preset.icon}</span>
+                  <ProjectIcon icon={preset.icon} />
                   {preset.label}
                 </Button>
               ))}
@@ -301,8 +303,17 @@ export function CreateProjectDialog({
             {advanced && (
               <div className="p-2 pb-0">
                 <Input
+                  // Autofill guard: a bare text input gets the saved account
+                  // auto-filled by the browser, which then filters by it.
+                  type="search"
+                  name="echo-project-member-search"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   aria-label={t.createProjectDialog.searchMembers}
                   placeholder={t.createProjectDialog.searchMembers}
+                  className="[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                   value={agentSearch}
                   onChange={(event) => setAgentSearch(event.target.value)}
                 />
@@ -379,6 +390,23 @@ export function CreateProjectDialog({
             )}
           </section>
 
+          <div className="space-y-2">
+            <Label htmlFor="create-project-ai-budget">
+              {t.createProjectDialog.aiBudgetLabel}
+            </Label>
+            <Input
+              id="create-project-ai-budget"
+              inputMode="decimal"
+              disabled={isPending}
+              value={aiBudget}
+              onChange={(e) => setAiBudget(e.target.value)}
+              placeholder={t.createProjectDialog.aiBudgetLabel}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t.createProjectDialog.aiBudgetHint}
+            </p>
+          </div>
+
           {advanced && (
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="flex items-start gap-2.5 rounded-xl border border-border-default px-3 py-2.5">
@@ -408,7 +436,7 @@ export function CreateProjectDialog({
               </div>
 
               <div className="flex items-start gap-2.5 rounded-xl border border-border-default px-3 py-2.5">
-                <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
                   <CrownIcon className="size-4" />
                 </span>
                 <div className="min-w-0">

@@ -12,6 +12,7 @@ import atexit
 import contextlib
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -19,7 +20,7 @@ import shutil
 import socket
 import subprocess
 import threading
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,6 +28,11 @@ from typing import Any
 
 import httpx
 
+from runtime.execution.engine_packages.store import (
+    engines_strict,
+    installed_executable,
+    missing_status,
+)
 from runtime.execution.host_mcp_connection import HostMCPConnection
 from runtime.platform.capabilities.tenant_context import use_capability_scope
 from runtime.platform.connectors.credential_store import CredentialStore
@@ -34,12 +40,47 @@ from runtime.platform.models.custom_model_selection import resolve_custom_model_
 from runtime.platform.process.paths import app_paths
 from runtime.safety.auth.scope import TenantScope
 
+_logger = logging.getLogger(__name__)
+
 
 class OpenCodeError(RuntimeError):
     """Safe-to-display engine failure, without credentials or raw responses."""
 
 
-_WARM_IDLE_SECONDS = 120.0
+def _has_unexecuted_tool_markup(text: str) -> bool:
+    """Recognize protocol blocks outside Markdown examples, without executing text."""
+    fence = ""
+    for line in text.splitlines():
+        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if not fence:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = ""
+            continue
+        if not fence and re.match(
+            r"^\s*<[^<>\n]{0,16}DSML[^<>\n]{0,16}(?:tool_calls|invoke)\b", line
+        ):
+            return True
+    return False
+
+
+# How long an unused engine process is kept for the next turn. An idle
+# ``opencode serve`` held 420-496MB RSS on this host (probed 2026-09-25), so
+# this window is a deliberate memory/latency trade rather than a free cache:
+# a cold start costs ~5.8s to the first token, and 10 minutes covers an
+# ordinary "read the answer, think, come back" gap without pinning the engine
+# for a whole session. Measured: 9.4s cold vs 2.3s warm to first token.
+_WARM_IDLE_SECONDS = 600.0
+
+# Native tools the engine must never run. Injected as "ask" (see
+# ``child_environment``) and refused on every ``permission.asked`` event, so the
+# ceiling holds without a static deny the Zen free tier rejects. The network
+# tools are here because Echo's approval gate never sees a native call: an
+# allowed ``webfetch`` would reach a URL the user just refused through
+# ``echo_fetch_url``. Network access goes through the ``echo_*`` host tools.
+DENIED_NATIVE_TOOLS = ("bash", "edit", "write", "webfetch", "websearch", "codesearch")
 
 
 @dataclass
@@ -74,6 +115,9 @@ def executable() -> str | None:
     if configured:
         path = Path(configured).expanduser()
         return str(path.resolve()) if path.is_file() else None
+    # The store-installed (pinned) engine; the desktop never looks further.
+    if (installed := installed_executable("opencode")) or engines_strict():
+        return installed
     # The local launcher records its pinned installation here. Discover only
     # this source tree's managed tool directory, never an arbitrary cwd's
     # runtime-paths file or a path outside the managed installation.
@@ -93,8 +137,12 @@ def executable() -> str | None:
                 )
             ):
                 return str(candidate)
-    except (OSError, ValueError):
+    except (OSError, ValueError):  # intentional: an invalid record falls through
         pass
+    name = "opencode.exe" if os.name == "nt" else "opencode"
+    bundled = Path(__file__).resolve().parents[2] / "extras/desktop/build/opencode" / name
+    if bundled.is_file():
+        return str(bundled)
     return shutil.which("opencode")
 
 
@@ -112,10 +160,15 @@ def resolve_zen_model(selection: str | None, catalog: dict[str, Any]) -> str:
         selected_go and selected_go.entry_id not in {"opencode-zen", "opencode-go"}
     ):
         return "echo-shared/" + str(selection)
-    if (selected_go and selected_go.entry_id == "opencode-go") or (selection or "").startswith("opencode-go/"):
+    if (selected_go and selected_go.entry_id == "opencode-go") or (selection or "").startswith(
+        "opencode-go/"
+    ):
         entry = catalog.get("opencode-go", {})
         model = selected_go.model if selected_go else selection.removeprefix("opencode-go/")
-        if entry.get("managed_by_plugin") not in {"opencode-go", "opencode-zen"} or model not in entry.get("models", []):
+        if entry.get("managed_by_plugin") not in {
+            "opencode-go",
+            "opencode-zen",
+        } or model not in entry.get("models", []):
             raise OpenCodeError("请先连接 OpenCode Go，并选择套餐模型。")
         if selected_go and selected_go.context_profile != "default":
             raise OpenCodeError("OpenCode Go 请选择默认上下文模型。")
@@ -151,15 +204,22 @@ def zen_key(scope: TenantScope | None) -> str | None:
 def native_model(model: str) -> tuple[str, str]:
     if model.startswith("echo-shared/"):
         return "echo-shared", model.removeprefix("echo-shared/")
-    return ("opencode-go", model.removeprefix("opencode-go/")) if model.startswith("opencode-go/") else ("opencode", model)
+    return (
+        ("opencode-go", model.removeprefix("opencode-go/"))
+        if model.startswith("opencode-go/")
+        else ("opencode", model)
+    )
 
 
 def model_selection_id(model: str) -> str:
     from runtime.platform.models.custom_model_selection import custom_model_selection_id
+
     provider, upstream = native_model(model)
     if provider == "echo-shared":
         return upstream
-    return custom_model_selection_id("opencode-go" if provider == "opencode-go" else "opencode-zen", upstream)
+    return custom_model_selection_id(
+        "opencode-go" if provider == "opencode-go" else "opencode-zen", upstream
+    )
 
 
 def model_key(scope: TenantScope | None, model: str) -> str | None:
@@ -168,7 +228,9 @@ def model_key(scope: TenantScope | None, model: str) -> str | None:
     if native_model(model)[0] != "opencode-go":
         return zen_key(scope)
     with use_capability_scope(scope):
-        key = CredentialStore().get_secret("opencode-zen", "api_key") or CredentialStore().get_secret("opencode-go", "api_key")
+        key = CredentialStore().get_secret(
+            "opencode-zen", "api_key"
+        ) or CredentialStore().get_secret("opencode-go", "api_key")
     if not key:
         raise OpenCodeError("请先连接 OpenCode Go 套餐。")
     return key
@@ -178,7 +240,7 @@ def inspect_readiness(scope: TenantScope | None) -> dict[str, Any]:
     if os.environ.get("ECHO_DEPLOYMENT_MODE", "local").strip().lower() != "local":
         return {"available": False, "reason": "OpenCode 引擎目前仅支持本地运行。"}
     if not executable():
-        return {"available": False, "reason": "请安装 OpenCode 并配置 ECHO_OPENCODE_BIN。"}
+        return {"available": False, **missing_status("opencode")}
     try:
         resolve_zen_model(None, zen_catalog())
         zen_key(scope)
@@ -190,7 +252,7 @@ def inspect_readiness(scope: TenantScope | None) -> dict[str, Any]:
         "available": True,
         "reason": None,
         "readiness_kind": "configuration_only",
-        "capabilities": ["chat", "web_research", "host_tools", "skills", "plugin_actions"],
+        "capabilities": ["chat", "skills"],
     }
 
 
@@ -201,12 +263,33 @@ def state_directory(scope: TenantScope | None, thread_id: str) -> Path:
     return app_paths().data_dir / "opencode" / digest
 
 
+def server_directory(scope: TenantScope | None) -> Path:
+    """Engine root shared by every thread of one identity.
+
+    The warm pool keys on the state root (``_server_signature``), so a
+    per-thread root made each new conversation pay a full ``opencode serve``
+    cold start. Measured on this host: 1.1-1.4s for the process, 1.2-2.6s for
+    the model catalog, and ~1.8s more on the first request while the provider
+    handshake settled — 9.4s to the first token versus 2.3s once warm. Session
+    coordinates stay per thread in :func:`state_directory`; only the server
+    process and its XDG caches are shared. Nested under ``servers/`` so it can
+    never collide with the per-thread roots already on disk.
+
+    Tool turns use this same database through a throwaway MCP-enabled process.
+    Retiring an idle warm process is preferable to handing its session id to
+    a different database when a conversation starts using tools.
+    """
+
+    identity = [scope.tenant_id, scope.actor_id] if scope else [None, None]
+    digest = hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+    return app_paths().data_dir / "opencode" / "servers" / digest
+
+
 def child_environment(
     root: Path,
     key: str | None,
     password: str,
     model: str,
-    web: bool,
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
@@ -239,9 +322,27 @@ def child_environment(
         directory = root / name.lower()
         directory.mkdir(parents=True, exist_ok=True)
         env[f"XDG_{name}_HOME"] = str(directory)
-    permission = {"*": "deny"}
-    if web:
-        permission.update(webfetch="allow", websearch="allow")
+    # Zen's free tier refuses any config that *statically* disables a native
+    # tool: "OpenCode's free tier can only be used from within OpenCode".
+    # Bisected 2026-09-18 against the real upstream, one config key at a time —
+    # the gate fires on `permission: {<tool>: "deny"}` (a single entry is
+    # enough), on `"*": "deny"`, and on `tools: {<tool>: false}`, whether at the
+    # top level or inside an agent block. It does *not* fire on "ask"/"allow",
+    # on an empty permission map, on a deny for a tool that does not exist, or
+    # on anything else Echo injects (XDG redirection, the OPENCODE_DISABLE_*
+    # flags, the provider apiKey override, an agent block without permissions).
+    # Neither the credential nor the binary is involved: the CLI's own key gets
+    # the same 403 through this path, and the bundled binary succeeds without
+    # these keys.
+    #
+    # So ask instead of deny, and refuse every ask for these tools in
+    # ``stream_prompt``. The ceiling is unchanged — bash/edit/write and the
+    # native network tools never run — but it is now enforced by us at request
+    # time rather than declared in a config the gate rejects. read/glob/grep/list
+    # stay available natively; privileged and network actions must go through
+    # the echo_* host MCP tools, which OpenCode allows outright because Echo's
+    # own approval gate reviews each call.
+    permission = dict.fromkeys(DENIED_NATIVE_TOOLS, "ask")
     if host_mcp:
         permission["echo_*"] = "allow"
     provider, upstream = native_model(model)
@@ -262,26 +363,36 @@ def child_environment(
         if shared_provider is None or not key:
             raise OpenCodeError("Shared model proxy is unavailable")
         config["provider"][provider] = {
-            "name": "Echo models", "npm": "@ai-sdk/openai",
+            "name": "Echo models",
+            "npm": "@ai-sdk/openai",
             "models": {upstream: {"name": upstream}},
             "options": {"baseURL": shared_provider["base_url"], "apiKey": "{env:OPENCODE_API_KEY}"},
         }
     if provider == "opencode-go":
         if not key:
             raise OpenCodeError("请先连接 OpenCode Go 套餐。")
-        config["provider"][provider].update({
-            "name": "OpenCode Go",
-            "npm": (
-                "@ai-sdk/openai" if upstream.startswith(("gpt-", "grok-", "muse-spark-"))
-                else "@ai-sdk/anthropic" if upstream.startswith(("minimax-", "qwen"))
-                else "@ai-sdk/openai-compatible"
-            ),
-            "models": {upstream: {"name": upstream}},
-        })
-        config["provider"][provider]["options"].update({
-            "baseURL": "https://opencode.ai/zen/go/v1",
-            "headers": {"User-Agent": "Echo/1.0", "x-opencode-session": hashlib.sha256(str(root).encode()).hexdigest()},
-        })
+        config["provider"][provider].update(
+            {
+                "name": "OpenCode Go",
+                "npm": (
+                    "@ai-sdk/openai"
+                    if upstream.startswith(("gpt-", "grok-", "muse-spark-"))
+                    else "@ai-sdk/anthropic"
+                    if upstream.startswith(("minimax-", "qwen"))
+                    else "@ai-sdk/openai-compatible"
+                ),
+                "models": {upstream: {"name": upstream}},
+            }
+        )
+        config["provider"][provider]["options"].update(
+            {
+                "baseURL": "https://opencode.ai/zen/go/v1",
+                "headers": {
+                    "User-Agent": "Echo/1.0",
+                    "x-opencode-session": hashlib.sha256(str(root).encode()).hexdigest(),
+                },
+            }
+        )
     if host_mcp:
         config["mcp"] = {
             "echo": {
@@ -290,7 +401,6 @@ def child_environment(
                 "headers": {"Authorization": "Bearer {env:ECHO_HOST_MCP_TOKEN}"},
                 "oauth": False,
                 "enabled": True,
-                # Native approval can wait up to 120s before tool execution.
                 "timeout": 180_000,
             }
         }
@@ -343,7 +453,6 @@ async def _start_server(
     root: Path,
     key: str | None,
     model: str,
-    web: bool,
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
@@ -362,7 +471,14 @@ async def _start_server(
         "--port",
         str(port),
         cwd=workspace,
-        env=child_environment(root, key, password, model, web, host_mcp=host_mcp, shared_provider=shared_provider),
+        env=child_environment(
+            root,
+            key,
+            password,
+            model,
+            host_mcp=host_mcp,
+            shared_provider=shared_provider,
+        ),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
@@ -381,12 +497,16 @@ async def _start_server(
                 response = await client.get("/global/health", timeout=1)
                 if response.status_code == 200 and response.json().get("healthy"):
                     break
-            except (httpx.TransportError, ValueError):
+            except (
+                httpx.TransportError,
+                ValueError,
+            ):  # intentional: Retry health until the bounded startup deadline.
                 pass
             await asyncio.sleep(0.1)
         else:
             raise OpenCodeError("OpenCode 启动超时，请检查本地引擎。")
-        await validate_catalog_model(client, model, free_only=not key)
+        if needs_catalog_check(model):
+            await validate_catalog_model(client, model, free_only=not key)
         return process, client
     except BaseException:
         await _stop_server(process, client)
@@ -399,12 +519,18 @@ async def _ephemeral_server(
     root: Path,
     key: str | None,
     model: str,
-    web: bool,
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
 ) -> AsyncIterator[httpx.AsyncClient]:
-    process, client = await _start_server(command, root, key, model, web, host_mcp=host_mcp, shared_provider=shared_provider)
+    process, client = await _start_server(
+        command,
+        root,
+        key,
+        model,
+        host_mcp=host_mcp,
+        shared_provider=shared_provider,
+    )
     try:
         yield client
     finally:
@@ -471,23 +597,24 @@ async def _warm_text_server(
                         victim.idle_handle.cancel()
                     await _stop_server(victim.process, victim.client)
             if len(_warm_servers) < _MAX_WARM_SERVERS:
-                process, client = await _start_server(command, root, key, model, False)
+                process, client = await _start_server(command, root, key, model)
                 entry = _WarmServer(signature, root.resolve(), process, client, loop)
                 _warm_servers[signature] = entry
                 fresh = True
     if entry is None:
-        async with _ephemeral_server(command, root, key, model, False) as client:
+        async with _ephemeral_server(command, root, key, model) as client:
             yield client
         return
     reusable = False
     try:
         if not fresh:
-            response = await entry.client.get('/global/health', timeout=1)
-            if response.status_code != 200 or not response.json().get('healthy'):
-                raise OpenCodeError('OpenCode 本地引擎连接中断，请重试。')
-            await validate_catalog_model(entry.client, model, free_only=not key)
+            response = await entry.client.get("/global/health", timeout=1)
+            if response.status_code != 200 or not response.json().get("healthy"):
+                raise OpenCodeError("OpenCode 本地引擎连接中断，请重试。")
+            if needs_catalog_check(model):
+                await validate_catalog_model(entry.client, model, free_only=not key)
         yield entry.client
-        reusable = getattr(entry.client, '_echo_reusable', True)
+        reusable = getattr(entry.client, "_echo_reusable", True)
     finally:
         async with lock:
             if _warm_servers.get(signature) is entry:
@@ -504,7 +631,11 @@ async def _warm_text_server(
 async def _discard_idle_warm_server(root: Path) -> None:
     async with _loop_lock():
         for current in tuple(_warm_servers.values()):
-            if current.in_use or current.loop is not asyncio.get_running_loop() or current.root != root.resolve():
+            if (
+                current.in_use
+                or current.loop is not asyncio.get_running_loop()
+                or current.root != root.resolve()
+            ):
                 continue
             _warm_servers.pop(current.signature, None)
             if current.idle_handle is not None:
@@ -518,46 +649,90 @@ async def managed_server(
     root: Path,
     key: str | None,
     model: str,
-    web: bool,
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
 ) -> AsyncIterator[httpx.AsyncClient]:
-    # A text-only server has an all-deny tool policy and no per-turn MCP
-    # credential. Keep up to three isolated conversations warm so replies avoid
-    # paying the official process's cold-start cost. Tool-capable turns remain
-    # ephemeral because their broker and authorization are scoped to one turn.
-    if shared_provider is None and host_mcp is None and not web and threading.current_thread() is threading.main_thread():
+    # Text-only servers are reusable. Keep up to three isolated conversations
+    # warm so replies avoid paying the native process's cold-start cost.
+    if (
+        shared_provider is None
+        and host_mcp is None
+        and threading.current_thread() is threading.main_thread()
+    ):
         async with _warm_text_server(command, root, key, model) as client:
             yield client
         return
     if threading.current_thread() is threading.main_thread():
         await _discard_idle_warm_server(root)
-    async with _ephemeral_server(command, root, key, model, web, host_mcp=host_mcp, shared_provider=shared_provider) as client:
+    async with _ephemeral_server(
+        command,
+        root,
+        key,
+        model,
+        host_mcp=host_mcp,
+        shared_provider=shared_provider,
+    ) as client:
         yield client
+
+
+_PROVIDER_CATALOG_LOAD_TIMEOUT = 10.0
+_PROVIDER_CATALOG_POLL_INTERVAL = 0.4
+
+
+def needs_catalog_check(model: str) -> bool:
+    """Whether a live ``/provider`` read can still reject this selection.
+
+    ``echo-shared`` (the default selection, and every custom model behind it) is
+    declared by Echo's own ``OPENCODE_CONFIG_CONTENT``: the provider block and
+    its single model id are written from the same selection the host is about to
+    send, so membership is guaranteed by construction. The check exists to catch
+    a *stale* Zen choice, and it cannot do that here — it only costs the wait for
+    the whole provider catalog to load, measured at ~1.1s per turn on this host.
+    """
+
+    return native_model(model)[0] != "echo-shared"
 
 
 async def validate_catalog_model(
     client: httpx.AsyncClient, model: str, *, free_only: bool = False
 ) -> None:
-    """Reject stale Zen selections before OpenCode reports an opaque HTTP 500."""
-    try:
-        response = await client.get("/provider")
-        response.raise_for_status()
-        payload = response.json()
-        providers = payload.get("all") if isinstance(payload, dict) else None
-        if not isinstance(providers, list):
-            raise ValueError("invalid provider catalog")
-        provider, upstream = native_model(model)
-        zen = next(
-            (p for p in providers if isinstance(p, dict) and p.get("id") == provider),
-            {},
-        )
-        models = zen.get("models", {})
-        if not isinstance(models, dict):
-            raise ValueError("invalid model catalog")
-    except (httpx.HTTPError, ValueError):
-        raise OpenCodeError("无法读取 OpenCode 模型列表，请稍后重试。") from None
+    """Reject stale Zen selections before OpenCode reports an opaque HTTP 500.
+
+    A freshly spawned engine answers /global/health before its models.dev
+    catalog finishes loading (a network fetch that can take seconds on a
+    cold start), so reading /provider immediately can see an empty list and
+    falsely reject a perfectly valid selection — and the failed turn then
+    kills the server before the cache ever lands, so the next turn races
+    again. Wait a bounded time while the catalog is empty; only declare the
+    model missing once the catalog has actually loaded. (Probed 2026-09-18:
+    a cold server fetched models.json ~3s after spawn while /provider was
+    already reachable, and two turns failed before one warm cache existed.)
+    """
+    deadline = asyncio.get_running_loop().time() + _PROVIDER_CATALOG_LOAD_TIMEOUT
+    while True:
+        try:
+            response = await client.get("/provider")
+            response.raise_for_status()
+            payload = response.json()
+            providers = payload.get("all") if isinstance(payload, dict) else None
+            if not isinstance(providers, list):
+                raise ValueError("invalid provider catalog")
+            provider, upstream = native_model(model)
+            zen = next(
+                (p for p in providers if isinstance(p, dict) and p.get("id") == provider),
+                {},
+            )
+            models = zen.get("models", {})
+            if not isinstance(models, dict):
+                raise ValueError("invalid model catalog")
+        except (httpx.HTTPError, ValueError):
+            raise OpenCodeError("无法读取 OpenCode 模型列表，请稍后重试。") from None
+        if models:
+            break
+        if asyncio.get_running_loop().time() >= deadline:
+            raise OpenCodeError("OpenCode 模型列表尚未就绪，请稍后重试。")
+        await asyncio.sleep(_PROVIDER_CATALOG_POLL_INTERVAL)
     if upstream not in models:
         raise OpenCodeError("OpenCode 当前未提供所选 Zen 模型，请在输入框选择其他模型后重试。")
     if free_only:
@@ -584,12 +759,45 @@ async def reasoning_variants(client: httpx.AsyncClient, model: str) -> list[str]
     for entry in response.json().get("all", []):
         if entry.get("id") == provider:
             variants = entry.get("models", {}).get(upstream, {}).get("variants", {})
-            return [name for name, options in variants.items()
-                    if isinstance(options, dict) and not options.get("disabled")]
+            return [
+                name
+                for name, options in variants.items()
+                if isinstance(options, dict) and not options.get("disabled")
+            ]
     return []
 
 
-async def session_for_thread(client: httpx.AsyncClient, root: Path) -> str:
+async def stream_model(
+    model: str,
+    text: str,
+    *,
+    interrupted: Callable[[], bool],
+    fresh_text: str | None = None,
+    reasoning_effort: str | None = None,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Run a text-only OpenCode model turn without tools or role orchestration."""
+    command = executable()
+    if not command:
+        raise OpenCodeError(missing_status("opencode")["reason"])
+    root = state_directory(None, "model")
+    async with _warm_text_server(command, root, model_key(None, model), model) as client:
+        session_id = await session_for_thread(client, root, recover_missing=bool(fresh_text))
+        async for event in stream_prompt(
+            client,
+            session_id,
+            text=text,
+            system="",
+            model=model,
+            interrupted=interrupted,
+            fresh_thread_text=fresh_text,
+            reasoning_effort=reasoning_effort,
+        ):
+            yield event
+
+
+async def session_for_thread(
+    client: httpx.AsyncClient, root: Path, *, recover_missing: bool = False
+) -> str:
     mapping = root / "session.json"
     if mapping.exists():
         try:
@@ -603,26 +811,189 @@ async def session_for_thread(client: httpx.AsyncClient, root: Path) -> str:
             return session_id
         if response.status_code != 404:
             raise OpenCodeError("无法读取 OpenCode 会话，请稍后重试。")
-        # Do not silently lose a conversation that used to exist.
-        raise OpenCodeError("OpenCode 会话已不存在，请新建对话继续。")
+        # Only recover when the caller can bootstrap Echo's canonical history
+        # into the new empty session. Auth/network/server errors never reset it.
+        if not recover_missing:
+            raise OpenCodeError("OpenCode 会话已不存在，且没有可用于恢复的对话历史。")
     response = await client.post("/session", json={"title": "Echo"})
     response.raise_for_status()
     session_id = response.json()["id"]
+    if not isinstance(session_id, str) or not re.fullmatch(r"ses_[A-Za-z0-9]+", session_id):
+        raise OpenCodeError("OpenCode 返回了无效的会话编号，请重试。")
+    # The session coordinate lives in its own per-thread root, which nothing
+    # else creates any more now that the engine runs from a shared root.
+    mapping.parent.mkdir(parents=True, exist_ok=True)
     temporary = mapping.with_suffix(".tmp")
     temporary.write_text(json.dumps({"session_id": session_id}), encoding="utf-8")
     temporary.replace(mapping)
     return session_id
 
 
+async def refuse_pending_permissions(client: httpx.AsyncClient) -> int:
+    """Refuse asks that never reached us over SSE; returns how many.
+
+    ``receive_events`` ends streaming on any gap (45s read timeout, a parse
+    error, a dropped connection) and never reconnects. An ask raised after that
+    point would sit unanswered forever while the prompt POST waits with no
+    timeout — the turn would hang rather than fail. Polling the engine's own
+    pending list closes that window, so a lost event stream costs a refusal, not
+    a stuck turn.
+    """
+
+    try:
+        response = await client.get("/permission", timeout=10)
+        response.raise_for_status()
+        pending = response.json()
+    except (httpx.HTTPError, ValueError):
+        return 0
+    if not isinstance(pending, list):
+        return 0
+    refused = 0
+    for request in pending:
+        if not isinstance(request, dict):
+            continue
+        if await refuse_permission(client, {"type": "permission.asked", "properties": request}):
+            refused += 1
+    return refused
+
+
+async def refuse_permission(client: httpx.AsyncClient, event: dict[str, Any]) -> bool:
+    """Refuse a native tool the host never grants; ``True`` if we handled it.
+
+    ``child_environment`` asks rather than denies because a static deny trips
+    Zen's free-tier gate, so the ceiling is enforced here instead. Every ask is
+    refused, not just the ones we asked for: an unexpected prompt is a tool we
+    did not intend to expose, and fail-closed is the only safe reading.
+
+    The refusal carries a message because a bare reject ends the turn at
+    ``finish: "tool-calls"`` with no text — the model stops mid-step and
+    ``stream_prompt`` reports "未完成本次回答". With a reason attached the model
+    finishes normally and explains what it could not do.
+    """
+
+    if str(event.get("type", "")) != "permission.asked":
+        return False
+    properties = event.get("properties")
+    if not isinstance(properties, dict):
+        return False
+    request_id = properties.get("id")
+    if not isinstance(request_id, str) or not request_id:
+        return False
+    tool = str(properties.get("permission", "") or "unknown")
+    try:
+        response = await client.post(
+            f"/permission/{request_id}/reply",
+            json={
+                "reply": "reject",
+                "message": (
+                    f"The host does not allow the native {tool} tool. "
+                    "Use the available echo_* tools instead, or explain to the "
+                    "user what you could not do."
+                ),
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+    except httpx.HTTPError:
+        # A refusal we could not deliver must not read as a grant: the tool
+        # stays pending and the turn fails on its own deadline rather than
+        # running something the host forbids.
+        _logger.warning("could not refuse native %s permission %s", tool, request_id)
+    return True
+
+
+def _has_status(detail: str, status: str) -> bool:
+    """A status code, not any digits that happen to spell one.
+
+    ``"403" in detail`` also matches the milliseconds in
+    ``2026-09-18T02:08:58.403Z``, which turned a transport error into "your
+    account has no entitlement for this model".
+    """
+
+    return re.search(rf"(?<![\d.]){status}(?![\d.])", detail) is not None
+
+
 def public_model_error(error: Any) -> str:
     detail = json.dumps(error, ensure_ascii=False).lower()
-    if "429" in detail or "limit" in detail or "rate" in detail:
+    if "free tier can only be used from within opencode" in detail or "freetiererror" in detail:
+        # Not an entitlement problem: Zen refuses free-tier traffic from a
+        # client it does not recognise as OpenCode itself. Switching model does
+        # not help, so do not send the user model-shopping.
+        return "OpenCode 免费额度只允许其官方客户端使用，请改用已连接的付费模型或自有模型。"
+    if _has_status(detail, "429") or "limit" in detail or "rate" in detail:
         return "当前模型额度或请求频率受限，请稍后重试或切换模型。"
-    if "401" in detail or "unauthorized" in detail or "authentication" in detail:
+    if (
+        _has_status(detail, "403")
+        or "forbidden" in detail
+        or "payment" in detail
+        or "credits" in detail
+        or "subscription" in detail
+        or "entitlement" in detail
+    ):
+        # Upstream entitlement rejections (free-tier gates, contributor-only
+        # models, missing payment method) are per-model, not a broken login.
+        # Say so, or they read as "authentication dropped" and users re-login
+        # for nothing. (Probed 2026-09-18: muse-spark-1.3-contributor-free
+        # failed this way right after a working big-pickle turn.)
+        return "当前账号没有这个模型的使用资格（部分免费模型有额外门槛或需付费），请换一个模型。"
+    if _has_status(detail, "401") or "unauthorized" in detail or "authentication" in detail:
         return "模型连接已失效，请在模型设置中检查授权。"
-    if "model" in detail and any(x in detail for x in ("not found", "unavailable", "404")):
+    if "model" in detail and (
+        _has_status(detail, "404") or any(x in detail for x in ("not found", "unavailable"))
+    ):
         return "当前模型不可用，请切换其他模型。"
     return "OpenCode 调用模型失败，请稍后重试或检查模型连接。"
+
+
+def _tool_result_preview(tool: str, value: object) -> str:
+    text = str(value or "")
+    if tool not in {"call_agent", "call_agent_parallel"}:
+        return text[:4000]
+    try:
+        result = json.loads(text)
+    except (ValueError, TypeError):
+        return text[:4000]
+    if not isinstance(result, dict):
+        return text[:4000]
+    # Delegation receipts must remain valid JSON after previewing. Internal
+    # review queues and repeated prompt copies otherwise truncate identity and
+    # status along with the child's output.
+    keys = {
+        "agent_id",
+        "requested_agent_id",
+        "market_agent_id",
+        "identity_source",
+        "display_name",
+        "role_display_name",
+        "codename",
+        "role",
+        "avatar",
+        "avatar_url",
+        "role_source_path",
+        "success",
+        "ok",
+        "error",
+        "output",
+        "iteration_count",
+        "files_touched",
+        "spec_index",
+        "success_count",
+    }
+
+    def receipt(raw: dict) -> dict:
+        return {
+            key: (
+                val[:1500] if isinstance(val, str) else val[:50] if isinstance(val, list) else val
+            )
+            for key, val in raw.items()
+            if key in keys
+        }
+
+    preview = receipt(result)
+    for group in ("successes", "failures"):
+        if isinstance(result.get(group), list):
+            preview[group] = [receipt(row) for row in result[group] if isinstance(row, dict)]
+    return json.dumps(preview, ensure_ascii=False)
 
 
 @dataclass
@@ -689,9 +1060,9 @@ class MessageEvents:
                                 "tool_call_id": call_id,
                                 "success": status == "completed",
                                 "status": "success" if status == "completed" else "error",
-                                "output_preview": str(
-                                    state.get("output") or state.get("error") or ""
-                                )[:4000],
+                                "output_preview": _tool_result_preview(
+                                    tool, state.get("output") or state.get("error") or ""
+                                ),
                             }
                         )
                     if status != "pending":
@@ -720,7 +1091,12 @@ async def _abort_and_settle(client: httpx.AsyncClient, session_id: str) -> None:
                     # admission must not race with the next warm acquisition.
                     return
                 await asyncio.sleep(0.05)
-    except (TimeoutError, httpx.HTTPError, ValueError, AttributeError):
+    except (
+        TimeoutError,
+        httpx.HTTPError,
+        ValueError,
+        AttributeError,
+    ):  # intentional: Leave connection retirement to managed_server.
         pass  # managed_server must retire an unconfirmed warm connection.
 
 
@@ -785,7 +1161,10 @@ async def stream_prompt(
                 f"{url}/message",
                 json={
                     "messageID": user_message_id,
-                    "model": {"providerID": native_model(model)[0], "modelID": native_model(model)[1]},
+                    "model": {
+                        "providerID": native_model(model)[0],
+                        "modelID": native_model(model)[1],
+                    },
                     "agent": "echo",
                     **({"variant": variant} if variant else {}),
                     "system": system,
@@ -813,11 +1192,18 @@ async def stream_prompt(
                 incoming = None
                 if native is None:
                     streaming = False
+                elif await refuse_permission(client, native):
+                    # A permission prompt is host policy, not turn content: it
+                    # never reaches the projection or the UI.
+                    incoming = asyncio.create_task(queue.get())
                 else:
                     for event in projection.consume(native):
                         yield event
                     incoming = asyncio.create_task(queue.get())
             if not streaming and not pending.done() and loop.time() >= next_snapshot:
+                # With no event stream left, an ask raised from here on would
+                # never be refused and the turn would hang on it. Poll instead.
+                await refuse_pending_permissions(client)
                 response = await client.get(f"{url}/message")
                 response.raise_for_status()
                 for event in projection.snapshots(response.json()):
@@ -849,6 +1235,17 @@ async def stream_prompt(
                 raise OpenCodeError("OpenCode 未完成本次回答，请重试继续。")
             if not any(reducer.text.values()):
                 raise OpenCodeError("模型没有返回回答，请重试或切换模型。")
+            final_text = "".join(
+                str(part.get("text", ""))
+                for part in final.get("parts", [])
+                if part.get("type") == "text"
+            )
+            if tool_names and _has_unexecuted_tool_markup(final_text):
+                # Serialized model protocol is text, never an authorized tool
+                # invocation. Do not execute it or report the task completed.
+                raise OpenCodeError(
+                    "模型输出了未执行的工具调用文本，本轮未完成。请重试或切换模型。"
+                )
             settled = True
             yield {
                 "type": "react_completed",

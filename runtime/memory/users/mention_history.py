@@ -26,6 +26,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from runtime.platform.io.sqlite_schema import Migration, migrate
+
 _LOG = logging.getLogger(__name__)
 
 
@@ -56,6 +58,8 @@ CREATE INDEX IF NOT EXISTS idx_mention_history_actor_recent
     ON mention_history(actor, last_seen_ts DESC);
 """
 
+_MIGRATIONS = (Migration(1, _DDL),)
+
 
 class MentionHistoryStore:
     """SQLite-backed mention history.
@@ -73,7 +77,7 @@ class MentionHistoryStore:
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
-            conn.executescript(_DDL)
+            migrate(conn, _MIGRATIONS, name="mention_history")
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:

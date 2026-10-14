@@ -10,7 +10,9 @@ from runtime.tentacle.llm.skill_manifest import SkillManifestLoader
 def mobile_skills_root() -> Path:
     """Return manifests from the installed, enabled device plugin."""
     from runtime.tentacle.device_plugins import device_plugin_tools_root
+
     return device_plugin_tools_root("android")
+
 
 def android_capabilities() -> tuple[str, ...]:
     """Load all Android capability names from the canonical SKILL.md set."""

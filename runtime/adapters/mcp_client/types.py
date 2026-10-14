@@ -13,6 +13,7 @@ class MCPServerConfig(BaseModel):
     command: str = ""  # e.g. "npx" / "python"
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
+    cwd: str | None = None
     # http/sse transport (remote server) — most of the hosted MCP ecosystem
     # (GitHub, Slack, Linear, Notion, ...) is reached this way.
     transport: Literal["stdio", "http", "sse"] = "stdio"

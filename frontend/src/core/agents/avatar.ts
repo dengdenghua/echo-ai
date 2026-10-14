@@ -1,3 +1,5 @@
+import { canonicalAgentId } from "./aliases";
+
 // Avatar style options:
 // - "pixel-halfbody-v3": Pixel art style (retro 8-bit aesthetic)
 // - "original": Original uploaded avatar (anime/realistic/custom art)
@@ -5,6 +7,7 @@
 const AGENT_AVATAR_ASSET_VERSION: string | null = null; // Changed from "pixel-halfbody-v3" to null
 
 export function withAgentAvatarVersion(src: string): string {
+  src = src.replace(/(\/api\/agents\/)([^/?#]+)(\/avatar)(?=[?#]|$)/, (_, prefix: string, id: string, suffix: string) => `${prefix}${canonicalAgentId(id)}${suffix}`);
   if (!src.includes("/api/agents/") || !src.includes("/avatar")) {
     return src;
   }

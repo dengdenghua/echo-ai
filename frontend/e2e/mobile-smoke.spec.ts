@@ -160,7 +160,7 @@ test.describe("Mobile workspace smoke", () => {
     await expectNoHorizontalOverflow(page, composer, "realtime composer");
   });
 
-  test("Agents category chips scroll within the viewport", async ({
+  test("Role category filters fit and remain usable within the viewport", async ({
     authedPage: page,
   }) => {
     await page.goto("/#/workspace/agents");
@@ -171,14 +171,50 @@ test.describe("Mobile workspace smoke", () => {
     await expect(page.getByTestId("agents-loading-skeleton")).toBeHidden({
       timeout: 20_000,
     });
-    const chips = page.getByTestId("workbuddy-category-scroll");
+    const chips = page.getByRole("group", { name: "角色分类" });
     await expect(chips).toBeVisible();
     await expectNoHorizontalOverflow(page, chips, "agents category chips");
+    await chips.getByRole("button", { name: "数字员工", exact: true }).click();
+    await expect(
+      chips.getByRole("button", { name: "数字员工", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expectNoHorizontalOverflow(
+      page,
+      chips,
+      "selected role category filters",
+    );
   });
 
   test("Skills list and search fit mobile width", async ({
     authedPage: page,
   }) => {
+    // Exercise the populated layout without depending on a remote catalog
+    // or on which skills happen to be installed in the developer profile.
+    await page.route("**/api/agent-market/cloud/skills?*", async (route) => {
+      const external = new URL(route.request().url()).searchParams.has(
+        "source",
+      );
+      await route.fulfill({
+        json: {
+          items: external
+            ? []
+            : [
+                {
+                  name: "academic-paper-expert",
+                  description: "Research and review academic papers",
+                  source: "echo",
+                },
+              ],
+          total: external ? 0 : 1,
+        },
+      });
+    });
+    await page.route("**/api/agent-market/cloud/installed", (route) =>
+      route.fulfill({ json: { skills: [], plugins: [], local_skills: [] } }),
+    );
+    await page.route("**/api/assets?*", (route) =>
+      route.fulfill({ json: { items: [], total: 0 } }),
+    );
     await page.goto("/#/workspace/skills");
     await page.waitForLoadState("domcontentloaded");
 
@@ -190,12 +226,20 @@ test.describe("Mobile workspace smoke", () => {
     ).toBeVisible();
     const search = page.getByTestId("agents-search-input");
     await expect(search).toBeVisible({ timeout: 15_000 });
-    const skillsRegion = page.getByRole("region", { name: "Skills" });
+    const skillsRegion = page.getByRole("region", { name: /^(技能|Skills)$/ });
     await expect(skillsRegion).toBeVisible();
     await expect(
-      skillsRegion.getByText("academic-paper-expert", { exact: true }),
+      skillsRegion.getByText("学术论文助手", { exact: true }),
     ).toBeVisible();
     await expectNoHorizontalOverflow(page, search, "skills search");
     await expectNoHorizontalOverflow(page, skillsRegion, "skills list");
+    await search.fill("no-matching-skill");
+    await expect(
+      skillsRegion.getByText("学术论文助手", { exact: true }),
+    ).toHaveCount(0);
+    await search.fill("academic-paper");
+    await expect(
+      skillsRegion.getByText("学术论文助手", { exact: true }),
+    ).toBeVisible();
   });
 });

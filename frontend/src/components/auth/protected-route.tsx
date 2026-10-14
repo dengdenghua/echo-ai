@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { LoadingState } from "@/components/ui/state";
+import { BrandLoading } from "@/components/brand/brand-loading";
 import { loginPathWithReturnTo } from "@/core/auth/return-to";
 import { useI18n } from "@/core/i18n/hooks";
 import { useAuth } from "@/providers/AuthProvider";
@@ -18,7 +18,7 @@ export function ProtectedRoute() {
   // Still loading auth status — show nothing to avoid flash
   if (isLoading) {
     return (
-      <LoadingState className="h-screen" title={t.common.loadingWorkspace} />
+      <BrandLoading label={t.common.loadingWorkspace} />
     );
   }
 

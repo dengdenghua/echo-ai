@@ -71,6 +71,18 @@ def test_market_definitions_become_subagents(agents_root: Path):
     assert d.avatar_url.startswith("/api/agents/market-analyst/avatar?v=")
 
 
+def test_market_identity_retains_icon_and_respects_disabled_avatar(agents_root: Path):
+    role_dir = _make_market_agent(agents_root, "health")
+    profile_path = role_dir / "profile.jsonc"
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile.update(icon="🩺", avatar=None)
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    identity = resolve_market_identity("health", agents_root)
+    assert identity.icon == "🩺"
+    assert identity.to_dict()["icon"] == "🩺"
+    assert identity.avatar_url == ""
+
+
 def test_market_agent_without_soul_gets_synthesized_prompt(agents_root: Path):
     agent_dir = _make_market_agent(agents_root, "no-soul")
     (agent_dir / "agent-core" / "SOUL.md").unlink()
@@ -79,9 +91,7 @@ def test_market_agent_without_soul_gets_synthesized_prompt(agents_root: Path):
     assert defs[0].system_prompt.startswith("You are")
 
 
-def test_project_definition_overrides_market_same_name(
-    agents_root: Path, tmp_path: Path
-):
+def test_project_definition_overrides_market_same_name(agents_root: Path, tmp_path: Path):
     _make_market_agent(agents_root, "shared", soul="market soul")
     project = tmp_path / "project"
     (project / ".claude" / "agents").mkdir(parents=True)
@@ -160,9 +170,7 @@ def test_promote_rejects_unsafe_names(agents_root: Path):
 # ── HTTP 层：晋升端点 ──────────────────────────────────
 
 
-def test_promote_endpoint_creates_installed_role(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_promote_endpoint_creates_installed_role(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
@@ -172,8 +180,8 @@ def test_promote_endpoint_creates_installed_role(
 
     agents_root = tmp_path / "agents"
     agents_root.mkdir()
-    import runtime.sensing.gateway.agent_world_router as _awr
     import runtime.sensing.gateway._agent_world_helpers as _awh
+    import runtime.sensing.gateway.agent_world_router as _awr
 
     monkeypatch.setattr(_awr, "default_agents_root", lambda: agents_root)
     monkeypatch.setattr(_awh, "default_agents_root", lambda: agents_root)
@@ -208,9 +216,7 @@ def test_promote_endpoint_creates_installed_role(
     assert again.json()["created"] is False
 
     # 未知子 agent 404
-    missing = client.post(
-        "/api/agent-market/from-subagent", json={"subagent": "ghost"}
-    )
+    missing = client.post("/api/agent-market/from-subagent", json={"subagent": "ghost"})
     assert missing.status_code == 404
 
 
@@ -240,9 +246,9 @@ def test_auto_promote_creates_position_for_unknown_lane(agents_root: Path):
     assert identity is not None
     assert identity.display_name == "Incident Commander"
     # SOUL 是临时章程，带首次派发任务预览，可后续在"我的安装"里编辑
-    soul = (
-        agents_root / "incident-commander" / "agent-core" / "SOUL.md"
-    ).read_text(encoding="utf-8")
+    soul = (agents_root / "incident-commander" / "agent-core" / "SOUL.md").read_text(
+        encoding="utf-8"
+    )
     assert "production incident" in soul
 
 

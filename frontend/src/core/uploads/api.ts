@@ -3,6 +3,13 @@
  */
 
 import type { components } from "@/core/api/openapi-types";
+import {
+  apiDelete,
+  apiGet,
+  apiPost,
+  failureDetail,
+  type ApiFailure,
+} from "@/core/api/request";
 
 import { getBackendBaseURL } from "../config";
 import { authHeaders } from "@/core/auth/api";
@@ -22,12 +29,12 @@ export type UploadedFileInfo = components["schemas"]["UploadFileMetadata"];
 export type UploadResponse = components["schemas"]["UploadPostResponse"];
 export type ListFilesResponse = components["schemas"]["UploadsListResponse"];
 
-async function readErrorDetail(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  const error = await response.json().catch(() => ({ detail: fallback }));
-  return error.detail ?? fallback;
+/** The error body's ``detail`` when present, else ``fallback``. */
+function detailOr(fallback: string) {
+  return (failure: ApiFailure): string => {
+    const detail = failureDetail(failure);
+    return detail === undefined || detail === null ? fallback : String(detail);
+  };
 }
 
 /**
@@ -43,20 +50,13 @@ export async function uploadFiles(
     formData.append("files", file);
   });
 
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/threads/${encodeURIComponent(threadId)}/uploads`,
-    {
-      method: "POST",
-      headers: authHeaders(),
-      body: formData,
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response, "Upload failed"));
-  }
-
-  return response.json();
+  // FormData passes through raw: no JSON Content-Type, so the browser adds
+  // the multipart boundary itself.
+  return apiPost("/api/threads/{thread_id}/uploads", {
+    path: { thread_id: threadId },
+    body: formData,
+    errorMessage: detailOr("Upload failed"),
+  });
 }
 
 export type UploadProgressHandler = (percent: number) => void;
@@ -158,18 +158,10 @@ export async function uploadFilesWithProgress(
 export async function listUploadedFiles(
   threadId: string,
 ): Promise<ListFilesResponse> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/threads/${encodeURIComponent(threadId)}/uploads/list`,
-    { headers: authHeaders() },
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      await readErrorDetail(response, "Failed to list uploaded files"),
-    );
-  }
-
-  return response.json();
+  return apiGet("/api/threads/{thread_id}/uploads/list", {
+    path: { thread_id: threadId },
+    errorMessage: detailOr("Failed to list uploaded files"),
+  });
 }
 
 /**
@@ -179,17 +171,8 @@ export async function deleteUploadedFile(
   threadId: string,
   filename: string,
 ): Promise<{ success: boolean; message: string }> {
-  const response = await fetch(
-    `${getBackendBaseURL()}/api/threads/${encodeURIComponent(threadId)}/uploads/${encodeURIComponent(filename)}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(),
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(await readErrorDetail(response, "Failed to delete file"));
-  }
-
-  return response.json();
+  return apiDelete("/api/threads/{thread_id}/uploads/{filename}", {
+    path: { thread_id: threadId, filename },
+    errorMessage: detailOr("Failed to delete file"),
+  });
 }

@@ -21,6 +21,25 @@ class _SessionStore(Protocol):
     def _connect(self) -> sqlite3.Connection: ...
 
 
+def delete_task(store: _SessionStore, task_id: str) -> bool:
+    """Delete a projection; authoritative team rows require their CAS API."""
+    if not task_id:
+        return False
+    task_id = require_cowork_id(task_id, label="task_id")
+    with store._lock, store._connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT task_authority FROM collaboration_tasks WHERE task_id=?", (task_id,)
+        ).fetchone()
+        if row is not None and row[0] == "team":
+            from runtime.memory.cowork._collaboration_team_records import TeamTaskConflict
+
+            raise TeamTaskConflict("team task deletion requires its versioned authority")
+        return (
+            conn.execute("DELETE FROM collaboration_tasks WHERE task_id=?", (task_id,)).rowcount > 0
+        )
+
+
 def _require_room_session(
     conn: sqlite3.Connection,
     *,
@@ -86,9 +105,13 @@ def upsert_task(
         conn.execute("BEGIN IMMEDIATE")
         _require_room_session(conn, session_id=session_id, room_id=room_id)
         existing_row = conn.execute(
-            "SELECT task_json FROM collaboration_tasks WHERE task_id=?",
+            "SELECT task_json,task_authority FROM collaboration_tasks WHERE task_id=?",
             (task_id,),
         ).fetchone()
+        if existing_row is not None and existing_row[1] == "team":
+            from runtime.memory.cowork._collaboration_team_records import TeamTaskConflict
+
+            raise TeamTaskConflict("team task projections cannot replace authoritative state")
         existing = _load(existing_row[0]) if existing_row else None
         existing_metadata = existing.get("metadata") if isinstance(existing, dict) else None
         if isinstance(existing_metadata, dict) and existing_metadata.get("source") == "projectos":
@@ -142,27 +165,19 @@ def append_message(
     with store._lock, store._connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         _require_room_session(conn, session_id=session_id, room_id=room_id)
-        source_message_id = str(message_metadata.get("source_message_id") or "")
-        if source_message_id:
-            existing = conn.execute(
-                "SELECT seq, room_id, participant_id, display_name, text "
-                "FROM collaboration_messages "
-                "WHERE session_id = ? "
-                "AND CASE WHEN json_valid(metadata_json) "
-                "THEN json_extract(metadata_json, '$.source_message_id') END = ?",
-                (session_id, source_message_id),
-            ).fetchone()
-            if existing:
-                if (
-                    str(existing[1] or "") != room_id
-                    or str(existing[2] or "") != participant_id
-                    or str(existing[3] or "") != display_name
-                    or str(existing[4] or "") != text
-                ):
-                    raise ValueError(
-                        "source_message_id already belongs to a different room message"
-                    )
-                return int(existing[0])
+        from runtime.memory.cowork._collaboration_message_identity import existing_room_message
+
+        existing = existing_room_message(
+            conn,
+            session_id=session_id,
+            room_id=room_id,
+            participant_id=participant_id,
+            display_name=display_name,
+            text=text,
+            metadata=message_metadata,
+        )
+        if existing is not None:
+            return existing
         cur = conn.execute(
             "INSERT INTO collaboration_messages("
             "session_id, seq, room_id, participant_id, display_name, text, ts, metadata_json"

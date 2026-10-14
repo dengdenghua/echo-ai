@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MODULE_CATALOG, pinnedModuleIds } from "./catalog";
 import {
   enabledModuleIds,
+  isInstallableModule,
+  isModuleAvailabilityKnown,
   isModuleEnabled,
   resetModuleStateCache,
   setModuleAvailabilitySnapshot,
@@ -94,8 +96,8 @@ describe("enabled modules", () => {
     }
   });
 
-  it("shows paper trading by default only for the market persona", () => {
-    expect(enabledModuleIds("market_researcher")).toContain("paper.trading");
+  it("keeps the removed trading module out of all personas", () => {
+    expect(enabledModuleIds("market_researcher")).not.toContain("paper.trading");
     expect(enabledModuleIds("general")).not.toContain("paper.trading");
     expect(enabledModuleIds("coder")).not.toContain("paper.trading");
   });
@@ -104,12 +106,12 @@ describe("enabled modules", () => {
     const provider = memoryProvider();
     setModuleStateProvider(provider);
 
-    setModuleEnabled("paper.trading", true, "general");
+    setModuleEnabled("community", false, "general");
 
-    expect(enabledModuleIds("general")).toContain("paper.trading");
-    expect(enabledModuleIds("coder")).not.toContain("paper.trading");
+    expect(enabledModuleIds("general")).not.toContain("community");
+    expect(enabledModuleIds("coder")).toContain("community");
     expect(provider.currentOverrides()).toEqual({
-      general: { "paper.trading": true },
+      general: { "community": false },
     });
   });
 
@@ -122,6 +124,38 @@ describe("enabled modules", () => {
 
     setModuleAvailable("narrative", true);
     expect(enabledModuleIds("general")).toContain("narrative");
+  });
+
+  it("reports install state as unknown until the backend answers", () => {
+    expect(isModuleAvailabilityKnown()).toBe(false);
+    setModuleAvailabilitySnapshot({ narrative: false });
+    expect(isModuleAvailabilityKnown()).toBe(true);
+  });
+
+  it("treats only separately delivered apps as installable", () => {
+    expect(isInstallableModule("narrative")).toBe(true);
+    expect(isInstallableModule("mail")).toBe(false);
+  });
+
+  it("restores the last known install state on the next launch", () => {
+    let stored: Record<string, boolean> | null = null;
+    const persisting = () => ({
+      ...memoryProvider(),
+      readAvailability: () => stored,
+      writeAvailability: (next: Record<string, boolean>) => {
+        stored = { ...next };
+      },
+    });
+    setModuleStateProvider(persisting());
+    setModuleAvailabilitySnapshot({ narrative: false, design: true });
+    expect(stored).toEqual({ narrative: false, design: true });
+
+    // A fresh session knows the install state before the backend answers.
+    setModuleStateProvider(persisting());
+    resetModuleStateCache();
+    expect(isModuleAvailabilityKnown()).toBe(true);
+    expect(enabledModuleIds()).not.toContain("narrative");
+    expect(enabledModuleIds()).toContain("design");
   });
 
   it("does not allow persona overrides to resurrect an uninstalled module", () => {

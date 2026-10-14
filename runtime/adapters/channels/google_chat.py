@@ -8,6 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ._webhook_auth import (
+    RemoteKeySet,
+    bearer_token,
+    check_webhook_secret,
+    keys_from_jwks,
+    keys_from_x509_map,
+    verify_rs256_jwt,
+)
 from .base import Channel, InboundMessage, OutboundMessage, _sanitize_url
 
 try:
@@ -32,6 +40,17 @@ logger = logging.getLogger(__name__)
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_CHAT_SCOPE = "https://www.googleapis.com/auth/chat.bot"
 
+# Inbound request verification (Google Chat app "Authentication Audience").
+# Project-number audience: JWT issued by the Chat service account, keys
+# published as X.509 certs.  HTTP-endpoint-URL audience: Google OIDC ID token
+# whose ``email`` is the Chat service account.
+GOOGLE_CHAT_ISSUER = "chat@system.gserviceaccount.com"
+GOOGLE_CHAT_CERTS_URL = (
+    "https://www.googleapis.com/service_accounts/v1/metadata/x509/chat@system.gserviceaccount.com"
+)
+GOOGLE_OIDC_ISSUERS = ("https://accounts.google.com", "accounts.google.com")
+GOOGLE_OIDC_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+
 
 class GoogleChatError(RuntimeError):
     pass
@@ -51,7 +70,15 @@ class GoogleChatChannel(Channel):
         channel_id: str = "google_chat",
         api_base_url: str = "https://chat.googleapis.com",
         http_client: Any = None,
+        verification_audience: str = "",
+        webhook_secret: str = "",
+        keys_provider: Any = None,
     ) -> None:
+        """``verification_audience`` is the Chat app's authentication audience
+        (the Cloud project number, or the HTTP endpoint URL); when set every
+        inbound request must carry a valid Google-signed bearer JWT.
+        ``webhook_secret`` is an optional extra shared secret.  ``keys_provider``
+        (tests) returns the raw certs/JWKS document instead of fetching it."""
         if not service_account_key:
             raise ValueError("service_account_key is required")
         if isinstance(service_account_key, str):
@@ -80,6 +107,66 @@ class GoogleChatChannel(Channel):
         self.send_log: list[OutboundMessage] = []
         self._token: str = ""
         self._token_expires: float = 0.0
+        self._verification_audience = str(verification_audience or "").strip()
+        self._webhook_secret = webhook_secret or ""
+        self._keys_provider = keys_provider
+        self._inbound_keys = RemoteKeySet(self._fetch_inbound_keys)
+        if not self._verification_audience and not self._webhook_secret:
+            logger.warning(
+                "google_chat.inbound.unauthenticated: set verification_audience "
+                "(project number or endpoint URL) to verify Google-signed requests",
+                extra={"channel": channel_id},
+            )
+
+    # ── inbound authentication ────────────────────────────────────────
+
+    def _uses_oidc_audience(self) -> bool:
+        return self._verification_audience.lower().startswith("https://")
+
+    def _fetch_inbound_keys(self) -> dict[str, tuple[Any, dict[str, Any]]]:
+        oidc = self._uses_oidc_audience()
+        if self._keys_provider is not None:
+            doc = self._keys_provider()
+        else:
+            url = GOOGLE_OIDC_JWKS_URL if oidc else GOOGLE_CHAT_CERTS_URL
+            if self._http is not None and hasattr(self._http, "get"):
+                resp = self._http.get(url)
+            else:
+                resp = httpx.get(url, timeout=10.0)
+            if getattr(resp, "status_code", 200) >= 400:
+                raise GoogleChatError(f"GET {url} failed: HTTP {resp.status_code}")
+            doc = resp.json()
+        if not isinstance(doc, dict):
+            raise GoogleChatError("signing key document not an object")
+        return keys_from_jwks(doc) if "keys" in doc else keys_from_x509_map(doc)
+
+    def _verify_inbound(self, headers: dict[str, str], query: dict[str, str] | None) -> None:
+        check_webhook_secret(
+            self._webhook_secret,
+            headers=headers,
+            query=query,
+            error_cls=GoogleChatSignatureError,
+        )
+        if not self._verification_audience:
+            return
+        token = bearer_token(headers)
+        if not token:
+            raise GoogleChatSignatureError("missing Google Chat bearer token (signature required)")
+        oidc = self._uses_oidc_audience()
+        claims, _jwk = verify_rs256_jwt(
+            token,
+            resolve_key=self._inbound_keys.get,
+            issuers=GOOGLE_OIDC_ISSUERS if oidc else (GOOGLE_CHAT_ISSUER,),
+            audiences=(self._verification_audience,),
+            leeway_seconds=300.0,
+            error_cls=GoogleChatSignatureError,
+        )
+        if oidc and (
+            claims.get("email") != GOOGLE_CHAT_ISSUER or claims.get("email_verified") is not True
+        ):
+            raise GoogleChatSignatureError(
+                "token not issued to the Chat service account (signature)"
+            )
 
     def _ensure_token(self) -> str:
         now = time.time()
@@ -265,7 +352,9 @@ class GoogleChatChannel(Channel):
         *,
         body: bytes,
         headers: dict[str, str],
+        query: dict[str, str] | None = None,
     ) -> InboundMessage | dict[str, Any] | None:
+        self._verify_inbound(headers, query)
         try:
             payload = json.loads(body.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as e:

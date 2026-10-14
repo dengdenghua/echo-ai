@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from runtime.memory.cowork._collaboration_activity import list_session_ids
+from runtime.memory.cowork._collaboration_activity import tasks_for_session as _tasks_for_session
 from runtime.memory.cowork._collaboration_project_actions import (
     CollaborationProjectActionStoreMixin,
 )
@@ -33,29 +35,37 @@ from runtime.memory.cowork._collaboration_project_projection import (
 from runtime.memory.cowork._collaboration_project_projection import (
     upsert_project_task as _upsert_project_task,
 )
+from runtime.memory.cowork._collaboration_room_messages import (
+    append_message_for_room,
+    messages_for_room,
+    search_messages_for_room,
+)
 from runtime.memory.cowork._collaboration_room_write import (
     upsert_project_room as _upsert_project_room,
 )
 from runtime.memory.cowork._collaboration_room_write import upsert_room as _upsert_room
+from runtime.memory.cowork._collaboration_schema import (
+    _MIGRATIONS,
+)
+from runtime.memory.cowork._collaboration_schema import (
+    _SCHEMA as _SCHEMA,
+)
 from runtime.memory.cowork._collaboration_session_writes import (
     append_message as _append_message,
 )
+from runtime.memory.cowork._collaboration_session_writes import delete_task as _delete_task
 from runtime.memory.cowork._collaboration_session_writes import upsert_task as _upsert_task
+from runtime.memory.cowork._collaboration_transcript_import import import_legacy_room
 from runtime.memory.cowork.collaboration_collectors import (
-    COLLABORATION_COLLECTOR_SCHEMA,
     CollaborationCollectorStoreMixin,
-    ensure_collaboration_collector_schema,
 )
 from runtime.memory.cowork.collaboration_deliveries import (
-    COLLABORATION_DELIVERY_SCHEMA,
     CollaborationDeliveryStoreMixin,
 )
 from runtime.memory.cowork.collaboration_runs import (
-    COLLABORATION_RUN_SCHEMA,
     CollaborationRunStoreMixin,
 )
 from runtime.memory.cowork.context_lifecycle import (
-    CONTEXT_LIFECYCLE_SCHEMA,
     CollaborationContextLifecycleStoreMixin,
 )
 from runtime.memory.cowork.ids import (
@@ -66,6 +76,7 @@ from runtime.memory.cowork.ids import (
     require_message_text,
 )
 from runtime.platform.io.sqlite import connect_closing
+from runtime.platform.io.sqlite_schema import configure, migrate
 
 _MAX_JSON_BYTES = 512 * 1024
 _MAX_LIST_ITEMS = 512
@@ -81,196 +92,6 @@ _TASK_STATUSES = frozenset(
         "cancelled",
         "rejected",
     }
-)
-
-_SCHEMA = (
-    """
-CREATE TABLE IF NOT EXISTS collaboration_rooms (
-    session_id TEXT PRIMARY KEY,
-    room_id    TEXT NOT NULL UNIQUE,
-    room_json  TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_collab_rooms_room ON collaboration_rooms(room_id);
-
-CREATE TABLE IF NOT EXISTS collaboration_project_generations (
-    session_id  TEXT PRIMARY KEY,
-    project_id  TEXT NOT NULL DEFAULT '',
-    generation  INTEGER NOT NULL
-);
-INSERT OR IGNORE INTO collaboration_project_generations(session_id, project_id, generation)
-SELECT
-    session_id,
-    CASE WHEN json_valid(room_json) THEN COALESCE(
-            json_extract(room_json, '$.metadata.project_id'),
-            json_extract(room_json, '$.project_id'),
-            ''
-        ) ELSE '' END,
-    CASE
-        WHEN json_valid(room_json) THEN CASE
-            WHEN json_type(room_json, '$.metadata.project_binding_generation') = 'integer'
-            THEN MAX(0, CAST(json_extract(
-                room_json,
-                '$.metadata.project_binding_generation'
-            ) AS INTEGER))
-            ELSE 0
-        END
-        ELSE 0
-    END
-FROM collaboration_rooms
-WHERE CASE WHEN json_valid(room_json) THEN
-    json_extract(room_json, '$.metadata.project_id') IS NOT NULL
-    OR json_extract(room_json, '$.project_id') IS NOT NULL
-    OR json_extract(room_json, '$.metadata.project_binding_generation') IS NOT NULL
-    ELSE 0 END;
-
-CREATE TABLE IF NOT EXISTS collaboration_room_owners (
-    room_id     TEXT PRIMARY KEY,
-    session_id  TEXT NOT NULL,
-    project_id  TEXT NOT NULL DEFAULT '',
-    generation  INTEGER NOT NULL
-);
-INSERT OR IGNORE INTO collaboration_room_owners(room_id, session_id, project_id, generation)
-SELECT r.room_id, r.session_id, COALESCE(g.project_id, ''), COALESCE(g.generation, 0)
-FROM collaboration_rooms r
-LEFT JOIN collaboration_project_generations g ON g.session_id=r.session_id;
-
-CREATE TABLE IF NOT EXISTS collaboration_project_room_bindings (
-    project_id  TEXT NOT NULL,
-    session_id  TEXT NOT NULL,
-    room_id     TEXT NOT NULL,
-    generation  INTEGER NOT NULL,
-    PRIMARY KEY (project_id, session_id)
-);
-CREATE TABLE IF NOT EXISTS collaboration_deleted_projects (
-    project_id TEXT PRIMARY KEY,
-    token TEXT NOT NULL,
-    deleted_at TEXT NOT NULL
-);
-INSERT OR IGNORE INTO collaboration_project_room_bindings(
-    project_id, session_id, room_id, generation
-)
-SELECT g.project_id, r.session_id, r.room_id, g.generation
-FROM collaboration_rooms r
-INNER JOIN collaboration_project_generations g ON g.session_id=r.session_id
-WHERE g.project_id != '';
-
-CREATE TABLE IF NOT EXISTS collaboration_tasks (
-    task_id    TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    room_id    TEXT NOT NULL,
-    status     TEXT NOT NULL,
-    task_json  TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_collab_tasks_session ON collaboration_tasks(session_id, updated_at);
-CREATE INDEX IF NOT EXISTS idx_collab_tasks_room ON collaboration_tasks(room_id, updated_at);
-
-CREATE TABLE IF NOT EXISTS collaboration_messages (
-    session_id     TEXT NOT NULL,
-    seq            INTEGER NOT NULL,
-    room_id        TEXT NOT NULL,
-    participant_id TEXT,
-    display_name   TEXT,
-    text           TEXT NOT NULL,
-    ts             TEXT NOT NULL,
-    metadata_json  TEXT NOT NULL DEFAULT '{}',
-    PRIMARY KEY (session_id, seq)
-);
-CREATE INDEX IF NOT EXISTS idx_collab_messages_session ON collaboration_messages(session_id, seq);
-CREATE INDEX IF NOT EXISTS idx_collab_messages_room ON collaboration_messages(room_id, seq);
-CREATE TABLE IF NOT EXISTS collaboration_message_receipts (
-    room_id        TEXT NOT NULL,
-    message_id     TEXT NOT NULL,
-    participant_id TEXT NOT NULL,
-    status         TEXT NOT NULL,
-    seq            INTEGER,
-    updated_at     TEXT NOT NULL,
-    PRIMARY KEY (room_id, message_id, participant_id)
-);
-CREATE INDEX IF NOT EXISTS idx_collab_message_receipts_room
-ON collaboration_message_receipts(room_id, updated_at);
-
-CREATE TABLE IF NOT EXISTS collaboration_annotations (
-    annotation_id TEXT PRIMARY KEY,
-    session_id    TEXT NOT NULL,
-    room_id       TEXT NOT NULL,
-    message_id    TEXT NOT NULL,
-    author_id     TEXT NOT NULL DEFAULT '',
-    author_json   TEXT NOT NULL DEFAULT '{}',
-    body          TEXT NOT NULL,
-    created_at    INTEGER NOT NULL,
-    resolved      INTEGER NOT NULL DEFAULT 0,
-    updated_at    INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_collab_annotations_session
-ON collaboration_annotations(session_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_collab_annotations_message
-ON collaboration_annotations(session_id, message_id, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS collaboration_annotation_replies (
-    reply_id      TEXT PRIMARY KEY,
-    annotation_id TEXT NOT NULL,
-    author_id     TEXT NOT NULL DEFAULT '',
-    author_json   TEXT NOT NULL DEFAULT '{}',
-    body          TEXT NOT NULL,
-    created_at    INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_collab_annotation_replies_annotation
-ON collaboration_annotation_replies(annotation_id, created_at);
-
-CREATE TABLE IF NOT EXISTS collaboration_message_reactions (
-    session_id     TEXT NOT NULL,
-    room_id        TEXT NOT NULL,
-    message_id     TEXT NOT NULL,
-    participant_id TEXT NOT NULL,
-    emoji          TEXT NOT NULL,
-    created_at     INTEGER NOT NULL,
-    PRIMARY KEY (session_id, message_id, participant_id, emoji)
-);
-CREATE INDEX IF NOT EXISTS idx_collab_message_reactions_session
-ON collaboration_message_reactions(session_id, message_id, emoji);
-
-CREATE TABLE IF NOT EXISTS collaboration_pinned_messages (
-    session_id     TEXT NOT NULL,
-    room_id        TEXT NOT NULL,
-    message_id     TEXT NOT NULL,
-    pinned_by      TEXT NOT NULL,
-    created_at     INTEGER NOT NULL,
-    PRIMARY KEY (session_id, message_id)
-);
-CREATE INDEX IF NOT EXISTS idx_collab_pinned_messages_session
-ON collaboration_pinned_messages(session_id, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS collaboration_member_runtime_sessions (
-    collaboration_session_id TEXT NOT NULL,
-    agent_id                 TEXT NOT NULL,
-    subagent_session_id      TEXT NOT NULL,
-    context_hashes_json      TEXT NOT NULL DEFAULT '{}',
-    revision                 INTEGER NOT NULL DEFAULT 1,
-    updated_at               TEXT NOT NULL,
-    PRIMARY KEY (collaboration_session_id, agent_id)
-);
-CREATE INDEX IF NOT EXISTS idx_collab_member_runtime_subagent
-ON collaboration_member_runtime_sessions(subagent_session_id);
-
-CREATE TABLE IF NOT EXISTS collaboration_member_runtime_leases (
-    collaboration_session_id TEXT NOT NULL,
-    agent_id                  TEXT NOT NULL,
-    owner_id                  TEXT NOT NULL,
-    expires_at                REAL NOT NULL,
-    updated_at                TEXT NOT NULL,
-    PRIMARY KEY (collaboration_session_id, agent_id)
-);
-CREATE INDEX IF NOT EXISTS idx_collab_member_runtime_lease_expiry
-ON collaboration_member_runtime_leases(expires_at);
-"""
-    + COLLABORATION_RUN_SCHEMA
-    + COLLABORATION_DELIVERY_SCHEMA
-    + COLLABORATION_COLLECTOR_SCHEMA
-    + CONTEXT_LIFECYCLE_SCHEMA
 )
 
 
@@ -397,7 +218,9 @@ def _normalize_message_metadata(value: Any) -> dict[str, Any]:
     # any specific attribution.
     if "sender_kind" in metadata:
         metadata["sender_kind"] = (
-            metadata.get("sender_kind") if metadata.get("sender_kind") in SENDER_KINDS else "unknown"
+            metadata.get("sender_kind")
+            if metadata.get("sender_kind") in SENDER_KINDS
+            else "unknown"
         )
     if "sender_driver" in metadata:
         metadata["sender_driver"] = (
@@ -581,13 +404,19 @@ class CollaborationStore(
 ):
     """Canonical room/task storage keyed by collaboration session id."""
 
+    list_session_ids = list_session_ids
+    import_legacy_room = import_legacy_room
+    append_message_for_room = append_message_for_room
+    messages_for_room = messages_for_room
+    search_messages_for_room = search_messages_for_room
+
     def __init__(self, base_dir: Path | str | None = None) -> None:
         self._dir = Path(base_dir) if base_dir else _default_dir()
         self._dir.mkdir(parents=True, exist_ok=True)
         self._db = self._dir / "collaboration.db"
         self._lock = threading.Lock()
-        with self._lock, self._connect() as conn:
-            conn.executescript(_SCHEMA)
+        with self._lock, self._connect():
+            pass
 
     @property
     def base_dir(self) -> Path:
@@ -805,29 +634,9 @@ class CollaborationStore(
 
     def _connect(self) -> sqlite3.Connection:
         self._dir.mkdir(parents=True, exist_ok=True)
-        conn = connect_closing(str(self._db), timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.executescript(_SCHEMA)
-        ensure_collaboration_collector_schema(conn)
-        # ``CREATE TABLE IF NOT EXISTS`` does not add columns to installations
-        # created before structured messages existed.  Keep the migration
-        # inline/idempotent because this store intentionally has no external
-        # migration runner.
-        columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(collaboration_messages)")}
-        if "metadata_json" not in columns:
-            conn.execute(
-                "ALTER TABLE collaboration_messages "
-                "ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'"
-            )
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_collab_messages_source "
-            "ON collaboration_messages("
-            "session_id, CASE WHEN json_valid(metadata_json) "
-            "THEN json_extract(metadata_json, '$.source_message_id') END"
-            ") WHERE CASE WHEN json_valid(metadata_json) "
-            "THEN COALESCE(json_extract(metadata_json, '$.source_message_id'), '') != '' "
-            "ELSE 0 END"
-        )
+        conn = configure(connect_closing(str(self._db), timeout=10.0))
+        # Cheap when current (one PRAGMA read); recreates a deleted database.
+        migrate(conn, _MIGRATIONS, name="collaboration")
         return conn
 
     def room_for_session(self, session_id: str) -> dict[str, Any] | None:
@@ -921,16 +730,7 @@ class CollaborationStore(
         )
 
     def tasks_for_session(self, session_id: str) -> list[dict[str, Any]]:
-        if not session_id:
-            return []
-        session_id = require_cowork_id(session_id, label="session_id")
-        with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                "SELECT task_json FROM collaboration_tasks WHERE session_id = ? "
-                "ORDER BY updated_at DESC, created_at DESC",
-                (session_id,),
-            ).fetchall()
-        return [item for row in rows if (item := _load(row[0])) is not None]
+        return _tasks_for_session(self, session_id, _load)
 
     def tasks_for_room(self, room_id: str) -> list[dict[str, Any]]:
         if not room_id:
@@ -1054,15 +854,7 @@ class CollaborationStore(
         return project_projection_tombstone_token(self, project_id=project_id)
 
     def delete_task(self, task_id: str) -> bool:
-        if not task_id:
-            return False
-        task_id = require_cowork_id(task_id, label="task_id")
-        with self._lock, self._connect() as conn:
-            cur = conn.execute(
-                "DELETE FROM collaboration_tasks WHERE task_id = ?",
-                (task_id,),
-            )
-            return cur.rowcount > 0
+        return _delete_task(self, task_id)
 
     def delete_room_by_id(self, room_id: str) -> bool:
         if not room_id:
@@ -1095,28 +887,6 @@ class CollaborationStore(
     ) -> int:
         return _append_message(
             self,
-            session_id,
-            room_id=room_id,
-            text=text,
-            participant_id=participant_id,
-            display_name=display_name,
-            metadata=metadata,
-        )
-
-    def append_message_for_room(
-        self,
-        room_id: str,
-        *,
-        text: str,
-        participant_id: str = "",
-        display_name: str = "",
-        metadata: dict[str, Any] | None = None,
-    ) -> int | None:
-        room_id = require_cowork_id(room_id, label="room_id")
-        session_id = self.session_id_for_room(room_id)
-        if not session_id:
-            return None
-        return self.append_message(
             session_id,
             room_id=room_id,
             text=text,
@@ -1217,48 +987,6 @@ class CollaborationStore(
             ).fetchall()
         return [_message_from_row(row) for row in reversed(rows)]
 
-    def messages_for_room(
-        self,
-        room_id: str,
-        *,
-        limit: int = 200,
-        after_seq: int = 0,
-    ) -> list[dict[str, Any]]:
-        if not room_id:
-            return []
-        room_id = require_cowork_id(room_id, label="room_id")
-        limit = max(1, min(2000, limit))
-        with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                "SELECT session_id, seq, room_id, participant_id, display_name, text, ts, "
-                "metadata_json "
-                "FROM collaboration_messages "
-                "WHERE room_id = ? AND seq > ? ORDER BY seq DESC LIMIT ?",
-                (room_id, int(after_seq), limit),
-            ).fetchall()
-            receipt_rows = conn.execute(
-                "SELECT message_id, participant_id, status, seq, updated_at "
-                "FROM collaboration_message_receipts WHERE room_id = ?",
-                (room_id,),
-            ).fetchall()
-        receipts: dict[str, list[dict[str, Any]]] = {}
-        for receipt in receipt_rows:
-            receipts.setdefault(str(receipt[0]), []).append(
-                {
-                    "message_id": str(receipt[0]),
-                    "participant_id": str(receipt[1]),
-                    "status": str(receipt[2]),
-                    "seq": int(receipt[3]) if receipt[3] is not None else None,
-                    "updated_at": str(receipt[4]),
-                }
-            )
-        messages = [_message_from_row(row) for row in reversed(rows)]
-        for message in messages:
-            message["receipts"] = receipts.get(
-                str((message.get("metadata") or {}).get("message_id") or ""), []
-            )
-        return messages
-
     def search_messages(
         self,
         session_id: str,
@@ -1278,28 +1006,6 @@ class CollaborationStore(
                 "WHERE session_id = ? AND (lower(text) LIKE ? OR lower(metadata_json) LIKE ?) "
                 "ORDER BY seq DESC LIMIT ?",
                 (session_id, f"%{q}%", f"%{q}%", max(1, min(200, limit))),
-            ).fetchall()
-        return [_message_from_row(row) for row in rows]
-
-    def search_messages_for_room(
-        self,
-        room_id: str,
-        query: str,
-        *,
-        limit: int = 50,
-    ) -> list[dict[str, Any]]:
-        q = normalize_search_query(query)
-        if not room_id or not q:
-            return []
-        room_id = require_cowork_id(room_id, label="room_id")
-        with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                "SELECT session_id, seq, room_id, participant_id, display_name, text, ts, "
-                "metadata_json "
-                "FROM collaboration_messages "
-                "WHERE room_id = ? AND (lower(text) LIKE ? OR lower(metadata_json) LIKE ?) "
-                "ORDER BY seq DESC LIMIT ?",
-                (room_id, f"%{q}%", f"%{q}%", max(1, min(200, limit))),
             ).fetchall()
         return [_message_from_row(row) for row in rows]
 
@@ -1488,19 +1194,36 @@ class CollaborationStore(
             None,
         )
 
+    def annotation_author_id(self, session_id: str, annotation_id: str) -> str | None:
+        """The author of one annotation in this session; ``None`` if it is not here."""
+        session_id = require_cowork_id(session_id, label="session_id")
+        annotation_id = require_cowork_id(annotation_id, label="annotation_id")
+        with self._lock, self._connect() as conn:
+            row = conn.execute(
+                "SELECT author_id FROM collaboration_annotations "
+                "WHERE session_id=? AND annotation_id=?",
+                (session_id, annotation_id),
+            ).fetchone()
+        return None if row is None else str(row[0] or "")
+
     def delete_annotation(self, session_id: str, annotation_id: str) -> bool:
         session_id = require_cowork_id(session_id, label="session_id")
         annotation_id = require_cowork_id(annotation_id, label="annotation_id")
         with self._lock, self._connect() as conn:
-            conn.execute(
-                "DELETE FROM collaboration_annotation_replies WHERE annotation_id=?",
-                (annotation_id,),
-            )
+            # Replies carry no session id of their own. Remove them only once
+            # the annotation is proven to belong to this session, so a caller
+            # with access to one thread cannot wipe another thread's replies.
             cur = conn.execute(
                 "DELETE FROM collaboration_annotations WHERE session_id=? AND annotation_id=?",
                 (session_id, annotation_id),
             )
-            return cur.rowcount > 0
+            if cur.rowcount == 0:
+                return False
+            conn.execute(
+                "DELETE FROM collaboration_annotation_replies WHERE annotation_id=?",
+                (annotation_id,),
+            )
+            return True
 
     def add_annotation_reply(
         self,

@@ -1,0 +1,8 @@
+name: computer_control
+display_name: 电脑控制
+version: 0.1.0
+activation: startup
+description: 截图、鼠标键盘、Windows UIA 和电脑视觉循环。使用现有主机权限；停用后撤销自动化工具和 HTTP 控制入口。
+author: Echo
+tags: [automation, desktop, computer]
+config: {}

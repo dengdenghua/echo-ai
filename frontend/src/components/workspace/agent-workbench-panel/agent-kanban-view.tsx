@@ -143,7 +143,7 @@ function AgentKanbanViewImpl({
       {/* Summary remains the default for the main process. A selected agent's
           execution screen is available here; identity belongs to the avatar
           profile card in the conversation, not this workbench. */}
-      <div className="flex items-center gap-4 border-b border-border-subtle px-5 py-2">
+      {(selectedAgent || selectedRosterSeat) && <div className="flex items-center gap-4 border-b border-border-subtle px-5 py-2">
         {[
           { id: "summary" as const, label: t.agentWorkbenchPanel.summaryLabel },
           ...(selectedAgent
@@ -172,13 +172,25 @@ function AgentKanbanViewImpl({
         <span className="ml-auto font-mono text-xs text-muted-foreground">
           {selectedRosterSeat
             ? selectedRosterSeat.name
-            : (selectedAgent?.label ??
+            : (selectedAgent?.codename ??
+              selectedAgent?.name ??
               mainAgentName ??
               t.agentWorkbenchPanel.mainComputer)}
         </span>
-      </div>
+      </div>}
 
-      {effectiveActivityView === "summary" ? (
+      {effectiveActivityView === "summary" &&
+      selectedAgent &&
+      (selectedAgent.status === "done" || selectedAgent.status === "error") ? (
+        <SubagentProcessView
+          agent={selectedAgent}
+          blocks={screenBlocks}
+          currentBlockId={currentScreenBlockId}
+          onOpenMain={openMainProcess}
+          onSelectBlock={setSelectedBlockId}
+          summaryOnly
+        />
+      ) : effectiveActivityView === "summary" ? (
         <AgentSummaryPage
           phases={phases}
           diffEntries={visibleDiffEntries}
@@ -240,23 +252,23 @@ function AgentKanbanViewImpl({
       {/* Explanatory capability traces stay in the event history. This surface
           appears only when the latest trace explicitly needs user attention. */}
       {lastVisibilityEvent && actionableVisibilitySteps.length > 0 ? (
-        <div className="relative shrink-0 border-t border-amber-200/70 bg-amber-50/55 py-1 dark:border-amber-900/50 dark:bg-amber-950/15">
+        <div className="relative shrink-0 border-t border-warning/30 bg-warning/10 py-1">
           <button
             type="button"
             onClick={() => setVisibilityOpen((open) => !open)}
-            className="relative z-10 flex w-full items-center gap-1.5 px-5 py-1.5 text-left transition-colors hover:bg-amber-100/55 dark:hover:bg-amber-900/20"
+            className="relative z-10 flex w-full items-center gap-1.5 px-5 py-1.5 text-left transition-colors hover:bg-warning/10"
             aria-expanded={visibilityOpen}
           >
             {visibilityOpen ? (
-              <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground/60" />
+              <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
             ) : (
-              <ChevronRightIcon className="size-3 shrink-0 text-muted-foreground/60" />
+              <ChevronRightIcon className="size-3 shrink-0 text-muted-foreground" />
             )}
-            <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300">
+            <span className="text-xs font-medium text-warning">
               {t.agentWorkbenchPanel.visibilityPanelTitle} ·{" "}
               {t.agentWorkbenchPanel.visibilityPanelAttention}
             </span>
-            <span className="rounded-full bg-amber-100 px-1.5 text-[10px] tabular-nums text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+            <span className="rounded-full bg-warning/10 px-1.5 text-[10px] tabular-nums text-warning">
               {actionableVisibilitySteps.length}
             </span>
           </button>
@@ -267,13 +279,13 @@ function AgentKanbanViewImpl({
                   key={`${step.decision_point}:${index}`}
                   className="rounded-md border border-border-subtle bg-background/40 px-2 py-1.5"
                 >
-                  <span className="text-[10px] font-medium text-muted-foreground/60">
+                  <span className="text-xs font-medium text-muted-foreground">
                     {t.agentWorkbenchPanel.visibilityStep} {index + 1}
                   </span>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-foreground/75">
+                  <p className="mt-0.5 text-xs leading-relaxed text-foreground/75">
                     {step.conclusion}
                   </p>
-                  <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground/60">
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                     {step.basis}
                   </p>
                 </div>

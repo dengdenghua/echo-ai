@@ -29,7 +29,8 @@ def _isolated_process_runner(
     cancel_event=None,
 ):
     if description == "stuck-process":
-        time.sleep(5)
+        # Hard-terminated at the task timeout; the sleep only has to outlast it.
+        time.sleep(30)
         return "must never arrive"
     emitter = (context or {}).get("emit_tool_event")
     if callable(emitter):
@@ -1102,14 +1103,15 @@ def test_process_isolation_hard_terminates_stuck_runner_and_reuses_capacity() ->
             ],
             context={
                 "subagent_worker_isolation": "process",
-                # Keep the timeout below the stuck runner's five-second sleep,
-                # while leaving enough headroom for a cold ``spawn`` startup
-                # on loaded macOS CI hosts.
-                "subagent_task_timeout_s": 2.0,
-                "subagent_queue_timeout_s": 8.0,
+                # Far below the stuck runner's sleep, but above a cold ``spawn``
+                # of the healthy worker: ~0.5 s on Linux, ~2.8 s on Windows,
+                # where 2 s timed the healthy task out too.
+                "subagent_task_timeout_s": 6.0,
+                "subagent_queue_timeout_s": 30.0,
             },
         )
-        for _ in range(1200):
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
             snapshot = orchestrator.get_batch(batch.batch_id)
             assert snapshot is not None
             if snapshot.completed_at is not None:
@@ -1147,7 +1149,9 @@ def test_auto_isolation_uses_process_for_picklable_runner() -> None:
         batch = orchestrator.dispatch(
             [DispatchTaskInput(task_id="auto-process", description="healthy-process")]
         )
-        for _ in range(200):
+        # A spawned worker takes ~2.8 s to start on Windows; poll by deadline.
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
             snapshot = orchestrator.get_batch(batch.batch_id)
             assert snapshot is not None
             if snapshot.completed_at is not None:

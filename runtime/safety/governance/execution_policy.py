@@ -21,7 +21,9 @@ JSON-safe and can be written to traces or rendered in any client.
 from __future__ import annotations
 
 import shlex
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Literal
@@ -34,8 +36,39 @@ from runtime.safety.approval.approval_gate import (
     ApprovalRiskPolicy,
     assess_approval_risk,
     injection_taint_block,
+    resolve_approval_risk_policy,
 )
 from runtime.safety.validation.prompt_injection import current_injection_taint
+
+# The ReAct single-action path runs its own approval round-trip (human or
+# automatic reviewer) for the exact call it is about to execute. It names
+# that tool here so the executor's ``enforce_executor_approval`` gate does
+# not hold the very call that was just approved. The mark is consumed by the
+# first matching evaluation, so tools dispatched *inside* that call (nested
+# delegation, graph runs) are still gated as unreviewed.
+_CALLER_REVIEWED_TOOL: ContextVar[str | None] = ContextVar(
+    "echo_caller_reviewed_tool",
+    default=None,
+)
+
+
+@contextmanager
+def caller_reviewed_tool_call(tool_name: str) -> Iterator[None]:
+    """Mark the next executor dispatch of ``tool_name`` as already approved."""
+
+    token = _CALLER_REVIEWED_TOOL.set(str(tool_name or "").strip() or None)
+    try:
+        yield
+    finally:
+        _CALLER_REVIEWED_TOOL.reset(token)
+
+
+def _consume_caller_review(tool_name: str) -> bool:
+    reviewed = _CALLER_REVIEWED_TOOL.get()
+    if not reviewed or reviewed != tool_name:
+        return False
+    _CALLER_REVIEWED_TOOL.set(None)
+    return True
 
 
 class GovernanceOutcome(StrEnum):
@@ -58,11 +91,9 @@ class ExecutionPolicyContext:
     def from_metadata(cls, metadata: Mapping[str, Any] | None) -> ExecutionPolicyContext:
         value = metadata if isinstance(metadata, Mapping) else {}
         permission_mode = str(value.get("permission_mode") or "").strip().lower()
-        raw_risk_policy = value.get("approval_risk_policy")
-        risk_policy = (
-            raw_risk_policy
-            if isinstance(raw_risk_policy, ApprovalRiskPolicy)
-            else ApprovalRiskPolicy.from_mapping(raw_risk_policy)
+        risk_policy = resolve_approval_risk_policy(
+            value.get("approval_risk_policy"),
+            permission_mode=value.get("permission_mode"),
         )
         return cls(
             enforce_approval=bool(value.get("enforce_executor_approval")),
@@ -177,6 +208,9 @@ def evaluate_execution_policy(
     """Evaluate gates in the executor's established fail-closed order."""
 
     policy_context = context or ExecutionPolicyContext()
+    # Consume the caller's review mark up front, whatever this evaluation
+    # decides, so it can never leak to a nested dispatch of the same tool.
+    caller_reviewed = _consume_caller_review(instruction.tool_name)
 
     if not task_capability[0]:
         return _decision(
@@ -194,7 +228,9 @@ def evaluate_execution_policy(
         and not policy_context.bypass_approval
     ):
         action = policy_context.approval_risk_policy.action_for(instruction.risk)
-        if action not in {"allow", "audit"}:
+        # A policy ``deny`` stays final; only an ask/confirm hold defers to
+        # the caller's own approval of this exact call.
+        if action not in {"allow", "audit"} and (action == "deny" or not caller_reviewed):
             reason = (
                 f"approval required before executing {instruction.tool_name} "
                 f"(risk={instruction.risk.level}: {instruction.risk.reason}; action={action})"

@@ -3,8 +3,8 @@
 The HTTP /api/tentacle/* routes can be protected by app middleware, but
 the screen-stream sockets bypass HTTP middleware entirely. These tests
 lock the handshake boundary: when require_auth is enabled, an anonymous
-or wrong-token client is closed with 4401 before any stream subscription
-is established.
+or wrong-token client is closed with 1008 (the shared pre-accept
+policy-violation code) before any stream subscription is established.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ class _StreamingCoordinator:
 
 def _store() -> IdentityStore:
     store = IdentityStore()
-    store.add(Identity(actor_id="alice"), api_key_plaintext="sk-alice")
+    store.add(Identity(actor_id="alice", roles=("admin",)), api_key_plaintext="sk-alice")
     return store
 
 
@@ -70,7 +70,8 @@ def test_tentacle_screen_ws_rejects_missing_token_when_required() -> None:
         client.websocket_connect("/api/tentacle/screen/stream") as ws,
     ):
         ws.receive_text()
-    assert exc_info.value.code == 4401
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "authentication required"
 
 
 def test_tentacle_pc_screen_ws_rejects_wrong_token_when_required() -> None:
@@ -83,7 +84,8 @@ def test_tentacle_pc_screen_ws_rejects_wrong_token_when_required() -> None:
         ) as ws,
     ):
         ws.receive_text()
-    assert exc_info.value.code == 4401
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "invalid or expired credentials"
 
 
 def test_tentacle_ws_require_auth_without_identity_store_rejects() -> None:
@@ -96,12 +98,15 @@ def test_tentacle_ws_require_auth_without_identity_store_rejects() -> None:
         ) as ws,
     ):
         ws.receive_text()
-    assert exc_info.value.code == 4401
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "authentication unavailable"
 
 
 def test_tentacle_pc_screen_ws_accepts_base64url_subprotocol() -> None:
     store = IdentityStore()
-    store.add(Identity(actor_id="encoded"), api_key_plaintext="令牌 with spaces/(test)")
+    store.add(
+        Identity(actor_id="encoded", roles=("admin",)), api_key_plaintext="令牌 with spaces/(test)"
+    )
     encoded = (
         base64.urlsafe_b64encode("令牌 with spaces/(test)".encode()).decode("ascii").rstrip("=")
     )
@@ -116,3 +121,19 @@ def test_tentacle_pc_screen_ws_accepts_base64url_subprotocol() -> None:
         subprotocols=["bearer.b64", encoded],
     ) as ws:
         assert ws.accepted_subprotocol == "bearer.b64"
+
+
+@pytest.mark.parametrize("path", ["/api/tentacle/screen/stream", "/api/tentacle/pc-screen/stream"])
+def test_tentacle_screen_ws_rejects_plain_user_without_operator_role(path: str) -> None:
+    # 已登录的普通账号（无 admin/operator）不得观看宿主/设备屏幕。
+    store = _store()
+    store.add(Identity(actor_id="mallory"), api_key_plaintext="sk-mallory")
+    client = _client(require_auth=True, store=store, coordinator=_StreamingCoordinator())
+    with (
+        pytest.raises(WebSocketDisconnect) as exc_info,
+        client.websocket_connect(path, headers={"Authorization": "Bearer sk-mallory"}) as ws,
+    ):
+        ws.receive_text()
+    # Authenticated but unauthorised: same pre-accept 1008, distinct reason.
+    assert exc_info.value.code == 1008
+    assert exc_info.value.reason == "admin/operator role required"

@@ -88,6 +88,7 @@ it("projects the actual turn engine onto messages independently of persona", () 
   const message = state.messages.find((entry) => entry.type === "ai");
   expect(message?.additional_kwargs.execution_engine).toBe("codex");
   expect(message?.additional_kwargs.execution).toEqual(turn.execution);
+  expect(message?.additional_kwargs.turn_duration_ms).toBe(1_000);
 });
 
 it("keeps OpenCode evidence on the tool record that anchors a grouped answer", () => {

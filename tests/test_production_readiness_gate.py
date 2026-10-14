@@ -177,8 +177,7 @@ def test_static_only_gate_still_blocks_static_score_regressions(
     )
 
     assert any(
-        "agent scorecard echo evidence-adjusted overall is 94" in item
-        for item in result.failures
+        "agent scorecard echo evidence-adjusted overall is 94" in item for item in result.failures
     )
     assert result.to_dict()["gate_passed"] is False
 
@@ -491,8 +490,7 @@ def test_production_readiness_gate_blocks_scorecard_regression(
     result = gate.run_gate(min_score=95, review_queue_path=review_queue_path)
 
     assert any(
-        "agent scorecard echo evidence-adjusted overall is 94" in item
-        for item in result.failures
+        "agent scorecard echo evidence-adjusted overall is 94" in item for item in result.failures
     )
 
 
@@ -544,8 +542,7 @@ def test_production_readiness_gate_blocks_e2e_summary_drift(
     result = gate.run_gate(min_score=95, review_queue_path=review_queue_path)
 
     assert any(
-        "e2e summary mismatch: automation_echo=94, expected 96" in item
-        for item in result.failures
+        "e2e summary mismatch: automation_echo=94, expected 96" in item for item in result.failures
     )
 
 
@@ -747,7 +744,7 @@ def test_pr_scale_release_train_exception_is_exact_sha_and_same_repo_only() -> N
     assert "approvedHead.length === 40" in script
     assert "approvedHead === head" in script
     assert "pr.base.ref === 'main'" in script
-    assert "pr.head.ref === 'codex/production-hardening'" in script
+    assert "pr.head.ref.startsWith('codex/')" in script
     assert "pr.head.repo.full_name === pr.base.repo.full_name" in script
     assert "if (releaseTrainApproved)" in script
 
@@ -870,6 +867,12 @@ def test_tag_release_requires_same_sha_evidence_before_build_and_push() -> None:
     assert '[[ -z "${ci_run_id}" ]]' in lookup
     assert '[[ -z "${windows_run_id}" ]]' in lookup
     assert "windows_run_id=${windows_run_id}" in lookup
+    assert "actions/workflows/runtime-security-contract.yml/runs" in lookup
+    assert '[[ -z "${security_run_id}" ]]' in lookup
+    assert (
+        'select(.head_sha == $sha and .status == "completed" and .conclusion == "success")'
+        in lookup
+    )
     assert "exit 1" in lookup
     assert gate_job["outputs"]["windows-run-id"] == (
         "${{ steps.evidence-run.outputs.windows_run_id }}"
@@ -1034,6 +1037,7 @@ def test_windows_artifact_workflow_is_signed_and_commit_bound() -> None:
     steps = {step.get("name"): step for step in job["steps"] if step.get("name")}
 
     identity = steps["Validate protected Windows signing identity"]
+    assert identity["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
     assert identity["env"]["CSC_LINK"] == ("${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_BASE64 }}")
     assert identity["env"]["CSC_KEY_PASSWORD"] == (
         "${{ secrets.WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}"
@@ -1044,9 +1048,9 @@ def test_windows_artifact_workflow_is_signed_and_commit_bound() -> None:
 
     electron_build = steps["Build canonical Electron EXE"]
     assert electron_build["env"] == identity["env"]
-    signature_check = steps["Verify Authenticode signatures and create commit-bound checksums"][
-        "run"
-    ]
+    signature_step = steps["Verify Authenticode signatures and create commit-bound checksums"]
+    assert signature_step["if"] == "env.HAS_WINDOWS_SIGNING == 'true'"
+    signature_check = signature_step["run"]
     assert "win-unpacked/Echo.exe" in signature_check
     assert "win-unpacked/resources/backend/echo-backend.exe" in signature_check
     assert "win-unpacked/resources/codex/bin/codex.exe" in signature_check
@@ -1059,11 +1063,18 @@ def test_windows_artifact_workflow_is_signed_and_commit_bound() -> None:
     assert "$env:GITHUB_SHA" in signature_check
 
     installer_upload = steps["Upload EXE installer"]
-    assert installer_upload["with"]["name"] == ("Echo-Setup-Windows-${{ github.sha }}")
+    # Unsigned diagnostic artifacts cannot satisfy the signed names consumed
+    # by release.yml (checked separately by the release-workflow contract).
+    unsigned_suffix = "${{ env.HAS_WINDOWS_SIGNING != 'true' && '-UNSIGNED' || '' }}"
+    assert installer_upload["with"]["name"] == (
+        "Echo-Setup-Windows-${{ github.sha }}" + unsigned_suffix
+    )
     assert "frontend/release/SHA256SUMS" in installer_upload["with"]["path"]
     assert "frontend/release/windows-signing-proof.json" in installer_upload["with"]["path"]
     portable_upload = steps["Upload portable (unpacked)"]
-    assert portable_upload["with"]["name"] == ("Echo-Portable-Windows-${{ github.sha }}")
+    assert portable_upload["with"]["name"] == (
+        "Echo-Portable-Windows-${{ github.sha }}" + unsigned_suffix
+    )
 
     build_config = yaml.safe_load(
         (REPO_ROOT / "packaging" / "desktop" / "build.yml").read_text(encoding="utf-8")

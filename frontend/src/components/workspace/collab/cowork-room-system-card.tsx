@@ -73,10 +73,10 @@ export function CoworkRoomSystemCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0 text-[10px] font-medium text-primary">
+            <span className="shrink-0 text-xs font-medium text-primary">
               {meta.label}
             </span>
-            <span className="text-muted-foreground/45" aria-hidden="true">
+            <span className="text-muted-foreground" aria-hidden="true">
               ·
             </span>
             <h4 className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
@@ -85,14 +85,14 @@ export function CoworkRoomSystemCard({
             {card.status ? (
               <Badge
                 variant="outline"
-                className="h-4 shrink-0 bg-background/80 px-1 text-[9px]"
+                className="h-4 shrink-0 bg-background/80 px-1 text-micro"
               >
                 {card.status}
               </Badge>
             ) : null}
           </div>
           {card.summary ? (
-            <p className="mt-0.5 line-clamp-1 whitespace-pre-wrap text-[11px] leading-4 text-muted-foreground">
+            <p className="mt-0.5 line-clamp-1 whitespace-pre-wrap text-xs leading-4 text-muted-foreground">
               {card.summary}
             </p>
           ) : null}
@@ -101,14 +101,14 @@ export function CoworkRoomSystemCard({
           onEntityClick ? (
             <button
               type="button"
-              className="inline-flex h-7 max-w-32 shrink-0 items-center gap-1 rounded-md px-1.5 text-[10px] font-medium text-primary outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-7 max-w-32 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-primary outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => onEntityClick(target)}
             >
               <Link2Icon className="size-3 shrink-0" aria-hidden="true" />
               <span className="truncate">{target.label || target.id}</span>
             </button>
           ) : (
-            <span className="inline-flex max-w-32 shrink-0 items-center gap-1 truncate text-[10px] text-muted-foreground">
+            <span className="inline-flex max-w-32 shrink-0 items-center gap-1 truncate text-xs text-muted-foreground">
               <Link2Icon className="size-3 shrink-0" aria-hidden="true" />
               <span className="truncate">{target.label || target.id}</span>
             </span>

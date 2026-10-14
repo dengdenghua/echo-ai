@@ -25,6 +25,15 @@ from runtime.platform.models import (
     TrajectoryOutcome,
 )
 
+# Starlette's TestClient sends ``Host: testserver``. The auth-off Host guard
+# (runtime/platform/ui/local_origin_guard.py) trusts only loopback names by
+# default, so the harness host is allowlisted for this process instead of
+# being special-cased in production code. Set at import so module-scoped
+# fixtures that build and call the app are covered too.
+_allowed_hosts = [h for h in os.environ.get("ECHO_ALLOWED_HOSTS", "").split(",") if h.strip()]
+if "testserver" not in _allowed_hosts:
+    os.environ["ECHO_ALLOWED_HOSTS"] = ",".join([*_allowed_hosts, "testserver"])
+
 
 @pytest.fixture(autouse=True)
 def _restore_working_directory():
@@ -58,6 +67,46 @@ def _isolate_execution_security_environment():
     yield
     for key in keys:
         os.environ.pop(key, None)
+
+
+@pytest.fixture
+def enabled_device_plugin_manifests(monkeypatch):
+    """Exercise device behavior with first-party manifests, without host installs.
+
+    Opt in explicitly: plugin lifecycle tests must still cover the real
+    installed/enabled/trusted package boundary.
+    """
+    from runtime.tentacle import device_plugins
+
+    plugins_root = Path(__file__).resolve().parents[1] / "extensions" / "codex-plugins"
+    monkeypatch.setattr(
+        device_plugins,
+        "device_plugin_tools_root",
+        lambda platform: plugins_root / f"echo-{platform}" / "tool-manifests",
+    )
+
+
+@pytest.fixture
+def installed_hub_roles(monkeypatch):
+    """Return ``install(*role_ids)`` that marks roles as installed + runnable.
+
+    Public delegation (``call_agent`` / ``call_agent_parallel`` and every
+    orchestrator built on them) only targets installed HUB roles, and the
+    bridge refuses to substitute a missing one. Tests that exercise the
+    fan-out mechanics opt in to the exact roles they dispatch to, instead of
+    relying on the retired implicit-builtin fallback.
+    """
+    from runtime.execution.subagents import market_bridge
+
+    roles: dict[str, market_bridge.MarketIdentity] = {}
+    monkeypatch.setattr(market_bridge, "runnable_market_roles", lambda runner=None: roles)
+
+    def install(*role_ids: str) -> dict[str, market_bridge.MarketIdentity]:
+        for role_id in role_ids:
+            roles[role_id] = market_bridge.MarketIdentity(role_id, role_id, "", "test role")
+        return roles
+
+    return install
 
 
 @pytest.fixture

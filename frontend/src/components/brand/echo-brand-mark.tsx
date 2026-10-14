@@ -1,60 +1,83 @@
 import { cn } from "@/lib/utils";
 
-type EchoBrandMarkProps = {
+/**
+ * Echo Core light states (ECHO brand book, "Echo Core 灯语"). The frame never
+ * changes; only the core dot carries state, and only where the mark stands
+ * for live system status. Everywhere else it stays `sync`.
+ */
+export type EchoCoreState =
+  | "sync"
+  | "signal"
+  | "warning"
+  | "resonance"
+  | "nano"
+  | "breach"
+  | "off";
+
+const CORE_FILL: Record<EchoCoreState, string> = {
+  sync: "var(--echo-core)",
+  signal: "var(--echo-signal)",
+  warning: "var(--echo-warning)",
+  resonance: "var(--echo-resonance)",
+  nano: "var(--echo-nano)",
+  breach: "var(--echo-breach)",
+  off: "var(--echo-ink-faint)",
+};
+
+type EchoGlyphProps = {
   className?: string;
-  size?: "md" | "lg";
+  /** Core light color; defaults to the stable `core` cyan. */
+  state?: EchoCoreState;
+  /** Breathe the core (the only looping motion ECHO allows). */
+  breathe?: boolean;
+};
+
+type EchoBrandMarkProps = EchoGlyphProps & {
+  size?: "sm" | "md" | "lg";
 };
 
 const sizeConfig = {
-  md: {
-    box: "size-9 rounded-xl",
-    svg: "size-5",
-  },
-  lg: {
-    box: "size-11 rounded-xl",
-    svg: "size-6",
-  },
+  sm: "size-6",
+  md: "size-9",
+  lg: "size-11",
 } as const;
 
-function EchoGlyph({ className }: { className?: string }) {
+/**
+ * The ECHO mark: an open frame "E" whose middle bar is the Echo Core dot.
+ * Geometry is the brand kit's 64-unit grid, copied exactly. The frame takes
+ * `currentColor`, so it reads as ink on Snow and snow on Graphite; the core
+ * is always `--echo-core` (or a state color). No gradients, glows or shadows.
+ *
+ * The name is kept from the retired orb glyph so existing callers compile.
+ */
+export function EchoOrbGlyph({
+  className,
+  state = "sync",
+  breathe = false,
+}: EchoGlyphProps) {
   return (
     <svg
-      viewBox="0 0 32 32"
+      viewBox="0 0 64 64"
       fill="none"
       className={className}
       aria-hidden="true"
+      data-echo-core={state}
     >
-      {/* Head */}
-      <circle cx="16" cy="11" r="6.5" fill="currentColor" />
-      {/* Eyes */}
-      <circle cx="13.8" cy="10.2" r="1.3" fill="white" fillOpacity="0.95" />
-      <circle cx="18.2" cy="10.2" r="1.3" fill="white" fillOpacity="0.95" />
-      <circle cx="14" cy="10.5" r="0.6" fill="#1a1a1e" />
-      <circle cx="18.4" cy="10.5" r="0.6" fill="#1a1a1e" />
-      <circle cx="14.2" cy="10" r="0.25" fill="white" />
-      <circle cx="18.6" cy="10" r="0.25" fill="white" />
-      {/* Tentacles: 5 elegant curves */}
-      <g
+      <path
+        d="M50 17H24a7 7 0 0 0-7 7v16a7 7 0 0 0 7 7h26"
         stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-        strokeOpacity="0.9"
-      >
-        <path d="M10.5 15.5 C8 19, 7 23, 8 26.5" />
-        <path d="M13 16.5 C11.5 20, 11 24, 12 27" />
-        <path d="M16 17 C15.5 21, 15.5 25, 16 27.5" />
-        <path d="M19 16.5 C20.5 20, 21 24, 20 27" />
-        <path d="M21.5 15.5 C24 19, 25 23, 24 26.5" />
-      </g>
-      {/* Tentacle tips */}
-      <g fill="currentColor" fillOpacity="0.9">
-        <circle cx="8" cy="26.5" r="1.4" />
-        <circle cx="12" cy="27" r="1.3" />
-        <circle cx="16" cy="27.5" r="1.2" />
-        <circle cx="20" cy="27" r="1.3" />
-        <circle cx="24" cy="26.5" r="1.4" />
-      </g>
+        strokeWidth="6"
+      />
+      <circle
+        cx="38"
+        cy="32"
+        r="5"
+        fill={CORE_FILL[state]}
+        className={cn(
+          breathe &&
+            "animate-[echo-core-breathe_2.4s_ease-in-out_infinite] motion-reduce:animate-none",
+        )}
+      />
     </svg>
   );
 }
@@ -62,19 +85,19 @@ function EchoGlyph({ className }: { className?: string }) {
 export function EchoBrandMark({
   className,
   size = "md",
+  state,
+  breathe,
 }: EchoBrandMarkProps) {
-  const cfg = sizeConfig[size];
-
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "relative inline-grid shrink-0 place-items-center overflow-hidden border border-foreground/10 bg-foreground/[0.04] text-primary shadow-[var(--shadow-xs)]",
-        cfg.box,
+        "relative inline-grid shrink-0 place-items-center",
+        sizeConfig[size],
         className,
       )}
     >
-      <EchoGlyph className={cfg.svg} />
+      <EchoOrbGlyph className="size-full" state={state} breathe={breathe} />
     </span>
   );
 }

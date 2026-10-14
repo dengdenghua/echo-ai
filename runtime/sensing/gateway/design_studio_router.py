@@ -13,6 +13,7 @@ import stat
 import threading
 import time
 import zipfile
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,13 +23,29 @@ from uuid import uuid4
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
 
 from runtime.platform.plugins.bundled.comfyui_bridge.workflow_diagnostics import (
     diagnose_workflow,
 )
 from runtime.platform.process.paths import app_paths
 from runtime.platform.process.state import SQLiteBackend, StateStore
+from runtime.sensing.gateway._design_studio_models import (
+    _COMFY_MODEL_GROUPS,
+    _CURATED_COMFY_NODES,
+    CanvasPresenceHeartbeat,
+    CanvasSave,
+    ComfyCustomNodeAction,
+    ComfyCustomNodeRollback,
+    ComfyModelAction,
+    ComfyModelDownload,
+    ComfyModelRestore,
+    DesignCapabilityRequest,
+    PluginNodeStatePut,
+    QueueRequest,
+    WorkflowImport,
+    WorkflowSave,
+)
+from runtime.sensing.gateway._untrusted_content import untrusted_file_response
 from runtime.sensing.gateway.comfyui_manager import (
     cancel_manager_job,
     list_managed_models,
@@ -66,89 +83,8 @@ _MAX_PLUGIN_NODE_BYTES = 2 * 1024 * 1024
 _MAX_PLUGIN_NODE_KEYS = 64
 _PLUGIN_NODE_STATE_LOCK = threading.RLock()
 _SAFE_STATE_COMPONENT = re.compile(r"^[a-zA-Z0-9._:-]{1,160}$")
-_COMFY_MODEL_GROUPS = (
-    "checkpoints",
-    "diffusion_models",
-    "loras",
-    "vae",
-    "controlnet",
-    "text_encoders",
-    "clip_vision",
-    "upscale_models",
-)
 _COMFY_MODEL_SUFFIXES = frozenset({".safetensors", ".ckpt", ".pt", ".pth", ".bin"})
 _COMFY_REGISTRY_URL = "https://api.comfy.org"
-_CURATED_COMFY_NODES = (
-    "comfyui-impact-pack",
-    "comfyui-kjnodes",
-    "comfyui_essentials",
-    "comfyui-videohelpersuite",
-    "comfyui_ipadapter_plus",
-    "rgthree-comfy",
-    "comfyui_controlnet_aux",
-    "comfyui-advanced-controlnet",
-    "comfyui-easy-use",
-)
-
-
-class WorkflowImport(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
-    workflow: dict[str, Any]
-    ui: dict[str, Any] = Field(default_factory=dict)
-
-
-class WorkflowSave(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
-    workflow: dict[str, Any]
-    ui: dict[str, Any] = Field(default_factory=dict)
-    expected_revision: int = Field(default=0, ge=0)
-
-
-class QueueRequest(BaseModel):
-    prompt: dict[str, Any] | None = None
-    workflow_id: str | None = Field(default=None, max_length=80)
-    client_id: str | None = Field(default=None, max_length=120)
-
-
-class CanvasSave(BaseModel):
-    document: dict[str, Any]
-    expected_revision: int = Field(default=0, ge=0)
-
-
-class CanvasPresenceHeartbeat(BaseModel):
-    client_id: str = Field(pattern=r"^[a-zA-Z0-9._:-]{8,128}$")
-    display_name: str = Field(default="协作者", min_length=1, max_length=48)
-    x: float | None = Field(default=None, ge=-100000, le=100000)
-    y: float | None = Field(default=None, ge=-100000, le=100000)
-    section: str = Field(default="canvas", pattern=r"^(home|canvas|assets|skills|comfyui)$")
-
-
-class PluginNodeStatePut(BaseModel):
-    plugin_id: str = Field(min_length=1, max_length=160)
-    value: Any
-    expected_revision: int = Field(default=0, ge=0)
-
-
-class ComfyCustomNodeAction(BaseModel):
-    node_id: str = Field(min_length=2, max_length=120)
-
-
-class ComfyCustomNodeRollback(BaseModel):
-    backup_id: str | None = Field(default=None, max_length=180)
-
-
-class ComfyModelDownload(BaseModel):
-    url: str = Field(min_length=12, max_length=2048)
-    group: str = Field(min_length=2, max_length=80)
-
-
-class ComfyModelAction(BaseModel):
-    group: str = Field(min_length=2, max_length=80)
-    name: str = Field(min_length=1, max_length=500)
-
-
-class ComfyModelRestore(BaseModel):
-    backup_id: str = Field(min_length=3, max_length=600)
 
 
 def _comfyui_url() -> str:
@@ -375,6 +311,7 @@ def _workflow_payload(path: Path) -> dict[str, Any] | None:
 
 def create_design_studio_router(
     *,
+    skill_registry: Any = None,
     project_store: Any = None,
     identity_store: Any = None,
     require_auth: bool = False,
@@ -438,6 +375,70 @@ def create_design_studio_router(
         tags=["design-studio"],
         dependencies=[Depends(_auth_dep)],
     )
+
+    # Registration order is FastAPI's path-matching priority — keep it.
+    # ``resolve_capabilities`` awaits ``comfyui_status``, which registers
+    # further down; the lambda resolves it at request time as before.
+    _register_canvas_routes(router, skill_registry, _require_project, lambda: comfyui_status())
+    _register_plugin_node_routes(router, _require_project, _node_state_store)
+    _register_asset_library_routes(router)
+    _register_asset_pack_routes(router)
+    _register_project_asset_routes(router, _require_project, _scoped_project_store)
+    comfyui_status = _register_comfyui_manager_routes(router)
+    _register_comfyui_model_routes(router)
+    _register_workflow_routes(router)
+    _register_queue_routes(router)
+
+    return router
+
+
+def _register_canvas_routes(
+    router: APIRouter,
+    skill_registry: Any,
+    _require_project: Callable[[Request, str], None],
+    comfyui_status: Callable[[], Awaitable[dict[str, Any]]],
+) -> None:
+    """Capability resolution, the shared project canvas, and live presence."""
+
+    @router.post("/capabilities/resolve")
+    async def resolve_capabilities(
+        body: DesignCapabilityRequest, request: Request
+    ) -> dict[str, Any]:
+        from runtime.core.cerebrum.design_capabilities import resolve_design_plan
+        from runtime.memory.journal.journal_context import journal_context
+
+        principal = request.state.design_principal
+        with journal_context(tenant_id=getattr(principal, "tenant_id", None)):
+            plan = resolve_design_plan(
+                body.goal,
+                context={"agent_mode": "uxui", "design_capabilities": body.preferences},
+                registry=skill_registry,
+            )
+            plugins: dict[str, dict[str, Any]] = {}
+            for name in skill_registry.all_names() if skill_registry is not None else []:
+                skill = skill_registry.get(name)
+                source = str(getattr(skill, "trusted_source", ""))
+                if not source.startswith("plugin://"):
+                    continue
+                if not set(getattr(skill, "affinity", [])).intersection(
+                    {"design", "image", "video", "audio"}
+                ):
+                    continue
+                plugin_id = source.removeprefix("plugin://").split("/", 1)[0]
+                item = plugins.setdefault(plugin_id, {"id": plugin_id, "available": False})
+                item["available"] = item["available"] or skill_registry.is_enabled(name)
+            plan["available_plugins"] = list(plugins.values())
+            from runtime.execution.suckers.media_gateway import model_catalog
+
+            plan["media_models"] = model_catalog()
+        plan["connection_checked"] = False
+        if body.check_connection and "comfyui_bridge" in plan["plugins"] and plan["ready"]:
+            status = await comfyui_status()
+            plan["connection_checked"] = True
+            if not status.get("online"):
+                plan["blockers"].append("ComfyUI 未连接，请在设计工作流设置中启动或配置本机服务")
+                plan["ready"] = False
+        return plan
 
     @router.get("/projects/{project_id}/canvas")
     def get_project_canvas(request: Request, project_id: str) -> dict[str, Any]:
@@ -554,6 +555,14 @@ def create_design_studio_router(
             if not project:
                 _CANVAS_PRESENCE.pop(project_id, None)
         return {"project_id": project_id, "left": removed}
+
+
+def _register_plugin_node_routes(
+    router: APIRouter,
+    _require_project: Callable[[Request, str], None],
+    _node_state_store: Callable[[], StateStore],
+) -> None:
+    """Per-project, per-node plugin state with revisions and quotas."""
 
     @router.get("/projects/{project_id}/plugin-nodes/{node_id}/state")
     def get_plugin_node_state(
@@ -673,12 +682,22 @@ def create_design_studio_router(
             deleted = store.delete(safe_key, namespace)
         return {"deleted": deleted, "key": safe_key, "revision": current_revision}
 
+
+def _register_asset_library_routes(router: APIRouter) -> None:
+    """Creative-skill file preview and the persona asset library list / upload."""
+
     @router.get("/skills/{skill_id}/files")
     def preview_creative_skill_files(skill_id: str) -> dict[str, Any]:
         root = _creative_skill_dir(skill_id)
         items: list[dict[str, str]] = []
         total_bytes = 0
-        for path in sorted(root.rglob("*")):
+        for path in sorted(
+            root.rglob("*"),
+            key=lambda p: (
+                p.relative_to(root).as_posix() != "SKILL.md",
+                p.relative_to(root).as_posix(),
+            ),
+        ):
             if (
                 not path.is_file()
                 or path.is_symlink()
@@ -775,6 +794,10 @@ def create_design_studio_router(
             directory.rmdir()
             raise
         return {"ok": True, "item": asset}
+
+
+def _register_asset_pack_routes(router: APIRouter) -> None:
+    """Zip asset-pack import and persona asset content download."""
 
     @router.post("/assets/import-pack")
     async def import_design_asset_pack(
@@ -913,7 +936,16 @@ def create_design_studio_router(
         target = directory / safe_name
         if not target.is_file() or target.is_symlink():
             raise HTTPException(404, "asset not found")
-        return FileResponse(target)
+        # User-uploaded asset (may be SVG/HTML) served from the API origin.
+        return untrusted_file_response(target)
+
+
+def _register_project_asset_routes(
+    router: APIRouter,
+    _require_project: Callable[[Request, str], None],
+    _scoped_project_store: Callable[[Request], Any],
+) -> None:
+    """Project asset upload (published as project artifacts) and download."""
 
     @router.post("/projects/{project_id}/assets")
     async def upload_project_assets(
@@ -979,7 +1011,19 @@ def create_design_studio_router(
         target = _project_asset_dir(project_id) / artifact_id / filename
         if not target.is_file() or target.is_symlink():
             raise HTTPException(404, "asset not found")
-        return FileResponse(target)
+        return untrusted_file_response(target)
+
+
+def _require_stopped_comfyui() -> None:
+    if comfyui_process_status().get("running"):
+        raise HTTPException(409, "stop managed ComfyUI before changing custom nodes")
+
+
+def _register_comfyui_manager_routes(router: APIRouter) -> Callable[[], Awaitable[dict[str, Any]]]:
+    """ComfyUI status, managed install / update, and custom-node lifecycle.
+
+    Returns the ``comfyui_status`` endpoint that capability resolution awaits.
+    """
 
     @router.get("/comfyui/status")
     async def comfyui_status() -> dict[str, Any]:
@@ -1048,10 +1092,6 @@ def create_design_studio_router(
             "state": state,
             "manager": manager_status(),
         }
-
-    def _require_stopped_comfyui() -> None:
-        if comfyui_process_status().get("running"):
-            raise HTTPException(409, "stop managed ComfyUI before changing custom nodes")
 
     @router.get("/comfyui/custom-nodes/registry")
     async def comfyui_custom_node_registry(
@@ -1147,6 +1187,12 @@ def create_design_studio_router(
             "state": state,
             "backups": list_node_backups(node_id),
         }
+
+    return comfyui_status
+
+
+def _register_comfyui_model_routes(router: APIRouter) -> None:
+    """Managed model files, process start / stop, and the local node catalog."""
 
     @router.get("/comfyui/models")
     def comfyui_models() -> dict[str, Any]:
@@ -1284,6 +1330,10 @@ def create_design_studio_router(
         nodes.sort(key=lambda item: (str(item["category"]), str(item["title"])))
         return {"online": True, "items": nodes, "total": len(nodes)}
 
+
+def _register_workflow_routes(router: APIRouter) -> None:
+    """Bundled and user ComfyUI workflows: list, read, diagnose, import, save."""
+
     @router.get("/comfyui/workflows")
     def list_workflows() -> dict[str, Any]:
         indexed: dict[str, dict[str, Any]] = {}
@@ -1417,6 +1467,10 @@ def create_design_studio_router(
         temporary.replace(target)
         return {"ok": True, "id": safe_id, **payload}
 
+
+def _register_queue_routes(router: APIRouter) -> None:
+    """Queue a prompt on local ComfyUI and read its history and outputs."""
+
     @router.post("/comfyui/queue")
     async def queue_workflow(body: QueueRequest) -> dict[str, Any]:
         try:
@@ -1499,8 +1553,6 @@ def create_design_studio_router(
             "outputs": outputs,
             "status": status,
         }
-
-    return router
 
 
 __all__ = ["create_design_studio_router"]

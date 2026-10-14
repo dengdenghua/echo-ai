@@ -169,6 +169,42 @@ def test_hardened_contract_names_every_resource_boundary() -> None:
     assert os.path.isabs(os.path.abspath(os.sys.executable))
 
 
+@pytest.mark.parametrize("payload", [b"", b"one\r\ntwo\r\n", b"\x00\xff\n"])
+def test_wrapper_integrity_reads_exact_bytes(tmp_path: Path, payload: bytes) -> None:
+    from benchmarks.verifier_sandbox import _read_bounded_wrapper_source
+
+    source = tmp_path / "wrapper.py"
+    source.write_bytes(payload)
+    observed, identity = _read_bounded_wrapper_source(source)
+    repeated, next_identity = _read_bounded_wrapper_source(source)
+    assert observed == repeated == payload
+    assert identity == next_identity
+
+
+def test_wrapper_integrity_rejects_mutation_during_read(tmp_path: Path, monkeypatch) -> None:
+    from benchmarks import verifier_sandbox as sandbox
+
+    source = tmp_path / "wrapper.py"
+    source.write_bytes(b"original")
+    real_read = sandbox.os.read
+    mutated = False
+
+    def read_and_mutate(fd: int, size: int) -> bytes:
+        nonlocal mutated
+        value = real_read(fd, size)
+        if value and not mutated:
+            mutated = True
+            # An in-place size change preserves the inode but must invalidate
+            # the descriptor identity even if the path itself was not swapped.
+            with source.open("ab") as writer:
+                writer.write(b"changed")
+        return value
+
+    monkeypatch.setattr(sandbox.os, "read", read_and_mutate)
+    with pytest.raises(FixtureInfrastructureError, match="drifted|oversized"):
+        sandbox._read_bounded_wrapper_source(source)
+
+
 def test_exact_coding_wrapper_routes_only_to_trusted_controller(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -8,6 +8,7 @@ import { getBackendBaseURL } from "@/core/config";
 import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
 import { useI18n } from "@/core/i18n/hooks";
 import type { Translations } from "@/core/i18n/locales/types";
+import { serviceErrorMessage } from "@/core/utils/service-error";
 
 import { Button } from "@/components/ui/button";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
@@ -567,7 +568,7 @@ export function ChannelCredentialDialog({
       return;
     }
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const r = await fetch(
           `${getBackendBaseURL()}/api/channels/credentials`,
@@ -788,7 +789,7 @@ export function ChannelCredentialDialog({
                           className={cn(
                             "w-full rounded-md border border-border-default bg-background/70",
                             "px-2.5 py-1.5 text-xs font-mono outline-none",
-                            "placeholder:text-muted-foreground/40",
+                            "placeholder:text-muted-foreground",
                             "focus:border-primary/50 focus:ring-2 focus:ring-primary/10",
                             isSecret && "pr-9",
                           )}
@@ -923,7 +924,9 @@ function WeChatQRForm({
     } catch (e) {
       swallow(e);
       setErrMsg(
-        e instanceof Error ? e.message : t.channelCredential.qrCodeFailed,
+        e instanceof Error
+          ? serviceErrorMessage(e)
+          : t.channelCredential.qrCodeFailed,
       );
       setStatus("error");
     } finally {

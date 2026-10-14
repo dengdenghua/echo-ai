@@ -10,20 +10,32 @@ treatment: rewrite it to ``git -C <root> …`` so the process stays
 sandbox-confined while git inspects the requested root.
 
 Misclassification is fail-safe: unknown/mutating subcommands are left alone.
+The rewrite also requires the turn's scope to authorize READING the root,
+and rejects git options that run commands, write files or reach outside
+the repo — otherwise it would be a way around ``_ensure_sandbox``.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+import runtime.execution.suckers._write_skills_exec as exec_mod
 from runtime.execution.suckers._write_skills_exec import (
     _exec_shell,
+    _git_rewrite_root_readable,
     _is_read_only_git_argv,
     _read_only_git_rewrite,
 )
 
-_REPO = "/workspace/repo"
-_WORK = "/workspace/repo/.echo-work/t1"
+_REPO = str(Path("/workspace/repo").resolve())
+_WORK = str(Path(_REPO) / ".echo-work" / "t1")
+
+
+@pytest.fixture()
+def _root_readable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(exec_mod, "_git_rewrite_root_readable", lambda root: True)
 
 
 def test_is_read_only_git_status() -> None:
@@ -34,12 +46,44 @@ def test_is_read_only_git_diff_log_show() -> None:
     assert _is_read_only_git_argv(["git", "diff"]) is True
     assert _is_read_only_git_argv(["git", "log", "--oneline", "-5"]) is True
     assert _is_read_only_git_argv(["git", "show", "HEAD"]) is True
+    assert _is_read_only_git_argv(["git", "diff", "--no-ext-diff", "--stat"]) is True
+    assert _is_read_only_git_argv(["git", "log", "-C", "-c", "--exit-code"]) is True
 
 
-def test_is_read_only_git_tolerates_global_options() -> None:
-    assert _is_read_only_git_argv(["git", "-C", _REPO, "status"]) is True
-    assert _is_read_only_git_argv(["git", "-c", "core.pager=cat", "diff"]) is True
+def test_is_read_only_git_tolerates_safe_global_flags() -> None:
     assert _is_read_only_git_argv(["git", "--no-pager", "log", "-1"]) is True
+    assert _is_read_only_git_argv(["git", "--no-optional-locks", "status"]) is True
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        # value-taking / config-injecting globals
+        ["git", "-C", _REPO, "status"],
+        ["git", "-c", "core.fsmonitor=x", "status"],
+        ["git", "-c", "core.pager=cat", "diff"],
+        ["git", "--config-env=core.pager=X", "log"],
+        ["git", "--git-dir=/elsewhere/.git", "log"],
+        ["git", "--work-tree=/elsewhere", "status"],
+        ["git", "--exec-path=/elsewhere", "status"],
+        ["git", "--paginate", "log"],
+        # subcommand options that write, execute or reach outside the repo
+        ["git", "diff", "--output=out.patch"],
+        ["git", "diff", "--output", "out.patch"],
+        ["git", "log", "-p", "--outp=out.patch"],
+        ["git", "diff", "--ext-diff"],
+        ["git", "log", "--textconv", "-p"],
+        ["git", "diff", "--no-index", "/a", "/b"],
+        ["git", "grep", "--no-index", "x"],
+        ["git", "blame", "--contents", "/elsewhere/f", "f"],
+        ["git", "grep", "-O", "x"],
+        ["git", "grep", "-nOless", "x"],
+        ["git", "grep", "--open-files-in-pager=less", "x"],
+        ["git", "diff", "-Oorder.txt"],
+    ],
+)
+def test_dangerous_git_options_disqualify_rewrite(argv: list[str]) -> None:
+    assert _is_read_only_git_argv(argv) is False
 
 
 def test_mutating_git_is_not_read_only() -> None:
@@ -57,7 +101,7 @@ def test_non_git_argv_is_not_read_only() -> None:
     assert _is_read_only_git_argv(["python", "-c", "pass"]) is False
 
 
-def test_rewrite_git_status_at_workspace_root() -> None:
+def test_rewrite_git_status_at_workspace_root(_root_readable: None) -> None:
     rewritten = _read_only_git_rewrite(["git", "status", "--porcelain"], _REPO, _WORK)
     assert rewritten is not None
     argv, cwd = rewritten
@@ -65,11 +109,49 @@ def test_rewrite_git_status_at_workspace_root() -> None:
     assert cwd is None  # process stays at the sandbox root
 
 
-def test_rewrite_keeps_global_options() -> None:
+def test_rewrite_keeps_global_options(_root_readable: None) -> None:
     rewritten = _read_only_git_rewrite(["git", "--no-pager", "diff"], _REPO, _WORK)
     assert rewritten is not None
     argv, _ = rewritten
     assert argv == ["git", "-C", _REPO, "--no-pager", "diff"]
+
+
+def test_no_rewrite_when_scope_cannot_read_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(exec_mod, "_git_rewrite_root_readable", lambda root: False)
+    assert _read_only_git_rewrite(["git", "status"], _REPO, _WORK) is None
+
+
+class _Session:
+    metadata: dict = {}
+
+
+class _Scope:
+    def __init__(self, readable: bool) -> None:
+        self._readable = readable
+
+    def allows_read(self, path: object) -> bool:
+        return self._readable
+
+
+def test_root_readable_requires_bound_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    import runtime.platform.process.session as session_mod
+
+    monkeypatch.setattr(session_mod, "current_session", lambda: None)
+    assert _git_rewrite_root_readable(Path(_REPO)) is False
+
+
+@pytest.mark.parametrize("readable", [True, False])
+def test_root_readable_follows_execution_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    readable: bool,
+) -> None:
+    import runtime.platform.process.scope as scope_mod
+    import runtime.platform.process.session as session_mod
+
+    monkeypatch.setattr(session_mod, "current_session", lambda: _Session())
+    monkeypatch.setattr(scope_mod, "resolve_execution_scope", lambda sess: _Scope(readable))
+    assert _git_rewrite_root_readable(tmp_path) is readable
 
 
 def test_no_rewrite_when_cwd_inside_sandbox() -> None:
@@ -105,6 +187,7 @@ def _stream_ok(**kwargs):
 def test_exec_shell_rewrites_read_only_git_at_workspace_root(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pytest.TempPathFactory,
+    _root_readable: None,
 ) -> None:
     work = tmp_path / ".echo-work" / "t1"
     work.mkdir(parents=True)
@@ -137,3 +220,24 @@ def test_exec_shell_mutating_git_stays_confined(
     # git add is not read-only → no rewrite → cwd outside the sandbox fails.
     result = _exec_shell("git add .", cwd=str(tmp_path), sandbox_dir=str(work))
     assert "path_escapes_sandbox" in result.get("error", "")
+
+
+def test_exec_shell_config_injection_git_stays_confined(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pytest.TempPathFactory,
+    _root_readable: None,
+) -> None:
+    work = tmp_path / ".echo-work" / "t1"
+    work.mkdir(parents=True)
+    fake, captured = _stream_ok()
+    monkeypatch.setattr("runtime.platform.process.streaming.stream_run", fake)
+
+    # ``-c core.fsmonitor=…`` would run a command; it must not get the
+    # out-of-sandbox rewrite even when the root itself is readable.
+    result = _exec_shell(
+        ["git", "-c", "core.fsmonitor=x", "status"],
+        cwd=str(tmp_path),
+        sandbox_dir=str(work),
+    )
+    assert "path_escapes_sandbox" in result.get("error", "")
+    assert captured == {}

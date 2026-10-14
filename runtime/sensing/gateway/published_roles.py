@@ -16,7 +16,7 @@ def mount_published_roles(app, *, data_dir: Path, **auth):
     from runtime.sensing.gateway.a2a_server import mount_a2a_server
 
     path = data_dir / "published-roles.json"
-    published = {}
+    published: dict[str, dict[str, str]] = {}
     base = os.getenv("ECHO_A2A_PUBLIC_URL", "http://localhost:8310").rstrip("/")
 
     def valid_id(value):

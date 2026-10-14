@@ -16,19 +16,15 @@ The right shape is::
         _require_member(actor, X) # ← enforce resource ownership
         ...
 
-Baseline strategy
------------------
-The codebase has ~80 pre-existing bare-``_auth`` callsites. Auditing
-each one needs domain knowledge (some endpoints are genuinely
-actor-agnostic). Instead of stalling on a 1-2 day audit, we:
-
-  1. Snapshot the current count per file in ``BASELINE`` below.
-  2. Fail CI when *any* file's count goes UP.
-  3. New endpoints must either bind the return or add the inline
-     ``# AUTH-OK: actor-agnostic`` opt-out marker.
-
-When auditing a file, drop its baseline count to the new value. The
-pattern is a one-way ratchet: counts only go down.
+Audit policy
+------------
+The gateway and UI router roots are required scan inputs. The baseline is
+empty: new discarded identity calls must either enforce resource ownership
+or carry an explicit inline ``# AUTH-OK: actor-agnostic`` explanation.
+Reviewed exceptions include shared catalogs, helpers that already enforce
+roles, and dependencies whose resolved principal feeds request-scoped stores.
+An exemption describes why the return value is unused; it does not disable
+authentication or authorize access to private resources.
 
 Run::
 
@@ -53,11 +49,11 @@ AUTH_FUNCS: frozenset[str] = frozenset({"_auth", "_resolve_actor"})
 
 # Files we scan. Routers are where endpoints live.
 SCAN_GLOBS = (
-    "runtime/sensing/siphon/*_router.py",
+    "runtime/sensing/gateway/*_router.py",
     "runtime/platform/ui/*_router.py",
 )
 
-# Inline opt-out marker on the discarded-call line. Use a custom
+# Inline opt-out marker on the call's opening or closing line. Use a custom
 # prefix instead of ruff's directive syntax so we don't clash with
 # ruff's parser.
 NOQA_MARKER = "AUTH-OK: actor-agnostic"
@@ -99,10 +95,12 @@ class _DiscardedAuthVisitor(ast.NodeVisitor):
         if name not in AUTH_FUNCS:
             self.generic_visit(node)
             return
-        # Allow opt-out: noqa marker on the same line.
+        # Formatters can move a trailing opt-out onto the closing line of a
+        # multiline call. Do not consume comments from subsequent statements.
         line_no = node.lineno
         line = self._source_lines[line_no - 1] if 0 < line_no <= len(self._source_lines) else ""
-        if NOQA_MARKER in line:
+        closing_line = self._source_lines[(node.end_lineno or line_no) - 1]
+        if NOQA_MARKER in line or NOQA_MARKER in closing_line:
             self.generic_visit(node)
             return
         self.hits.append((line_no, name, line.strip()))
@@ -127,7 +125,10 @@ def scan_repo() -> list[tuple[Path, int, str, str]]:
     hits: list[tuple[Path, int, str, str]] = []
     seen: set[Path] = set()
     for glob in SCAN_GLOBS:
-        for path in REPO_ROOT.glob(glob):
+        paths = sorted(REPO_ROOT.glob(glob))
+        if not paths:
+            raise ValueError(f"Required router scan matched no files: {glob}")
+        for path in paths:
             if path in seen:
                 continue
             seen.add(path)
@@ -146,7 +147,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    hits = scan_repo()
+    try:
+        hits = scan_repo()
+    except ValueError as exc:
+        print(f"::error::{exc}")
+        return 1
     counts: dict[str, int] = {}
     for path, _line_no, _func, _line in hits:
         rel = path.relative_to(REPO_ROOT).as_posix()

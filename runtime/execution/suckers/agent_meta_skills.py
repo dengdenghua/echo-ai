@@ -13,6 +13,7 @@ from .capability_skills import (
 )
 from .registry import Skill, SkillRegistry
 from .testing import SkillExpect, SkillTestCase
+from .visual_skills import VISUAL_SKILL_NAMES, register_visual_skills
 
 _VALID_STATUS = {"pending", "in_progress", "completed"}
 _TODO_LOCK = threading.Lock()
@@ -247,11 +248,12 @@ AGENT_META_SKILL_NAMES = [
     "query_skill",
     "execute_skill",
     *CAPABILITY_SKILL_NAMES,
+    *VISUAL_SKILL_NAMES,
 ]
 
 
 def _query_skill_for_registry(registry: SkillRegistry):
-    def _query_skill(name: str = "", **_: Any) -> dict[str, Any]:
+    def _query_skill(name: str = "", role_id: str = "", **_: Any) -> dict[str, Any]:
         skill_name = str(name or "").strip()
         if not skill_name:
             return {"ok": False, "error": "skill name is required"}
@@ -263,15 +265,38 @@ def _query_skill_for_registry(registry: SkillRegistry):
             enabled = bool(registry.is_enabled(skill_name))
         except (AttributeError, TypeError, ValueError):
             enabled = True
+        role_catalog = {}
+        description = skill.description
+        if skill_name in {"call_agent", "call_agent_parallel"}:
+            from runtime.execution.subagents.market_bridge import runnable_market_roles
+
+            roles = runnable_market_roles()
+            selected_id = str(role_id or "").strip()
+            role_catalog["installed_roles"] = [
+                identity.to_dict()
+                for key, identity in roles.items()
+                if not selected_id or key == selected_id
+            ]
+            role_catalog["installed_role_count"] = len(roles)
+            description = description.split("Installed HUB roles:\n", 1)[0]
         return {
             "ok": True,
             "name": skill.name,
             "summary": skill.effective_summary,
-            "description": skill.description,
+            "description": description,
             "affinity": list(skill.affinity),
             "cost_profile": skill.cost_profile,
             "trusted_source": skill.trusted_source,
             "enabled": enabled,
+            **({"input_schema": skill.input_schema} if skill.input_schema is not None else {}),
+            **role_catalog,
+            "guidance": (
+                "This is a registered skill, not a plugin capability ID. "
+                "Invoke its advertised tool directly with the documented arguments. "
+                "Registry presence does not override the current turn's tool catalog or permissions. "
+                "If it is absent from that catalog, report that specific limitation; "
+                "do not route side-effecting skills through execute_skill."
+            ),
         }
 
     return _query_skill
@@ -449,22 +474,27 @@ def _execute_skill_for_registry(registry: SkillRegistry):
         else:
             return {"ok": False, "name": skill.name, "error": "args must be an object"}
 
-        # Model-controlled auth/sandbox overrides are stripped exactly as on
-        # the executor path before the shared inner-dispatch gates run.
-        from runtime.safety.auth import strip_model_controlled_overrides
+        # Run the executor's pre-execution pipeline for the inner call:
+        # model-controlled overrides are stripped, the host ``allowed_tools``
+        # contract and audit read-only mode are enforced, and — critically for
+        # read tools such as grep_text / glob_files — ``_prepare_scoped_args``
+        # injects ``sandbox_dir`` / root confinement so the read cannot leave
+        # the session's execution scope.
+        from runtime.execution.tool_engine.skill_gate import prepare_inner_dispatch
 
-        call_args, stripped = strip_model_controlled_overrides(call_args)
-        from runtime.execution.tool_engine.skill_gate import gate_inner_dispatch
-
-        block = gate_inner_dispatch(
+        prepared = prepare_inner_dispatch(
             skill,
             call_args,
             caller="execute_skill",
         )
-        if block is not None:
-            return {"ok": False, "name": skill.name, "error": block.message}
+        if prepared.block is not None:
+            return {"ok": False, "name": skill.name, "error": prepared.block.message}
+        call_args = prepared.args
+        stripped = list(prepared.stripped)
         try:
-            result = skill.handler(**call_args)
+            from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
+
+            result = invoke_coordinated(skill, call_args)
         except Exception as exc:  # noqa: BLE001
             return {
                 "ok": False,
@@ -484,6 +514,7 @@ def _execute_skill_for_registry(registry: SkillRegistry):
 def register_agent_meta_skills(registry: SkillRegistry) -> int:
     """Register the agent-meta skills. Returns the count registered."""
     capability_count = register_capability_skills(registry)
+    visual_count = register_visual_skills(registry)
     registry.register(
         Skill(
             name="todo_read",
@@ -564,9 +595,10 @@ def register_agent_meta_skills(registry: SkillRegistry) -> int:
                 "Purpose: search the entire registered skill catalog by keyword "
                 "when the compact prompt catalog was truncated or you do not know "
                 "the exact skill name. Search matches name, summary, affinity, "
-                "and description, then returns compact candidates. Call "
-                "query_skill(name=...) for full details before using an unfamiliar "
-                "candidate.\n"
+                "and description, then returns compact candidates. A unique, "
+                "unambiguous hit should be invoked directly; only call "
+                "query_skill(name=...) when the parameter contract is genuinely "
+                "unclear, and check one candidate at a time.\n"
                 "When not to use: if the needed skill is already visible and its "
                 "parameters are obvious; call that skill directly.\n"
                 "Key params: query (keyword), limit (1-25, default 10), "
@@ -594,7 +626,7 @@ def register_agent_meta_skills(registry: SkillRegistry) -> int:
             description=(
                 "用途: 当 catalog 里的简短 summary 不够用时，按名字拉一个已注册 skill 的完整元数据 (description / 参数契约 / affinity / 是否启用)；调不熟的工具前先查一查。\n"
                 "何时不用: 列出全部 skill 不要用本工具 (走 catalog / registry.list)；要执行 skill 直接调用对应工具名，不要先 query 再调 (浪费 token)；skill 不存在会返回 ok=false。\n"
-                "关键参数: name (必填, 已注册的 skill 名)。\n"
+                "关键参数: name (必填, 已注册的 skill 名)。查询 call_agent 时可传 role_id 精确查询已安装 HUB 角色，避免读取整个目录。\n"
                 '示例: query_skill({"name": "edit_file"})'
             ),
             affinity=["meta", "skill", "catalog"],
@@ -637,7 +669,7 @@ def register_agent_meta_skills(registry: SkillRegistry) -> int:
             ],
         )
     )
-    return capability_count + 5
+    return capability_count + visual_count + 5
 
 
 __all__ = [

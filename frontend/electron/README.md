@@ -14,14 +14,37 @@
 ## 运行
 
 ```bash
-pnpm electron:dev    # 启动 Vite(:3000)并在就绪后拉起 Electron
+pnpm electron:dev    # 启动 Vite(:3310)并在就绪后拉起 Electron
 pnpm electron        # 仅拉起 Electron(假定 dev server 已在运行)
 ```
 
 后端默认 `http://127.0.0.1:8000`,可用 `ECHO_BACKEND_URL` 覆盖;
 桌面壳只接受无凭据、无额外路径的 loopback HTTP(S) origin(`127.0.0.1`、
 `localhost`、`::1`),远端或伪装 host 会在创建窗口前 fail-closed。
-前端地址可用 `ELECTRON_START_URL` 覆盖(默认 `http://127.0.0.1:3000`)。
+前端地址可用 `ELECTRON_START_URL` 覆盖(默认 `http://127.0.0.1:3310`)。
+
+浏览器自动化 HTTP 桥随主进程启动，通过 `data/bridge.json` 向后端发现。
+打开桌面端浏览器标签页后才会显示为可操作；Codex 内部预览页不是 Echo Electron 标签页。
+数据目录、目标限制及真实集成测试见 [自动化插件架构](../../docs/architecture/automation-plugins.md)。
+
+浏览器扩展的 `commands` 在聚焦的浏览器标签页中处理，并支持
+`_execute_action`、`_execute_browser_action`、`_execute_page_action`。
+`getAll()` 返回实际分配；重复绑定、应用保留键和全局命令返回空快捷键。
+不会注册系统全局快捷键。工具栏动作、弹窗、右键菜单和快捷键的真实 Electron
+验收包含加载额外扩展后继续使用原 worker，避免 Chromium 的惰性 API 绑定覆盖兼容方法。
+
+`declarativeNetRequest` 使用 Chromium 原生规则编译器与网络匹配器，保留原生权限检查。
+安装和启动时初始化清单中的静态规则集，并保存用户启用的规则集（包括全部关闭）；
+禁用再启用和重启保留选择，卸载后同 ID 重装恢复清单默认值并清除旧动态/会话规则。
+动态规则由 Chromium 持久化，会话规则在重启后清空；普通浏览器配置中的规则不作用于
+独立的隐私会话。Windows 真实 Electron 验收覆盖阻断、重定向、修改请求头、权限边界、
+生命周期和无效规则回滚，不代表完整 Chrome 扩展 API 或其他平台已通过验收。
+
+扩展侧栏通过 `WebContentsView` 嵌入浏览器主窗口，网页与侧栏并排预留空间，
+保留独立扩展 origin、sandbox 和 contextIsolation。侧栏支持关闭按钮、窗口调整和
+应用缩放，离开浏览器页面时隐藏，禁用/移除扩展与退出时关闭原生内容。
+`setOptions` 的 tab 配置独立于默认配置，路径限于本扩展；扩展仍只能使用当前
+Echo 兼容的 API 子集，尚未实现 Chrome 的用户手势授权与多窗口侧栏语义。
 
 ## 打包渲染源
 
@@ -58,20 +81,24 @@ pnpm electron        # 仅拉起 Electron(假定 dev server 已在运行)
 
 ## 打包(electron-builder)
 
-- 唯一发布壳是 `frontend/electron/`，配置为 `packaging/desktop/build.yml`；
-  `extras/desktop/electron/` 已退役，不得直接产出安装包。
+- 唯一发布壳是 `frontend/electron/`；`extras/desktop/electron/` 已退役，不得直接产出安装包。
+- 两种安装包：标准版用 `packaging/desktop/build.yml`（`pnpm electron:build:win`），不带
+  Codex / OpenCode，用户在 HUB「应用」的执行引擎里按需安装到 `userData/engines`；
+  完整离线版用 `build-offline.yml`（`pnpm electron:build:win:offline`），在标准版基础上
+  追加锁定的引擎。
 - 当前生产打包仅支持 Windows x64。CI 先用 PyInstaller 生成
   `extras/desktop/build/backend/echo-backend.exe`，再从 pnpm 锁定的官方
-  `@openai/codex@0.149.0` Windows 平台包生成 `extras/desktop/build/codex/`，
-  最后从 `frontend/` 执行 `pnpm electron:build:win`。macOS/Linux 在拥有对应的
+  `@openai/codex@0.162.0` Windows 平台包生成 `extras/desktop/build/codex/`，
+  最后从 `frontend/` 执行 `pnpm electron:build:win:offline`（标准版不需要准备引擎）。macOS/Linux 在拥有对应的
   随包后端前明确拒绝发布。
 - 正式构建只从受保护的 `windows-code-signing` Environment 注入 base64 PKCS#12 与密码；
   缺任一 secret、证书无私钥/Code Signing EKU、签名或可信 RFC3161 时间戳无效都会停止。
   安装器文件名和两个 GitHub artifact 名均携带完整 `github.sha`，并生成
   `SHA256SUMS` 与逐文件签名证明。
-- 打包模式只启动 `resources/backend/echo-backend.exe`，并只允许后端使用
-  Electron 注入的绝对路径 `resources/codex/bin/codex.exe`。任一文件缺失时首启
-  fail-closed，不回退到系统 Python/uv/Codex/PATH，不在运行时下载依赖。
+- 打包模式只启动 `resources/backend/echo-backend.exe`。离线版只允许后端使用
+  Electron 注入的绝对路径 `resources/codex/bin/codex.exe` 与随包 OpenCode，随包引擎
+  不完整或被改动时首启 fail-closed；标准版改用商店安装在 `userData/engines` 的引擎。
+  两者都不回退到系统 Python/uv/Codex/PATH，也不在启动时下载；引擎只在用户点「安装」时下载。
 - 随包能力在 PyInstaller 构建时固定；不在用户设备上在线安装可选依赖。
 - 首启会把 agents/prompts/protocols/skills.lock 种入 `userData/resources`。后续版本只补
   不存在的路径，不覆盖同名的用户安装/修改内容；需要采用新版内置资源时，先备份
@@ -83,8 +110,8 @@ pnpm electron        # 仅拉起 Electron(假定 dev server 已在运行)
 
 - `electron-builder` / `electron-updater` / `@openai/codex` 已由
   `frontend/package.json` 和 `frontend/pnpm-lock.yaml` 锁定。打包时
-  `config.desktop.yaml`、只读资源、Windows 后端与 Codex 原生运行时由 build.yml 的
-  `extraResources` 放入应用。
+  `config.desktop.yaml`、只读资源和后端由 build.yml 的 `extraResources` 放入应用，
+  离线版的引擎由 build-offline.yml 追加。
 - `webview` 标签已启用(workspace 内嵌浏览器依赖它)。
 - 安全基线:contextIsolation 开、nodeIntegration 关、主窗口只允许固定应用入口导航。
   HTTP(S)/mailto 外链交给系统浏览器;应用源内的新窗口使用无 preload、sandbox 开启的

@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { authHeaders } from "@/core/auth/api";
-import { getBackendBaseURL } from "@/core/config";
+import { apiGet } from "@/core/api/request";
 
 import type { Agent } from "./types";
 
@@ -30,12 +29,10 @@ export function useRemoteGroupAgents(enabled = true): Agent[] {
     queryKey: ["remote-group-agents"],
     enabled,
     queryFn: async ({ signal }): Promise<RemoteGroupAgent[]> => {
-      const response = await fetch(`${getBackendBaseURL()}/api/a2a/agents`, {
-        headers: authHeaders(),
+      const payload = (await apiGet("/api/a2a/agents", {
         signal,
-      });
-      if (!response.ok) throw new Error("无法加载远程角色");
-      const payload = (await response.json()) as { agents: RemoteGroupAgent[] };
+        errorMessage: () => "无法加载远程角色",
+      })) as { agents: RemoteGroupAgent[] };
       return payload.agents.filter((entry) =>
         entry.agent_id.startsWith("a2a_"),
       );

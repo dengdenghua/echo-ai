@@ -43,6 +43,30 @@ describe("room message delivery state", () => {
 
     expect(upsertRoomMessage([receipt], { ...receipt })).toHaveLength(1);
   });
+
+  it("keeps different participants with the same client id distinct", () => {
+    const alice = message({ client_message_id: "shared", seq: 1 });
+    const bob = message({
+      message_id: "bob-message",
+      participant_id: "bob",
+      client_message_id: "shared",
+      seq: 2,
+    });
+    expect(upsertRoomMessage([alice], bob)).toEqual([alice, bob]);
+  });
+
+  it("merges a late history snapshot without downgrading reads or reordering newer live messages", () => {
+    const read = message({ seq: 1, delivery_status: "read" });
+    const live = message({ message_id: "newer", seq: 3 });
+    const historical = message({ message_id: "middle", seq: 2 });
+    let messages = upsertRoomMessage([read, live], historical);
+    messages = upsertRoomMessage(messages, {
+      ...read,
+      delivery_status: "sent",
+    });
+    expect(messages.map((item) => item.seq)).toEqual([1, 2, 3]);
+    expect(messages[0]?.delivery_status).toBe("read");
+  });
 });
 
 describe("room message receipts", () => {

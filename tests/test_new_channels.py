@@ -47,6 +47,8 @@ from runtime.adapters.channels import (
     SmsError,
     SmsSignatureError,
     TeamsChannel,
+    TeamsError,
+    TeamsSignatureError,
     WebhooksChannel,
     WebhooksSignatureError,
     WeComChannel,
@@ -1214,6 +1216,48 @@ class TestQQBotChannel:
 # ═══════════════════════════════════════════════════════════
 
 
+def _teams_signer():
+    """RSA key + JWKS provider + token factory for Bot Framework JWT tests."""
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    numbers = key.public_key().public_numbers()
+
+    def _b64(raw: bytes) -> str:
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+    def _uint(value: int) -> str:
+        return _b64(value.to_bytes((value.bit_length() + 7) // 8, "big"))
+
+    jwks = {
+        "keys": [
+            {
+                "kty": "RSA",
+                "kid": "k1",
+                "n": _uint(numbers.n),
+                "e": _uint(numbers.e),
+                "endorsements": ["msteams"],
+            }
+        ]
+    }
+
+    def token(**claims):
+        body = {
+            "iss": "https://api.botframework.com",
+            "aud": "aid",
+            "exp": int(time.time()) + 600,
+            "nbf": int(time.time()) - 10,
+        }
+        body.update(claims)
+        header = _b64(json.dumps({"alg": "RS256", "kid": "k1", "typ": "JWT"}).encode())
+        payload = _b64(json.dumps(body).encode())
+        sig = key.sign(f"{header}.{payload}".encode(), padding.PKCS1v15(), hashes.SHA256())
+        return f"{header}.{payload}.{_b64(sig)}"
+
+    return (lambda: jwks), token
+
+
 class TestTeamsChannel:
     @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
     def test_constructor(self):
@@ -1259,7 +1303,8 @@ class TestTeamsChannel:
 
     @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
     def test_handle_webhook_parses_activity(self):
-        ch = TeamsChannel(app_id="aid", app_password="apw")
+        jwks, token = _teams_signer()
+        ch = TeamsChannel(app_id="aid", app_password="apw", jwks_provider=jwks)
         payload = json.dumps(
             {
                 "type": "message",
@@ -1271,7 +1316,7 @@ class TestTeamsChannel:
                 "serviceUrl": "https://s.botframework.com",
             }
         ).encode()
-        msg = ch.handle_webhook(body=payload, headers={})
+        msg = ch.handle_webhook(body=payload, headers={"Authorization": f"Bearer {token()}"})
         assert msg is not None
         assert msg.content == "hello agent"
         assert msg.sender_id == "user1"
@@ -1281,17 +1326,134 @@ class TestTeamsChannel:
 
     @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
     def test_handle_webhook_ping(self):
-        ch = TeamsChannel(app_id="aid", app_password="apw")
+        jwks, token = _teams_signer()
+        ch = TeamsChannel(app_id="aid", app_password="apw", jwks_provider=jwks)
         payload = json.dumps({"type": "ping"}).encode()
-        result = ch.handle_webhook(body=payload, headers={})
+        result = ch.handle_webhook(body=payload, headers={"Authorization": f"Bearer {token()}"})
         assert result == {"type": "ping"}
 
     @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
     def test_handle_webhook_non_message(self):
-        ch = TeamsChannel(app_id="aid", app_password="apw")
+        jwks, token = _teams_signer()
+        ch = TeamsChannel(app_id="aid", app_password="apw", jwks_provider=jwks)
         payload = json.dumps({"type": "conversationUpdate"}).encode()
-        result = ch.handle_webhook(body=payload, headers={})
+        result = ch.handle_webhook(body=payload, headers={"Authorization": f"Bearer {token()}"})
         assert result is None
+
+    @staticmethod
+    def _activity(service_url="https://smba.trafficmanager.net/amer/", channel="msteams"):
+        return json.dumps(
+            {
+                "type": "message",
+                "text": "hi",
+                "channelId": channel,
+                "from": {"id": "u"},
+                "conversation": {"id": "c"},
+                "id": "a",
+                "serviceUrl": service_url,
+            }
+        ).encode()
+
+    @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
+    def test_handle_webhook_accepts_valid_token_for_teams_service_url(self):
+        jwks, token = _teams_signer()
+        ch = TeamsChannel(app_id="aid", app_password="apw", jwks_provider=jwks)
+        url = "https://smba.trafficmanager.net/amer/"
+        msg = ch.handle_webhook(
+            body=self._activity(),
+            headers={"authorization": f"Bearer {token(serviceurl=url)}"},
+        )
+        assert msg is not None and msg.metadata["teams_service_url"] == url
+        assert ch._service_url == url
+
+    @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
+    def test_handle_webhook_rejects_missing_or_forged_token(self):
+        jwks, _token = _teams_signer()
+        _other_jwks, forged = _teams_signer()  # signed by a key the channel does not trust
+        ch = TeamsChannel(app_id="aid", app_password="apw", jwks_provider=jwks)
+        with pytest.raises(TeamsSignatureError):
+            ch.handle_webhook(body=self._activity(), headers={})
+        with pytest.raises(TeamsSignatureError):
+            ch.handle_webhook(
+                body=self._activity(), headers={"authorization": f"Bearer {forged()}"}
+            )
+        assert ch._service_url == ""
+
+    @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
+    @pytest.mark.parametrize(
+        "claims",
+        [
+            {"aud": "someone-else"},
+            {"iss": "https://evil.example"},
+            {"exp": 1},
+        ],
+    )
+    def test_handle_webhook_rejects_bad_claims(self, claims):
+        jwks, token = _teams_signer()
+        ch = TeamsChannel(app_id="aid", app_password="apw", jwks_provider=jwks)
+        with pytest.raises(TeamsSignatureError):
+            ch.handle_webhook(
+                body=self._activity(), headers={"authorization": f"Bearer {token(**claims)}"}
+            )
+
+    @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
+    def test_handle_webhook_rejects_unendorsed_channel_and_serviceurl_claim_mismatch(self):
+        jwks, token = _teams_signer()
+        ch = TeamsChannel(app_id="aid", app_password="apw", jwks_provider=jwks)
+        with pytest.raises(TeamsSignatureError):
+            ch.handle_webhook(
+                body=self._activity(channel="webchat"),
+                headers={"authorization": f"Bearer {token()}"},
+            )
+        other = token(serviceurl="https://smba.trafficmanager.net/emea/")
+        with pytest.raises(TeamsSignatureError):
+            ch.handle_webhook(body=self._activity(), headers={"authorization": f"Bearer {other}"})
+
+    @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
+    @pytest.mark.parametrize(
+        "service_url",
+        [
+            "https://attacker.example/",
+            "https://evil.trafficmanager.net/",
+            "http://smba.trafficmanager.net/amer/",
+            "https://user@smba.trafficmanager.net/",
+            "https://smba.botframework.com.evil.example/",
+        ],
+    )
+    def test_handle_webhook_rejects_untrusted_service_url(self, service_url):
+        jwks, token = _teams_signer()
+        ch = TeamsChannel(app_id="aid", app_password="apw", jwks_provider=jwks)
+        with pytest.raises(TeamsSignatureError):
+            ch.handle_webhook(
+                body=self._activity(service_url=service_url),
+                headers={"authorization": f"Bearer {token()}"},
+            )
+        assert ch._service_url == ""
+
+    @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
+    def test_send_refuses_untrusted_service_url(self):
+        http = _FakeHttpClient(_FakeHttpResp(body={"access_token": "tok", "expires_in": 3600}))
+        ch = TeamsChannel(app_id="aid", app_password="apw", http_client=http)
+        msg = OutboundMessage(
+            channel_id="teams",
+            thread_id="c",
+            content="hello",
+            metadata={
+                "teams_service_url": "https://attacker.example",
+                "teams_conversation_id": "c",
+            },
+        )
+        with pytest.raises(TeamsError, match="untrusted serviceUrl"):
+            ch.send(msg)
+        assert http.calls == []  # bot token never fetched nor sent
+
+    @patch("runtime.adapters.channels.teams.HTTPX_AVAILABLE", True)
+    def test_allowed_service_url_hosts_is_configurable(self):
+        ch = TeamsChannel(
+            app_id="aid", app_password="apw", allowed_service_url_hosts=("bots.internal.example",)
+        )
+        assert ch.service_url_allowed("https://bots.internal.example/x")
+        assert not ch.service_url_allowed("https://smba.trafficmanager.net/amer/")
 
 
 # ═══════════════════════════════════════════════════════════

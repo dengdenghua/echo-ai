@@ -371,8 +371,23 @@ def learn_skill_from_text(
 # ═══════════════════════════════════════════════════════════
 
 
+def _unquote_scalar(value: str) -> str:
+    """Strip one layer of matching YAML quotes from a scalar value."""
+    text = value.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
+        return text[1:-1]
+    return text
+
+
 def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
-    """Tiny YAML-ish frontmatter parser · key: value lines only."""
+    """Tiny YAML-ish frontmatter parser · key: value lines only.
+
+    Deliberately not a YAML engine — but the agentskills.io spec *is*
+    YAML, and ``name: "code-quality"`` is a legal, common spelling. Not
+    unquoting it made the catalogue disagree with itself (the installer
+    compared ``'"code-quality"'`` against the folder ``code-quality``),
+    so one layer of matching quotes is stripped here.
+    """
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}, text
@@ -388,7 +403,7 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
         if ":" not in raw:
             continue
         k, v = raw.split(":", 1)
-        meta[k.strip()] = v.strip()
+        meta[k.strip()] = _unquote_scalar(v)
     body = "\n".join(lines[end + 1 :]).lstrip()
     return meta, body
 

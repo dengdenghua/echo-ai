@@ -416,7 +416,7 @@ function GrowthStoryHero({
                     <p className="line-clamp-3 text-xs font-medium leading-5 text-foreground">
                       {item.content}
                     </p>
-                    <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
                       {item.source}
                     </p>
                   </div>

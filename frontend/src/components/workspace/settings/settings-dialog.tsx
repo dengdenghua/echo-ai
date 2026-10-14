@@ -49,6 +49,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Suspense, lazy } from "react";
 import { getSettingsUxCopy } from "./settings-ux-copy";
+import { StreamingDebugSetting } from "./streaming-debug-setting";
 import AppearanceSettingsPage from "./appearance-settings-page";
 import { CodingToolboxPanel } from "./coding-toolbox-panel";
 import type { SettingsSection } from "./settings-sections";
@@ -262,9 +263,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
   const onResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const content = (e.currentTarget as HTMLElement).closest(
-      '[data-slot="dialog-content"]',
-    ) as HTMLElement | null;
+    const content = e.currentTarget.closest('[data-slot="dialog-content"]');
     if (!content) return;
     const rect = content.getBoundingClientRect();
     resizeStartRef.current = {
@@ -320,13 +319,13 @@ export function SettingsDialog(props: SettingsDialogProps) {
       // the browser is idle. Starting every settings chunk synchronously made
       // the first dialog open compete with its own rendering work.
       const preload = () => preloadSettingsPages();
-      const idleWindow = window as Window & {
+      const idleWindow: Window & {
         requestIdleCallback?: (
           callback: IdleRequestCallback,
           options?: IdleRequestOptions,
         ) => number;
         cancelIdleCallback?: (handle: number) => void;
-      };
+      } = window;
       const idleHandle = idleWindow.requestIdleCallback?.(preload, {
         timeout: 2_000,
       });
@@ -335,7 +334,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
       // Prefetch the oct account bridge; individual account tabs can fetch
       // their own optional data when opened.
-      queryClient.prefetchQuery({
+      void queryClient.prefetchQuery({
         queryKey: ["account", "oct"],
         queryFn: () => octApi.get().catch(() => null),
         staleTime: 30_000,
@@ -355,7 +354,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       await logout();
       toast.success(t.auth.logoutSuccess);
       dialogProps.onOpenChange?.(false);
-      navigate("/");
+      void navigate("/");
     } catch {
       toast.error(t.auth.logoutFailed);
     }
@@ -804,7 +803,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   className="h-8 px-2.5 text-ui shadow-none"
                   onClick={() => {
                     dialogProps.onOpenChange?.(false);
-                    navigate("/login");
+                    void navigate("/login");
                   }}
                 >
                   <LogOutIcon className="mr-1 size-3.5" />
@@ -819,11 +818,25 @@ export function SettingsDialog(props: SettingsDialogProps) {
             <div className="relative mb-2 hidden md:block">
               <SearchIcon className="text-muted-foreground pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2" />
               <Input
+                // This field only filters the section list, but a bare text
+                // input is indistinguishable from a login field to the
+                // browser's password manager: it auto-fills the saved account
+                // and dispatches an input event, which React turns into a
+                // search term, so opening Settings looks like it "searched for
+                // my account". type=search plus autoComplete=off keeps autofill
+                // out; the cancel decoration is hidden because we render our
+                // own clear button on top of it.
+                type="search"
+                name="echo-settings-search"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 value={settingsQuery}
                 onChange={(event) => setSettingsQuery(event.target.value)}
                 placeholder={t.settings.dialog.searchPlaceholder}
                 aria-label={t.settings.dialog.searchPlaceholder}
-                className="h-9 rounded-lg bg-background pl-8 pr-8 text-ui shadow-none"
+                className="h-9 rounded-lg bg-background pl-8 pr-8 text-ui shadow-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
               />
               {settingsQuery ? (
                 <Button
@@ -883,7 +896,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                               type="button"
                               onClick={() => {
                                 if (disabled) return;
-                                setActiveSection(id as SettingsSection);
+                                setActiveSection(id);
                               }}
                               disabled={disabled}
                               title={disabled ? disabledReason : undefined}
@@ -1107,11 +1120,15 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     className="w-full sm:w-auto"
                     onClick={() => {
                       dialogProps.onOpenChange?.(false);
-                      navigate("/workspace/observability");
+                      void navigate("/workspace/observability");
                     }}
                   >
                     {settingsUxCopy.observability.openDashboard}
                   </Button>
+                  <StreamingDebugSetting
+                    title={settingsUxCopy.observability.debugTitle}
+                    description={settingsUxCopy.observability.debugDescription}
+                  />
                 </section>
               )}
               {hasSettingsResults && activeSection === "about" && (
@@ -1188,7 +1205,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           }
           title={t.settings.dialog.dragToResize}
           tabIndex={0}
-          className="absolute bottom-0 right-0 z-50 hidden size-5 cursor-nwse-resize items-end justify-end rounded-sm p-1 text-muted-foreground/40 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 md:flex"
+          className="absolute bottom-0 right-0 z-50 hidden size-5 cursor-nwse-resize items-end justify-end rounded-sm p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 md:flex"
         >
           <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden="true">
             <path

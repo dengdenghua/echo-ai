@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import threading
-import pytest
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -21,7 +21,9 @@ def development_environment(monkeypatch):
     monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "local")
 
 
-@pytest.mark.parametrize("environment,deployment", [("", "local"), ("production", "local"), ("development", "server")])
+@pytest.mark.parametrize(
+    "environment,deployment", [("", "local"), ("production", "local"), ("development", "server")]
+)
 def test_local_login_rejected_outside_development(monkeypatch, environment, deployment):
     monkeypatch.setenv("ECHO_ENV", environment)
     monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", deployment)
@@ -69,7 +71,7 @@ def _client(
     router = local_auth_router.create_local_auth_router(config=config, clock=clock)
     app = FastAPI()
     app.include_router(router)
-    return TestClient(app), router
+    return TestClient(app, client=("127.0.0.1", 50000)), router
 
 
 def _login(

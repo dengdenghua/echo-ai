@@ -21,7 +21,7 @@ CHECKS: tuple[DigitalEmployeeCheck, ...] = (
         id="projectos_cowork_bridge",
         title="Cowork group to Project OS execution bridge",
         paths=(
-            "runtime/projectos/cowork_bridge.py",
+            "runtime/projectos/group_execution.py",
             "runtime/projectos/timeline.py",
             "runtime/sensing/gateway/projects_router.py",
             "tests/test_projectos_cowork.py",
@@ -45,6 +45,7 @@ CHECKS: tuple[DigitalEmployeeCheck, ...] = (
         title="Realtime project-mode employee loop",
         paths=(
             "runtime/sensing/gateway/realtime_cerebrum.py",
+            "runtime/sensing/gateway/_realtime_cerebrum_project_os.py",
             "tests/test_realtime_cerebrum.py",
         ),
         required_terms=(
@@ -84,7 +85,7 @@ CHECKS: tuple[DigitalEmployeeCheck, ...] = (
         title="Project task control and recovery",
         paths=(
             "runtime/projectos/engine.py",
-            "runtime/projectos/cowork_bridge.py",
+            "runtime/projectos/group_execution.py",
             "runtime/sensing/gateway/realtime_cerebrum.py",
             "tests/test_projects_router.py",
             "tests/test_realtime_cerebrum.py",
@@ -102,7 +103,7 @@ CHECKS: tuple[DigitalEmployeeCheck, ...] = (
         id="operator_visible_employee_actions",
         title="Operator-visible employee actions",
         paths=(
-            "runtime/projectos/cowork_bridge.py",
+            "runtime/projectos/group_execution.py",
             "runtime/projectos/timeline.py",
             "runtime/sensing/gateway/projects_router.py",
             "runtime/safety/evolution/agent_competitor_scorecard.py",

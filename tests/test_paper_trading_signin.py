@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -156,7 +157,8 @@ def test_browser_session_is_verified_saved_private_and_never_returned(tmp_path: 
     assert result["session_synced"] is True
     assert candidate not in json.dumps(result)
     assert json.loads((state / "token.json").read_text())["token"] == candidate
-    assert (state / "token.json").stat().st_mode & 0o777 == 0o600
+    if os.name != "nt":  # Windows chmod only toggles read-only; no POSIX mode bits
+        assert (state / "token.json").stat().st_mode & 0o777 == 0o600
 
 
 def test_rejected_browser_session_restores_previous_token(tmp_path: Path) -> None:

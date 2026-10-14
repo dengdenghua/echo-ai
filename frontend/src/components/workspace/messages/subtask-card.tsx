@@ -15,6 +15,7 @@ import {
 } from "@/components/ai-elements/chain-of-thought";
 import { Button } from "@/components/ui/button";
 import { DotProgress } from "@/components/workspace/swarm/dot-progress";
+import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { useI18n } from "@/core/i18n/hooks";
 import { hasToolCalls } from "@/core/messages/utils";
 import { useRehypeSplitWordsIntoSpans } from "@/core/rehype";
@@ -69,7 +70,7 @@ function getStatusLabel(
   status: SubtaskStatus,
   t: ReturnType<typeof useI18n>["t"],
 ): string {
-  const label = t.subagents[status as keyof typeof t.subagents];
+  const label = t.subagents[status];
   return (
     (typeof label === "string" ? label : undefined) ??
     SUBTASK_STATUS_LABELS[status] ??
@@ -138,14 +139,9 @@ export function SubtaskCard({
               <div className="flex items-center gap-2">
                 {task.avatarEmoji && (
                   <span
-                    className="flex size-6 shrink-0 items-center justify-center rounded-lg text-xs"
-                    style={
-                      task.hue != null
-                        ? { background: `hsl(${task.hue} 70% 92%)` }
-                        : undefined
-                    }
+                    className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted text-xs"
                   >
-                    {task.avatarEmoji}
+                    <PersonaGlyph name={task.name ?? task.description} />
                   </span>
                 )}
                 <ChainOfThoughtStep

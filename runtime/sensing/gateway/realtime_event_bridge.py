@@ -18,6 +18,14 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from runtime.core.cerebrum.deliverable_rendering import finalize_deliverables
+from runtime.core.cerebrum.file_edit_journal import (
+    FileEditJournal,
+    entries_from_file_change_item,
+    journal_path_key,
+    normalize_journal_path,
+    read_text_bounded,
+)
 from runtime.memory.threads.event_log import EventLog
 from runtime.protocol import (
     AgentMessageItem,
@@ -25,6 +33,7 @@ from runtime.protocol import (
     CommandExecutionItem,
     EvidenceReference,
     FileChangeItem,
+    FileEditSummary,
     GroundingSource,
     ItemStatus,
     ReasoningItem,
@@ -70,6 +79,51 @@ from runtime.sensing.gateway.realtime_workbench import (
 from runtime.sensing.gateway.tool_bridge import strip_leaked_protocol_tags
 
 _logger = logging.getLogger(__name__)
+
+# Upper bound on the remembered produced-file list.  The section itself
+# only ever renders ``DEFAULT_LIMIT`` entries; this cap just keeps a
+# pathological turn from growing the per-turn bridge state without bound.
+_PRODUCED_PATH_CAP = 500
+
+
+def _journal_workspace_root(turn: Turn | None) -> str | None:
+    """The directory a turn's file edits are resolved against, if known.
+
+    ``execution_workspace_path`` is the only trusted spelling: the supervisor
+    stamps it after authenticating the client's workspace, so a journal path
+    can never be absolutised against a directory the caller invented.  The raw
+    ``params.cwd`` is a fallback for embedding callers (tests, scripts) whose
+    turns never went through that stamping -- never a substitute for it.
+    """
+
+    if turn is None:
+        return None
+    trusted = str(getattr(turn, "execution_workspace_path", None) or "").strip()
+    if trusted:
+        return trusted
+    params = getattr(turn, "params", None)
+    raw = str(getattr(params, "cwd", None) or "").strip()
+    return raw or None
+
+
+def _journal_read_path(path: Any, root: str | None = None) -> str:
+    """Disk path to read a file the journal just wrote.
+
+    ``normalize_journal_path`` produces the canonical ``/``-separated *journal
+    key*, which is only sometimes a path the filesystem can open: an absolute
+    result is usable as-is (forward slashes resolve fine on Windows), while a
+    relative one has to be anchored back onto the workspace root the caller
+    normalised against.
+    """
+
+    normalized = normalize_journal_path(path)
+    if not normalized:
+        return ""
+    if normalized.startswith(("/", "//")) or os.path.isabs(normalized.replace("/", os.sep)):
+        return normalized
+    if not root:
+        return normalized
+    return os.path.join(str(root), *[part for part in normalized.split("/") if part])
 
 
 def _safe_list_remove(bucket: list[Any], item: Any) -> None:
@@ -203,6 +257,22 @@ class _ReactBridgeState:
         self._tool_call_delta_emitted: dict[str, int] = {}
         self.phases: list[AgentPhaseSnapshot] = []
         self.evidence: list[EvidenceReference] = []
+        # Paths this turn really wrote, in first-touch order.  Sourced from
+        # the ``file_changes`` the write primitives report — never inferred
+        # from the model's prose — so the generated ``## 交付文件`` section
+        # lists facts instead of the model's recollection of them.
+        self.produced_paths: list[str] = []
+        # Merged per-file view of what this turn did to the working tree
+        # (P1-15).  One entry per file, in first-touch order, carrying the
+        # content-derived before/after verdict; the turn frame publishes
+        # only its content-free projection (``file_edit_journal``).
+        self.file_edit_journal = FileEditJournal()
+        # Set while an already-published answer carries a generated
+        # deliverable section.  The codex backend closes the answer message
+        # on ``react_step_complete``, i.e. before the loop knows the turn
+        # outcome, so a later failure/cancel has to undo the rewrite
+        # (``_revert_finalized_deliverables``).
+        self._deliverable_rewrite: tuple[AgentMessageItem, str] | None = None
         self.workbench_snapshot_version = 0
         self.background_tasks: list[asyncio.Task[None]] = []
         self._delta_buf: list[str] = []
@@ -994,6 +1064,8 @@ class _ReactBridgeState:
                 self._bind_timeline(file_item)
                 related_change_item_ids.append(file_item.id)
                 related_files = [change.path for change in file_item.changes]
+                self._record_produced_paths(related_files)
+                self._record_file_edits(file_item, turn)
                 turn.items.append(file_item)
                 started_file_item = FileChangeItem(
                     id=file_item.id,
@@ -1126,6 +1198,117 @@ class _ReactBridgeState:
         # snapshot is a useful recent-evidence index, not a second event log.
         self.evidence = list(by_id.values())[-200:]
 
+    def _record_produced_paths(self, paths: list[str]) -> None:
+        """Remember files this turn really wrote.
+
+        Ordering is first-touch and duplicates are kept — the renderer
+        deduplicates canonically — so two calls for the same file cannot
+        reorder the section.
+        """
+
+        if len(self.produced_paths) >= _PRODUCED_PATH_CAP:
+            return
+        for path in paths:
+            entry = str(path or "").strip()
+            if entry:
+                self.produced_paths.append(entry)
+        del self.produced_paths[_PRODUCED_PATH_CAP:]
+
+    def _record_file_edits(self, file_item: FileChangeItem, turn: Turn | None) -> None:
+        """Fold one write tool call into the turn's file-edit journal (P1-15).
+
+        After-content is read here, bounded, so an entry can carry a
+        reversible before-state.  The root only ever *locates* the file: a
+        path that cannot be read journals as "after not captured" rather than
+        guessing, and a delete needs no read at all.
+        """
+
+        root = _journal_workspace_root(turn) or getattr(file_item, "grant_root", None)
+        contents: dict[str, str | None] = {}
+        for change in file_item.changes:
+            if change.op == "delete":
+                continue
+            normalized = normalize_journal_path(change.path, root=root)
+            if not normalized:
+                continue
+            key = journal_path_key(normalized)
+            if key in contents:
+                continue
+            contents[key] = read_text_bounded(_journal_read_path(change.path, root))
+        self.file_edit_journal.record_all(
+            entries_from_file_change_item(file_item, contents=contents, root=root)
+        )
+
+    def _sync_turn_file_edits(self, turn: Turn) -> None:
+        """Publish the merged file-edit view onto the turn frame.
+
+        The projection is content-free, so a turn that rewrote a large tree
+        still ships a bounded ``fileEdits`` list.
+        """
+
+        if not self.file_edit_journal:
+            return
+        with contextlib.suppress(TypeError, ValueError):
+            turn.file_edits = [
+                FileEditSummary.model_validate(summary)
+                for summary in self.file_edit_journal.to_summaries()
+            ]
+
+    def _finalize_agent_message_deliverables(self, status: ItemStatus) -> None:
+        """Give the final answer its code-generated ``## 交付文件`` section.
+
+        Formatting belongs to code: the model writes the prose, the runtime
+        appends the canonical list of files the turn produced.  Commentary
+        beats between tool rounds, unsuccessful turns, and turns that wrote
+        nothing are all left exactly as the model wrote them.
+
+        Idempotent — ``finalize_deliverables`` strips a hand-written copy of
+        the section before re-rendering it — so a retried flush is safe.
+
+        A turn that reported no file changes keeps whatever the model wrote:
+        the runtime replaces a claim it can check, never deletes one it cannot.
+        """
+
+        message = self.agent_message
+        if message is None or status != ItemStatus.COMPLETED:
+            return
+        # ``commentary`` marks an in-progress beat, not the terminal answer:
+        # only the answer lane owns the deliverable list.
+        if str(getattr(message, "message_kind", "answer") or "answer") != "answer":
+            return
+        if not self.produced_paths:
+            return
+        original = str(message.text or "")
+        finalized = finalize_deliverables(original, self.produced_paths)
+        if finalized == original:
+            return
+        message.text = finalized
+        self._deliverable_rewrite = (message, original)
+
+    async def _revert_finalized_deliverables(
+        self,
+        turn: Turn,
+        log: EventLog,
+        emitter: EventEmitter,
+    ) -> None:
+        """Put an already-published answer back to the text the model wrote.
+
+        A turn that failed, was cancelled, or paused must not keep a section
+        claiming files it delivered.  Item completions replace wholesale on
+        the client and on journal replay, so re-emitting the item is
+        idempotent and leaves the earlier text authoritative again.
+        """
+
+        rewrite = self._deliverable_rewrite
+        if rewrite is None:
+            return
+        self._deliverable_rewrite = None
+        message, original = rewrite
+        if str(message.text or "") == original:
+            return
+        message.text = original
+        await self._emit_completed(turn, log, emitter, message)
+
     async def flush(
         self,
         turn: Turn,
@@ -1137,6 +1320,11 @@ class _ReactBridgeState:
     ) -> None:
         """Close the currently open prose lane with its true outcome.
 
+        A successful flush also hands the answer lane its code-generated
+        ``## 交付文件`` section (see ``deliverable_rendering``); an
+        unsuccessful one undoes such a rewrite first, so the section never
+        overstates what a failed or cancelled turn delivered.
+
         A transport item can be fully flushed without being a valid final
         answer.  Cancellation and failure used to call this same method and
         stamp partial prose as ``completed``, which made a source fragment or
@@ -1146,9 +1334,13 @@ class _ReactBridgeState:
 
         # Drain coalesced deltas BEFORE finalizing: completing an item
         # nulls the slot the pending tail would attach to.
+        self._sync_turn_file_edits(turn)
         await self._flush_pending_delta()
+        if status != ItemStatus.COMPLETED:
+            await self._revert_finalized_deliverables(turn, log, emitter)
         if self.agent_message is not None:
             self.agent_message.status = status
+            self._finalize_agent_message_deliverables(status)
             await self._emit_completed(turn, log, emitter, self.agent_message)
             self.agent_message = None
         if self.commentary_message is not None:
@@ -1228,6 +1420,7 @@ class _ReactBridgeState:
     ) -> None:
         phases = _phases_with_active_item(self.phases, workspace_focus)
         turn.phases = phases
+        self._sync_turn_file_edits(turn)
         if workspace_focus is not None:
             turn.workspace_focus = workspace_focus
         self.workbench_snapshot_version += 1

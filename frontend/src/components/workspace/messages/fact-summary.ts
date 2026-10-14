@@ -137,7 +137,7 @@ export function isToolResultError(result: unknown): boolean {
     const trimmed = result.trim();
     if (!trimmed) return false;
     try {
-      const parsed = JSON.parse(trimmed) as unknown;
+      const parsed: unknown = JSON.parse(trimmed);
       if (typeof parsed === "object" && parsed !== null) {
         return isToolResultError(parsed);
       }

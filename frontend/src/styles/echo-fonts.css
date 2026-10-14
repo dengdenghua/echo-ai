@@ -1,0 +1,27 @@
+/* ECHO display + telemetry faces (SIL OFL 1.1, see src/assets/fonts/OFL-*.txt).
+   Copied from the ECHO brand kit. Inter ships separately via @fontsource/inter.
+   Imported from main.tsx (not @imported into globals.css) so Vite resolves
+   and fingerprints the url() paths. */
+@font-face {
+  font-family: "Michroma";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/michroma-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/jetbrains-mono-latin-400-normal.woff2")
+    format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/jetbrains-mono-latin-500-normal.woff2")
+    format("woff2");
+}

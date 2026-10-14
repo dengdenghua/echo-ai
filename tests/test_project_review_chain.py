@@ -68,9 +68,7 @@ def test_ai_delivery_is_stamped_ai_auto_with_no_reviewer(tmp_path):
 
 def test_operator_complete_signs_the_review_chain(tmp_path):
     store, engine, project_id = _run(tmp_path, "single", execute_task=lambda t, c: "草稿")
-    engine.intervene_task(
-        project_id, "M1-T1", action="complete", output="定稿", actor="op-42"
-    )
+    engine.intervene_task(project_id, "M1-T1", action="complete", output="定稿", actor="op-42")
     task = store.tasks_for_milestone("M1")[0]
 
     assert task.status == "done"
@@ -135,8 +133,14 @@ def test_fingerprint_binds_the_review_chain():
     def build(reviewed_by):
         ms = Milestone(id="M1", name="m", goal="g", success_criteria=["ok"])
         task = Task(
-            id="M1-T1", milestone_id="M1", type="code", goal="g",
-            status="done", output="out", review_mode="operator", reviewed_by=reviewed_by,
+            id="M1-T1",
+            milestone_id="M1",
+            type="code",
+            goal="g",
+            status="done",
+            output="out",
+            review_mode="operator",
+            reviewed_by=reviewed_by,
         )
         return delivery_fingerprint(ms, [task])
 

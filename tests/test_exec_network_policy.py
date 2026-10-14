@@ -11,12 +11,38 @@ from __future__ import annotations
 
 import pytest
 
-from runtime.execution.suckers._write_skills_exec import _resolved_allow_network
+from runtime.execution.suckers._write_skills_exec import (
+    _resolved_allow_network,
+    _resolved_egress_allow_common,
+)
+from runtime.safety.auth import MODEL_FORBIDDEN_ARGS, strip_model_controlled_overrides
 
 
-def test_explicit_value_wins() -> None:
-    assert _resolved_allow_network(True) is True
+def test_explicit_true_cannot_widen_past_session_policy() -> None:
+    # Regression: the tool arg is model-reachable; an explicit True used to
+    # win and turn on sandbox network with no approval.
+    assert _resolved_allow_network(True) is False
+    assert _resolved_egress_allow_common(True) is False
+
+
+def test_explicit_false_narrows() -> None:
     assert _resolved_allow_network(False) is False
+    assert _resolved_egress_allow_common(False) is False
+
+
+def test_network_args_are_stripped_from_model_input() -> None:
+    assert {"allow_network", "egress_allow_common"} <= MODEL_FORBIDDEN_ARGS
+    cleaned, stripped = strip_model_controlled_overrides(
+        {"command": "npm install", "allow_network": True, "egress_allow_common": True}
+    )
+    assert cleaned == {"command": "npm install"}
+    assert stripped == ["allow_network", "egress_allow_common"]
+
+
+def test_network_args_hidden_from_tool_schema() -> None:
+    from runtime.execution.tool_spec_builder import _INTERNAL_PARAMS
+
+    assert {"allow_network", "egress_allow_common"} <= _INTERNAL_PARAMS
 
 
 def test_no_session_defaults_to_deny() -> None:
@@ -42,6 +68,16 @@ def test_declared_network_access_true_enables_network(_bind_session) -> None:
     sess = _Session({"sandbox_policy": {"type": "dangerFullAccess", "networkAccess": True}})
     _bind_session(sess)
     assert _resolved_allow_network(None) is True
+    # An explicit False from a trusted caller still narrows the session grant.
+    assert _resolved_allow_network(False) is False
+
+
+def test_declared_egress_allow_common_enables_tier(_bind_session) -> None:
+    sess = _Session({"sandbox_policy": {"networkAccess": False, "egressAllowCommon": True}})
+    _bind_session(sess)
+    assert _resolved_egress_allow_common(None) is True
+    assert _resolved_egress_allow_common(True) is True
+    assert _resolved_allow_network(True) is False
 
 
 def test_declared_network_access_false_stays_denied(_bind_session) -> None:

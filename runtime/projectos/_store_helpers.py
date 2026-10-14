@@ -7,7 +7,14 @@ import json
 import re
 from typing import Any
 
-from runtime.projectos.model import Milestone, Project, Task, normalize_team_mode
+from runtime.projectos.appearance import normalize_project_category, normalize_project_icon
+from runtime.projectos.model import (
+    PROJECT_ORIGINS,
+    Milestone,
+    Project,
+    Task,
+    normalize_team_mode,
+)
 
 _TASK_TYPES = frozenset({"design", "code", "research", "analysis", "review"})
 _TASK_STATUSES = frozenset({"pending", "ready", "running", "blocked", "done", "failed", "rejected"})
@@ -123,6 +130,9 @@ def _normalize_project(project: Project) -> Project:
         created_at=_text(project.created_at, label="created_at", max_length=64),
         started_at=_text(project.started_at, label="started_at", max_length=64),
         finished_at=_text(project.finished_at, label="finished_at", max_length=64),
+        origin=project.origin if project.origin in PROJECT_ORIGINS else "",
+        icon=normalize_project_icon(project.icon),
+        category=normalize_project_category(project.category),
     )
 
 
@@ -169,9 +179,7 @@ def _normalize_task(task: Task) -> Task:
         ),
         attempts=max(0, min(int(task.attempts or 0), 100)),
         review_mode=(
-            task.review_mode
-            if task.review_mode in ("", "ai_auto", "operator", "human_run")
-            else ""
+            task.review_mode if task.review_mode in ("", "ai_auto", "operator", "human_run") else ""
         ),
         reviewed_by=_text(task.reviewed_by, label="task reviewed_by", max_length=128),
     )

@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from runtime.execution.agents.login_shell_path import login_shell_path
+from runtime.execution.engine_packages.store import engines_strict, installed_executable
 
 from .types import ConfigurationError
 
@@ -49,7 +50,16 @@ def resolve_codex_app_server_command(executable: str | None = None) -> tuple[str
     different Codex versions.
     """
 
-    candidate = str(os.environ.get("ECHO_CODEX_EXECUTABLE") or executable or "codex").strip()
+    configured = os.environ.get("ECHO_CODEX_EXECUTABLE")
+    if not configured:
+        # A Codex installed from the store is the pinned build; the desktop
+        # (strict) never falls back to whatever ``codex`` the host PATH has.
+        installed = installed_executable("codex")
+        if installed:
+            return (installed, "app-server", "--strict-config", "--listen", "stdio://")
+        if engines_strict():
+            raise ConfigurationError("Codex executable is unavailable")
+    candidate = str(configured or executable or "codex").strip()
     if not candidate or "\x00" in candidate:
         raise ConfigurationError("Codex executable is invalid")
     expanded = Path(candidate).expanduser()

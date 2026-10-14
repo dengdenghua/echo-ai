@@ -19,6 +19,7 @@ import type {
   ItemType,
   TurnStatus,
 } from "./protocol-enums.generated";
+import { isObjectLike } from "@/core/utils/guards";
 export { ITEM_STATUSES, ITEM_TYPES, TURN_STATUSES };
 export type { ItemStatus, ItemType, TurnStatus };
 
@@ -193,6 +194,27 @@ export interface FileChangeItem extends ItemBase {
   type: "fileChange";
   changes: FileChange[];
   grantRoot: string | null;
+}
+
+/** One file as a whole turn left it, merged across every tool call that
+ * touched it (``turn.fileEdits``). The runtime publishes this projection
+ * instead of the underlying contents, so it carries hashes and a
+ * reversibility verdict rather than bytes.
+ *
+ * ``beforeSource`` is the honesty flag: `recorded`/`derived` mean the
+ * before-state is known, `unknown` means it was not established and
+ * `reason` says why. A surface must not offer an undo for `unknown`.
+ */
+export interface FileEditSummary {
+  path: string;
+  op: "create" | "update" | "delete";
+  beforeSha256: string;
+  afterSha256: string;
+  beforeSource: "recorded" | "derived" | "unknown";
+  reversible: boolean;
+  reason: string;
+  /** How many separate tool calls touched this file during the turn. */
+  touches: number;
 }
 
 export interface McpToolCallItem extends ItemBase {
@@ -370,26 +392,27 @@ export interface ExecutionSnapshot {
   invocation: number;
 }
 
+function isExecutionSnapshot(value: unknown): value is ExecutionSnapshot {
+  return (
+    isObjectLike(value) &&
+    (value.engine === "echo" ||
+      value.engine === "codex" ||
+      value.engine === "opencode") &&
+    typeof value.driver === "string" &&
+    typeof value.reason === "string" &&
+    ["primary", "steering", "verification", "repair"].includes(
+      String(value.phase),
+    ) &&
+    typeof value.invocation === "number" &&
+    Number.isSafeInteger(value.invocation) &&
+    value.invocation >= 1
+  );
+}
+
 export function parseExecutionSnapshot(
   value: unknown,
 ): ExecutionSnapshot | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  if (
-    (record.engine !== "echo" &&
-      record.engine !== "codex" &&
-      record.engine !== "opencode") ||
-    typeof record.driver !== "string" ||
-    typeof record.reason !== "string" ||
-    !["primary", "steering", "verification", "repair"].includes(
-      String(record.phase),
-    ) ||
-    typeof record.invocation !== "number" ||
-    !Number.isSafeInteger(record.invocation) ||
-    record.invocation < 1
-  )
-    return null;
-  return record as unknown as ExecutionSnapshot;
+  return isExecutionSnapshot(value) ? value : null;
 }
 
 /** Reconnects may replay old events; a turn cannot change its bound engine. */
@@ -448,6 +471,9 @@ export interface Turn {
     resumable: boolean;
     retryable: boolean;
   } | null;
+  /** Merged per-file journal of everything this turn did to the working
+   * tree, in first-touch order. Content-free by construction. */
+  fileEdits?: FileEditSummary[];
 }
 
 // Lightweight thread metadata for ``thread/list`` responses. Keeps the

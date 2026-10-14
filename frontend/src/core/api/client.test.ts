@@ -1,8 +1,25 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { EchoClient, STUB_RESPONSE_EVENT } from "./client";
+import { EchoAPIError, EchoClient, STUB_RESPONSE_EVENT } from "./client";
 
 describe("EchoClient", () => {
+  test("preserves structured deletion conflicts for the UI", async () => {
+    const detail = { code: "THREAD_PROJECT_BOUND", project_id: "P1" };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ detail }), { status: 409 }),
+        ),
+    );
+    const client = new EchoClient({ apiUrl: "/api" });
+    const error = await client.threads
+      .delete("thread-1")
+      .catch((error) => error);
+    expect(error).toBeInstanceOf(EchoAPIError);
+    expect(error).toMatchObject({ status: 409, detail });
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();

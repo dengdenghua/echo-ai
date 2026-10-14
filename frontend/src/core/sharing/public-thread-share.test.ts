@@ -103,7 +103,7 @@ describe("public thread share API", () => {
       "https://api.example.test/api/thread-shares/by-id/share-id",
       expect.objectContaining({
         method: "DELETE",
-        headers: expect.any(Headers),
+        headers: expect.any(Object),
       }),
     );
     const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);

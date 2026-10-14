@@ -41,6 +41,7 @@ import { useI18n } from "@/core/i18n/hooks";
 import type { Translations } from "@/core/i18n/locales/types";
 import { cn } from "@/lib/utils";
 import { MarkdownContent } from "./messages/markdown-content";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 
 type IntelligenceSubscription = {
   id: string;
@@ -325,11 +326,11 @@ function ReportCover({
   return (
     <div
       className={cn(
-        "relative isolate overflow-hidden rounded-lg border border-border-default bg-foreground text-white shadow-[var(--shadow-xs)]",
+        "relative isolate overflow-hidden rounded-lg border border-border-default bg-[#101216] text-white shadow-[var(--shadow-xs)]",
         compact ? "h-20" : "h-36",
       )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.55),transparent_28%),radial-gradient(circle_at_78%_35%,rgba(99,102,241,0.42),transparent_30%),linear-gradient(135deg,rgba(15,23,42,1),rgba(17,24,39,0.92))]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(111,227,240,0.22),transparent_30%),radial-gradient(circle_at_78%_35%,rgba(238,241,244,0.06),transparent_32%),linear-gradient(135deg,rgba(23,26,31,1),rgba(9,10,12,0.96))]" />
       <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:28px_28px]" />
       <div className="absolute left-2 top-2 rounded-md bg-black/45 px-1.5 py-0.5 text-xs font-medium text-white/90">
         {t.intelligencePanel.aiGenerated}
@@ -693,15 +694,7 @@ export function IntelligencePanel() {
   };
 
   if (loading) {
-    return (
-      <div
-        role="status"
-        className="flex min-h-64 items-center justify-center gap-2 text-muted-foreground"
-      >
-        <Loader2Icon className="size-5 animate-spin" />
-        <span>{t.common.loading}</span>
-      </div>
-    );
+    return <BrandLoadingPanel label={t.common.loading} className="min-h-64" />;
   }
 
   if (loadError) {

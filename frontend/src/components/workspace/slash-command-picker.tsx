@@ -59,7 +59,7 @@ export function SlashCommandPicker({
   useEffect(() => {
     if (_cache) return;
     let cancelled = false;
-    loadCatalog().then((cmds) => {
+    void loadCatalog().then((cmds) => {
       if (!cancelled) setCatalog(cmds);
     });
     return () => {
@@ -128,7 +128,7 @@ export function SlashCommandPicker({
                     {cmd.argument_hint}
                   </span>
                 )}
-                <span className="ml-auto text-xs text-muted-foreground/70">
+                <span className="ml-auto text-xs text-muted-foreground">
                   {cmd.source}
                 </span>
               </div>

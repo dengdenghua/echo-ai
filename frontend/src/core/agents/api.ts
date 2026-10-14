@@ -1,11 +1,30 @@
 import { swallow } from "@/core/utils/log";
-import { getBackendBaseURL, getControlPlaneBaseURL } from "@/core/config";
-import { authHeaders, jsonAuthHeaders } from "@/core/auth/api";
+import {
+  EchoAPIError,
+  apiFetch,
+  apiPost,
+  apiPut,
+  apiGet,
+  failureDetail,
+  untypedApi,
+  type ApiFailure,
+} from "@/core/api/request";
+import { getControlPlaneBaseURL } from "@/core/config";
 
 import type { Agent, CreateAgentRequest, UpdateAgentRequest } from "./types";
 
 const BACKEND_UNAVAILABLE_STATUSES = new Set([502, 503, 504]);
 const AGENT_LIST_TIMEOUT_MS = 5_000;
+
+/** The body's ``detail`` when present, else ``"<label>: <statusText>"``. */
+function detailOr(label: string) {
+  return (failure: ApiFailure): string => {
+    const detail = failureDetail(failure);
+    return detail === undefined || detail === null
+      ? `${label}: ${failure.statusText}`
+      : String(detail);
+  };
+}
 
 export class AgentNameCheckError extends Error {
   constructor(
@@ -27,16 +46,13 @@ export async function listAgents(opts?: {
   const timeout = setTimeout(() => controller.abort(), AGENT_LIST_TIMEOUT_MS);
 
   try {
-    const res = await fetch(
-      `${getControlPlaneBaseURL()}/api/agents?include_visuals=false`,
-      {
-        cache: "no-store",
-        headers: authHeaders(),
-        signal: controller.signal,
-      },
-    );
-    if (!res.ok) throw new Error(`Failed to load agents: ${res.statusText}`);
-    const data = (await res.json()) as Agent[] | { agents?: Agent[] };
+    const data = (await apiGet("/api/agents", {
+      baseUrl: getControlPlaneBaseURL(),
+      query: { include_visuals: false },
+      cache: "no-store",
+      signal: controller.signal,
+      errorMessage: (f) => `Failed to load agents: ${f.statusText}`,
+    })) as Agent[] | { agents?: Agent[] };
     const agents = Array.isArray(data) ? data : (data.agents ?? []);
     // Leon (admin) is a visible squad member. Operation permissions are
     // enforced by the backend for the signed-in user, not by hiding personas.
@@ -51,48 +67,31 @@ export async function getAgent(
   name: string,
   opts?: { signal?: AbortSignal },
 ): Promise<Agent> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/agents/${encodeURIComponent(name)}?v=${Date.now()}`,
-    {
-      cache: "no-store",
-      headers: authHeaders(),
-      signal: opts?.signal,
-    },
-  );
-  if (!res.ok) throw new Error(`Agent '${name}' not found`);
-  return (await res.json()) as Agent;
+  return untypedApi.get<Agent>(`/api/agents/${encodeURIComponent(name)}`, {
+    reason: "the cache-busting `v` query param is not declared",
+    query: { v: Date.now() },
+    cache: "no-store",
+    signal: opts?.signal,
+    errorMessage: () => `Agent '${name}' not found`,
+  });
 }
 
 export async function createAgent(request: CreateAgentRequest): Promise<Agent> {
-  const res = await fetch(`${getBackendBaseURL()}/api/agents`, {
-    method: "POST",
-    headers: jsonAuthHeaders(),
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(err.detail ?? `Failed to create agent: ${res.statusText}`);
-  }
-  return (await res.json()) as Agent;
+  return (await apiPost("/api/agents", {
+    body: request,
+    errorMessage: detailOr("Failed to create agent"),
+  })) as Agent;
 }
 
 export async function updateAgent(
   name: string,
   request: UpdateAgentRequest,
 ): Promise<Agent> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/agents/${encodeURIComponent(name)}`,
-    {
-      method: "PUT",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(request),
-    },
-  );
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(err.detail ?? `Failed to update agent: ${res.statusText}`);
-  }
-  return (await res.json()) as Agent;
+  return (await apiPut("/api/agents/{agent_id}", {
+    path: { agent_id: name },
+    body: request,
+    errorMessage: detailOr("Failed to update agent"),
+  })) as Agent;
 }
 
 export async function generateAgentVisuals(
@@ -102,43 +101,28 @@ export async function generateAgentVisuals(
     style_prompt?: string;
     reference_images?: string[];
   } = {},
-): Promise<{
+): Promise<GeneratedAgentVisuals> {
+  // The contract marks ``visual_urls`` optional; callers have always relied
+  // on the server filling it, so keep the narrower client view.
+  return (await apiPost("/api/agents/{agent_id}/visuals/generate", {
+    path: { agent_id: name },
+    body: request,
+    errorMessage: detailOr("Failed to generate visuals"),
+  })) as GeneratedAgentVisuals;
+}
+
+interface GeneratedAgentVisuals {
   agent_id: string;
   provider: string;
   avatar_url?: string | null;
   visual_urls: Record<string, string>;
-}> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/agents/${encodeURIComponent(name)}/visuals/generate`,
-    {
-      method: "POST",
-      headers: jsonAuthHeaders(),
-      body: JSON.stringify(request),
-    },
-  );
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(
-      err.detail ?? `Failed to generate visuals: ${res.statusText}`,
-    );
-  }
-  return (await res.json()) as {
-    agent_id: string;
-    provider: string;
-    avatar_url?: string | null;
-    visual_urls: Record<string, string>;
-  };
 }
 
 export async function deleteAgent(name: string): Promise<void> {
-  const res = await fetch(
-    `${getBackendBaseURL()}/api/agents/${encodeURIComponent(name)}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(),
-    },
-  );
-  if (!res.ok) throw new Error(`Failed to delete agent: ${res.statusText}`);
+  await apiFetch("delete", "/api/agents/{agent_id}", {
+    path: { agent_id: name },
+    errorMessage: (f) => `Failed to delete agent: ${f.statusText}`,
+  });
 }
 
 export async function checkAgentName(
@@ -146,29 +130,20 @@ export async function checkAgentName(
 ): Promise<{ available: boolean; name: string }> {
   let res: Response;
   try {
-    res = await fetch(
-      `${getBackendBaseURL()}/api/agents/check?name=${encodeURIComponent(name)}`,
-      { headers: authHeaders() },
-    );
+    res = await untypedApi.fetch("get", "/api/agents/check", {
+      reason: "the name-check route is not in the OpenAPI snapshot",
+      query: { name },
+      errorMessage: detailOr("Failed to check agent name"),
+    });
   } catch (e) {
-    swallow(e);
+    if (e instanceof EchoAPIError && !BACKEND_UNAVAILABLE_STATUSES.has(e.status)) {
+      throw new AgentNameCheckError(e.message, "request_failed");
+    }
+    // Network failure, or a gateway status meaning the backend is down.
+    if (!(e instanceof EchoAPIError)) swallow(e);
     throw new AgentNameCheckError(
       "Could not reach the Echo backend.",
       "backend_unreachable",
-    );
-  }
-
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    if (BACKEND_UNAVAILABLE_STATUSES.has(res.status)) {
-      throw new AgentNameCheckError(
-        "Could not reach the Echo backend.",
-        "backend_unreachable",
-      );
-    }
-    throw new AgentNameCheckError(
-      err.detail ?? `Failed to check agent name: ${res.statusText}`,
-      "request_failed",
     );
   }
   return (await res.json()) as { available: boolean; name: string };

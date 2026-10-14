@@ -81,7 +81,7 @@ def _local_filesystem_roots() -> tuple[Path, ...]:
         mask = windows_dlls.kernel32.GetLogicalDrives()
         if mask:
             return tuple(Path(f"{chr(65 + bit)}:\\") for bit in range(26) if mask & (1 << bit))
-    except OSError:
+    except OSError:  # intentional: Fall back to the current drive root below.
         pass
     return (Path(Path.cwd().anchor or "/"),)
 
