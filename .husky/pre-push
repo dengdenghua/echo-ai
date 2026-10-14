@@ -3,8 +3,9 @@
 # scans (import direction, orphan modules, async lock/blocking, repo URLs).
 # tools/hooks/commit_tree_gates.py checks a snapshot of the pushed commit,
 # so uncommitted files in this shared checkout do not affect the result.
-# $(pwd): git runs hooks from the top of the working tree (see pre-commit).
+# Top of the working tree, in the /e/... form on Windows (see pre-commit).
 repo_root="$(pwd)"
+if command -v cygpath >/dev/null 2>&1; then repo_root="$(cygpath -u "$repo_root")"; fi
 for venv_bin in "$repo_root/.venv/Scripts" "$repo_root/.venv/bin"; do
   [ -d "$venv_bin" ] && PATH="$venv_bin:$PATH"
 done

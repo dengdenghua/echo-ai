@@ -7,10 +7,10 @@
 # Install pre-commit once:  uv tool install pre-commit
 # Without it step 1 is skipped; CI still enforces the same checks.
 
-# Git runs hooks from the top of the working tree. $(pwd) rather than
-# `git rev-parse --show-toplevel`, which gives E:/... in Git Bash: the colon
-# would split the PATH entry below.
+# Git runs hooks from the top of the working tree. Git for Windows reports it
+# as E:/..., whose colon would split the PATH entry below: use the /e/... form.
 repo_root="$(pwd)"
+if command -v cygpath >/dev/null 2>&1; then repo_root="$(cygpath -u "$repo_root")"; fi
 # The locked .venv first, so `python`, `ruff` and `bandit` are the CI ones
 # (on Windows `python` is otherwise the Microsoft Store stub).
 for venv_bin in "$repo_root/.venv/Scripts" "$repo_root/.venv/bin"; do
