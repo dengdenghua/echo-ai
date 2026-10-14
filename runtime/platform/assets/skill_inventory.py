@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
+import threading
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,8 @@ from typing import Any
 import yaml
 
 from runtime.platform.process.paths import app_paths, resources_root
+
+_log = logging.getLogger(__name__)
 
 SKIP_DIRS = {".git", "node_modules", ".venv", "__pycache__", "dist", "build", "release"}
 
@@ -133,6 +137,26 @@ def scan_local_skills(roots: list[tuple[Path, str]] | None = None) -> list[dict[
                 "variants": [variant],
             }
     return [by_name[key] for key in sorted(by_name)]
+
+
+def warm_on_startup(app: Any) -> None:
+    """Parse every SKILL.md once, in the background, when ``app`` starts.
+
+    A cold scan reads and YAML-parses hundreds of files (about 6 s for ~600
+    skills, more with a cold disk cache); the first HUB or automation page
+    load used to pay for it. Later scans reuse the stat-validated cache.
+    """
+
+    def _warm() -> None:
+        try:
+            scan_local_skills()
+        except Exception as exc:  # noqa: BLE001 — intentional: warming is best effort
+            _log.debug("skill inventory warm-up skipped: %s", exc)
+
+    async def _start() -> None:
+        threading.Thread(target=_warm, name="skill-inventory-warm", daemon=True).start()
+
+    app.router.add_event_handler("startup", _start)
 
 
 def public_skill_inventory(rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:

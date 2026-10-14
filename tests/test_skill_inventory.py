@@ -48,3 +48,25 @@ def test_staging_keeps_script_variants_and_excludes_credentials(tmp_path):
     assert first["sha256"] == package_skill(skill, "example", out)["sha256"]
     (skill / "run.py").write_text("print(2)")
     assert first["sha256"] != package_skill(skill, "example", out)["sha256"]
+
+
+def test_startup_warms_the_inventory_in_the_background(monkeypatch):
+    import threading
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from runtime.platform.assets import skill_inventory
+
+    scanned = threading.Event()
+
+    def fake_scan(*_args, **_kwargs):
+        scanned.set()
+        raise OSError("disk went away")  # a failed warm-up must not break startup
+
+    monkeypatch.setattr(skill_inventory, "scan_local_skills", fake_scan)
+    app = FastAPI()
+    skill_inventory.warm_on_startup(app)
+
+    with TestClient(app):
+        assert scanned.wait(5)

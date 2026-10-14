@@ -99,6 +99,7 @@ def create_app(
         if registry is None:
             registry = kernel.registry
 
+    from runtime.platform.assets.skill_inventory import warm_on_startup
     from runtime.platform.ui._app_agents import mount_agents
     from runtime.platform.ui._app_auth_routers import mount_auth_routers
     from runtime.platform.ui._app_collab import mount_collaboration
@@ -185,4 +186,5 @@ def create_app(
     mount_routers_a(ctx, journal_path=journal_path)
     mount_routers_b(ctx, journal_path=journal_path)
     mount_page_translate_router(ctx)
+    warm_on_startup(ctx.app)
     return ctx.app
