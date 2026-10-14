@@ -192,3 +192,53 @@ it("drops the previous account's cached data when another account signs in", asy
   expect(await screen.findByText("authenticated")).toBeInTheDocument();
   expect(queryClient.getQueryData(["threads", "search"])).toBeUndefined();
 });
+
+it("reads the account's roles right after an interactive sign-in", async () => {
+  // Regression: the login response carries no roles, so an admin who had
+  // just signed in saw "由管理员安装" on every workbench until a reload.
+  mocks.getAuthStatus.mockResolvedValue({
+    enabled: true,
+    jwt_available: true,
+    allow_registration: false,
+    exempt_paths: [],
+    credential_present: false,
+  });
+  mocks.login.mockResolvedValue({
+    success: true,
+    token_type: "bearer",
+    expires_in: 3600,
+    user: {
+      user_id: "local:owner",
+      actor_id: "local:owner",
+      username: "owner",
+    },
+  });
+  mocks.getMe.mockResolvedValue({
+    user_id: "local:owner",
+    actor_id: "local:owner",
+    username: "owner",
+    roles: ["user", "local", "admin"],
+    permissions: [],
+    is_active: true,
+  });
+  let signIn!: ReturnType<typeof useAuth>["login"];
+  function Roles() {
+    const auth = useAuth();
+    signIn = auth.login;
+    return <span>{(auth.user?.roles ?? []).join(",") || "no roles"}</span>;
+  }
+
+  renderWithProviders(
+    <AuthProvider>
+      <Roles />
+    </AuthProvider>,
+  );
+  expect(await screen.findByText("no roles")).toBeInTheDocument();
+  expect(mocks.getMe).not.toHaveBeenCalled();
+  await act(async () => {
+    await signIn({ username: "owner" });
+  });
+
+  expect(await screen.findByText("user,local,admin")).toBeInTheDocument();
+  expect(mocks.getMe).toHaveBeenCalledTimes(1);
+});

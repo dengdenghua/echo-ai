@@ -299,6 +299,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (next: User) => {
       queryClient.clear();
       setUser(next);
+      // A login response names the account but not its roles or scopes.
+      // Read them now, or admin-only actions (installing workbenches,
+      // instance settings) stay hidden until the next reload.
+      void getMe()
+        .then((me) => {
+          const sameAccount = (u: User) => u.actor_id || u.user_id;
+          setUser((current) =>
+            current && sameAccount(current) === sameAccount(me)
+              ? normalizeUserIdentity(me, current)
+              : current,
+          );
+        })
+        .catch(swallow);
     },
     [queryClient],
   );
