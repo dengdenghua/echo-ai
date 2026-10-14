@@ -229,6 +229,20 @@ async def select_turn_execution(
         status = await asyncio.to_thread(inspect_readiness, scope_for_turn(turn))
         if status["available"]:
             return route
+        if requested == "auto" and status.get("reason_code") == "not_installed":
+            # The desktop installer no longer carries OpenCode. Like Codex
+            # below, Auto settles on a path this computer has before any
+            # effect (keeping the host's project/team scheduler) until the
+            # store installs it; an explicit OpenCode choice still fails.
+            fallback = select_execution_route(
+                project_command=project_command,
+                group_fanout=group_fanout,
+                topology_id=topology_id,
+                coordinated=coordinated,
+                requested_engine=EngineId.ECHO,
+                required=required,
+            )
+            return ExecutionRoute(fallback.engine, fallback.driver, "opencode_not_installed")
         raise EngineSelectionError(status["reason"], engine=EngineId.OPENCODE, reason="unavailable")
     readiness = await asyncio.to_thread(codex_readiness_for_turn, runtime, turn, agent)
     if readiness.available:

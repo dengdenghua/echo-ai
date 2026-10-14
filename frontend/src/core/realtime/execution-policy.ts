@@ -16,15 +16,19 @@ export function previewExecutionEngine({
   preference,
   roleBackend,
   orchestrated,
+  opencodeMissing = false,
 }: {
   preference: ExecutionEnginePreference;
   roleBackend?: unknown;
   codingTask: boolean;
   orchestrated: boolean;
   codexAvailable: boolean;
+  /** OpenCode is not installed: Auto runs on Echo's own models instead. */
+  opencodeMissing?: boolean;
 }): ExecutionEngine {
   if (preference !== "auto") return preference;
-  if (orchestrated) return "opencode";
+  const opencode = opencodeMissing ? "echo" : "opencode";
+  if (orchestrated) return opencode;
   if (roleBackend === "codex_app_server") return "codex";
-  return "opencode";
+  return opencode;
 }

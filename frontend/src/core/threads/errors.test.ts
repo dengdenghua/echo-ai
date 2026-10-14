@@ -85,3 +85,11 @@ describe("getStreamErrorMessage", () => {
     );
   });
 });
+
+it("tells a computer without any model how to get one", () => {
+  const message = publicExecutionErrorMessage(
+    "no LLM model configured — add one to data/custom_models.json (or set ANTHROPIC_API_KEY)",
+  );
+  expect(message).toContain("安装 OpenCode");
+  expect(message).not.toContain("custom_models.json");
+});

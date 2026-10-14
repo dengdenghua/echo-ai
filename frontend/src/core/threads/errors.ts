@@ -40,6 +40,10 @@ export function publicExecutionErrorMessage(message: string): string {
   if (/free tier can only be used in opencode/i.test(message)) {
     return "当前 Zen 免费模型仅支持 OpenCode 引擎，请在输入框切换引擎后重试。";
   }
+  if (/no LLM model configured/i.test(message)) {
+    // A desktop without an Echo account or OpenCode has no model to run on.
+    return "还没有可用的模型：登录 Echo 账号使用官方模型，或在执行引擎菜单里安装 OpenCode 使用免费模型，也可以在设置里添加自己的模型。";
+  }
   if (message.includes("Responses tool catalog is too large")) {
     return "当前任务加载的工具过多，已超过执行接口上限。请减少启用的插件或工具后重试。";
   }

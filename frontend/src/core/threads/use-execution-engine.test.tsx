@@ -159,6 +159,39 @@ describe("per-task engine preference", () => {
     },
   );
 
+  it("runs Auto on Echo's own models while OpenCode is not installed", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        available: false,
+        reason: "OpenCode 还没安装",
+        reason_code: "not_installed",
+      }),
+    } as Response);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useExecutionEngine({
+          threadId: "first",
+          principal: "alice",
+          codingTask: false,
+          orchestrated: false,
+          enabled: true,
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.preference).toBe("auto"));
+    expect(result.current.engine).toBe("echo");
+    // A choice the person made stays theirs.
+    act(() => result.current.setPreference("opencode"));
+    expect(result.current.engine).toBe("opencode");
+  });
+
   it("uses team orchestration before an unset task is sent and pins the sent choice", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
