@@ -74,6 +74,19 @@ describe("ChatsDrawer", () => {
     offOpenSettings();
   });
 
+  it("reaches the account surfaces a phone has no account menu for", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    renderWithProviders(<ChatsDrawer open onOpenChange={onOpenChange} />, {
+      locale: "zh-CN",
+      initialRoute: "/workspace/realtime/new",
+    });
+
+    expect(screen.getByRole("button", { name: "积分中心" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "组织管理" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("keeps primary workspace destinations reachable on narrow screens", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();

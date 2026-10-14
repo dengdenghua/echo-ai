@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import {
   BotIcon,
+  CoinsIcon,
   DatabaseIcon,
   CompassIcon,
   MessageSquareIcon,
@@ -15,6 +16,7 @@ import {
   SearchIcon,
   SettingsIcon,
   UserRoundPenIcon,
+  UsersIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -53,6 +55,8 @@ import {
 } from "@/core/modules/module-routing";
 import { emitOpenSettings, eventBus } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
+import { ORG_COPY } from "@/core/organizations/copy";
+import { CreditsCenterDialog } from "@/components/workspace/credits-center";
 import {
   useThreadListVisibility,
   useRenameThread,
@@ -145,9 +149,12 @@ interface ChatsDrawerProps {
 }
 
 export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
+  // The desktop account menu (积分中心, 组织管理) is not on phones; the drawer
+  // carries both so a narrow screen can still reach them.
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const deleteThread = useThreadListVisibility();
   const { mutate: renameThread } = useRenameThread();
   const [query, setQuery] = useState("");
@@ -260,6 +267,11 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
     window.setTimeout(() => {
       emitOpenSettings();
     }, 0);
+  }, [onOpenChange]);
+
+  const openCredits = useCallback(() => {
+    onOpenChange(false);
+    window.setTimeout(() => setCreditsOpen(true), 0);
   }, [onOpenChange]);
 
   const handleDelete = useCallback(
@@ -477,6 +489,25 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
             <RemovedThreadsButton />
             <button
               type="button"
+              onClick={openCredits}
+              className="flex h-10 w-full items-center gap-2 rounded-md px-2.5 text-caption font-medium text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-inset"
+            >
+              <CoinsIcon className="size-4" />
+              {t.creditsCenter.title}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                void navigate("/workspace/organizations");
+              }}
+              className="flex h-10 w-full items-center gap-2 rounded-md px-2.5 text-caption font-medium text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-inset"
+            >
+              <UsersIcon className="size-4" />
+              {ORG_COPY[locale].title}
+            </button>
+            <button
+              type="button"
               onClick={openSettings}
               className="flex h-10 w-full items-center gap-2 rounded-md px-2.5 text-caption font-medium text-muted-foreground outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-inset"
             >
@@ -486,6 +517,9 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
           </div>
         </SheetContent>
       </Sheet>
+      {creditsOpen && (
+        <CreditsCenterDialog open onOpenChange={setCreditsOpen} />
+      )}
       <Dialog
         open={threadToRename !== null}
         onOpenChange={(nextOpen) => {
@@ -497,6 +531,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
       >
         <DialogContent
           showCloseButton={false}
+          aria-describedby={undefined}
           className="w-[min(360px,calc(100vw-2rem))] gap-3 rounded-lg p-4 sm:max-w-[360px]"
         >
           <DialogHeader className="gap-1 text-left">
