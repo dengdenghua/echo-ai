@@ -4,10 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
 
-import {
-  CoderEngineControl,
-  CoderEngineSettings,
-} from "./coder-engine-control";
+import { CoderEngineControl } from "./coder-engine-control";
+import { CoderEngineSettings } from "./coder-engine-settings";
 
 vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => ({

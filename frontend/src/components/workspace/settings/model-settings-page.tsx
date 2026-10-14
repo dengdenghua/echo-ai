@@ -64,7 +64,7 @@ import {
 } from "@/core/models/setup";
 import { ModelPicker } from "@/components/workspace/model-picker";
 import { ModelCookbook } from "@/components/workspace/model-cookbook";
-import { CoderEngineSettings } from "@/components/workspace/coder-engine-control";
+import { CoderEngineSettings } from "@/components/workspace/coder-engine-settings";
 import { OpenCodeConnections } from "./opencode-connections";
 import { ModelSharingSettings } from "./model-sharing-settings";
 
