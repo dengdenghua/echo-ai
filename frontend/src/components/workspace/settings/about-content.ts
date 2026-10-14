@@ -26,7 +26,7 @@ ECHO AI is an open-source **super-agent harness** that coordinates **agents**, *
 
 * [GitHub repository](https://github.com/dengdenghua/echo-ai)
 * [Project site](https://github.com/dengdenghua/echo-ai)
-* [Support](mailto:support@echo.dev)
+* [Report an issue](https://github.com/dengdenghua/echo-ai/issues)
 
 ## License
 
@@ -62,7 +62,7 @@ ECHO AI 是一个开源的**超级智能体框架**，通过协同**智能体、
 
 * [GitHub 仓库](https://github.com/dengdenghua/echo-ai)
 * [项目主页](https://github.com/dengdenghua/echo-ai)
-* [联系支持](mailto:support@echo.dev)
+* [问题反馈](https://github.com/dengdenghua/echo-ai/issues)
 
 ## 开源许可
 
@@ -98,7 +98,7 @@ ECHO AI は、**エージェント、メモリ、安全な実行環境**を連�
 
 * [GitHub リポジトリ](https://github.com/dengdenghua/echo-ai)
 * [プロジェクトサイト](https://github.com/dengdenghua/echo-ai)
-* [サポート](mailto:support@echo.dev)
+* [問題を報告](https://github.com/dengdenghua/echo-ai/issues)
 
 ## ライセンス
 
@@ -134,7 +134,7 @@ ECHO AI는 **에이전트, 메모리, 안전한 실행 환경**을 조율하고 
 
 * [GitHub 저장소](https://github.com/dengdenghua/echo-ai)
 * [프로젝트 사이트](https://github.com/dengdenghua/echo-ai)
-* [지원 문의](mailto:support@echo.dev)
+* [문제 신고](https://github.com/dengdenghua/echo-ai/issues)
 
 ## 라이선스
 
