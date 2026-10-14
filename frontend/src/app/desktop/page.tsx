@@ -28,7 +28,6 @@ import {
   SparklesIcon,
   StoreIcon,
   Trash2Icon,
-  UserCircleIcon,
   WifiIcon,
   XIcon,
 } from "lucide-react";
@@ -602,15 +601,6 @@ export default function DesktopShellPage() {
                 <BotIcon className="size-4" />
               </span>
               <span className="font-semibold">{t.desktop.header.brand}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/workspace")}
-              className="hidden items-center gap-1.5 rounded-md px-1.5 py-0.5 text-foreground transition hover:bg-foreground/10 md:flex"
-              title={t.desktop.header.accountModels}
-            >
-              <UserCircleIcon className="size-3.5" />
-              <span>{t.desktop.header.accountModels}</span>
             </button>
             <button
               type="button"

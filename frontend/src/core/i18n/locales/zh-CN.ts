@@ -3955,12 +3955,7 @@ export const zhCN: Translations = {
       deleteFailed: "删除模型失败",
       systemDefault: "系统默认",
       setAsDefault: "设为默认",
-      noOfficialModels: "未发现官方模型",
-      gatewayHosted: "由官方模型网关托管",
       accountNotLinked: "账号未关联",
-      gatewayNotEnabled: "官方模型网关未启用",
-      officialModels: "官方模型",
-      officialModelsHint: "官方模型由系统托管，无需配置 API 密钥",
       modelCount: (count: number) => `${count} 个模型`,
       modelList: {
         label: "模型列表",
@@ -6592,24 +6587,12 @@ export const zhCN: Translations = {
   // Model Picker
   modelPicker: {
     selectModel: "选择模型",
-    tabOfficial: "官方模型",
     tabCustom: "自定义",
     addModel: "添加模型",
     noCustomModels: "没有自定义模型",
     openCodeZenEmpty: "还没有连接 OpenCode Zen。未选模型时，OpenCode 会用 Zen 的免费模型；连接后可在这里选更多模型。",
     openCodeGoEmpty: "还没有连接 OpenCode Go 套餐。连接后，这里会列出套餐里的模型。",
-    officialEmpty: "没有可用的官方模型。",
     connectOpenCode: "连接 OpenCode",
-    officialDisabled: "未启用官方模型。请在配置中开启官方模型服务。",
-    loginRequired: "登录后可用",
-    enabling: "启用中…",
-    clickToEnable: "未启用 · 点击启用",
-    recommended: "推荐",
-    bindAccountFirst: "请先登录账号",
-    bindAccountDesc: "在登录页用手机号登录后即可一键启用官方模型。",
-    modelEnabled: (name: string) => `${name} 已启用`,
-    enableFailed: "启用失败",
-    enableFailedWithMessage: (msg: string) => `启用失败：${msg}`,
     autoModelLabel: "Auto",
     autoModelDescription: "让系统根据任务类型自动选择最合适的模型",
     autoModelBadge: "智能",
@@ -6638,7 +6621,7 @@ export const zhCN: Translations = {
     expiredOrFrozen: "已过期 / 冻结",
     expired: "已过期",
     creditsDescription:
-      "积分由系统托管。在聊天框模型选择器里使用官方模型时按倍率扣减。",
+      "积分由系统托管。",
     creditsRefreshed: "积分已刷新",
     refreshFailed: "刷新失败",
     primaryAccount: "主账号",
@@ -7944,7 +7927,7 @@ export const zhCN: Translations = {
 
   // Login page
   loginPage: {
-    appSubtitle: "登录使用智能体 + 官方大模型",
+    appSubtitle: "登录使用智能体",
     checkingProviders: "检查登录方式…",
     noProvidersTitle: "⚠️ 服务端没开启任何登录方式",
     noProvidersHint: "请启用账号登录或本地账号登录",
@@ -8030,7 +8013,7 @@ export const zhCN: Translations = {
         "无需注册或登录账号",
         "可使用自定义模型配置",
         "数据仅保存在本地浏览器",
-        "不显示积分体系和官方模型",
+        "不显示积分体系",
       ],
     },
     errors: {
@@ -8966,7 +8949,6 @@ export const zhCN: Translations = {
     header: {
       workspaceTooltip: "打开工作台",
       brand: "ECHO AI",
-      accountModels: "官方模型",
       desktopAssistant: "桌面助手",
       desktopCount: (count) => `桌面 ${count || "--"}`,
       market: "市场",

@@ -8,7 +8,6 @@ import {
   CheckIcon,
   DownloadIcon,
   Loader2Icon,
-  LogInIcon,
   PlusIcon,
   Settings2Icon,
 } from "lucide-react";
@@ -156,14 +155,6 @@ export function ModelSetupActions({
       )}
     >
       <InstallOpencodeButton />
-      <button
-        type="button"
-        onClick={() => emitOpenSettings("account")}
-        className={cn(BUTTON, SECONDARY)}
-      >
-        <LogInIcon className="size-3.5" aria-hidden="true" />
-        {copy.signIn}
-      </button>
       <button
         type="button"
         onClick={() => emitOpenSettings("models")}

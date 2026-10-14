@@ -53,8 +53,7 @@ describe("ModelSetupActions", () => {
       { id: "opencode", action: "install" },
       expect.anything(),
     );
-    fireEvent.click(screen.getByRole("button", { name: "登录 Echo 账号" }));
-    expect(openSettings).toHaveBeenLastCalledWith("account");
+    expect(screen.queryByRole("button", { name: /登录/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "添加模型" }));
     expect(openSettings).toHaveBeenLastCalledWith("models");
     expect(screen.queryByRole("button", { name: /重试/ })).toBeNull();

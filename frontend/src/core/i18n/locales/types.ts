@@ -3506,12 +3506,7 @@ export interface Translations {
       deleteFailed: string;
       systemDefault: string;
       setAsDefault: string;
-      noOfficialModels: string;
-      gatewayHosted: string;
       accountNotLinked: string;
-      gatewayNotEnabled: string;
-      officialModels: string;
-      officialModelsHint: string;
       modelCount: (count: number) => string;
       modelList: {
         label: string;
@@ -6013,24 +6008,12 @@ export interface Translations {
   // Model Picker
   modelPicker: {
     selectModel: string;
-    tabOfficial: string;
     tabCustom: string;
     addModel: string;
     noCustomModels: string;
     openCodeZenEmpty: string;
     openCodeGoEmpty: string;
-    officialEmpty: string;
     connectOpenCode: string;
-    officialDisabled: string;
-    loginRequired: string;
-    enabling: string;
-    clickToEnable: string;
-    recommended: string;
-    bindAccountFirst: string;
-    bindAccountDesc: string;
-    modelEnabled: (name: string) => string;
-    enableFailed: string;
-    enableFailedWithMessage: (msg: string) => string;
     autoModelLabel: string;
     autoModelDescription: string;
     /** Compact badge for the picker row (e.g. "智能" / "Smart"). */
@@ -8088,7 +8071,6 @@ export interface Translations {
     header: {
       workspaceTooltip: string;
       brand: string;
-      accountModels: string;
       desktopAssistant: string;
       desktopCount: (count: number) => string;
       market: string;
