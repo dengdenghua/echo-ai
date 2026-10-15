@@ -31,8 +31,8 @@ import type {
 import { isCoworkRoomReplyReference } from "@/core/cowork/guards";
 import {
   categoricalSlot,
+  categoricalSnowHex,
   categoricalVar,
-  resolveCategoricalRamp,
 } from "@/lib/categorical-palette";
 import {
   createCollabAnnotation,
@@ -1196,7 +1196,7 @@ function colorFor(id: string): string {
   return categoricalVar(categoricalSlot(id));
 }
 
-/** The same slot as hex, for annotation authors (the server keeps only hex). */
+/** Snow hex for annotation authors: readable under white initials anywhere. */
 function avatarHex(id: string): string {
-  return resolveCategoricalRamp()[categoricalSlot(id) - 1] ?? "";
+  return categoricalSnowHex(categoricalSlot(id));
 }

@@ -35,6 +35,15 @@ export function categoricalSlot(key: string): CategoricalSlot {
   return SLOTS[hashKey(key) % SLOTS.length] ?? 1;
 }
 
+/**
+ * A slot's Snow value: dark enough for white text in either theme. Use it
+ * where a colour leaves this client (e.g. stored with an annotation author),
+ * so every viewer draws the same readable swatch.
+ */
+export function categoricalSnowHex(slot: CategoricalSlot): string {
+  return SNOW_RAMP[slot - 1] ?? SNOW_RAMP[0];
+}
+
 /** CSS value for a slot, for style props and SVG fills. */
 export function categoricalVar(slot: CategoricalSlot): string {
   return `var(--cat-${slot})`;

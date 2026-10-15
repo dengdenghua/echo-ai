@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   CATEGORICAL_SLOTS,
   categoricalSlot,
+  categoricalSnowHex,
   categoricalVar,
   resolveCategoricalRamp,
 } from "./categorical-palette";
@@ -48,6 +49,13 @@ describe("categorical palette", () => {
     expect(snow).toHaveLength(CATEGORICAL_SLOTS);
     expect(graphite).toHaveLength(CATEGORICAL_SLOTS);
     expect(new Set([...snow, ...graphite]).size).toBe(CATEGORICAL_SLOTS * 2);
+  });
+
+  it("hands out Snow hex for colours that leave the client", () => {
+    const snow = rampIn(':root,\n[data-echo-theme="snow"]');
+    for (const slot of [1, 2, 3, 4, 5, 6] as const) {
+      expect(categoricalSnowHex(slot)).toBe(snow[slot - 1]);
+    }
   });
 
   it("reads the ramp in force for canvas consumers", () => {
