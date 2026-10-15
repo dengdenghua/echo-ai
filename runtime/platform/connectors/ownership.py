@@ -12,11 +12,11 @@ def connector_ownership(conn: Any) -> dict[str, Any]:
     config = json.dumps({"cli": conn.cli, "mcp": conn.mcp_servers}, ensure_ascii=False)
     vendor_route = bool(re.search(r"workbuddy|codebuddy|(?:[./:]|^)codex(?:[./:]|$)", config, re.I))
     if vendor_route:
-        state, label = "needs_adapter", "待 Echo 适配：存在第三方宿主专用配置"
+        state, label = "needs_adapter", "待 ECHO AI 适配：存在第三方宿主专用配置"
     elif conn.cli:
-        state, label = "cli_unverified", "Echo 调用官方 CLI · 登录隔离待验证"
+        state, label = "cli_unverified", "ECHO AI 调用官方 CLI · 登录隔离待验证"
     else:
-        state, label = "echo_managed", "Echo 管理连接 · 授权后仍需验证"
+        state, label = "echo_managed", "ECHO AI 管理连接 · 授权后仍需验证"
     return {
         "execution_owner": "echo",
         "ownership_state": state,

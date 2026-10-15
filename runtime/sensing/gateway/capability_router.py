@@ -136,7 +136,7 @@ def create_capability_router(
             public.update(
                 execution_owner="echo",
                 ownership_state="local_package_unverified",
-                ownership_label="Echo 本地插件 · 授权适配待验证",
+                ownership_label="ECHO AI 本地插件 · 授权适配待验证",
                 native_verified=False,
             )
         if (
