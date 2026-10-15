@@ -13,11 +13,7 @@ export function CommunitySection() {
   const copy = t.aboutPage.community;
   return (
     <Section
-      title={
-        <AuroraText colors={["#ffffff", "#eef1f4", "#9aa3ae"]}>
-          {copy.title}
-        </AuroraText>
-      }
+      title={<AuroraText>{copy.title}</AuroraText>}
       subtitle={copy.subtitle}
     >
       <div className="flex justify-center">

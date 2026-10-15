@@ -22,7 +22,7 @@ export function SandboxSection({ className }: { className?: string }) {
           <Terminal className="h-[360px] w-full">
             {/* Scene 1: Build a Game */}
             <TypingAnimation>$ cat requirements.txt</TypingAnimation>
-            <AnimatedSpan delay={800} className="text-zinc-400">
+            <AnimatedSpan delay={800} className="text-muted-foreground">
               pygame==2.5.0
             </AnimatedSpan>
 
@@ -57,7 +57,7 @@ export function SandboxSection({ className }: { className?: string }) {
             <TypingAnimation delay={5400}>
               $ curl -O sales-2024.csv
             </TypingAnimation>
-            <AnimatedSpan delay={6200} className="text-zinc-400">
+            <AnimatedSpan delay={6200} className="text-muted-foreground">
               Downloaded 12.4 MB
             </AnimatedSpan>
           </Terminal>
@@ -66,7 +66,7 @@ export function SandboxSection({ className }: { className?: string }) {
         {/* Right: Description */}
         <div className="w-full flex-1 space-y-6">
           <div className="space-y-4">
-            <p className="text-sm font-medium tracking-wider text-purple-400 uppercase">
+            <p className="text-sm font-medium tracking-eyebrow text-muted-foreground uppercase">
               {copy.eyebrow}
             </p>
             <h2 className="text-4xl font-bold tracking-tight lg:text-5xl">
@@ -80,7 +80,7 @@ export function SandboxSection({ className }: { className?: string }) {
             </h2>
           </div>
 
-          <div className="space-y-4 text-lg text-zinc-400">
+          <div className="space-y-4 text-lg text-muted-foreground">
             <p>
               {copy.recommendBefore}
               <a
@@ -98,7 +98,10 @@ export function SandboxSection({ className }: { className?: string }) {
           {/* Feature Tags */}
           <div className="flex flex-wrap gap-3 pt-4">
             {copy.tags.map((tag) => (
-              <span key={tag} className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
+              <span
+                key={tag}
+                className="rounded-lg border border-border bg-card px-4 py-2 text-sm text-foreground/85"
+              >
                 {tag}
               </span>
             ))}

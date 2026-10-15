@@ -4,6 +4,10 @@ import {
   Search,
   Globe,
   Check,
+  CircleCheck,
+  Hammer,
+  Microscope,
+  Rocket,
   Sparkles,
   Terminal,
   Play,
@@ -391,7 +395,7 @@ export default function ProgressiveSkillsAnimation() {
         {/* Left: File Tree */}
         <div className="flex flex-1 flex-col">
           <motion.div
-            className="mb-4 font-mono text-sm text-zinc-500"
+            className="mb-4 font-mono text-sm text-muted-foreground"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
@@ -408,10 +412,10 @@ export default function ProgressiveSkillsAnimation() {
                     : item.dragging
                       ? "translate-x-8 scale-105 text-info"
                       : item.active
-                        ? "text-white"
+                        ? "text-foreground"
                         : item.highlight
-                          ? "text-purple-400"
-                          : "text-zinc-600"
+                          ? "text-core"
+                          : "text-muted-foreground/60"
                 }`}
                 style={{ paddingLeft: `${item.indent * 24}px` }}
                 animate={
@@ -430,7 +434,7 @@ export default function ProgressiveSkillsAnimation() {
                       item.done
                         ? "text-success"
                         : item.highlight
-                          ? "text-purple-400"
+                          ? "text-core"
                           : ""
                     }
                   />
@@ -441,7 +445,7 @@ export default function ProgressiveSkillsAnimation() {
                       item.done
                         ? "text-success"
                         : item.highlight
-                          ? "text-purple-400"
+                          ? "text-core"
                           : ""
                     }
                   />
@@ -449,7 +453,7 @@ export default function ProgressiveSkillsAnimation() {
                 <span>{item.name}</span>
                 {item.done && <Check size={16} className="text-success" />}
                 {item.highlight && !item.done && (
-                  <Sparkles size={16} className="text-purple-400" />
+                  <Sparkles size={16} className="text-core" />
                 )}
               </motion.div>
             ))}
@@ -457,12 +461,12 @@ export default function ProgressiveSkillsAnimation() {
         </div>
 
         {/* Right: Chat Interface */}
-        <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/50">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card/50">
           {/* Chat Header */}
-          <div className="border-b border-zinc-800 p-4">
+          <div className="border-b border-border p-4">
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-lg bg-success" />
-              <span className="text-sm text-zinc-400">Echo</span>
+              <span className="text-sm text-muted-foreground">Echo</span>
             </div>
           </div>
 
@@ -479,7 +483,7 @@ export default function ProgressiveSkillsAnimation() {
                   animate={{ opacity: 1, y: 0 }}
                   className="flex justify-end"
                 >
-                  <div className="max-w-[90%] rounded-lg rounded-tr-sm bg-info px-5 py-3">
+                  <div className="max-w-[90%] rounded-lg rounded-tr-sm bg-foreground/10 px-5 py-3">
                     <p className="text-base">{copy.userRequest}</p>
                   </div>
                 </motion.div>
@@ -506,8 +510,8 @@ export default function ProgressiveSkillsAnimation() {
                     "deploying",
                     "done",
                   ].includes(phase) && (
-                    <div className="text-base text-zinc-300">
-                      <span className="text-purple-400">✨</span>{" "}
+                    <div className="flex items-center gap-2 text-base text-foreground/85">
+                      <Sparkles size={16} className="text-core" />
                       {copy.foundSkills}
                     </div>
                   )}
@@ -524,9 +528,10 @@ export default function ProgressiveSkillsAnimation() {
                     "done",
                   ].includes(phase) && (
                     <div className="mt-4">
-                      <hr className="mb-3 border-zinc-700" />
-                      <div className="mb-3 text-zinc-300">
-                        🔬 {copy.researching}
+                      <hr className="mb-3 border-border" />
+                      <div className="mb-3 flex items-center gap-2 text-foreground/85">
+                        <Microscope size={16} />
+                        {copy.researching}
                       </div>
                       <div className="mb-3 space-y-2">
                         {/* Loading SKILL.md */}
@@ -540,7 +545,7 @@ export default function ProgressiveSkillsAnimation() {
                           "deploying",
                           "done",
                         ].includes(phase) && (
-                          <div className="flex items-center gap-2 pl-4 text-zinc-400">
+                          <div className="flex items-center gap-2 pl-4 text-muted-foreground">
                             <FileText size={16} />
                             <span>{copy.loading("deep-search/SKILL.md")}</span>
                           </div>
@@ -555,7 +560,7 @@ export default function ProgressiveSkillsAnimation() {
                           "deploying",
                           "done",
                         ].includes(phase) && (
-                          <div className="flex items-center gap-2 pl-4 text-zinc-400">
+                          <div className="flex items-center gap-2 pl-4 text-muted-foreground">
                             <FileText size={16} />
                             <span>
                               {copy.foundTopic("deep-search/biotech.md")}
@@ -571,7 +576,7 @@ export default function ProgressiveSkillsAnimation() {
                               key={i}
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className="flex items-center gap-2 text-sm text-zinc-500"
+                              className="flex items-center gap-2 text-sm text-muted-foreground"
                             >
                               {step.type === "search" ? (
                                 <Search size={14} className="text-info" />
@@ -596,7 +601,7 @@ export default function ProgressiveSkillsAnimation() {
                               key={i}
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className="flex items-center gap-2 text-sm text-zinc-500"
+                              className="flex items-center gap-2 text-sm text-muted-foreground"
                             >
                               {step.type === "search" ? (
                                 <Search size={14} className="text-info" />
@@ -620,11 +625,12 @@ export default function ProgressiveSkillsAnimation() {
                       animate={{ opacity: 1 }}
                       className="mt-4"
                     >
-                      <hr className="mb-3 border-zinc-700" />
-                      <div className="mb-3 text-zinc-300">
-                        🔨 {copy.building}
+                      <hr className="mb-3 border-border" />
+                      <div className="mb-3 flex items-center gap-2 text-foreground/85">
+                        <Hammer size={16} />
+                        {copy.building}
                       </div>
-                      <div className="mb-3 flex items-center gap-2 pl-4 text-zinc-400">
+                      <div className="mb-3 flex items-center gap-2 pl-4 text-muted-foreground">
                         <FileText size={16} />
                         <span>{copy.loading("frontend-design/SKILL.md")}</span>
                       </div>
@@ -652,12 +658,13 @@ export default function ProgressiveSkillsAnimation() {
                       animate={{ opacity: 1 }}
                       className="mt-4"
                     >
-                      <hr className="mb-3 border-zinc-700" />
-                      <div className="mb-3 text-zinc-300">
-                        🚀 {copy.deploying}
+                      <hr className="mb-3 border-border" />
+                      <div className="mb-3 flex items-center gap-2 text-foreground/85">
+                        <Rocket size={16} />
+                        {copy.deploying}
                       </div>
                       <div className="mb-3 space-y-2">
-                        <div className="flex items-center gap-2 pl-4 text-zinc-400">
+                        <div className="flex items-center gap-2 pl-4 text-muted-foreground">
                           <FileText size={16} />
                           <span>{copy.loading("deploy/SKILL.md")}</span>
                         </div>
@@ -665,7 +672,7 @@ export default function ProgressiveSkillsAnimation() {
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="flex items-center gap-2 pl-4 text-zinc-400"
+                            className="flex items-center gap-2 pl-4 text-muted-foreground"
                           >
                             <Terminal size={16} />
                             <span>{copy.executing("scripts/deploy.sh")}</span>
@@ -678,8 +685,9 @@ export default function ProgressiveSkillsAnimation() {
                           animate={{ opacity: 1, scale: 1 }}
                           className="mt-4 rounded-lg border border-success/30 bg-success/10 p-4"
                         >
-                          <div className="text-lg font-medium text-success">
-                            ✅ {copy.liveAt("biotech-startup.vercel.app")}
+                          <div className="flex items-center gap-2 text-lg font-medium text-success">
+                            <CircleCheck size={20} />
+                            {copy.liveAt("biotech-startup.vercel.app")}
                           </div>
                         </motion.div>
                       )}
@@ -691,8 +699,8 @@ export default function ProgressiveSkillsAnimation() {
           </div>
 
           {/* Chat Input (decorative) */}
-          <div className="border-t border-zinc-800 p-4">
-            <div className="rounded-lg bg-zinc-800 px-4 py-3 text-sm text-zinc-500">
+          <div className="border-t border-border p-4">
+            <div className="rounded-lg bg-foreground/5 px-4 py-3 text-sm text-muted-foreground">
               {copy.askAnything}
             </div>
           </div>

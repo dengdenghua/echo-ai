@@ -11,7 +11,8 @@ export const AuroraText = memo(
   ({
     children,
     className = "",
-    colors = ["#FF0080", "#7928CA", "#0070F3", "#38bdf8"],
+    // ECHO: no rainbow or gold text; a quiet ink-to-muted sweep by default.
+    colors = ["var(--foreground)", "var(--muted-foreground)"],
     speed = 1,
   }: AuroraTextProps) => {
     const gradientStyle = {

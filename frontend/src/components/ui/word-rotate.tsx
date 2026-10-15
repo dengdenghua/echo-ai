@@ -42,9 +42,7 @@ export function WordRotate({
           {...motionProps}
         >
           {/* ECHO: no gold or rainbow text; a quiet snow-to-muted sweep. */}
-          <AuroraText speed={3} colors={["#ffffff", "#eef1f4", "#9aa3ae"]}>
-            {words[index]}
-          </AuroraText>
+          <AuroraText speed={3}>{words[index]}</AuroraText>
         </motion.h1>
       </AnimatePresence>
     </div>

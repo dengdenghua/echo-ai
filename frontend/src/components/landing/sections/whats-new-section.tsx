@@ -4,7 +4,10 @@ import { cn } from "@/lib/utils";
 
 import { Section } from "../section";
 
-const COLOR = "#0a0a0a";
+// Card surface token; /about pins data-echo-theme="graphite".
+const COLOR = "var(--card)";
+// MagicBento takes an "r, g, b" triplet: the Graphite core (#6fe3f0).
+const GLOW = "111, 227, 240";
 
 export function WhatsNewSection({ className }: { className?: string }) {
   const { t } = useI18n();
@@ -20,7 +23,7 @@ export function WhatsNewSection({ className }: { className?: string }) {
       subtitle={copy.subtitle}
     >
       <div className="flex w-full items-center justify-center">
-        <MagicBento data={features} />
+        <MagicBento data={features} glowColor={GLOW} />
       </div>
     </Section>
   );

@@ -49,13 +49,13 @@ export function Hero({ className }: { className?: string }) {
             <div className="text-white/90">{t.hero.withEcho}</div>
           )}
         </h1>
-        <p className="mt-8 max-w-2xl text-center text-lg leading-relaxed text-[rgb(184,184,192)] md:text-xl">
+        <p className="mt-8 max-w-2xl text-center text-lg leading-relaxed text-muted-foreground md:text-xl">
           {t.hero.heroDescription}
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           <Link to="/workspace">
             <Button
-              className="size-lg bg-white text-[#08080c] shadow-[var(--shadow-md)] shadow-black/25 transition-all hover:bg-white/90"
+              className="size-lg bg-primary text-primary-foreground shadow-[var(--shadow-md)] shadow-black/25 transition-all hover:bg-primary/90"
               size="lg"
             >
               <span className="text-md">{t.hero.getStarted}</span>
