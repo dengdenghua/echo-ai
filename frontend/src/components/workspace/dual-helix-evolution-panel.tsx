@@ -84,20 +84,11 @@ function formatLedgerDescription(description: string, zh: boolean) {
   return value;
 }
 
-function ScoreBar({
-  value,
-  tone,
-}: {
-  value?: number;
-  tone: "cyan" | "violet";
-}) {
+function ScoreBar({ value }: { value?: number }) {
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
       <div
-        className={cn(
-          "h-full rounded-full transition-[width] duration-500",
-          tone === "cyan" ? "bg-cyan-500" : "bg-violet-500",
-        )}
+        className="h-full rounded-full bg-foreground/60 transition-[width] duration-500"
         style={{ width: percent(value) }}
       />
     </div>
@@ -109,23 +100,16 @@ function EngineCard({
   label,
   value,
   score,
-  tone,
   detail,
 }: {
   name: string;
   label: string;
   value: string;
   score?: number;
-  tone: "cyan" | "violet";
   detail: string;
 }) {
   return (
-    <article
-      className={cn(
-        "border-l-2 bg-transparent px-4 py-3",
-        tone === "cyan" ? "border-cyan-500/55" : "border-violet-500/55",
-      )}
-    >
+    <article className="border-l-2 border-foreground/20 bg-transparent px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-medium text-muted-foreground">
@@ -133,16 +117,7 @@ function EngineCard({
           </div>
           <h3 className="mt-1 text-sm font-semibold">{name}</h3>
         </div>
-        <span
-          className={cn(
-            "font-mono text-xs",
-            tone === "cyan"
-              ? "text-cyan-600 dark:text-cyan-300"
-              : "text-violet-600 dark:text-violet-300",
-          )}
-        >
-          {value}
-        </span>
+        <span className="font-mono text-xs text-foreground/70">{value}</span>
       </div>
       <div className="mt-4 flex items-center justify-between text-xs">
         <span className="text-muted-foreground">{detail}</span>
@@ -151,7 +126,7 @@ function EngineCard({
         </span>
       </div>
       <div className="mt-2">
-        <ScoreBar value={score} tone={tone} />
+        <ScoreBar value={score} />
       </div>
     </article>
   );
@@ -199,8 +174,8 @@ function HelixBridge() {
       className="relative hidden min-h-40 items-center justify-center md:flex"
       aria-hidden="true"
     >
-      <div className="absolute h-[82%] w-px -rotate-[16deg] bg-gradient-to-b from-cyan-500 via-foreground/25 to-violet-500" />
-      <div className="absolute h-[82%] w-px rotate-[16deg] bg-gradient-to-b from-violet-500 via-foreground/25 to-cyan-500" />
+      <div className="absolute h-[82%] w-px -rotate-[16deg] bg-foreground/25" />
+      <div className="absolute h-[82%] w-px rotate-[16deg] bg-foreground/25" />
       <div className="z-10 grid size-10 place-items-center bg-background">
         <DnaIcon className="size-5 text-primary" />
       </div>
@@ -766,7 +741,6 @@ export function DualHelixEvolutionPanel({
             label={zh ? "行为基因链" : "Behavior gene strand"}
             value={localizeVerdict(gap.data?.verdict, zh)}
             score={gap.data?.advantage_score}
-            tone="cyan"
             detail={
               zh
                 ? "静态能力估算 · 非任务成功率"
@@ -779,7 +753,6 @@ export function DualHelixEvolutionPanel({
             label={zh ? "能力基准链" : "Capability baseline strand"}
             value={`v${upstream.data?.current_version ?? "—"}`}
             score={gap.data?.parity_score}
-            tone="violet"
             detail={
               zh
                 ? "静态能力对齐 · 非实测效果"
@@ -902,12 +875,7 @@ export function DualHelixEvolutionPanel({
               );
               return (
                 <div key={record.id} className="flex items-start gap-2 text-xs">
-                  <span
-                    className={cn(
-                      "mt-1.5 size-1.5 shrink-0 rounded-full",
-                      codex ? "bg-violet-500" : "bg-cyan-500",
-                    )}
-                  />
+                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/60" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate">
                       {formatLedgerDescription(record.description, zh)}

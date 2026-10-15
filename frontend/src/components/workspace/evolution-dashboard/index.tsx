@@ -559,7 +559,7 @@ function StoryMetric({
           {sparkline && (
             <SparklineChart
               data={sparkline}
-              color="#3b82f6"
+              color="var(--echo-signal)"
               width={64}
               height={24}
             />

@@ -325,14 +325,14 @@ function ReportCover({
   const { t } = useI18n();
   return (
     <div
+      data-echo-theme="graphite"
       className={cn(
-        "relative isolate overflow-hidden rounded-lg border border-border-default bg-[#101216] text-white shadow-[var(--shadow-xs)]",
+        "relative isolate overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-[var(--shadow-xs)]",
         compact ? "h-20" : "h-36",
       )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(111,227,240,0.22),transparent_30%),radial-gradient(circle_at_78%_35%,rgba(238,241,244,0.06),transparent_32%),linear-gradient(135deg,rgba(23,26,31,1),rgba(9,10,12,0.96))]" />
-      <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:28px_28px]" />
-      <div className="absolute left-2 top-2 rounded-md bg-black/45 px-1.5 py-0.5 text-xs font-medium text-white/90">
+      <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(var(--echo-line-strong)_1px,transparent_1px),linear-gradient(90deg,var(--echo-line-strong)_1px,transparent_1px)] [background-size:28px_28px]" />
+      <div className="absolute left-2 top-2 rounded-md bg-card/80 px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
         {t.intelligencePanel.aiGenerated}
       </div>
       <div className="absolute bottom-2 left-2 right-2 line-clamp-2 text-xs font-semibold leading-5">
