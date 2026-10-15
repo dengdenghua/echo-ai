@@ -65,3 +65,6 @@ Frontend (in `frontend/`): `pnpm dev` (port 3310), `pnpm build`, `pnpm test`
   verify a diff is yours vs. a tooling regeneration before committing.
 - Agents live under `agents/<name>/` (profile.jsonc, agent-core/, visuals/).
 - Don't commit broad pathspecs while concurrent sessions are running in this repo.
+- Several sessions edit and commit this checkout at once. Make changes in your own short-lived
+  `git worktree` on a new branch, then bring the finished commits into the shared branch and remove
+  the worktree; on the Windows workstation the recipe is in `E:\AGENT\CLAUDE.md`.
