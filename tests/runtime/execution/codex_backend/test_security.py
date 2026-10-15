@@ -1064,14 +1064,14 @@ def test_cleanup_rejects_changed_allocation(tmp_path, monkeypatch, replace_direc
 def test_versioned_feature_is_locked_only_where_the_executable_defines_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from runtime.execution.codex_backend import security as security_module
+    from runtime.execution.codex_backend import executable_policy as policy_module
 
     supported: dict[str, frozenset[str] | None] = {
         "new-codex": frozenset({"apps", "api_key_model_discovery"}),
         "old-codex": frozenset({"apps"}),
     }
     monkeypatch.setattr(
-        security_module,
+        policy_module,
         "supported_codex_features",
         lambda executable: supported.get(executable or ""),
     )
@@ -1106,3 +1106,60 @@ def test_versioned_feature_is_locked_only_where_the_executable_defines_it(
     drifted["features"]["api_key_model_discovery"] = True  # type: ignore[index]
     with pytest.raises(CodexSecurityError, match="unknown executable feature"):
         older.validate_effective_config({"config": drifted})
+
+
+def test_a_build_that_allows_it_gets_no_host_skills(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # On Windows Codex lists the real profile's ~/.agents/skills whatever HOME
+    # says; where the build knows the keys, the sidecar gets no skills catalog.
+    from runtime.execution.codex_backend import executable_policy as policy_module
+
+    probes: list[tuple[str | None, tuple[str, ...], Path | None]] = []
+
+    def accepts(executable, overrides, *, cache_path=None):
+        probes.append((executable, overrides, cache_path))
+        return executable == "new-codex"
+
+    monkeypatch.setattr(policy_module, "accepts_config_overrides", accepts)
+    monkeypatch.setattr(
+        policy_module,
+        "supported_codex_features",
+        lambda executable: frozenset({"skill_search", "skill_mcp_dependency_install"}),
+    )
+    manager, workspace, state_root = _manager(tmp_path)
+
+    isolated = manager.prepare(
+        realm_id="realm-a",
+        tenant_id="tenant-a",
+        thread_id="thread-new",
+        task_id="task-a",
+        workspace=workspace,
+        codex_executable="new-codex",
+    )
+    config = _config(isolated)
+    assert config["skills"] == {
+        "config": [],
+        "include_instructions": False,
+        "bundled": {"enabled": False},
+    }
+    assert config["features"]["skill_search"] is False  # type: ignore[index]
+    assert config["features"]["skill_mcp_dependency_install"] is False  # type: ignore[index]
+    # config/read echoes the two keys without the empty config list.
+    echoed = {**config, "skills": {"include_instructions": False, "bundled": {"enabled": False}}}
+    isolated.validate_effective_config({"config": echoed})
+    leaked = {**config, "skills": {"include_instructions": True, "bundled": {"enabled": False}}}
+    with pytest.raises(CodexSecurityError, match="isolated from the host"):
+        isolated.validate_effective_config({"config": leaked})
+    assert probes[0][2] is not None and probes[0][2].parent == state_root.resolve()
+
+    older = manager.prepare(
+        realm_id="realm-a",
+        tenant_id="tenant-a",
+        thread_id="thread-old",
+        task_id="task-a",
+        workspace=workspace,
+        codex_executable="old-codex",
+    )
+    assert _config(older)["skills"] == {"config": []}
+    older.validate_effective_config({"config": {**_config(older), "skills": {}}})

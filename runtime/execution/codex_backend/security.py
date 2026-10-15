@@ -61,7 +61,9 @@ from ._security_support import (
     _validate_workspace,
     _write_marker,
 )
-from .feature_support import supported_codex_features
+from .executable_policy import ALLOWED_ENABLED_FEATURES as _ALLOWED_ENABLED_FEATURES
+from .executable_policy import LOCKED_OFF_FEATURES as _LOCKED_OFF_FEATURES
+from .executable_policy import executable_policy, skills_toml, validate_skills
 from .types import CodexProviderProfile
 
 CodexSandboxMode = Literal["read-only", "workspace-write", "danger-full-access"]
@@ -108,31 +110,6 @@ _SENSITIVE_ENV_FRAGMENTS = (
     "TOKEN",
 )
 
-_LOCKED_OFF_FEATURES = (
-    "apps",
-    "auth_elicitation",
-    "enable_mcp_apps",
-    "goals",
-    "hooks",
-    "mcp_2026_07_28",
-    "memories",
-    "multi_agent",
-    "multi_agent_v2",
-    "network_proxy",
-    "plugins",
-    "recommended_plugins",
-    "remote_plugin",
-    "remote_control",
-    "respect_system_proxy",
-    "shell_snapshot",
-    "tool_suggest",
-)
-# Default-on in newer Codex builds and locked off there. Written only when the
-# executable defines them: older pinned builds reject an unknown
-# ``features.<name>`` key under --strict-config. If one is enabled but was not
-# written, validate_effective_config still rejects it as unknown.
-_VERSIONED_LOCKED_OFF_FEATURES = ("api_key_model_discovery",)
-_ALLOWED_ENABLED_FEATURES = frozenset({"mentions_v2"})
 _PROTECTED_WORKSPACE_SUBPATHS = (".git", ".agents", ".codex")
 
 
@@ -228,6 +205,7 @@ class CodexSidecarContext:
     _task_allocation: _CleanupAllocation | None = field(default=None, repr=False)
     # The base list plus any versioned features this executable defines.
     locked_off_features: tuple[str, ...] = _LOCKED_OFF_FEATURES
+    host_skills_isolated: bool = False
 
     def launch_env(self) -> dict[str, str]:
         """Return a mutable copy suitable for ``subprocess.Popen(env=...)``."""
@@ -308,8 +286,7 @@ class CodexSidecarContext:
         for extension_map in ("plugins", "marketplaces"):
             if config.get(extension_map) != {}:
                 errors.append(f"{extension_map} must be empty")
-        if config.get("skills") not in ({}, {"config": []}):
-            errors.append("skills must be empty")
+        validate_skills(config, self.host_skills_isolated, errors)
         for extension_config in ("hooks", "goals", "memories", "orchestrator", "tools"):
             if config.get(extension_config) is not None:
                 errors.append(f"{extension_config} must be disabled")
@@ -668,7 +645,7 @@ class CodexSidecarSecurity:
                 scratch_root, root=state_root, kind="scratch"
             ),
             _task_allocation=_capture_cleanup_allocation(task_root, root=state_root, kind="task"),
-            locked_off_features=_locked_off_features_for(codex_executable),
+            **executable_policy(codex_executable, state_root=state_root),
         )
         _read_binding_file(context)
         config_text = _render_codex_config(context)
@@ -770,15 +747,6 @@ def _tool_environment(context: CodexSidecarContext) -> dict[str, str]:
     return tool_env
 
 
-def _locked_off_features_for(codex_executable: str | None) -> tuple[str, ...]:
-    supported = supported_codex_features(codex_executable)
-    if not supported:
-        return _LOCKED_OFF_FEATURES
-    return _LOCKED_OFF_FEATURES + tuple(
-        name for name in _VERSIONED_LOCKED_OFF_FEATURES if name in supported
-    )
-
-
 def _render_codex_config(context: CodexSidecarContext) -> str:
     tool_env = _tool_environment(context)
     lines = [
@@ -796,7 +764,7 @@ def _render_codex_config(context: CodexSidecarContext) -> str:
         "mcp_servers = {}",
         "plugins = {}",
         "marketplaces = {}",
-        "skills = { config = [] }",
+        skills_toml(context.host_skills_isolated),
         "agents = { enabled = false }",
         "tool_suggest = { discoverables = [], disabled_tools = [] }",
         "",

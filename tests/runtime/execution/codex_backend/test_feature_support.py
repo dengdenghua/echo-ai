@@ -7,6 +7,7 @@ import pytest
 
 from runtime.execution.codex_backend import feature_support
 from runtime.execution.codex_backend.feature_support import (
+    accepts_config_overrides,
     clear_feature_support_cache,
     supported_codex_features,
 )
@@ -73,3 +74,40 @@ def test_missing_executable_or_launch_error_is_unknown(
 
     monkeypatch.setattr(feature_support.subprocess, "run", boom)
     assert supported_codex_features(str(exe)) is None
+
+
+def test_config_overrides_are_tried_on_a_strict_app_server_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exe = tmp_path / "codex.exe"
+    exe.write_bytes(b"MZ")
+    calls: list[list[str]] = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        assert kwargs["env"]["CODEX_HOME"]  # never the user's own Codex home
+        known = "skills.bogus=false" not in argv
+        stderr = "" if known else "Error: unknown configuration field `skills.bogus`"
+        return subprocess.CompletedProcess(argv, 0 if known else 1, stdout="", stderr=stderr)
+
+    monkeypatch.setattr(feature_support.subprocess, "run", run)
+    cache = tmp_path / "support.json"
+
+    assert accepts_config_overrides(str(exe), ("skills.x=false",), cache_path=cache) is True
+    assert calls[0] == [
+        str(exe),
+        "-c",
+        "skills.x=false",
+        "app-server",
+        "--strict-config",
+        "--listen",
+        "stdio://",
+    ]
+    assert accepts_config_overrides(str(exe), ("skills.bogus=false",), cache_path=cache) is False
+    assert accepts_config_overrides(None, ("skills.x=false",)) is False
+
+    # A restarted backend reads the positive answer instead of starting Codex.
+    clear_feature_support_cache()
+    calls.clear()
+    assert accepts_config_overrides(str(exe), ("skills.x=false",), cache_path=cache) is True
+    assert calls == []
