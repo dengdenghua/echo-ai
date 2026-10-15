@@ -343,7 +343,7 @@ export function StudioInspector({
         ) : (
           <>
             {extensions.warnings.length ? (
-              <div className="mb-3 rounded-xl border border-amber-400/20 bg-amber-500/8 p-3 text-xs leading-5 text-amber-800 dark:text-amber-200">
+              <div className="mb-3 rounded-xl border border-border bg-muted/40 p-3 text-xs leading-5 text-foreground">
                 <div className="flex items-center gap-2 font-medium">
                   <AlertTriangleIcon className="size-3.5" />
                   部分增强数据暂不可用
@@ -374,7 +374,7 @@ export function StudioInspector({
                     <p className="text-xs text-muted-foreground">世界包</p>
                   </div>
                   <div className="rounded-xl bg-muted/35 p-3">
-                    <NetworkIcon className="size-4 text-cyan-500" />
+                    <NetworkIcon className="size-4 text-muted-foreground" />
                     <p className="mt-2 text-xl font-semibold">
                       {extensions.entities.length}
                     </p>
@@ -665,7 +665,7 @@ export function StudioInspector({
                                 <StageStatus status={stage.status} />
                               </div>
                               {stage.error ? (
-                                <p className="mt-2 text-xs text-red-600">
+                                <p className="mt-2 text-xs text-breach">
                                   {stage.error}
                                 </p>
                               ) : null}
@@ -721,7 +721,7 @@ export function StudioInspector({
                                     </Button>
                                   </div>
                                   {!activeContextPack ? (
-                                    <p className="text-xs leading-4 text-amber-700 dark:text-amber-300">
+                                    <p className="text-xs leading-4 text-warning">
                                       先构建章节上下文包，才能安全运行 AI 阶段。
                                     </p>
                                   ) : null}
@@ -739,8 +739,8 @@ export function StudioInspector({
                                       className={cn(
                                         "rounded-lg border p-2 text-xs leading-5",
                                         stageAgentMessage.kind === "cancelled"
-                                          ? "border-amber-400/25 bg-amber-500/8 text-amber-800 dark:text-amber-200"
-                                          : "border-red-400/25 bg-red-500/8 text-red-700 dark:text-red-200",
+                                          ? "border-border bg-muted/40 text-foreground"
+                                          : "border-breach/25 bg-breach/10 text-breach",
                                       )}
                                       role="alert"
                                     >
@@ -748,13 +748,13 @@ export function StudioInspector({
                                     </div>
                                   ) : null}
                                   {stageCandidate ? (
-                                    <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/8 p-3">
+                                    <div className="rounded-xl border border-border bg-muted/30 p-3">
                                       <div className="flex items-center justify-between gap-2">
                                         <p className="flex items-center gap-1.5 text-xs font-medium">
-                                          <SparklesIcon className="size-3.5 text-cyan-600 dark:text-cyan-300" />
+                                          <SparklesIcon className="size-3.5 text-muted-foreground" />
                                           AI 候选预览
                                         </p>
-                                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300">
+                                        <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs text-warning">
                                           尚未提交
                                         </span>
                                       </div>
@@ -781,7 +781,7 @@ export function StudioInspector({
                                         <span
                                           className={cn(
                                             stageCandidate.promptTruncated &&
-                                              "font-medium text-amber-700 dark:text-amber-300",
+                                              "font-medium text-warning",
                                           )}
                                         >
                                           截断审计：
@@ -838,7 +838,7 @@ export function StudioInspector({
 
             {tab === "canon" ? (
               <div className="space-y-4">
-                <div className="rounded-xl border border-amber-400/20 bg-amber-400/8 p-3">
+                <div className="rounded-xl border border-border bg-muted/30 p-3">
                   <p className="flex items-center gap-2 text-sm font-medium">
                     <ShieldCheckIcon className="size-4" />
                     人工正典防线
@@ -907,7 +907,7 @@ export function StudioInspector({
                         </div>
                       </div>
                       {review.blockers.length ? (
-                        <div className="mt-3 rounded-lg border border-red-400/20 bg-red-500/8 p-2 text-xs text-red-700 dark:text-red-300">
+                        <div className="mt-3 rounded-lg border border-breach/20 bg-breach/10 p-2 text-xs text-breach">
                           <p className="font-medium">阻塞项</p>
                           <ul className="mt-1 list-disc space-y-1 pl-4">
                             {review.blockers.map((blocker, index) => (
@@ -1008,10 +1008,10 @@ export function CanonCommitDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="canon-confirm-title"
-        className="w-full max-w-lg rounded-2xl border border-amber-400/25 bg-background p-5 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl border border-border/70 bg-background p-5 shadow-2xl"
       >
         <div className="flex items-start gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/10 text-warning">
             <ShieldCheckIcon className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -1056,7 +1056,7 @@ export function CanonCommitDialog({
               className="min-h-24"
             />
           </label>
-          <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-500/8 p-3 text-xs leading-5">
+          <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border bg-muted/40 p-3 text-xs leading-5">
             <input
               type="checkbox"
               checked={confirmed}

@@ -129,7 +129,7 @@ function CandidateBadge({ compact = false }: { compact?: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-400/8 font-medium text-amber-700 dark:text-amber-300",
+        "inline-flex items-center gap-1 rounded-full border border-warning/20 bg-warning/10 font-medium text-warning",
         compact ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-xs",
       )}
     >
@@ -899,7 +899,7 @@ export default function NarrativePage() {
   );
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-auto bg-[radial-gradient(circle_at_50%_-20%,hsl(var(--primary)/0.12),transparent_42%)]">
+    <div className="relative flex h-full min-h-0 flex-col overflow-auto">
       <header className="sticky top-0 z-20 border-b border-border/55 bg-background/85 px-4 py-3 backdrop-blur-xl md:px-6">
         <div className="mx-auto flex w-full max-w-[1720px] flex-wrap items-center gap-3">
           <div className="mr-auto flex min-w-0 items-center gap-3">
@@ -969,7 +969,7 @@ export default function NarrativePage() {
 
       <div className="mx-auto flex w-full max-w-[1720px] flex-1 flex-col p-3 md:p-5">
         {error ? (
-          <div className="mb-3 flex items-start justify-between gap-4 rounded-xl border border-red-400/25 bg-red-500/8 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          <div className="mb-3 flex items-start justify-between gap-4 rounded-xl border border-breach/25 bg-breach/10 px-4 py-3 text-sm text-breach">
             <span>{error}</span>
             <Button
               variant="ghost"
