@@ -3,9 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BoxesIcon,
   BotIcon,
+  BriefcaseIcon,
+  HardDriveIcon,
+  ImportIcon,
+  PackageIcon,
   PuzzleIcon,
   RefreshCwIcon,
+  SquareTerminalIcon,
   UsersIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,6 +50,11 @@ const KIND_TABS: {
   { key: "team", label: "专家团", icon: UsersIcon },
 ];
 
+function KindIcon({ kind, className }: { kind: string; className: string }) {
+  const Icon = KIND_TABS.find((tab) => tab.key === kind)?.icon ?? BotIcon;
+  return <Icon className={className} strokeWidth={1.5} />;
+}
+
 const SOURCE_FILTERS: { key: UnifiedAssetSource | "all"; label: string }[] = [
   { key: "all", label: "全部" },
   { key: "codex", label: "Codex" },
@@ -53,12 +64,13 @@ const SOURCE_FILTERS: { key: UnifiedAssetSource | "all"; label: string }[] = [
   { key: "imported", label: "迁移" },
 ];
 
-const SOURCE_BADGE: Record<UnifiedAssetSource, string> = {
-  codex: "bg-sky-500/10 text-sky-600 dark:text-sky-300",
-  workbuddy: "bg-rose-500/10 text-rose-600 dark:text-rose-300",
-  local: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-  builtin: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
-  imported: "bg-violet-500/10 text-violet-600 dark:text-violet-300",
+/** 来源徽标保持中性，靠图标 + 文字区分来源，不靠色相。 */
+const SOURCE_ICON: Record<UnifiedAssetSource, LucideIcon> = {
+  codex: SquareTerminalIcon,
+  workbuddy: BriefcaseIcon,
+  local: HardDriveIcon,
+  builtin: PackageIcon,
+  imported: ImportIcon,
 };
 
 const SOURCE_LABEL: Record<UnifiedAssetSource, string> = {
@@ -73,14 +85,13 @@ const PAGE_SIZE = 60;
 type AssetKindFilter = UnifiedAssetKind | "team";
 
 function SourceBadge({ source }: { source: UnifiedAssetSource }) {
+  const Icon = SOURCE_ICON[source] ?? SOURCE_ICON.local;
   return (
     <Badge
       variant="outline"
-      className={cn(
-        "shrink-0 border-transparent font-medium",
-        SOURCE_BADGE[source] ?? SOURCE_BADGE.local,
-      )}
+      className="shrink-0 border-transparent bg-muted font-medium text-muted-foreground"
     >
+      <Icon strokeWidth={1.5} />
       {SOURCE_LABEL[source] ?? source}
     </Badge>
   );
@@ -101,14 +112,11 @@ function AssetCard({
       onClick={() => onOpen(asset)}
     >
       <CardHeader className="flex flex-row items-start gap-3 p-4">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted text-lg">
-          {asset.kind === "plugin"
-            ? "🧩"
-            : asset.kind === "skill"
-              ? "📦"
-              : asset.kind === "team"
-                ? "👥"
-                : "🧑‍💼"}
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted">
+          <KindIcon
+            kind={asset.kind}
+            className="size-4 text-muted-foreground"
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -167,14 +175,11 @@ function DetailDialog({
       />
       <div className="relative w-full max-w-md rounded-xl border border-border-default bg-background p-5 shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted text-xl">
-            {asset.kind === "plugin"
-              ? "🧩"
-              : asset.kind === "skill"
-                ? "📦"
-                : asset.kind === "team"
-                  ? "👥"
-                  : "🧑‍💼"}
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border-default bg-muted">
+            <KindIcon
+              kind={asset.kind}
+              className="size-5 text-muted-foreground"
+            />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-base font-bold">

@@ -42,10 +42,7 @@ import { cn } from "@/lib/utils";
 
 const TYPE_STYLE = {
   agent: { badge: "bg-primary/10 text-primary", label: "expert" },
-  team: {
-    badge: "bg-chart-3/10 text-chart-3 dark:text-chart-3",
-    label: "team",
-  },
+  team: { badge: "bg-primary/10 text-primary", label: "team" },
 } as const;
 
 /** 首屏渲染上限 + 「加载更多」步长(避免 421 张带图卡片一次性全量渲染)。 */

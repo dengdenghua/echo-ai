@@ -172,15 +172,15 @@ function CapabilityIcon({ capability }: { capability: CapabilityInfo }) {
     return <span className="text-lg leading-none">{raw}</span>;
   }
   if (capability.source === "codex_plugin") {
-    return <Boxes className="size-4 text-indigo-500" />;
+    return <Boxes className="size-4 text-primary" />;
   }
   if (capability.type === "mcp") {
     return <Plug className="size-4 text-primary" />;
   }
   if (capability.type === "cli") {
-    return <SquareTerminal className="size-4 text-chart-3" />;
+    return <SquareTerminal className="size-4 text-primary" />;
   }
-  return <Boxes className="size-4 text-chart-2" />;
+  return <Boxes className="size-4 text-primary" />;
 }
 
 function pollOAuth(server: string, timeoutMs = 90_000): Promise<boolean> {
@@ -378,7 +378,7 @@ export function ConnectDialog({
           pollAbortRef.current = null;
         }
         if (outcome === "connected") {
-          setMessage("设备流登录完成 ✓");
+          setMessage("设备流登录完成");
           activeDeviceFlowRef.current = null;
           setDeviceFlow(null);
           onConnectedRef.current();
@@ -670,7 +670,7 @@ export function ConnectDialog({
         }
         if (res.connected) {
           stopDeviceFlowPolling();
-          setMessage(isPlugin ? "插件无需认证,已就绪 ✓" : "已连接 ✓");
+          setMessage(isPlugin ? "插件无需认证,已就绪" : "已连接");
           activeDeviceFlowRef.current = null;
           setDeviceFlow(null);
           onConnectedRef.current();
@@ -1091,7 +1091,7 @@ function OAuthAppDialog({
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader className="gap-1 text-left">
           <DialogTitle className="text-[15px]">
-            🔗 配置 {providerName} OAuth App
+            配置 {providerName} OAuth App
           </DialogTitle>
           <DialogDescription className="text-caption leading-5">
             该服务商不支持自动发现(MCP .well-known),网页登录需要你注册一个 OAuth
@@ -2144,7 +2144,7 @@ export function CapabilityMarketPanel({
       ) : null}
 
       {notice ? (
-        <div className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+        <div className="rounded-md bg-muted px-3 py-2 text-xs text-foreground">
           {notice}
         </div>
       ) : null}
@@ -2263,7 +2263,7 @@ export function CapabilityMarketPanel({
                     {typeMeta.label}
                   </Badge>
                   {isPlugin ? (
-                    <Badge className="border-transparent bg-sky-500/10 text-xs text-sky-600 dark:text-sky-300">
+                    <Badge className="border-transparent bg-muted text-xs text-muted-foreground">
                       Codex
                     </Badge>
                   ) : null}
@@ -2278,10 +2278,10 @@ export function CapabilityMarketPanel({
                   {!isFeaturedView &&
                     (cap.oauth_supported || cap.has_cli_auth) && (
                       <Badge
-                        className="border-transparent bg-sky-500/15 text-xs text-sky-600 dark:text-sky-400"
+                        className="border-transparent bg-muted text-xs text-muted-foreground"
                         title="支持跳转网页登录授权,无需手动填 token"
                       >
-                        🔗 网页登录
+                        网页登录
                       </Badge>
                     )}
                   {!isFeaturedView ? (
@@ -2325,7 +2325,7 @@ export function CapabilityMarketPanel({
                     </Badge>
                   )}
                   {cap.permission_review_required ? (
-                    <Badge className="border-transparent bg-amber-500/15 text-xs text-amber-700 dark:text-amber-300">
+                    <Badge className="border-transparent bg-warning/15 text-xs text-warning">
                       待确认权限
                     </Badge>
                   ) : null}

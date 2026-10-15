@@ -98,20 +98,12 @@ export const PERMISSION_LABELS: Record<string, string> = {
 
 /** 轮询 MCP OAuth 授权结果,直到已授权或超时(默认 90s)。 */
 
+/** 类型徽标一律中性：类型靠文字（和卡片图标）区分，不靠色相。 */
 export const TYPE_META: Record<string, { badge: string; label: string }> = {
-  mcp: { badge: "bg-primary/10 text-primary", label: "MCP" },
-  cli: {
-    badge: "bg-chart-3/10 text-chart-3 dark:text-chart-3",
-    label: "CLI",
-  },
-  "skill-only": {
-    badge: "bg-chart-2/10 text-chart-2 dark:text-chart-2",
-    label: "技能",
-  },
-  plugin: {
-    badge: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
-    label: "插件",
-  },
+  mcp: { badge: "bg-muted text-muted-foreground", label: "MCP" },
+  cli: { badge: "bg-muted text-muted-foreground", label: "CLI" },
+  "skill-only": { badge: "bg-muted text-muted-foreground", label: "技能" },
+  plugin: { badge: "bg-muted text-muted-foreground", label: "插件" },
   other: { badge: "bg-muted text-muted-foreground", label: "其他" },
 };
 
