@@ -108,7 +108,9 @@ export function PermissionReviewDialog({
                       <span>{dependency.id}</span>
                       <span
                         className={
-                          dependency.ready ? "text-core" : "text-warning"
+                          dependency.ready
+                            ? "text-core"
+                            : "text-muted-foreground"
                         }
                       >
                         {dependency.ready ? "已验证" : "待安装"}

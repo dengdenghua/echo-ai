@@ -156,6 +156,35 @@ export function CapabilityCategoryHeader({
   );
 }
 
+type StatusTone = "ready" | "approval" | "neutral";
+
+const STATUS_TONE: Record<StatusTone, string> = {
+  ready: "bg-core/15 text-core",
+  approval: "bg-warning/15 text-warning",
+  neutral: "bg-muted text-muted-foreground",
+};
+
+/**
+ * 已安装插件的状态徽标。琥珀只留给待确认权限(审批);状态未读取、已停用、
+ * 待配置、待连接都是普通状态,用中性底色。
+ */
+function installedStatus(
+  cap: CapabilityInfo,
+  state: {
+    connected?: boolean;
+    statusError?: string | null;
+    needsConnection: boolean;
+    needsModelConfiguration: boolean;
+  },
+): [label: string, tone: StatusTone] {
+  if (state.statusError) return ["状态未读取", "neutral"];
+  if (cap.permission_review_required) return ["待确认权限", "approval"];
+  if (state.needsModelConfiguration) return ["待配置", "neutral"];
+  if (!cap.enabled) return ["已停用", "neutral"];
+  if (!state.needsConnection) return ["已启用", "ready"];
+  return state.connected ? ["已连接", "ready"] : ["待连接", "neutral"];
+}
+
 type CapabilityAction = (capability: CapabilityInfo) => Promise<void>;
 
 export interface CapabilityMarketCardProps {
@@ -201,6 +230,12 @@ export function CapabilityMarketCard({
   const needsModelConfiguration = Boolean(cap.model_provider) && !connected;
   const isPlugin = cap.source === "codex_plugin";
   const isCodexMarketplace = cap.is_codex_marketplace === true;
+  const [statusLabel, statusTone] = installedStatus(cap, {
+    connected,
+    statusError,
+    needsConnection,
+    needsModelConfiguration,
+  });
   return (
     <Card
       data-capability-id={cap.id}
@@ -298,24 +333,10 @@ export function CapabilityMarketCard({
           <Badge
             className={cn(
               "border-transparent text-xs",
-              cap.enabled && (!needsConnection || connected)
-                ? "bg-core/15 text-core"
-                : "bg-warning/15 text-warning",
+              STATUS_TONE[statusTone],
             )}
           >
-            {statusError
-              ? "状态未读取"
-              : cap.permission_review_required
-                ? "待确认权限"
-                : needsModelConfiguration
-                  ? "待配置"
-                  : !cap.enabled
-                    ? "已停用"
-                    : !needsConnection
-                      ? "已启用"
-                      : connected
-                        ? "已连接"
-                        : "待连接"}
+            {statusLabel}
           </Badge>
         )}
         {cap.permission_review_required ? (

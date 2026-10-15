@@ -655,7 +655,7 @@ export function ConnectDialog({
         {isCli &&
           !deviceFlow &&
           (isFreebuffCli ? (
-            <div className="space-y-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-xs leading-5">
+            <div className="space-y-1.5 rounded-md border border-border-default bg-muted/25 p-2.5 text-xs leading-5">
               <p className="font-medium text-foreground">
                 官方 Freebuff CLI · 交互式本地智能体
               </p>
@@ -664,7 +664,7 @@ export function ConnectDialog({
                 不读取或保存其登录凭据；Freebuff
                 会处理你交给它的对话、代码和工作区文件。
               </p>
-              <p className="text-warning">
+              <p className="text-muted-foreground">
                 当前官方免费 CLI 不提供非交互
                 Prompt/API，因此不会出现在模型选择器中。
               </p>
