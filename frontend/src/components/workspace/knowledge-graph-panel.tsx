@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { authHeaders } from "@/core/auth/api";
 import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
 import { useI18n } from "@/core/i18n/hooks";
+import { knowledgeMapCopy } from "@/core/i18n/locales/knowledge-map";
 import {
   GlobalControlPlaneAccessError,
   requireGlobalControlPlaneResponse,
@@ -48,7 +49,8 @@ interface GraphStats {
 }
 
 export function KnowledgeGraphPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const copy = knowledgeMapCopy(locale);
   // With the cross-tenant scope the panel shows everyone's graph; any other
   // account reads its own tenant/owner partition (AI-29).
   const globalView = useGlobalControlPlaneAccess();
@@ -187,19 +189,19 @@ export function KnowledgeGraphPanel() {
   return (
     <div className="space-y-3">
       {/* Implementation note. */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setViewMode("map")}
-          className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === "map" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted"}`}
+          className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === "map" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted"}`}
         >
           <NetworkIcon className="mr-1 inline size-3.5" />
-          关系视图
+          {copy.mapView}
         </button>
         <button
           type="button"
           onClick={() => setViewMode("graph")}
-          className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === "graph" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted"}`}
+          className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === "graph" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted"}`}
         >
           <NetworkIcon className="mr-1 inline size-3.5" />
           {t.knowledgePanel.graphView}
@@ -207,17 +209,17 @@ export function KnowledgeGraphPanel() {
         <button
           type="button"
           onClick={() => setViewMode("list")}
-          className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === "list" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted"}`}
+          className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === "list" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted"}`}
         >
           <BrainIcon className="mr-1 inline size-3.5" />
           {t.knowledgePanel.listView}
         </button>
         {viewMode !== "graph" && (
-          <div className="relative ml-auto w-52">
+          <div className="relative order-last w-full sm:order-none sm:ml-auto sm:w-52">
             <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              aria-label="查找知识节点"
-              placeholder="查找节点"
+              aria-label={copy.findNodeLabel}
+              placeholder={copy.findNode}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               className="h-7 rounded-md pl-8 text-xs"
@@ -376,6 +378,9 @@ function KnowledgeRelationMap({
   relationships: KGRelationship[];
   searchQuery: string;
 }) {
+  const { t, locale } = useI18n();
+  const copy = knowledgeMapCopy(locale);
+  const entityTypeNames: Record<string, string> = t.knowledgePanel.entityTypes;
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [localDepth, setLocalDepth] = useState<0 | 1 | 2>(0);
@@ -497,18 +502,17 @@ function KnowledgeRelationMap({
       .replace(/^https?:\/\//, "")
       .split("/")[0]!
       .slice(0, 14);
-  const typeLabelFor = (type: string) =>
-    ({ object: "对象", subject: "主题" })[type] ?? type;
+  const typeLabelFor = (type: string) => entityTypeNames[type] ?? type;
   return (
     <div className="relative overflow-hidden rounded-md border border-border bg-[var(--echo-surface-sunken)]">
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md border border-border bg-popover/85 p-1 text-mini text-muted-foreground backdrop-blur-md">
+      <div className="absolute left-3 right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-1 rounded-md sm:left-auto border border-border bg-popover/85 p-1 text-mini text-muted-foreground backdrop-blur-md">
         <select
-          aria-label="按实体类型筛选"
+          aria-label={copy.filterByType}
           value={entityType}
           onChange={(event) => setEntityType(event.target.value)}
           className="h-6 max-w-28 rounded border-0 bg-muted px-1.5 text-mini text-foreground outline-none"
         >
-          <option value="all">全部类型</option>
+          <option value="all">{copy.allTypes}</option>
           {entityTypes.map((type) => (
             <option key={type} value={type}>
               {typeLabelFor(type)}
@@ -518,16 +522,16 @@ function KnowledgeRelationMap({
         <span className="mx-0.5 h-4 w-px bg-border" />
         {(
           [
-            [0, "全局"],
-            [1, "局部 1 层"],
-            [2, "局部 2 层"],
+            [0, copy.depthGlobal],
+            [1, copy.depthLocal(1)],
+            [2, copy.depthLocal(2)],
           ] as const
         ).map(([depth, label]) => (
           <button
             key={depth}
             type="button"
             onClick={() => setLocalDepth(depth)}
-            className={`rounded px-2 py-1 transition-colors ${localDepth === depth ? "bg-foreground text-background" : "hover:bg-muted hover:text-foreground"}`}
+            className={`whitespace-nowrap rounded px-2 py-1 transition-colors ${localDepth === depth ? "bg-foreground text-background" : "hover:bg-muted hover:text-foreground"}`}
           >
             {label}
           </button>
@@ -537,29 +541,29 @@ function KnowledgeRelationMap({
           type="button"
           aria-pressed={hideOrphans}
           onClick={() => setHideOrphans((value) => !value)}
-          className={`rounded px-2 py-1 transition-colors ${hideOrphans ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground"}`}
+          className={`whitespace-nowrap rounded px-2 py-1 transition-colors ${hideOrphans ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground"}`}
         >
-          隐藏孤立
+          {copy.hideOrphans}
         </button>
         <button
           type="button"
           aria-pressed={showArrows}
           onClick={() => setShowArrows((value) => !value)}
-          className={`rounded px-2 py-1 transition-colors ${showArrows ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground"}`}
+          className={`whitespace-nowrap rounded px-2 py-1 transition-colors ${showArrows ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground"}`}
         >
-          方向
+          {copy.showDirection}
         </button>
       </div>
       {nodes.length === 0 ? (
         <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
-          暂无可视化关系
+          {copy.noRelations}
         </div>
       ) : (
         <svg
           viewBox="0 0 1000 560"
           className="h-[min(62vh,560px)] w-full"
           role="img"
-          aria-label="知识关系图"
+          aria-label={copy.mapLabel}
         >
           <defs>
             <radialGradient id="knowledge-map-glow" cx="50%" cy="50%">
@@ -735,7 +739,7 @@ function KnowledgeRelationMap({
           </div>
           <div className="mt-1 text-mini text-muted-foreground">
             {typeLabelFor(selectedNode.entity_type)} ·{" "}
-            {degree.get(selectedNode.name) ?? 0} 条关系
+            {copy.relationCount(degree.get(selectedNode.name) ?? 0)}
           </div>
           {selectedNode.description && (
             <div className="mt-1 line-clamp-2 text-mini leading-4 text-muted-foreground">

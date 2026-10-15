@@ -28,6 +28,7 @@ import { authHeaders } from "@/core/auth/api";
 import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
 import { BrandProgressLine } from "@/components/brand/brand-progress";
 import { useI18n } from "@/core/i18n/hooks";
+import { knowledgeMapCopy } from "@/core/i18n/locales/knowledge-map";
 import { scopedControlPlaneUrl } from "@/core/observability/api";
 import { swallow } from "@/core/utils/log";
 import {
@@ -633,7 +634,7 @@ function Section({
 }
 
 function KnowledgeGraph3DContent() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   // Everyone's graph with the cross-tenant scope, otherwise the caller's own.
   const globalView = useGlobalControlPlaneAccess();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -653,7 +654,7 @@ function KnowledgeGraph3DContent() {
   const [baseNodes, setBaseNodes] = useState<GraphNodeRecord[]>([]);
   const [baseEdges, setBaseEdges] = useState<GraphEdgeRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [webglError, setWebglError] = useState<string | null>(null);
+  const [webglFailed, setWebglFailed] = useState(false);
   const [search, setSearch] = useState("");
   const [minConfidence, setMinConfidence] = useState(0);
   const [disabledTypes, setDisabledTypes] = useState<Set<string>>(new Set());
@@ -897,9 +898,8 @@ function KnowledgeGraph3DContent() {
         powerPreference: "high-performance",
       });
     } catch (error) {
-      setWebglError(
-        error instanceof Error ? error.message : "WebGL unavailable",
-      );
+      swallow(error);
+      setWebglFailed(true);
       return;
     }
 
@@ -1238,27 +1238,27 @@ function KnowledgeGraph3DContent() {
       />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,color-mix(in_oklab,var(--echo-core)_7%,transparent),transparent_62%)]" />
 
-      {!loading && !webglError && renderedGraph.nodes.length === 0 && (
+      {!loading && !webglFailed && renderedGraph.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center px-6 text-center">
           <div className="max-w-xs rounded-lg border border-border bg-card/70 px-5 py-4 backdrop-blur-sm">
             <NetworkIcon className="mx-auto size-6 text-muted-foreground" />
             <div className="mt-2 text-sm font-medium text-foreground">
-              暂无图谱数据
+              {knowledgeMapCopy(locale).emptyTitle}
             </div>
             <div className="mt-1 text-xs leading-5 text-muted-foreground">
-              先扫描本地文档，生成实体与关系后会显示在这里。
+              {knowledgeMapCopy(locale).emptyHint}
             </div>
           </div>
         </div>
       )}
 
-      {(loading || webglError) && (
+      {(loading || webglFailed) && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-[var(--echo-ground)]/80">
           {loading ? (
             <BrandProgressLine className="w-28" />
           ) : (
-            <div className="max-w-sm rounded-lg border border-destructive/30 bg-destructive/20 px-4 py-3 text-sm text-destructive">
-              {webglError}
+            <div className="max-w-sm rounded-lg border border-border bg-card/80 px-4 py-3 text-sm text-muted-foreground">
+              {knowledgeMapCopy(locale).webglUnavailable}
             </div>
           )}
         </div>
@@ -1304,7 +1304,7 @@ function KnowledgeGraph3DContent() {
           size="icon"
           className="size-9 border-border-default bg-background/90 text-foreground/90 hover:bg-muted hover:text-foreground"
           onClick={() => setShowSettings((visible) => !visible)}
-          aria-label="图谱设置"
+          aria-label={knowledgeMapCopy(locale).graphSettings}
           aria-pressed={showSettings}
         >
           <SlidersHorizontalIcon className="size-4" />
