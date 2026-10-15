@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { jsonAuthHeaders } from "@/core/auth/api";
@@ -85,11 +86,18 @@ export function CodexHotspotPanel({
     <section className="border-b px-4 py-3 text-xs">
       <button
         type="button"
-        className="font-medium"
+        className="flex w-full items-center justify-between gap-2 font-medium"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
-        共享我的模型 {open ? "收起" : "管理"}
+        <span>共享我的模型</span>
+        <span className="inline-flex items-center gap-1 font-normal text-muted-foreground">
+          {open ? "收起" : "管理"}
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </span>
       </button>
       {open && (
         <div className="mt-3 space-y-3">

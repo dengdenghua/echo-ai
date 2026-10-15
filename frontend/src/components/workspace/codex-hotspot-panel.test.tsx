@@ -50,7 +50,7 @@ it("only opens on request, enables the hotspot, creates and revokes a bounded in
   vi.stubGlobal("fetch", fetchMock);
   renderWithProviders(<CodexHotspotPanel />);
   expect(fetchMock).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "共享我的模型 管理" }));
+  fireEvent.click(screen.getByRole("button", { name: /^共享我的模型/ }));
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "开启热点" })).not.toBeDisabled(),
   );

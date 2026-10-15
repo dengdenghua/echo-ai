@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangleIcon,
+  ChevronRightIcon,
   PlusIcon,
   RefreshCwIcon,
   TrashIcon,
@@ -667,9 +668,7 @@ export default function PrivacySettingsPage() {
                       : "Folder isolation, outbound rules, semantic review, and private search."}
               </span>
             </span>
-            <span className="text-muted-foreground transition-transform group-open:rotate-90">
-              ›
-            </span>
+            <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
           </span>
         </summary>
         <div className="space-y-4 border-t border-border-subtle p-4">
@@ -853,12 +852,7 @@ export default function PrivacySettingsPage() {
                     {copy.advancedSummary}
                   </span>
                 </span>
-                <span
-                  aria-hidden="true"
-                  className="text-muted-foreground transition-transform group-open:rotate-90"
-                >
-                  ›
-                </span>
+                <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
               </span>
             </summary>
             <div className="mt-3 border-t border-border-subtle pt-3">
@@ -886,9 +880,7 @@ export default function PrivacySettingsPage() {
                 {t.accountSettings.factoryResetDescription}
               </span>
             </span>
-            <span className="text-destructive/70 transition-transform group-open:rotate-90">
-              ›
-            </span>
+            <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-destructive/70 transition-transform group-open:rotate-90" />
           </span>
         </summary>
         <div className="border-t border-destructive/15 p-5">

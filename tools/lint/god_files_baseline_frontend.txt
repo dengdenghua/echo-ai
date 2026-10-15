@@ -52,7 +52,7 @@ frontend/src/components/workspace/model-picker.tsx	1062
 frontend/src/components/workspace/settings/memory-settings-page.tsx	1334
 frontend/src/components/workspace/settings/model-settings-page.test.tsx	1297
 frontend/src/components/workspace/settings/model-settings-page.tsx	4333
-frontend/src/components/workspace/settings/privacy-settings-page.tsx	1178
+frontend/src/components/workspace/settings/privacy-settings-page.tsx	1170
 frontend/src/components/workspace/settings/settings-dialog.tsx	1238
 frontend/src/components/workspace/swarm-run-overview.tsx	1136
 frontend/src/components/workspace/workdir-selector.tsx	1298
