@@ -22,6 +22,7 @@ from runtime.safety.approval.approval_gate import (
     approval_action_for_tool,
     is_network_risk,
 )
+from runtime.safety.approval.exec_consent import is_human_provider, needs_unconfined_consent
 from runtime.safety.approval.guardian_review import is_auto_review_turn_stop
 from runtime.safety.validation.prompt_injection import injection_taint_gates
 
@@ -34,6 +35,8 @@ class ActionReview:
     control: _LoopControl | None = None
     approval_policy: dict[str, Any] | None = None
     stop_batch: bool = False
+    # A person approved this call knowing it runs without a hard sandbox.
+    unconfined_consent: bool = False
 
 
 def turn_network_denials(state: _LoopState) -> NetworkDenialMemory:
@@ -246,40 +249,40 @@ def review_tool_action(
             "(工具被风险策略拒绝) 此操作被 approval risk policy 拒绝，请换一种方式或询问用户。"
         )
         return ActionReview(False, _auto_approve, observation, _LoopControl.NEXT_ITERATION)
+    _consent = False
     if _approval_action in {"ask", "confirm"} and not _auto_approve and not _scoped_artifact_write:
         _provider = _auto_review_provider or approval_provider or AutoDenyProvider()
-        _approval_detail = (
-            f"{resolved_name} wants to execute "
-            f"(risk={_approval_risk.level}: {_approval_risk.reason})"
+        _request = ApprovalRequest(
+            thread_id=thread_id,
+            tool_name=resolved_name,
+            tool_call_id=call_id,
+            args_preview=str(_input_preview)[:500] if _input_preview else "",
+            detail=(
+                f"{resolved_name} wants to execute "
+                f"(risk={_approval_risk.level}: {_approval_risk.reason})"
+            ),
+            unconfined=needs_unconfined_consent(_approval_risk.categories),
         )
         if _auto_review_provider is None:
             yield {
                 "type": "tool_approval_request",
                 "tool_name": resolved_name,
                 "tool_call_id": call_id,
-                "args_preview": (str(_input_preview)[:500] if _input_preview else ""),
-                "detail": _approval_detail,
+                "args_preview": _request.args_preview,
+                "detail": _request.detail,
                 "risk": _approval_risk.to_dict(),
                 "approval_action": _approval_action,
                 "approval_policy": _approval_policy.to_dict(),
+                "unconfined": _request.unconfined,
             }
-        _decision = _provider.request(
-            ApprovalRequest(
-                thread_id=thread_id,
-                tool_name=resolved_name,
-                tool_call_id=call_id,
-                args_preview=str(_input_preview)[:500] if _input_preview else "",
-                detail=_approval_detail,
-            ),
-            timeout=_approval_timeout_s,
-        )
+        _decision = _provider.request(_request, timeout=_approval_timeout_s)
         if not _decision.approved:
             if _paused_preview := _pause_for_unavailable_approval(
                 state,
                 _decision,
                 iteration=i,
                 tool_name=resolved_name,
-                detail=_approval_detail,
+                detail=_request.detail,
             ):
                 yield _tool_end_event(
                     resolved_name,
@@ -311,4 +314,7 @@ def review_tool_action(
                 _LoopControl.NEXT_ITERATION,
                 stop_batch=is_auto_review_turn_stop(_decision.reason),
             )
-    return ActionReview(True, _auto_approve, approval_policy=_approval_policy.to_dict())
+        _consent = _request.unconfined and is_human_provider(_provider)
+    return ActionReview(
+        True, _auto_approve, approval_policy=_approval_policy.to_dict(), unconfined_consent=_consent
+    )

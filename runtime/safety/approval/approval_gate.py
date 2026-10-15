@@ -601,6 +601,9 @@ class ApprovalRequest:
     tool_call_id: str
     args_preview: str = ""
     detail: str = ""
+    # The command would run without a hard sandbox (no bwrap/Landlock/
+    # Seatbelt on this host); approving it also consents to that.
+    unconfined: bool = False
 
 
 @dataclass(frozen=True, slots=True)

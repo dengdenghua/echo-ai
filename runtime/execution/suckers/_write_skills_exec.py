@@ -290,6 +290,7 @@ def _exec_shell(
         run_env = {**(run_env or {}), **profile}
 
     from runtime.platform.process.streaming import stream_run
+    from runtime.safety.approval.exec_consent import fallback_approval_provider
 
     r = stream_run(
         argv,
@@ -301,6 +302,7 @@ def _exec_shell(
         sandbox_required=True,
         allow_network=_resolved_allow_network(allow_network),
         egress_allow_common=_resolved_egress_allow_common(egress_allow_common),
+        approval_provider=fallback_approval_provider(),
     )
     if "error" in r and "exit_code" not in r:
         msg = r["error"]
@@ -686,6 +688,7 @@ def _ipython(
         cwd_str = str(resolved_cwd)
 
     from runtime.platform.process.streaming import stream_run
+    from runtime.safety.approval.exec_consent import fallback_approval_provider
 
     r = stream_run(
         [sys.executable, "-c", code],
@@ -694,6 +697,7 @@ def _ipython(
         output_cap_bytes=_EXEC_OUTPUT_CAP,
         sandbox_dir=sandbox_dir,
         sandbox_required=True,
+        approval_provider=fallback_approval_provider(),
     )
     if "error" in r and "exit_code" not in r:
         return _error_with_execution_policy(f"exec_failed: {r['error']}", r)

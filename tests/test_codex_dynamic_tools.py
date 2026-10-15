@@ -569,3 +569,196 @@ async def test_read_before_write_evidence_survives_dynamic_tool_callbacks(
     assert read["success"] is True
     assert written["success"] is True
     assert target.read_text(encoding="utf-8") == "value = 'new'\n"
+
+
+class _RecordingApprover:
+    """A person at the approval card: approves and remembers what was asked."""
+
+    def __init__(self, *, human: bool = True) -> None:
+        self.requests: list[Any] = []
+        self.human_reviewer = human
+
+    def request(self, request: Any, *, timeout: float = 120.0) -> Any:
+        from runtime.safety.approval.approval_gate import ApprovalDecision
+
+        self.requests.append(request)
+        return ApprovalDecision(approved=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("human", [True, False])
+async def test_approving_a_command_without_a_hard_sandbox_is_one_disclosed_consent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, human: bool
+) -> None:
+    """Windows has no hard sandbox: the approval card says the command runs
+    unconfined, and a person's approval carries into the process layer so it
+    is not asked a second time (nor refused for lack of a channel)."""
+
+    from runtime.execution.tool_engine import host_tool_broker
+    from runtime.safety.approval.exec_consent import current_exec_consent
+
+    monkeypatch.setattr(host_tool_broker, "host_lacks_hard_sandbox", lambda: True)
+    seen: list[Any] = []
+
+    def exec_shell(command: str = "") -> dict[str, Any]:
+        seen.append(current_exec_consent())
+        return {"ok": True, "stdout": "Hello Echo"}
+
+    registry = SkillRegistry()
+    registry.register(
+        Skill(
+            name="exec_shell",
+            description="Run a shell command",
+            trusted_source="skill://public/exec",
+            handler=exec_shell,
+            tenant_id="tenant-a",
+        ),
+        verify_tests=False,
+    )
+    approver = _RecordingApprover(human=human)
+    stack = SimpleNamespace(executor=SimpleNamespace(registry=registry))
+    broker = CodexDynamicToolBroker(
+        stack,
+        _agent("exec_shell"),
+        context={},
+        goal="run the script",
+        outer_thread_id="outer-thread",
+        outer_turn_id="outer-turn",
+        workspace=str(tmp_path),
+        tenant_id="tenant-a",
+        principal_id="actor-a",
+        approval_provider=approver,
+        is_interrupted=lambda: False,
+    )
+    broker.bind_inner_scope(thread_id="inner-thread", turn_id="inner-turn")
+
+    result = await broker(_request(broker.catalog.names[0], {"command": "python hello.py"}))
+
+    assert result["success"] is True, result
+    assert len(approver.requests) == 1
+    assert approver.requests[0].unconfined is True
+    assert len(seen) == 1 and seen[0] is not None
+    # Only a person's approval is consent; a model reviewer's is not, so the
+    # process layer gets no human channel either and keeps failing closed.
+    assert seen[0].approved is human
+    assert (seen[0].provider is approver) is human
+
+
+@pytest.mark.asyncio
+async def test_write_outside_the_scope_is_refused_before_the_approval_card(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A chat turn may write only under output/final. An absolute path
+    elsewhere used to raise an approval card and then fail anyway, so the
+    user approved the same file twice."""
+
+    from runtime.platform.process import scope as scope_module
+
+    final = tmp_path / "output" / "final"
+    final.mkdir(parents=True)
+    fake_scope = SimpleNamespace(
+        primary_write=final,
+        allows_write=lambda path: Path(path).resolve().is_relative_to(final.resolve()),
+    )
+    monkeypatch.setattr(scope_module, "resolve_execution_scope", lambda _session: fake_scope)
+
+    registry = SkillRegistry()
+    registry.register(
+        Skill(
+            name="write_text_file",
+            description="Write a text file",
+            trusted_source="skill://public/write",
+            handler=lambda path="", content="": {"ok": True, "path": path},
+            tenant_id="tenant-a",
+            affinity=["file", "write"],
+        ),
+        verify_tests=False,
+    )
+    approver = _RecordingApprover()
+    stack = SimpleNamespace(executor=SimpleNamespace(registry=registry))
+    broker = CodexDynamicToolBroker(
+        stack,
+        _agent("write_text_file"),
+        context={},
+        goal="write hello.py",
+        outer_thread_id="outer-thread",
+        outer_turn_id="outer-turn",
+        workspace=str(tmp_path),
+        tenant_id="tenant-a",
+        principal_id="actor-a",
+        approval_provider=approver,
+        is_interrupted=lambda: False,
+    )
+    broker.bind_inner_scope(thread_id="inner-thread", turn_id="inner-turn")
+    tool = broker.catalog.names[0]
+
+    outside = await broker(
+        _request(tool, {"path": str(tmp_path / "hello.py"), "content": "x"}, call_id="abs")
+    )
+    assert outside["success"] is False
+    assert "path_outside_write_scope" in outside["contentItems"][0]["text"]
+    assert str(final) in outside["contentItems"][0]["text"]
+    assert approver.requests == []
+
+    inside = await broker(
+        _request(tool, {"path": str(final / "hello.py"), "content": "x"}, call_id="in")
+    )
+    assert "path_outside_write_scope" not in inside["contentItems"][0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_command_folder_outside_the_scope_is_refused_before_the_approval_card(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``python hello.py`` with cwd at the workspace root was approved and
+    then refused, because a chat turn runs commands under output/final."""
+
+    from runtime.platform.process import scope as scope_module
+
+    final = tmp_path / "output" / "final"
+    final.mkdir(parents=True)
+    fake_scope = SimpleNamespace(
+        primary_write=final,
+        allows_write=lambda path: Path(path).resolve().is_relative_to(final.resolve()),
+    )
+    monkeypatch.setattr(scope_module, "resolve_execution_scope", lambda _session: fake_scope)
+
+    registry = SkillRegistry()
+    registry.register(
+        Skill(
+            name="exec_shell",
+            description="Run a shell command",
+            trusted_source="skill://public/exec",
+            handler=lambda command="", cwd=None: {"ok": True},
+            tenant_id="tenant-a",
+            affinity=["shell", "exec", "dangerous"],
+        ),
+        verify_tests=False,
+    )
+    approver = _RecordingApprover()
+    stack = SimpleNamespace(executor=SimpleNamespace(registry=registry))
+    broker = CodexDynamicToolBroker(
+        stack,
+        _agent("exec_shell"),
+        context={},
+        goal="run hello.py",
+        outer_thread_id="outer-thread",
+        outer_turn_id="outer-turn",
+        workspace=str(tmp_path),
+        tenant_id="tenant-a",
+        principal_id="actor-a",
+        approval_provider=approver,
+        is_interrupted=lambda: False,
+    )
+    broker.bind_inner_scope(thread_id="inner-thread", turn_id="inner-turn")
+
+    result = await broker(
+        _request(
+            broker.catalog.names[0],
+            {"command": "python hello.py", "cwd": str(tmp_path)},
+            call_id="root-cwd",
+        )
+    )
+    assert result["success"] is False
+    assert "cwd_outside_write_scope" in result["contentItems"][0]["text"]
+    assert approver.requests == []

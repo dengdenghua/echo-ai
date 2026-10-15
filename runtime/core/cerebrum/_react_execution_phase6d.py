@@ -18,7 +18,7 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator
 from typing import Any, cast
 
 from runtime.core.cerebrum._react_action_review import review_tool_action, turn_network_denials
@@ -78,6 +78,7 @@ from runtime.execution.tool_engine.tool_protocol import (
     tool_lifecycle_event_to_react_event,
 )
 from runtime.safety.approval.approval_gate import ApprovalRequest, ApprovalRisk, AutoDenyProvider
+from runtime.safety.approval.exec_consent import exec_consent_scope, is_human_provider
 from runtime.safety.governance.execution_policy import caller_reviewed_tool_call
 from runtime.safety.hooks.tool_edge_hooks import post_write_diagnostic_record
 from runtime.safety.validation.prompt_injection import (
@@ -253,6 +254,20 @@ def _workspace_sandbox_handles_ordinary_action(
         or tool_name in _WORKSPACE_LOCAL_VCS_TOOLS
         or tool_name.startswith(("write_", "append_", "edit_", "delete_"))
     )
+
+
+@contextlib.contextmanager
+def _reviewed_call(tool_name: str, review: Any, approval_provider: Any) -> Iterator[None]:
+    """Run a reviewed tool call: mark it reviewed for the executor's own gate,
+    and on a host without a hard sandbox let a command run only with a
+    person's consent — the approval just given, or a prompt now."""
+
+    human = approval_provider if is_human_provider(approval_provider) else None
+    with (
+        caller_reviewed_tool_call(tool_name),
+        exec_consent_scope(approved=review.unconfined_consent, provider=human),
+    ):
+        yield
 
 
 def _phase_6d_dispatch_and_observe(
@@ -633,7 +648,7 @@ def _phase_6d_dispatch_and_observe(
                     # — otherwise it would double-block an approved tool.
                     # The reviewed-call mark does the same for the executor's
                     # ``enforce_executor_approval`` gate.
-                    with _sink_scope(), caller_reviewed_tool_call(resolved_name):
+                    with _sink_scope(), _reviewed_call(resolved_name, _review, approval_provider):
                         set_injection_gate_handled(True)
                         try:
                             observation, beak_step = _execute_action_via_beak(

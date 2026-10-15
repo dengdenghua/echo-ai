@@ -59,6 +59,8 @@ class GatewayApprovalProvider(ApprovalProvider):
                 "tool": req.tool_name,
                 "argsPreview": req.args_preview,
                 "detail": req.detail,
+                # The client says so on the card: approving runs it unconfined.
+                "unconfined": req.unconfined,
                 # Lets the client run its own countdown and expire the
                 # dialog in lockstep instead of leaving a zombie prompt
                 # after the server has already given up.

@@ -425,6 +425,10 @@ class AutoReviewApprovalProvider(ApprovalProvider):
     stop reason without consulting the reviewer.
     """
 
+    # A model reviews, not a person: its approval is not consent to run a
+    # command unconfined (exec_consent.is_human_provider).
+    human_reviewer = False
+
     def __init__(
         self,
         router: Any,

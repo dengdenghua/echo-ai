@@ -22,6 +22,7 @@ import re
 from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -50,6 +51,12 @@ from runtime.safety.approval.approval_gate import (
 )
 from runtime.safety.approval.approval_gate import (
     ApprovalRequest as EchoApprovalRequest,
+)
+from runtime.safety.approval.exec_consent import (
+    PROCESS_RISK_CATEGORIES,
+    exec_consent_scope,
+    host_lacks_hard_sandbox,
+    is_human_provider,
 )
 from runtime.safety.validation.prompt_injection import (
     current_injection_taint,
@@ -697,6 +704,12 @@ class HostToolBroker:
                     "dynamic tool implementation changed after catalog creation"
                 )
 
+        outside = self._write_outside_scope(entry, arguments)
+        if outside is not None:
+            # Refuse before the approval card: approving a write the scope
+            # then refuses only made the user approve the same file twice.
+            return dynamic_tool_failure(outside)
+
         preview = _approval_preview(arguments)
         risk, action, policy = approval_action_for_tool(
             entry.skill_name,
@@ -720,7 +733,15 @@ class HostToolBroker:
             return dynamic_tool_failure(f"denied by Echo approval policy: {refused}")
 
         approval_handled = False
+        # Approving a command on a host without a hard sandbox also approves
+        # running it unconfined, so the card says so and the process layer
+        # does not ask a second time.
+        unconfined_consent = False
         if action in {"ask", "confirm"} and not auto_approve:
+            unconfined = (
+                bool(PROCESS_RISK_CATEGORIES.intersection(risk.categories))
+                and host_lacks_hard_sandbox()
+            )
             outer_request = EchoApprovalRequest(
                 thread_id=self._outer_thread_id,
                 tool_name=entry.skill_name,
@@ -731,6 +752,7 @@ class HostToolBroker:
                     f"(risk={risk.level}: {risk.reason}; action={action}; "
                     f"policy={policy.to_dict()})"
                 )[:1_000],
+                unconfined=unconfined,
             )
             try:
                 decision = await asyncio.to_thread(
@@ -752,6 +774,7 @@ class HostToolBroker:
             if self._interrupted():
                 return dynamic_tool_failure("outer Echo turn was interrupted")
             approval_handled = True
+            unconfined_consent = unconfined and is_human_provider(self._approval_provider)
         elif auto_approve:
             approval_handled = True
 
@@ -762,6 +785,7 @@ class HostToolBroker:
                 arguments,
                 call_id,
                 approval_handled,
+                unconfined_consent,
             )
         except Exception as exc:  # noqa: BLE001 - tool errors are model observations
             # Handler exceptions routinely include host paths, credentials or
@@ -804,6 +828,53 @@ class HostToolBroker:
             )
         return dict(result)
 
+    def _write_outside_scope(self, entry: _CatalogEntry, arguments: dict[str, Any]) -> str | None:
+        """Why an absolute write target or command folder is outside this
+        turn's writable roots.
+
+        Relative paths are resolved into the primary write root by the
+        executor, so only absolute ones can miss it. A command counts as a
+        write: the executor confines its working folder to the same roots.
+        """
+
+        affinity = set(getattr(entry.skill_ref, "affinity", None) or ())
+        if affinity & {"write", "edit"}:
+            keys, label = ("path", "filepath", "file_path", "filename"), "path"
+        elif affinity & {"exec", "shell"}:
+            keys, label = ("cwd", "working_dir", "workdir", "directory"), "cwd"
+        else:
+            return None
+        target = next(
+            (
+                arguments[key]
+                for key in keys
+                if isinstance(arguments.get(key), str) and arguments[key].strip()
+            ),
+            None,
+        )
+        if target is None or not Path(target).is_absolute():
+            return None
+        from runtime.platform.process.scope import resolve_execution_scope
+
+        try:
+            with session_scope(self._execution_session(auto_approve=False)):
+                scope = resolve_execution_scope(current_session())
+        except (AttributeError, OSError, TypeError, ValueError):
+            return None  # the executor applies the same scope and decides
+        if scope.primary_write is None or scope.allows_write(target):
+            return None
+        if label == "cwd":
+            return (
+                f"cwd_outside_write_scope: {target} is outside the folders this task "
+                f"may use. Run the command in {scope.primary_write}; leaving cwd out "
+                "runs it there."
+            )
+        return (
+            f"path_outside_write_scope: {target} is outside the folders this task may "
+            f"write. Write under {scope.primary_write} instead; a relative path "
+            "lands there."
+        )
+
     def _execution_session(self, *, auto_approve: bool) -> Session:
         metadata = dict(self._metadata)
         metadata.update(self._turn_execution_state)
@@ -827,9 +898,15 @@ class HostToolBroker:
         arguments: dict[str, Any],
         call_id: str,
         approval_handled: bool,
+        unconfined_consent: bool = False,
     ) -> tuple[str, bool, str, list[dict[str, str]]]:
         session = self._execution_session(auto_approve=approval_handled)
-        with session_scope(session), parent_tool_use_scope(call_id):
+        human = self._approval_provider if is_human_provider(self._approval_provider) else None
+        with (
+            session_scope(session),
+            parent_tool_use_scope(call_id),
+            exec_consent_scope(approved=unconfined_consent, provider=human),
+        ):
             if self._taint in _TAINT_ORDER:
                 mark_injection_taint(self._taint)
             set_injection_gate_handled(approval_handled)

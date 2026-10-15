@@ -189,3 +189,92 @@ def test_macos_system_paths_cannot_gain_additional_write_authority(tmp_path, mon
     monkeypatch.setattr(sandbox_module, "_protected_system_paths", lambda: (protected,))
     with pytest.raises(SandboxViolation, match="overlap a system directory"):
         SandboxPolicy(workspace=tmp_path / "workspace", additional_write_roots=(protected,))
+
+
+def test_tool_level_consent_runs_without_asking_again(tmp_path, unavailable_hard_backends):
+    from runtime.safety.approval.exec_consent import (
+        exec_consent_scope,
+        fallback_approval_provider,
+    )
+
+    class Broker:
+        def request(self, request, timeout):
+            raise AssertionError("a call approved as unconfined must not be asked again")
+
+    marker = tmp_path / "consented-effect"
+    with exec_consent_scope(approved=True, provider=Broker()):
+        result = stream_run(
+            [sys.executable, "-c", "from pathlib import Path; Path('consented-effect').touch()"],
+            sandbox_dir=str(tmp_path),
+            timeout=10,
+            approval_provider=fallback_approval_provider(),
+        )
+    assert result["exit_code"] == 0
+    assert marker.exists()
+
+
+@pytest.mark.parametrize("approved", [False, True])
+def test_tool_level_provider_is_asked_once_and_marked_unconfined(
+    tmp_path, unavailable_hard_backends, approved
+):
+    from types import SimpleNamespace
+
+    from runtime.safety.approval.exec_consent import (
+        exec_consent_scope,
+        fallback_approval_provider,
+    )
+
+    requests = []
+
+    class Broker:
+        def request(self, request, timeout):
+            requests.append(request)
+            return SimpleNamespace(approved=approved)
+
+    marker = tmp_path / "asked-effect"
+    with exec_consent_scope(approved=False, provider=Broker()):
+        result = stream_run(
+            [sys.executable, "-c", "from pathlib import Path; Path('asked-effect').touch()"],
+            sandbox_dir=str(tmp_path),
+            timeout=10,
+            approval_provider=fallback_approval_provider(),
+        )
+    assert len(requests) == 1
+    assert requests[0].unconfined is True
+    assert marker.exists() is approved
+    if not approved:
+        assert result["error"].startswith("sandbox_fallback_denied:")
+
+
+def test_consent_scope_without_provider_still_fails_closed(tmp_path, unavailable_hard_backends):
+    from runtime.safety.approval.exec_consent import (
+        exec_consent_scope,
+        fallback_approval_provider,
+    )
+
+    assert fallback_approval_provider() is None
+    with exec_consent_scope(approved=False, provider=None):
+        provider = fallback_approval_provider()
+        result = stream_run(
+            [sys.executable, "-c", "print(1)"],
+            sandbox_dir=str(tmp_path),
+            timeout=10,
+            approval_provider=provider,
+        )
+    assert provider is None
+    assert result["error"].startswith("sandbox_fallback_needs_approval:")
+
+
+def test_exec_shell_hands_the_consent_to_the_process_layer(tmp_path, unavailable_hard_backends):
+    from runtime.execution.suckers._write_skills_exec import _exec_shell
+    from runtime.safety.approval.exec_consent import exec_consent_scope
+
+    marker = tmp_path / "shell-effect"
+    command = f'"{sys.executable}" -c "from pathlib import Path; Path(\'shell-effect\').touch()"'
+    refused = _exec_shell(command, sandbox_dir=str(tmp_path), timeout_s=20)
+    assert "sandbox_fallback_needs_approval" in str(refused.get("error"))
+    assert not marker.exists()
+    with exec_consent_scope(approved=True, provider=None):
+        result = _exec_shell(command, sandbox_dir=str(tmp_path), timeout_s=20)
+    assert result.get("exit_code") == 0, result
+    assert marker.exists()
