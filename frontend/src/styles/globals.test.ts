@@ -32,6 +32,31 @@ describe("global appearance chrome rules", () => {
     );
   });
 
+  it("draws one lucide chevron for every disclosure instead of the native marker", () => {
+    expect(css).toMatch(/summary\s*\{\s*list-style:\s*none;\s*\}/);
+    expect(css).toMatch(
+      /summary::-webkit-details-marker\s*\{\s*display:\s*none;\s*\}/,
+    );
+    const chevron = css.match(
+      /summary:not\(\.list-none\)::before\s*\{([\s\S]*?)\}/,
+    );
+    expect(chevron).not.toBeNull();
+    const body = chevron?.[1] ?? "";
+    expect(body).toContain("background-color: currentColor;");
+    // lucide chevron-right, masked so it takes the summary's colour.
+    expect(body).toContain("d='m9 18 6-6-6-6'");
+    expect(body).toMatch(/(?:^|\s)mask:\s*url\(/);
+    expect(body).toMatch(/-webkit-mask:\s*url\(/);
+    expect(body).toContain("var(--echo-duration-fast, 120ms)");
+    expect(body).toContain("var(--echo-ease, cubic-bezier(0.2, 0.8, 0.2, 1))");
+    expect(css).toMatch(
+      /details\[open\]\s*>\s*summary:not\(\.list-none\)::before\s*\{\s*transform:\s*rotate\(90deg\);/,
+    );
+    expect(css).toMatch(
+      /prefers-reduced-motion:\s*reduce\)\s*\{\s*summary:not\(\.list-none\)::before\s*\{\s*transition:\s*none;/,
+    );
+  });
+
   it("registers the border tiers so border-border-* utilities compile", () => {
     for (const tier of ["subtle", "default", "strong"]) {
       expect(css).toContain(`--color-border-${tier}: var(--border-${tier});`);
