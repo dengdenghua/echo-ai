@@ -72,7 +72,10 @@ describe("buildReplayFromBlocks", () => {
             name: "todo_write",
             input: {
               items: [
-                { content: "Inspect the affected component", status: "completed" },
+                {
+                  content: "Inspect the affected component",
+                  status: "completed",
+                },
                 { content: "Verify the preview", status: "in_progress" },
               ],
             },
@@ -130,6 +133,40 @@ describe("buildReplayFromBlocks", () => {
       { title: "Run" },
     );
     expect(data.steps.map((s) => s.title)).toEqual(["real step"]);
+  });
+
+  it("leaves the turn's routing decision trace out of a shared replay", () => {
+    const data = buildReplayFromBlocks(
+      [
+        block({
+          id: "v",
+          kind: "agent",
+          title: "执行",
+          event: { name: "visibility" },
+          outputText: '{"summary": "本轮能力路由 / 委派 / 技能目录决策"}',
+        }),
+        block({ id: "b", kind: "browser", title: "浏览 example.com" }),
+      ],
+      { title: "Run" },
+    );
+    expect(data.steps.map((s) => s.title)).toEqual(["浏览 example.com"]);
+  });
+
+  it("shows what a step returned, not its raw arguments or receipt line", () => {
+    const data = buildReplayFromBlocks(
+      [
+        block({
+          kind: "browser",
+          title: "浏览 example.com",
+          subtitle: "example.com",
+          inputText: '{"url": "https://example.com", "tool": "fetch_url"}',
+          outputText:
+            '(real tool execution succeeded) fetch_url\n{"status_code": 200}',
+        }),
+      ],
+      { title: "Run" },
+    );
+    expect(data.steps[0]?.body).toBe('{"status_code": 200}');
   });
 
   it("inlines a screenshot only when it is already a data-URL", () => {
@@ -256,9 +293,7 @@ describe("buildReplayFromBlocks", () => {
     expect(data.steps[0].body).toContain("只读比较字段");
     expect(data.steps[0].body).toContain("已确认字段一致");
     expect(data.steps[0].body).not.toContain("private tool args");
-    expect(JSON.stringify(data)).not.toMatch(
-      /read_only|TextBlock|Phase 1/i,
-    );
+    expect(JSON.stringify(data)).not.toMatch(/read_only|TextBlock|Phase 1/i);
   });
 
   it("does not package raw tool names or terminal commands into share replay data", () => {

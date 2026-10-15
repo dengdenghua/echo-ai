@@ -204,7 +204,7 @@ describe("buildReplayHtml", () => {
       "Needs attention",
       "RESULT RECEIPT",
       "Prev",
-      "Next ⟩",
+      "Next",
       "Play replay",
       "completed",
     ]) {
@@ -215,6 +215,8 @@ describe("buildReplayHtml", () => {
   it("keeps English chrome when no locale is given", () => {
     const html = buildReplayHtml(sample());
     expect(html).toContain('<html lang="en">');
-    expect(html).toContain("⟨ Prev");
+    expect(html).toContain("Prev");
+    // Controls draw lucide line icons; no text glyphs stand in for them.
+    expect(html).not.toMatch(/[⟨⟩▶❚⟲]/);
   });
 });

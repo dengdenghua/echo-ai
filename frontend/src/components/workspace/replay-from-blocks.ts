@@ -86,16 +86,26 @@ export function sanitizeReplayText(
   );
 }
 
+/** The runtime's own receipt line ahead of a tool result, e.g.
+ * "(real tool execution succeeded) fetch_url". */
+const EXECUTION_RECEIPT_RE =
+  /^\(real tool execution (?:succeeded|failed)\)[^\n]*\n?/gm;
+
 function bodyForBlock(block: WorkBlock): string {
   const parts: string[] = [];
   if (block.kind === "terminal") {
     const out = block.outputText || textFromUnknown(block.event.output);
     if (out) parts.push(out);
   } else {
-    if (block.inputText && block.inputText !== block.subtitle) {
-      parts.push(block.inputText);
+    // Structured arguments ({"url": …, "tool": …}) restate the subtitle in
+    // the runtime's own terms; a shared replay shows what came back.
+    const input = block.inputText.trim();
+    if (input && input !== block.subtitle && !/^[[{]/.test(input)) {
+      parts.push(input);
     }
-    if (block.outputText) parts.push(block.outputText);
+    if (block.outputText) {
+      parts.push(block.outputText.replace(EXECUTION_RECEIPT_RE, ""));
+    }
   }
   const joined = parts.join("\n").trim();
   return joined ? sanitizeReplayText(joined) : "";
@@ -140,7 +150,11 @@ function imageForBlock(block: WorkBlock): string | undefined {
 function isLifecycleBlock(block: WorkBlock): boolean {
   return Boolean(
     block.event.lifecycle ||
-    /subagent_(spawned|finished)/i.test(block.event.name),
+    /subagent_(spawned|finished)/i.test(block.event.name) ||
+    // The turn-assembly decision trace (capability routing, delegation,
+    // skill catalog) is a diagnostic for the in-app workbench, not a step
+    // the user took; exported, it was a raw JSON page called 执行.
+    block.event.name === "visibility",
   );
 }
 
@@ -200,7 +214,9 @@ function receiptFromBlocks(
     .reverse()
     .find((block) => block.kind === "todo");
   const items = checklistFromTodo(latestTodo?.event.input);
-  const recoveryCount = blocks.filter((block) => block.status === "warning").length;
+  const recoveryCount = blocks.filter(
+    (block) => block.status === "warning",
+  ).length;
   const attentionCount = blocks.filter(
     (block) => block.status === "error" || block.status === "waiting_approval",
   ).length;
@@ -212,7 +228,9 @@ function receiptFromBlocks(
         (block.kind === "terminal" || block.actionKey === "submitResult"),
     )
     .slice(-3)
-    .map((block) => sanitizeReplayText(workBlockTitle(block, labels), { max: 160 }))
+    .map((block) =>
+      sanitizeReplayText(workBlockTitle(block, labels), { max: 160 }),
+    )
     .filter(Boolean);
 
   if (items.length === 0 && recoveryCount === 0 && attentionCount === 0) {
@@ -249,13 +267,20 @@ function checklistFromTodo(input: unknown): ReplayReceiptItem[] {
     const candidate = item as Record<string, unknown>;
     const title = ["content", "title", "text", "task"]
       .map((key) => candidate[key])
-      .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+      .find(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      );
     if (!title) return [];
-    const rawStatus = typeof candidate.status === "string" ? candidate.status : "pending";
+    const rawStatus =
+      typeof candidate.status === "string" ? candidate.status : "pending";
     const status = replayReceiptStatus(rawStatus);
     const detail = ["activeForm", "active_form", "detail", "description"]
       .map((key) => candidate[key])
-      .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+      .find(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      );
     return [
       {
         title: sanitizeReplayText(title, { max: 180 }),

@@ -119,19 +119,19 @@ const REPLAY_LABELS: Record<"en" | "zh" | "ja" | "ko", ReplayHtmlLabels> = {
     receiptReady: "Ready to verify",
     verifyEyebrow: "VERIFY IN YOUR BROWSER",
     empty: "No steps in this replay.",
-    prev: "⟨ Prev",
-    play: "▶ Play",
-    pause: "❚❚ Pause",
-    next: "Next ⟩",
-    loop: "⟲ Loop",
+    prev: "Prev",
+    play: "Play",
+    pause: "Pause",
+    next: "Next",
+    loop: "Loop",
     loopTitle: "Loop playback",
     speedTitle: "Playback speed",
     hint: "← → step · Space play/pause · Home/End first/last",
     dockAttention: "Replay needs attention",
     dockReady: "Replay ready",
     dockCompleted: (done, total) => `${done}/${total} completed`,
-    dockPlay: "▶ Play replay",
-    dockPause: "❚❚ Pause replay",
+    dockPlay: "Play replay",
+    dockPause: "Pause replay",
     untitledStep: "(step)",
     status: {
       done: "done",
@@ -154,19 +154,19 @@ const REPLAY_LABELS: Record<"en" | "zh" | "ja" | "ko", ReplayHtmlLabels> = {
     receiptReady: "可以验证",
     verifyEyebrow: "在浏览器中验证",
     empty: "这次回放没有步骤。",
-    prev: "⟨ 上一步",
-    play: "▶ 播放",
-    pause: "❚❚ 暂停",
-    next: "下一步 ⟩",
-    loop: "⟲ 循环",
+    prev: "上一步",
+    play: "播放",
+    pause: "暂停",
+    next: "下一步",
+    loop: "循环",
     loopTitle: "循环播放",
     speedTitle: "播放速度",
     hint: "← → 切换 · 空格 播放/暂停 · Home/End 首尾",
     dockAttention: "回放需要处理",
     dockReady: "回放就绪",
     dockCompleted: (done, total) => `已完成 ${done}/${total}`,
-    dockPlay: "▶ 播放回放",
-    dockPause: "❚❚ 暂停回放",
+    dockPlay: "播放回放",
+    dockPause: "暂停回放",
     untitledStep: "（步骤）",
     status: {
       done: "完成",
@@ -189,19 +189,19 @@ const REPLAY_LABELS: Record<"en" | "zh" | "ja" | "ko", ReplayHtmlLabels> = {
     receiptReady: "検証できます",
     verifyEyebrow: "ブラウザーで検証",
     empty: "このリプレイにはステップがありません。",
-    prev: "⟨ 前へ",
-    play: "▶ 再生",
-    pause: "❚❚ 一時停止",
-    next: "次へ ⟩",
-    loop: "⟲ ループ",
+    prev: "前へ",
+    play: "再生",
+    pause: "一時停止",
+    next: "次へ",
+    loop: "ループ",
     loopTitle: "ループ再生",
     speedTitle: "再生速度",
     hint: "← → 移動 · Space 再生/一時停止 · Home/End 最初/最後",
     dockAttention: "リプレイ要対応",
     dockReady: "リプレイ準備完了",
     dockCompleted: (done, total) => `完了 ${done}/${total}`,
-    dockPlay: "▶ リプレイを再生",
-    dockPause: "❚❚ リプレイを一時停止",
+    dockPlay: "リプレイを再生",
+    dockPause: "リプレイを一時停止",
     untitledStep: "（ステップ）",
     status: {
       done: "完了",
@@ -224,19 +224,19 @@ const REPLAY_LABELS: Record<"en" | "zh" | "ja" | "ko", ReplayHtmlLabels> = {
     receiptReady: "검증 준비됨",
     verifyEyebrow: "브라우저에서 검증",
     empty: "이 리플레이에는 단계가 없습니다.",
-    prev: "⟨ 이전",
-    play: "▶ 재생",
-    pause: "❚❚ 일시정지",
-    next: "다음 ⟩",
-    loop: "⟲ 반복",
+    prev: "이전",
+    play: "재생",
+    pause: "일시정지",
+    next: "다음",
+    loop: "반복",
     loopTitle: "반복 재생",
     speedTitle: "재생 속도",
     hint: "← → 이동 · Space 재생/일시정지 · Home/End 처음/끝",
     dockAttention: "리플레이 확인 필요",
     dockReady: "리플레이 준비됨",
     dockCompleted: (done, total) => `완료 ${done}/${total}`,
-    dockPlay: "▶ 리플레이 재생",
-    dockPause: "❚❚ 리플레이 일시정지",
+    dockPlay: "리플레이 재생",
+    dockPause: "리플레이 일시정지",
     untitledStep: "(단계)",
     status: {
       done: "완료",
@@ -422,9 +422,9 @@ html:lang(zh) .eyebrow, html:lang(ja) .eyebrow, html:lang(ko) .eyebrow { letter-
 .detail .dtitle { font-size:18px; font-weight:650; color:var(--ink); word-break:break-word; }
 .detail .dsub { color:var(--muted); font-size:12px; margin-top:3px; word-break:break-word; }
 .detail img { max-width:100%; max-height:48vh; display:block; margin:14px 0; border-radius:10px; border:1px solid var(--line); }
-.detail pre { white-space:pre-wrap; word-break:break-word; background:#f8f9fa; border:1px solid var(--line); border-radius:9px; padding:12px; font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; color:#2b3038; margin:14px 0 0; max-height:40vh; overflow:auto; }
+.detail pre { white-space:pre-wrap; word-break:break-word; background:#f8f9fa; border:1px solid var(--line); border-radius:9px; padding:12px; font:12px/1.5 ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,SFMono-Regular,Menlo,monospace; color:#2b3038; margin:14px 0 0; max-height:40vh; overflow:auto; }
 .controls { display:flex; align-items:center; gap:8px; margin-top:14px; padding:10px 0 0; border-top:1px solid #eef0f3; position:sticky; bottom:0; background:linear-gradient(transparent,var(--soft) 22%); }
-button { background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:6px 11px; cursor:pointer; font:inherit; }
+button { display:inline-flex; align-items:center; gap:6px; background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:6px 11px; cursor:pointer; font:inherit; }
 button:hover { background:#eef0f3; }
 input[type=range] { flex:1; accent-color:#111317; }
 .counter { color:var(--muted); font-variant-numeric:tabular-nums; min-width:52px; text-align:right; }
@@ -497,8 +497,11 @@ ${
   var STEPS = ${stepData};
   var MS = ${frameMs};
   var LABEL = ${embedJson({
+    prev: L.prev,
     play: L.play,
     pause: L.pause,
+    next: L.next,
+    loop: L.loop,
     dockPlay: L.dockPlay,
     dockPause: L.dockPause,
     untitledStep: L.untitledStep,
@@ -513,7 +516,12 @@ ${
     todo: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'm9 12 2 2 4-4'],
     agent: ['M12 8V4H8', 'M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2'],
     skill: ['M13 2 3 14h9l-1 8 10-12h-9l1-8z'],
-    swarm: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M5 7a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75']
+    swarm: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M5 7a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
+    prev: ['m15 18-6-6 6-6'],
+    next: ['m9 18 6-6-6-6'],
+    play: ['M6 3l14 9-14 9z'],
+    pause: ['M6 4h4v16H6z', 'M14 4h4v16h-4z'],
+    loop: ['m17 2 4 4-4 4', 'M3 11v-1a4 4 0 0 1 4-4h14', 'm7 22-4-4 4-4', 'M21 13v1a4 4 0 0 1-4 4H3']
   };
   var SVGNS = 'http://www.w3.org/2000/svg';
   function glyph(kind){
@@ -564,15 +572,16 @@ ${
     counter.textContent = (i + 1) + ' / ' + STEPS.length;
     seek.value = String(i);
   }
-  function stop(){ if (timer){ clearInterval(timer); timer = null; } play.textContent = LABEL.play; if (dockPlay) dockPlay.textContent = LABEL.dockPlay; }
+  function setLabel(el, kind, text){ if (!el) return; el.textContent = ''; var g = glyph(kind); if (g) el.appendChild(g); var t = document.createElement('span'); t.textContent = text; el.appendChild(t); }
+  function stop(){ if (timer){ clearInterval(timer); timer = null; } setLabel(play, 'play', LABEL.play); setLabel(dockPlay, 'play', LABEL.dockPlay); }
   function tick(){
     if (i >= STEPS.length - 1){ if (loop){ i = 0; render(); return; } stop(); return; }
     i++; render();
   }
   function start(){
     if (i >= STEPS.length - 1 && !loop) i = 0;
-    play.textContent = LABEL.pause;
-    if (dockPlay) dockPlay.textContent = LABEL.dockPause;
+    setLabel(play, 'pause', LABEL.pause);
+    setLabel(dockPlay, 'pause', LABEL.dockPause);
     timer = setInterval(tick, Math.round(MS / SPEEDS[speedIdx]));
   }
   function go(n){ stop(); i = Math.max(0, Math.min(STEPS.length - 1, n)); render(); }
@@ -594,6 +603,10 @@ ${
     else if (e.key === 'End'){ go(STEPS.length - 1); }
     else if (e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); timer ? stop() : start(); }
   });
+  setLabel(document.getElementById('prev'), 'prev', LABEL.prev);
+  setLabel(document.getElementById('next'), 'next', LABEL.next);
+  setLabel(loopBtn, 'loop', LABEL.loop);
+  stop();
   render();
 })();
 </script>`
