@@ -25,6 +25,7 @@ from runtime.safety.sandboxing.sandbox import (
     SeatbeltBackend,
 )
 
+from . import warm_pool
 from .approvals import CodexApprovalBroker
 from .client import CodexAppServerClient
 from .models_cache import seed_models_cache, share_models_cache
@@ -232,7 +233,12 @@ class ClientFactory(Protocol):
 
 
 class CodexExecutionSession:
-    """One process, one authenticated outer turn, and one inner Codex turn."""
+    """One authenticated outer turn and one inner Codex turn.
+
+    The App Server process is the conversation's warm one when it has one
+    (see ``warm_pool``); otherwise this turn launches it and offers it to the
+    pool once the inner turn has completed.
+    """
 
     def __init__(
         self,
@@ -243,8 +249,14 @@ class CodexExecutionSession:
         is_interrupted: Callable[[], bool],
         client_factory: ClientFactory = CodexAppServerClient,
         process_backend: BackendChoice | None = None,
+        keep_warm: bool | None = None,
     ) -> None:
         self.request = request
+        # Real launches only by default: a test's fake client never enters
+        # the process-wide pool.
+        self._keep_warm_enabled = (
+            client_factory is CodexAppServerClient if keep_warm is None else keep_warm
+        )
         self._security = security
         self._approval_provider = approval_provider
         self._is_interrupted = is_interrupted
@@ -262,6 +274,10 @@ class CodexExecutionSession:
         self._resumed = False
         self._outer_sandbox = "unresolved"
         self._close_lock = asyncio.Lock()
+        self._warm: warm_pool.WarmProcess | None = None
+        self._warm_key: str | None = None
+        self._handlers = warm_pool.TurnHandlers()
+        self._inner_turn_done = False
 
     async def __aenter__(self) -> Self:
         return await self.start()
@@ -360,25 +376,24 @@ class CodexExecutionSession:
                 is_interrupted=self._is_interrupted,
             )
             self._approval_broker = broker
-            launch_env = context.launch_env()
-            launch_command, launch_env, launch_cwd = self._transform_process_launch(
-                context,
-                launch_env,
-                process_backend=process_backend,
+            self._warm_key = (
+                warm_pool.key_for(
+                    self.request,
+                    context,
+                    wrapped=process_backend is not None
+                    or self._security.policy.outer_hard_sandbox_required,
+                )
+                if self._keep_warm_enabled
+                else None
             )
-            config = CodexAppServerConfig(
-                command=launch_command,
-                cwd=str(launch_cwd),
-                env_allowlist=frozenset(launch_env),
-                env_overrides=launch_env,
-                source_environment={},
-                experimental_api=True,
-            )
-            client_kwargs: dict[str, Any] = {"approval_handler": broker}
-            if self.request.dynamic_tool_handler is not None:
-                client_kwargs["dynamic_tool_handler"] = self.request.dynamic_tool_handler
-            self._client = self._client_factory(config, **client_kwargs)
-            await self._start_client()
+            self._warm = warm_pool.take(self._warm_key)
+            if self._warm is not None:
+                self._handlers = self._warm.handlers
+                self._client = self._warm.client
+            else:
+                await self._launch_client(context, process_backend)
+            self._handlers.approval = broker
+            self._handlers.dynamic_tool = self.request.dynamic_tool_handler
             client_ready_at = time.perf_counter()
 
             config_response = await self._request_pre_turn(
@@ -441,8 +456,8 @@ class CodexExecutionSession:
                 bind_dynamic_scope(thread_id=inner_thread_id, turn_id=inner_turn_id)
             turn_ready_at = time.perf_counter()
             _logger.info(
-                "Codex startup timing thread_id=%s turn_id=%s prepare_ms=%.1f "
-                "client_ms=%.1f config_ms=%.1f thread_ms=%.1f turn_ms=%.1f total_ms=%.1f",
+                "Codex startup timing thread_id=%s turn_id=%s prepare_ms=%.1f client_ms=%.1f "
+                "config_ms=%.1f thread_ms=%.1f turn_ms=%.1f total_ms=%.1f warm=%s",
                 self.request.outer_thread_id,
                 self.request.outer_turn_id,
                 (prepared_at - startup_at) * 1000,
@@ -451,6 +466,7 @@ class CodexExecutionSession:
                 (thread_ready_at - config_ready_at) * 1000,
                 (turn_ready_at - thread_ready_at) * 1000,
                 (turn_ready_at - startup_at) * 1000,
+                self._warm is not None,
             )
             return self
         except BaseException:
@@ -463,6 +479,7 @@ class CodexExecutionSession:
         thread_id, turn_id = self._require_inner_scope()
         async for notification in self._require_client().notifications():
             if _notification_matches(notification, thread_id=thread_id, turn_id=turn_id):
+                self._inner_turn_done |= notification.method == "turn/completed"
                 yield notification
 
     async def next_notification(self, *, timeout_s: float | None = None) -> Notification:
@@ -479,6 +496,7 @@ class CodexExecutionSession:
                 )
             notification = await self._require_client().next_notification(timeout_s=remaining)
             if _notification_matches(notification, thread_id=thread_id, turn_id=turn_id):
+                self._inner_turn_done |= notification.method == "turn/completed"
                 return notification
 
     async def interrupt(self, *, timeout_s: float | None = None) -> None:
@@ -506,9 +524,42 @@ class CodexExecutionSession:
             raise ProtocolError("turn/steer response did not confirm the active turn")
 
     async def close(self) -> None:
-        """Kill the App Server process tree, then remove task-scoped scratch."""
+        """Keep or kill the App Server, then remove task-scoped scratch."""
 
         await self._release(suppress_errors=False)
+
+    async def _launch_client(
+        self, context: CodexSidecarContext, process_backend: BackendChoice | None
+    ) -> None:
+        launch_command, launch_env, launch_cwd = self._transform_process_launch(
+            context,
+            context.launch_env(),
+            process_backend=process_backend,
+        )
+        config = CodexAppServerConfig(
+            command=launch_command,
+            cwd=str(launch_cwd),
+            env_allowlist=frozenset(launch_env),
+            env_overrides=launch_env,
+            source_environment={},
+            experimental_api=True,
+        )
+        client_kwargs: dict[str, Any] = {"approval_handler": self._handlers.approve}
+        if self.request.dynamic_tool_handler is not None:
+            client_kwargs["dynamic_tool_handler"] = self._handlers.run_dynamic_tool
+        self._client = self._client_factory(config, **client_kwargs)
+        await self._start_client()
+
+    def _keep_warm(self) -> bool:
+        """Offer the process for the conversation's next turn."""
+
+        if not self._inner_turn_done or self._client is None:
+            return False
+        if self._warm is not None:
+            warm_pool.keep(self._warm)
+            return True
+        self._warm = warm_pool.adopt(self._warm_key, self._client, self._handlers, self._context)
+        return self._warm is not None
 
     async def _start_client(self) -> None:
         try:
@@ -654,12 +705,17 @@ class CodexExecutionSession:
                 return
             self._closed = True
             first_error: BaseException | None = None
-            if self._client is not None:
+            kept = self._keep_warm()
+            if self._client is not None and not kept:
                 try:
                     await self._client.close()
                 except BaseException as exc:  # noqa: BLE001 - cleanup must continue
                     first_error = exc
-            if self._context is not None:
+                if self._warm is not None:
+                    warm_pool.discard(self._warm)
+                    await warm_pool.retire(self._warm)
+            owns_launch_dirs = kept and self._warm is not None and self._warm.owner is self._context
+            if self._context is not None and not owns_launch_dirs:
                 try:
                     self._context.cleanup()
                 except BaseException as exc:  # noqa: BLE001 - preserve first cleanup failure
