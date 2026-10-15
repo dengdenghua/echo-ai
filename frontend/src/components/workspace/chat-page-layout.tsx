@@ -695,7 +695,7 @@ export function ChatPageLayout({
             fullWorkbench && "!hidden",
             isNarrowViewport
               ? cn(
-                  "fixed right-0 bottom-0 left-0 z-40 rounded-t-2xl border-t border-border-default bg-[color:color-mix(in_oklch,var(--card)_92%,transparent)] pt-0 shadow-[0_-18px_42px_-24px_rgba(0,0,0,0.28)] backdrop-blur-[10px]",
+                  "fixed right-0 bottom-0 left-0 z-40 rounded-t-2xl border-t border-border-default bg-[color:color-mix(in_oklab,var(--card)_92%,transparent)] pt-0 shadow-[0_-18px_42px_-24px_rgba(0,0,0,0.28)] backdrop-blur-[10px]",
                   showSidebar
                     ? "translate-y-0 opacity-100"
                     : "translate-y-full opacity-0 pointer-events-none",
@@ -860,7 +860,7 @@ export function ChatPageLayout({
                 : undefined,
               transition: drawerDragDelta ? "none" : undefined,
             }}
-            className="fixed right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden rounded-t-2xl border-t border-border-default bg-[color:color-mix(in_oklch,var(--card)_92%,transparent)] shadow-[0_-18px_42px_-24px_rgba(0,0,0,0.28)] backdrop-blur-[10px] transition-[height,transform] duration-slow ease-out"
+            className="fixed right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden rounded-t-2xl border-t border-border-default bg-[color:color-mix(in_oklab,var(--card)_92%,transparent)] shadow-[0_-18px_42px_-24px_rgba(0,0,0,0.28)] backdrop-blur-[10px] transition-[height,transform] duration-slow ease-out"
           >
             <button
               type="button"

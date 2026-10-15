@@ -40,7 +40,7 @@ const TONE_ICONS: Record<BannerTone, LucideIcon> = {
 };
 
 const TONE_STYLES: Record<BannerTone, string> = {
-  info: "border-[color:color-mix(in_oklch,var(--primary)_25%,transparent)] bg-[color:color-mix(in_oklch,var(--primary)_6%,transparent)] text-foreground [&_[data-banner-icon]]:text-primary",
+  info: "border-[color:color-mix(in_oklab,var(--primary)_25%,transparent)] bg-[color:color-mix(in_oklab,var(--primary)_6%,transparent)] text-foreground [&_[data-banner-icon]]:text-primary",
   success:
     "border-success/25 bg-success/50/[0.06] text-foreground [&_[data-banner-icon]]:text-success",
   warning:

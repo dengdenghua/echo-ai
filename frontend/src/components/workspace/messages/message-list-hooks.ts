@@ -248,9 +248,9 @@ export function useConversationLocate() {
           { backgroundColor: "transparent", boxShadow: "none" },
           {
             backgroundColor:
-              "color-mix(in oklch, var(--primary) 12%, transparent)",
+              "color-mix(in oklab, var(--primary) 12%, transparent)",
             boxShadow:
-              "inset 2px 0 0 color-mix(in oklch, var(--primary) 70%, transparent)",
+              "inset 2px 0 0 color-mix(in oklab, var(--primary) 70%, transparent)",
           },
           { backgroundColor: "transparent", boxShadow: "none" },
         ],

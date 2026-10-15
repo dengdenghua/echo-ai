@@ -814,7 +814,7 @@ function AgentWorkbenchPanelImpl({
   return (
     <div
       className={cn(
-        "flex size-full min-h-0 flex-col bg-[color:color-mix(in_oklch,var(--muted)_46%,var(--background))]",
+        "flex size-full min-h-0 flex-col bg-[color:color-mix(in_oklab,var(--muted)_46%,var(--background))]",
         className,
       )}
     >

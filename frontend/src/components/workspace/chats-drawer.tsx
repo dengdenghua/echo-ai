@@ -422,7 +422,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
                           "hover:bg-muted/55",
                           "focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-inset",
                           active &&
-                            "bg-[color:color-mix(in_oklch,var(--sidebar-accent)_55%,transparent)] font-medium",
+                            "bg-[color:color-mix(in_oklab,var(--sidebar-accent)_55%,transparent)] font-medium",
                         )}
                       >
                         <span className="min-w-0 flex-1 truncate leading-tight">

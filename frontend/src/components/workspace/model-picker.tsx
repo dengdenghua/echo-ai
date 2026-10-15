@@ -479,7 +479,7 @@ function PickerRow({
           "cursor-not-allowed opacity-35 hover:opacity-35 hover:bg-transparent",
         selected &&
           !disabled &&
-          "opacity-100 bg-[color:color-mix(in_oklch,var(--sidebar-accent)_55%,transparent)] before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:rounded-r before:bg-primary/70",
+          "opacity-100 bg-[color:color-mix(in_oklab,var(--sidebar-accent)_55%,transparent)] before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:rounded-r before:bg-primary/70",
       )}
     >
       <button

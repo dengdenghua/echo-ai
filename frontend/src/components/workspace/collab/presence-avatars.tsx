@@ -63,7 +63,7 @@ export function PresenceAvatars({
                       className="size-5 rounded object-cover"
                     />
                   ) : (
-                    <span className="px-0.5 text-xs font-semibold text-[color:color-mix(in_oklch,var(--presence-color)_72%,var(--foreground))]">
+                    <span className="px-0.5 text-xs font-semibold text-[color:color-mix(in_oklab,var(--presence-color)_72%,var(--foreground))]">
                       {user.name.charAt(0).toUpperCase()}
                     </span>
                   )}

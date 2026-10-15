@@ -44,9 +44,9 @@ export const HEALTH_DOT: Record<ProjectHealth, string> = {
 export const HEALTH_FILL: Record<ProjectHealth, string> = {
   on_track: "var(--echo-core)",
   at_risk: "var(--echo-warning)",
-  overdue: "color-mix(in oklch, var(--echo-breach) 60%, transparent)",
+  overdue: "color-mix(in oklab, var(--echo-breach) 60%, transparent)",
   blocked: "var(--echo-breach)",
-  completed: "color-mix(in oklch, var(--echo-core) 50%, transparent)",
+  completed: "color-mix(in oklab, var(--echo-core) 50%, transparent)",
 };
 
 /** 甘特条：底色（计划区间）与进度条（已完成部分）。 */

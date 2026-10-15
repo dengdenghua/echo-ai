@@ -1876,7 +1876,7 @@ function ProjectGroup({
                       "hover:bg-muted/40 hover:text-foreground",
                       "outline-none focus-visible:ring-1 focus-visible:ring-ring/45 focus-visible:ring-inset",
                       active &&
-                        "text-foreground bg-[color:color-mix(in_oklch,var(--sidebar-accent)_62%,transparent)] shadow-[inset_2px_0_0_color-mix(in_oklch,var(--primary)_60%,transparent)]",
+                        "text-foreground bg-[color:color-mix(in_oklab,var(--sidebar-accent)_62%,transparent)] shadow-[inset_2px_0_0_color-mix(in_oklab,var(--primary)_60%,transparent)]",
                     )}
                   >
                     <span className="relative flex size-5 shrink-0 items-center justify-center">

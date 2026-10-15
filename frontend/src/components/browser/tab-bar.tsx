@@ -393,7 +393,7 @@ export function TabBar() {
       style={
         {
           color: groupColor(group.color),
-          backgroundColor: `color-mix(in oklch, ${groupColor(group.color)} 14%, transparent)`,
+          backgroundColor: `color-mix(in oklab, ${groupColor(group.color)} 14%, transparent)`,
           WebkitAppRegion: "no-drag",
         } as CSSProperties
       }

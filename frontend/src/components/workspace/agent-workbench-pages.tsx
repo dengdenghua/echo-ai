@@ -1780,7 +1780,7 @@ export function AgentCreationCard({
       <div className="flex items-center justify-center border-b border-border-subtle px-3 py-2 text-sm font-medium text-muted-foreground">
         {t.agentWorkbenchPages.agentClusterCreateAssistant}
       </div>
-      <div className="flex justify-center overflow-hidden bg-[color:color-mix(in_oklch,var(--muted)_38%,var(--background))] px-7 pb-8 pt-16">
+      <div className="flex justify-center overflow-hidden bg-[color:color-mix(in_oklab,var(--muted)_38%,var(--background))] px-7 pb-8 pt-16">
         <div className="relative w-full max-w-sm rotate-[3deg] transition-transform duration-slow hover:rotate-0">
           <div
             aria-hidden="true"

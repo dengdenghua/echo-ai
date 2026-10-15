@@ -364,7 +364,7 @@ function AppearanceStepSlider<TValue extends AppearanceStepValue>({
           }}
           step={1}
           style={{
-            background: `linear-gradient(90deg, color-mix(in oklch, var(--primary) 72%, white 18%) 0 ${progress}%, color-mix(in oklch, var(--muted) 72%, transparent) ${progress}% 100%)`,
+            background: `linear-gradient(90deg, color-mix(in oklab, var(--primary) 72%, white 18%) 0 ${progress}%, color-mix(in oklab, var(--muted) 72%, transparent) ${progress}% 100%)`,
           }}
           type="range"
           value={activeIndex}
