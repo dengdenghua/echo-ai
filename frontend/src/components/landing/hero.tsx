@@ -15,7 +15,7 @@ export function Hero({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex size-full flex-col items-center justify-center",
+        "relative flex size-full flex-col items-center justify-center",
         className,
       )}
     >
@@ -31,7 +31,7 @@ export function Hero({ className }: { className?: string }) {
         squareSize={4}
         gridGap={4}
         color={"white"}
-        maxOpacity={0.3}
+        maxOpacity={0.16}
         flickerChance={0.25}
       />
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/80 via-transparent to-black/40" />

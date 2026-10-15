@@ -40,7 +40,7 @@ export function Footer() {
   );
 
   return (
-    <footer className="container-md mx-auto mt-32">
+    <footer className="container-md mx-auto mt-32 px-4 sm:px-6">
       <hr className="from-border/0 to-border/0 m-0 h-px w-full border-none bg-linear-to-r via-white/20" />
 
       <div className="grid grid-cols-2 gap-8 py-12 md:grid-cols-4">
@@ -48,7 +48,7 @@ export function Footer() {
           <div className="mb-3 flex items-center text-[var(--echo-ink)]">
             <EchoLockup product="AI" wordmarkClassName="h-4" />
           </div>
-          <p className="text-xs leading-relaxed text-white/40">
+          <p className="text-xs leading-relaxed text-[var(--echo-ink-muted)]">
             {t.landingFooter.tagline}
           </p>
         </div>
@@ -63,7 +63,7 @@ export function Footer() {
                 <li key={item.label}>
                   <a
                     href={item.href}
-                    className="text-sm text-white/40 transition-colors hover:text-white/70"
+                    className="text-sm text-[var(--echo-ink-muted)] transition-colors hover:text-[var(--echo-ink)]"
                   >
                     {item.label}
                   </a>
@@ -80,15 +80,17 @@ export function Footer() {
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-white/30 transition-colors hover:text-white/60"
+            className="text-[var(--echo-ink-muted)] transition-colors hover:text-[var(--echo-ink)]"
           >
             <GitHubLogoIcon className="size-4" />
           </a>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-white/30">
+        <div className="flex items-center gap-1.5 text-xs text-[var(--echo-ink-muted)]">
           <span>&copy; {year}</span>
-          <span className="font-semibold text-white/45">ECHO · AI</span>
-          <span>· MIT License</span>
+          <span className="font-semibold text-[var(--echo-ink)]">
+            ECHO · AI
+          </span>
+          <span>· Apache-2.0</span>
         </div>
       </div>
     </footer>

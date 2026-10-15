@@ -40,7 +40,7 @@ export function Header({ className, homeURL }: HeaderProps) {
         className,
       )}
     >
-      <div className="container-md mx-auto flex h-16 items-center justify-between">
+      <div className="container-md mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-6">
           <a
             href={homeURL ?? GITHUB_URL}
@@ -53,7 +53,7 @@ export function Header({ className, homeURL }: HeaderProps) {
             </h1>
           </a>
         </div>
-        <nav className="mr-8 ml-auto flex items-center gap-8 text-sm font-medium">
+        <nav className="mr-4 ml-auto flex items-center gap-8 text-sm font-medium sm:mr-8">
           {/* Pre-fix ``/:lang/docs`` (resolving to "/en/docs") pointed
             at the mkdocs site we haven't deployed · router catch-all
             404'd every click from the landing header. Swap to the
