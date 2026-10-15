@@ -658,6 +658,13 @@
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
+/* Streamdown draws blockquotes italic. Chinese has no italic face, so the
+   browser slants the glyphs; a quote keeps its rule and tint instead.
+   Unlayered on purpose: it must win over the library's `italic` utility. */
+[data-streamdown="blockquote"] {
+  font-style: normal;
+}
+
 /* Categorical ramp (AI-45): the one palette for data that has no other
    channel (knowledge-graph entity types, collaborator cursors, user-picked
    group colours). Core, signal, resonance and nano at low chroma and equal

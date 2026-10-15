@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 import {
   Dialog,
   DialogContent,
@@ -138,7 +139,14 @@ export function RoleConnections({
             </DialogDescription>
           </DialogHeader>
           {target && (
-            <Suspense fallback={<p>{zh ? "加载中…" : "Loading…"}</p>}>
+            <Suspense
+              fallback={
+                <BrandLoadingPanel
+                  label={zh ? "加载中…" : "Loading…"}
+                  hideLabel
+                />
+              }
+            >
               <ConnectionManager
                 searchQuery={target}
                 source="connector"

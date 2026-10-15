@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { MessageCircleIcon } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
+import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,11 +54,7 @@ export function AssistantChannels() {
         </DialogHeader>
         <div className="min-h-0 flex-1 pt-9">
           <Suspense
-            fallback={
-              <div className="p-6 text-sm text-muted-foreground" role="status">
-                {t.common.loading}
-              </div>
-            }
+            fallback={<BrandLoadingPanel label={t.common.loading} hideLabel />}
           >
             <ChannelsPage embedded />
           </Suspense>
