@@ -45,7 +45,7 @@ const zhCN: EngineStoreCopy = {
     "Codex 和 OpenCode 不随安装包附带，用到时在这里下载。先从 ai.echo-age.com 下载，失败时改用官方源；两边都要与官方发布的校验值一致才会安装。",
   descriptions: {
     codex: "OpenAI 的编程智能体，擅长改代码、跑命令",
-    opencode: "开源编程智能体，可直接用官方免费模型",
+    opencode: "开源编程智能体，连接 OpenCode Zen / Go 后可用",
   },
   install: "安装",
   update: "更新",
@@ -83,7 +83,8 @@ const enUS: EngineStoreCopy = {
     "Codex and OpenCode are not part of the installer; download them here when you need them. Downloads come from ai.echo-age.com, or the official source if that fails, and must match the officially published checksum before they are installed.",
   descriptions: {
     codex: "OpenAI's coding agent for editing code and running commands",
-    opencode: "Open-source coding agent with official free models",
+    opencode:
+      "Open-source coding agent; runs once OpenCode Zen / Go is connected",
   },
   install: "Install",
   update: "Update",
@@ -125,7 +126,7 @@ const jaJP: EngineStoreCopy = {
     codex:
       "コードの編集やコマンド実行が得意な OpenAI のコーディングエージェント",
     opencode:
-      "公式の無料モデルを使えるオープンソースのコーディングエージェント",
+      "オープンソースのコーディングエージェント。OpenCode Zen / Go を接続すると使えます",
   },
   install: "インストール",
   update: "更新",
@@ -166,7 +167,8 @@ const koKR: EngineStoreCopy = {
     "Codex와 OpenCode는 설치 파일에 포함되어 있지 않으며 필요할 때 여기서 내려받습니다. ai.echo-age.com에서 먼저 받고, 실패하면 공식 소스를 사용합니다. 공식 체크섬과 일치해야만 설치합니다.",
   descriptions: {
     codex: "코드 수정과 명령 실행에 강한 OpenAI의 코딩 에이전트",
-    opencode: "공식 무료 모델을 쓸 수 있는 오픈 소스 코딩 에이전트",
+    opencode:
+      "오픈 소스 코딩 에이전트. OpenCode Zen / Go를 연결하면 쓸 수 있습니다",
   },
   install: "설치",
   update: "업데이트",

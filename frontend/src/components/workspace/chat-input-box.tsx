@@ -34,6 +34,7 @@ import type { WorkLocationBinding } from "./work-location-picker";
 import { WorkDirSelector } from "./workdir-selector";
 
 import { ChatComposer } from "./chat-input-box/ChatComposer";
+import { FirstModelHint } from "./chat-input-box/first-model-hint";
 import { ModeIntentSuggestion } from "./chat-input-box/mode-intent-suggestion";
 import {
   ContextWindowBar,
@@ -549,6 +550,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
           onDismiss={onDismissModeIntent}
         />
       ) : null}
+      <FirstModelHint executionEngine={props.executionEngine} />
       <ChatComposer {...props} />
       {showStatusStrip && (
         <div

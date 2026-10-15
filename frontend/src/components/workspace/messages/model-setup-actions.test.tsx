@@ -7,19 +7,19 @@ import { isNoModelFailure, ModelSetupActions } from "./model-setup-actions";
 
 const engines = vi.hoisted(() => ({
   list: [] as Array<Record<string, unknown>>,
-  mutate: vi.fn(),
 }));
 const openSettings = vi.hoisted(() => vi.fn());
+const addModel = vi.hoisted(() => vi.fn());
 
 vi.mock("@/core/engines/api", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useEngines: () => ({ data: { engines: engines.list } }),
-  useEngineAction: () => ({ mutate: engines.mutate, isPending: false }),
 }));
 vi.mock("@/core/events/event-bus", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   emitOpenSettings: openSettings,
 }));
+vi.mock("@/core/models/setup", () => ({ openCustomModelSetup: addModel }));
 
 const opencode = (state: string) => ({
   id: "opencode",
@@ -33,8 +33,8 @@ const opencode = (state: string) => ({
 describe("ModelSetupActions", () => {
   afterEach(() => {
     engines.list = [];
-    engines.mutate.mockReset();
     openSettings.mockReset();
+    addModel.mockReset();
   });
 
   it("recognises the runtime's no-model failure", () => {
@@ -45,29 +45,23 @@ describe("ModelSetupActions", () => {
     expect(isNoModelFailure(null)).toBe(false);
   });
 
-  it("offers every way to get a model instead of a retry", () => {
+  it("offers to add a model, never a free one, instead of a retry", () => {
     engines.list = [opencode("not_installed")];
     renderWithProviders(<ModelSetupActions noModel />, { locale: "zh-CN" });
-    fireEvent.click(screen.getByRole("button", { name: /安装 OpenCode/ }));
-    expect(engines.mutate).toHaveBeenCalledWith(
-      { id: "opencode", action: "install" },
-      expect.anything(),
-    );
-    expect(screen.queryByRole("button", { name: /登录/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "添加模型" }));
-    expect(openSettings).toHaveBeenLastCalledWith("models");
+    expect(addModel).toHaveBeenCalledTimes(1);
+    // OpenCode cannot answer until it is installed and connected.
+    expect(screen.queryByRole("button", { name: /OpenCode/ })).toBeNull();
+    expect(screen.queryByText(/免费/)).toBeNull();
     expect(screen.queryByRole("button", { name: /重试/ })).toBeNull();
   });
 
-  it("says when OpenCode is already ready", () => {
+  it("offers to connect OpenCode once the engine is installed", () => {
     engines.list = [opencode("ready")];
     renderWithProviders(<ModelSetupActions noModel />, { locale: "en-US" });
-    expect(
-      screen.getByText("OpenCode is ready. Send again"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Install OpenCode/ }),
-    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Connect OpenCode" }));
+    expect(openSettings).toHaveBeenLastCalledWith("models");
+    expect(screen.getByRole("button", { name: "Add a model" })).toBeVisible();
   });
 
   it("keeps the single settings action for other model problems", () => {

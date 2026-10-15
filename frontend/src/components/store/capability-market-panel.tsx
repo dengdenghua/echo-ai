@@ -1001,7 +1001,7 @@ export function ConnectDialog({
                   ? "登录 Freebuff"
                   : "执行 CLI 登录"
               : isModelProvider
-                ? "验证并接入免费模型"
+                ? "验证并连接"
                 : "保存凭据"}
           </Button>
         </DialogFooter>

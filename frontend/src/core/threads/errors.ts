@@ -33,9 +33,19 @@ export function threadDeleteErrorMessage(error: unknown): string {
   return "删除未完成，请稍后重试。对话已保留。";
 }
 
-/** A desktop without an Echo account, OpenCode or a custom model. */
+/** OpenCode Zen's free tier refused this client (it serves only OpenCode's own app). */
+const FREE_TIER_REFUSED =
+  /free tier can only be used (?:in|from within) opencode|免费额度只允许其官方客户端/i;
+
+/**
+ * No model can run the turn: nothing configured, or only OpenCode's free
+ * tier, which ECHO AI cannot use. Either way the fix is to add a model.
+ */
 export function isNoModelConfigured(message: string): boolean {
-  return /no LLM model configured/i.test(message);
+  return (
+    /no LLM model configured|OpenCode 还没有可用的模型/i.test(message) ||
+    FREE_TIER_REFUSED.test(message)
+  );
 }
 
 /**
@@ -50,7 +60,7 @@ export function publicExecutionErrorMessage(
   if (/model is unavailable|model_unavailable|model_not_found/i.test(message)) {
     return copy.modelUnavailable;
   }
-  if (/free tier can only be used in opencode/i.test(message)) {
+  if (FREE_TIER_REFUSED.test(message)) {
     return copy.freeTierNeedsOpencode;
   }
   if (isNoModelConfigured(message)) {

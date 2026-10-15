@@ -70,7 +70,8 @@ const zhCN: ExecutionEngineCopy = {
   legacyNotice: "此会话保留了旧版原生配置，可切换到下方执行引擎。",
   autoDescription: (current) =>
     `按任务自动选择${current ? ` · 当前 ${current}` : ""}`,
-  opencodeDescription: "使用 OpenCode 身份，支持官方免费模型",
+  opencodeDescription:
+    "使用 OpenCode 身份，运行已连接的 Zen / Go 模型或你添加的模型",
   codexDescription: "使用 Codex 身份执行当前任务",
   executedBy: (engine) => `实际执行引擎：${engine}`,
   engineBadge: (engine) => `${engine} 引擎`,
@@ -96,7 +97,7 @@ const zhCN: ExecutionEngineCopy = {
       configuration_unavailable: "暂时无法读取 Codex 配置，请稍后重试。",
     },
     codexFallback: "Codex 暂时无法运行这条消息。",
-    switchEngine: "也可以把执行引擎换成 OpenCode，用它的免费模型继续。",
+    switchEngine: "也可以把执行引擎换成自动，用你添加的模型继续。",
     opencode: "OpenCode 暂时无法运行这条消息，请检查 OpenCode 安装和模型配置。",
   },
 };
@@ -127,7 +128,7 @@ const enUS: ExecutionEngineCopy = {
   autoDescription: (current) =>
     `Choose per task${current ? ` · currently ${current}` : ""}`,
   opencodeDescription:
-    "Use the OpenCode identity with official free or connected Zen models",
+    "Use the OpenCode identity with connected Zen / Go models or your own",
   codexDescription: "Run this task with the Codex identity",
   executedBy: (engine) => `Executed by ${engine}`,
   engineBadge: (engine) => `${engine} engine`,
@@ -158,7 +159,7 @@ const enUS: ExecutionEngineCopy = {
     },
     codexFallback: "Codex cannot run this message right now.",
     switchEngine:
-      " You can also switch the execution engine to OpenCode and continue with its free models.",
+      " You can also switch the execution engine to Auto and continue with a model you added.",
     opencode:
       "OpenCode cannot run this message right now. Check the OpenCode installation and model configuration.",
   },
@@ -189,7 +190,8 @@ const jaJP: ExecutionEngineCopy = {
     "このセッションには旧ネイティブ設定が残っています。下の実行エンジンに切り替えられます。",
   autoDescription: (current) =>
     `タスクごとに自動選択${current ? ` · 現在 ${current}` : ""}`,
-  opencodeDescription: "OpenCode の ID で実行します。公式の無料モデルに対応",
+  opencodeDescription:
+    "OpenCode の ID で実行します。接続済みの Zen / Go モデルか追加したモデルを使用",
   codexDescription: "このタスクを Codex の ID で実行します",
   executedBy: (engine) => `実行エンジン：${engine}`,
   engineBadge: (engine) => `${engine} エンジン`,
@@ -220,7 +222,7 @@ const jaJP: ExecutionEngineCopy = {
     },
     codexFallback: "Codex は現在このメッセージを実行できません。",
     switchEngine:
-      "実行エンジンを OpenCode に切り替えて、無料モデルで続けることもできます。",
+      "実行エンジンを自動に切り替えて、追加したモデルで続けることもできます。",
     opencode:
       "OpenCode は現在このメッセージを実行できません。OpenCode のインストールとモデル設定を確認してください。",
   },
@@ -250,7 +252,8 @@ const koKR: ExecutionEngineCopy = {
     "이 세션에는 기존 네이티브 설정이 남아 있습니다. 아래 실행 엔진으로 전환할 수 있습니다.",
   autoDescription: (current) =>
     `작업마다 자동 선택${current ? ` · 현재 ${current}` : ""}`,
-  opencodeDescription: "OpenCode ID로 실행하며 공식 무료 모델을 지원합니다",
+  opencodeDescription:
+    "OpenCode ID로 실행하며 연결된 Zen / Go 모델이나 직접 추가한 모델을 사용합니다",
   codexDescription: "이 작업을 Codex ID로 실행합니다",
   executedBy: (engine) => `실행 엔진: ${engine}`,
   engineBadge: (engine) => `${engine} 엔진`,
@@ -281,7 +284,7 @@ const koKR: ExecutionEngineCopy = {
     },
     codexFallback: "Codex가 지금 이 메시지를 실행할 수 없습니다.",
     switchEngine:
-      " 실행 엔진을 OpenCode로 바꿔 무료 모델로 계속할 수도 있습니다.",
+      " 실행 엔진을 자동으로 바꿔 직접 추가한 모델로 계속할 수도 있습니다.",
     opencode:
       "OpenCode가 지금 이 메시지를 실행할 수 없습니다. OpenCode 설치와 모델 구성을 확인하세요.",
   },

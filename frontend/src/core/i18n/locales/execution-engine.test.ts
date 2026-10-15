@@ -48,7 +48,10 @@ describe("engine selection failures", () => {
       failure.detail,
     );
     expect(zh).toContain("登录 ChatGPT");
-    expect(zh).toContain("OpenCode");
+    // The way out is a model the user added, never OpenCode's free tier,
+    // which serves only OpenCode's own app.
+    expect(zh).toContain("换成自动");
+    expect(zh).not.toContain("免费");
     expect(zh).not.toMatch(/unavailable|select Echo/);
     for (const locale of ["en-US", "ja-JP", "ko-KR"]) {
       const text = engineSelectionFailureMessage(
@@ -71,7 +74,7 @@ describe("engine selection failures", () => {
         "Codex is unavailable (something_new).",
       ),
     ).toBe(
-      "Codex 暂时无法运行这条消息。也可以把执行引擎换成 OpenCode，用它的免费模型继续。",
+      "Codex 暂时无法运行这条消息。也可以把执行引擎换成自动，用你添加的模型继续。",
     );
   });
 

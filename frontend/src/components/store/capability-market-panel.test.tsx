@@ -454,7 +454,7 @@ describe("CapabilityMarketPanel", () => {
     fireEvent.change(screen.getByLabelText("OpenCode Zen API Key"), {
       target: { value: "zen-test-key" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "验证并接入免费模型" }));
+    fireEvent.click(screen.getByRole("button", { name: "验证并连接" }));
 
     await waitFor(() => {
       expect(mocks.installCapability).toHaveBeenCalledWith("opencode-zen");
@@ -489,7 +489,7 @@ describe("CapabilityMarketPanel", () => {
     fireEvent.change(screen.getByLabelText("OpenCode Zen API Key"), {
       target: { value: "test-key" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "验证并接入免费模型" }));
+    fireEvent.click(screen.getByRole("button", { name: "验证并连接" }));
     await waitFor(() =>
       expect(mocks.connectCapability).toHaveBeenCalledWith("opencode-zen", {
         tokens: { api_key: "test-key" },
@@ -517,7 +517,7 @@ describe("CapabilityMarketPanel", () => {
     fireEvent.change(screen.getByLabelText("服务地址"), {
       target: { value: "https://my-gateway.example/v1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "验证并接入免费模型" }));
+    fireEvent.click(screen.getByRole("button", { name: "验证并连接" }));
 
     await waitFor(() =>
       expect(mocks.connectCapability).toHaveBeenCalledWith(

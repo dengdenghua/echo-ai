@@ -6590,7 +6590,7 @@ export const zhCN: Translations = {
     tabCustom: "自定义",
     addModel: "添加模型",
     noCustomModels: "没有自定义模型",
-    openCodeZenEmpty: "还没有连接 OpenCode Zen。未选模型时，OpenCode 会用 Zen 的免费模型；连接后可在这里选更多模型。",
+    openCodeZenEmpty: "还没有连接 OpenCode Zen。连接后，可以在这里选择 Zen 的模型。",
     openCodeGoEmpty: "还没有连接 OpenCode Go 套餐。连接后，这里会列出套餐里的模型。",
     connectOpenCode: "连接 OpenCode",
     autoModelLabel: "Auto",

@@ -35,6 +35,7 @@ import {
   FilesIcon,
   LinkIcon,
   Loader2Icon,
+  PlugIcon,
   WandSparklesIcon,
   XCircleIcon,
 } from "lucide-react";
@@ -566,9 +567,8 @@ export function MessageOutputSummary({
   const isFailure = Boolean(failure);
   const isResolvedFailure = Boolean(failure?.resolved);
   // Network loss, an environment block, and a "needs your input" hand-off are
-  // not agent failures — render them as amber/warning, not destructive red.
+  // not agent failures — amber, not red. No model is a setup step: neutral.
   const isWarningFailure =
-    noModel ||
     failure?.kind === "auth" ||
     failure?.kind === "capability" ||
     failure?.kind === "network" ||
@@ -692,18 +692,18 @@ export function MessageOutputSummary({
         <div
           className={cn(
             "flex min-w-0 flex-wrap items-center gap-2 rounded-md border px-3 py-1.5 text-xs",
-            isResolvedFailure
+            isResolvedFailure || noModel
               ? "border-border-default bg-muted/35"
               : isFailure
                 ? isWarningFailure
-                  ? "border-warning/20 bg-warning/50/[0.04]"
+                  ? "border-warning/20 bg-warning/[0.04]"
                   : "border-destructive/20 bg-destructive/[0.035]"
-                : "border-success/20 bg-success/50/[0.055]",
+                : "border-success/20 bg-success/[0.055]",
           )}
         >
           {isResolvedFailure ? (
             <CheckCircle2Icon className="size-4 shrink-0 text-success/75" />
-          ) : isFailure ? (
+          ) : noModel ? (<PlugIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />) : isFailure ? (
             isWarningFailure ? (
               <AlertTriangleIcon className="size-4 shrink-0 text-warning" />
             ) : (
