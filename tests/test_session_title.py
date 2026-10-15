@@ -44,11 +44,30 @@ def test_derive_fallback_list_content() -> None:
     assert derive_fallback_title(messages) == "from block"
 
 
-def test_derive_fallback_truncates_to_60() -> None:
+def test_derive_fallback_truncates_an_unbroken_prompt() -> None:
     long_text = "长" * 80
     derived = derive_fallback_title([{"type": "human", "content": long_text}])
-    assert len(derived) == 58
+    assert len(derived) == 32
     assert derived.endswith("…")
+
+
+def test_derive_fallback_is_a_headline_not_the_whole_prompt() -> None:
+    prompt = (
+        "在当前文件夹里创建 hello.py：打印 Hello Echo 和当前时间，然后运行它确认输出；"
+        "最后写一个 README.md，简单说明这个脚本做什么、怎么运行。"
+    )
+    derived = derive_fallback_title([{"type": "human", "content": prompt}])
+    assert derived == "在当前文件夹里创建 hello.py"
+    assert (
+        derive_fallback_title(
+            [{"type": "human", "content": "Fix the login bug. It fails on Safari."}]
+        )
+        == "Fix the login bug"
+    )
+    assert (
+        derive_fallback_title([{"type": "human", "content": "你好，用一句话介绍你自己"}])
+        == "你好，用一句话介绍你自己"
+    )
 
 
 def test_derive_fallback_none_without_human() -> None:

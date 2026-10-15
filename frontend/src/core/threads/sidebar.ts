@@ -412,6 +412,28 @@ function truncateThreadTitle(title: string): string {
   return title.length > 60 ? `${title.slice(0, 58)}...` : title;
 }
 
+const HEADLINE_MAX = 32;
+
+/** A prompt's headline: its first clause, cut at a comma or colon when still
+ *  long (mirrors runtime/memory/threads/session_title.fallback_headline). */
+export function threadHeadline(text: string): string {
+  let headline = text.trim();
+  const end = /[。！？!?；;\n]|\.(?=\s)/.exec(headline);
+  if (end && end.index >= 4) headline = headline.slice(0, end.index);
+  headline = headline.replace(/\s+/g, " ").trim();
+  if (headline.length > HEADLINE_MAX) {
+    const breaks = [...headline.matchAll(/[，,：:、]/g)]
+      .map((match) => match.index)
+      .filter((index) => index >= 6 && index <= HEADLINE_MAX);
+    const cut = breaks[breaks.length - 1];
+    headline =
+      cut !== undefined
+        ? headline.slice(0, cut)
+        : `${headline.slice(0, HEADLINE_MAX - 1)}…`;
+  }
+  return headline.replace(/^[\s，,：:、]+|[\s，,：:、]+$/g, "") || text.trim();
+}
+
 /** Best-effort thread title from `values`: first user message content,
  *  truncated. Falls back to metadata.title or a short thread-id. */
 export function deriveThreadTitle(thread: {
@@ -427,7 +449,7 @@ export function deriveThreadTitle(thread: {
   const projectedTitle = threadTitleFromContent(
     thread.values?.["sidebar_title_source"],
   );
-  if (projectedTitle) return truncateThreadTitle(projectedTitle);
+  if (projectedTitle) return threadHeadline(projectedTitle);
 
   const messages = thread.values?.["messages"];
   if (Array.isArray(messages)) {
@@ -439,7 +461,7 @@ export function deriveThreadTitle(thread: {
       ) {
         const content = (m as Record<string, unknown>).content;
         const title = threadTitleFromContent(content);
-        if (title) return truncateThreadTitle(title);
+        if (title) return threadHeadline(title);
       }
     }
   }

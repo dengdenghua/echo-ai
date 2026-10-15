@@ -52,23 +52,44 @@ def normalize_title(text: str) -> str:
     return collapsed
 
 
+# A fallback title is a headline, not the whole prompt: the first clause,
+# cut at a comma or colon when that clause is still long.
+FALLBACK_TITLE_MAX_LEN = 32
+_CLAUSE_END = re.compile(r"[。！？!?；;\n]|\.(?=\s)")
+_SOFT_BREAK = re.compile(r"[，,：:、]")
+
+
+def fallback_headline(text: str) -> str | None:
+    """A short title from the opening of a prompt."""
+    text = text.strip()
+    end = _CLAUSE_END.search(text)
+    if end is not None and end.start() >= 4:
+        text = text[: end.start()]
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > FALLBACK_TITLE_MAX_LEN:
+        breaks = [
+            m.start()
+            for m in _SOFT_BREAK.finditer(text)
+            if 6 <= m.start() <= FALLBACK_TITLE_MAX_LEN
+        ]
+        text = text[: breaks[-1]] if breaks else text[: FALLBACK_TITLE_MAX_LEN - 1] + "…"
+    text = text.strip(" ，,：:、")
+    return text or None
+
+
 def derive_fallback_title(messages: list[dict[str, Any]]) -> str | None:
-    """First human message text as a <=60-char title (dsh first-prompt fallback)."""
+    """A headline of the first human message (dsh first-prompt fallback)."""
     for msg in messages:
         if not isinstance(msg, dict) or msg.get("type") != "human":
             continue
         raw = msg.get("content")
         if isinstance(raw, str) and raw.strip():
-            text = raw.strip()
-            return text if len(text) <= TITLE_MAX_LEN else text[: TITLE_MAX_LEN - 3] + "…"
+            return fallback_headline(raw)
         if isinstance(raw, list):
             for part in raw:
-                if isinstance(part, dict) and isinstance(part.get("text"), str):
-                    text = part["text"].strip()
-                    if text:
-                        return (
-                            text if len(text) <= TITLE_MAX_LEN else text[: TITLE_MAX_LEN - 3] + "…"
-                        )
+                text = part.get("text") if isinstance(part, dict) else None
+                if isinstance(text, str) and text.strip():
+                    return fallback_headline(text)
     return None
 
 
