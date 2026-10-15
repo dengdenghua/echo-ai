@@ -67,40 +67,27 @@ describe("RunDurationBadge", () => {
     expect(badge.className).toContain("text-warning");
   });
 
-  test("shows the time-to-first-token once the first token arrived", () => {
+  test("keeps the time-to-first-token in the tooltip, not the header text", () => {
     renderWithProviders(
       <RunDurationBadge isLoading vitals={vitals({ ttftMs: 1240 })} />,
       { locale: "zh-CN" },
     );
 
-    expect(screen.getByTestId("ttft-badge")).toHaveTextContent("首字 1.2s");
+    const badge = screen.getByTestId("run-duration-badge");
+    expect(badge).toHaveAttribute("data-ttft", "首字 1.2s");
+    expect(badge.getAttribute("title")).toContain("首字 1.2s");
+    expect(badge).not.toHaveTextContent("首字");
   });
 
-  test("hides the ttft badge while still waiting for the first token", () => {
+  test("has no ttft tooltip while still waiting for the first token", () => {
     renderWithProviders(
       <RunDurationBadge isLoading vitals={vitals({ ttftMs: null })} />,
       { locale: "zh-CN" },
     );
 
-    expect(screen.queryByTestId("ttft-badge")).not.toBeInTheDocument();
-  });
-
-  test("shows the time-to-first-token once the first token arrived", () => {
-    renderWithProviders(
-      <RunDurationBadge isLoading vitals={vitals({ ttftMs: 1240 })} />,
-      { locale: "zh-CN" },
-    );
-
-    expect(screen.getByTestId("ttft-badge")).toHaveTextContent("首字 1.2s");
-  });
-
-  test("hides the ttft badge while still waiting for the first token", () => {
-    renderWithProviders(
-      <RunDurationBadge isLoading vitals={vitals({ ttftMs: null })} />,
-      { locale: "zh-CN" },
-    );
-
-    expect(screen.queryByTestId("ttft-badge")).not.toBeInTheDocument();
+    const badge = screen.getByTestId("run-duration-badge");
+    expect(badge).not.toHaveAttribute("data-ttft");
+    expect(badge).not.toHaveAttribute("title");
   });
 
   test("does not render after the run settles", () => {

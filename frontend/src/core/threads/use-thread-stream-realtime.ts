@@ -94,6 +94,8 @@ type ExposedRealtimeThread = Omit<BaseStream<AgentThreadState>, "stop"> & {
   connectionPhase: ThreadConnectionPhase;
   readyForMutations: boolean;
   lastTurnStatus?: Turn["status"];
+  /** The engine's own usage report (thread/tokenUsage/updated), if any. */
+  tokenUsage?: Record<string, unknown> | null;
 };
 
 type SendMessageFn = (
@@ -1603,19 +1605,16 @@ export function useThreadStreamRealtime(
       error,
       stop,
       refresh,
-      submit: () => {
-        // ``submit`` is only called by the stream consumer's
-        // internal plumbing; the realtime path routes through
-        // ``sendMessage`` -> ``startTurn`` instead. Providing a no-op
-        // keeps the BaseStream contract satisfied for the few places
-        // that might introspect the shape.
-      },
+      // Realtime sends through ``sendMessage`` -> ``startTurn``; this no-op only
+      // keeps the BaseStream contract for code that introspects the shape.
+      submit: () => {},
       threadId: activeThreadId || null,
       compact,
       vitals,
       connectionPhase,
       readyForMutations,
       lastTurnStatus,
+      tokenUsage: state.tokenUsage,
     }),
     [
       mapped,
@@ -1632,6 +1631,7 @@ export function useThreadStreamRealtime(
       connectionPhase,
       readyForMutations,
       lastTurnStatus,
+      state.tokenUsage,
     ],
   );
 

@@ -50,6 +50,10 @@ import {
 import { useGitSummary } from "@/core/workspace/use-git-summary";
 import { buildObservedReferenceTabs } from "./agent-workbench-pages";
 import type { LiveToolEvent } from "./live-tool-timeline";
+import {
+  SessionBackgroundTasks,
+  useSessionBackgroundTasks,
+} from "./session-background-tasks";
 import { toWorkBlocks } from "./work-blocks";
 
 interface Source {
@@ -68,6 +72,8 @@ export interface WorkspaceContextMenuProps {
   groundingSources?: GroundingSource[];
   onOpenDiff: () => void;
   onOpenFile: (path: string) => void;
+  /** Lists this conversation's paused tasks under 后台任务. */
+  threadId?: string;
   /** Opens the workbench's 产物 tab with every output. */
   onOpenAllOutputs?: () => void;
   /** Where the conversation runs; rows lead the 环境 section. */
@@ -91,11 +97,16 @@ export function WorkspaceContextMenu({
   environment,
   context,
   onOpenAllOutputs,
+  threadId,
 }: WorkspaceContextMenuProps) {
   const { t, locale } = useI18n();
   const copy = sessionStatusCopy(locale);
   const [open, setOpen] = useState(false);
   const outputs = useOptionalArtifacts()?.artifacts ?? [];
+  const backgroundRows = useSessionBackgroundTasks(
+    context || environment ? threadId : undefined,
+    events,
+  );
   const ownsCompression = Boolean(context?.onCompressContext);
   useEffect(
     () =>
@@ -366,6 +377,10 @@ export function WorkspaceContextMenu({
             )}
           </>
         )}
+        <SessionBackgroundTasks
+          rows={backgroundRows}
+          labelClassName={sectionLabelClass}
+        />
         {/* With the status sections above, an empty 来源 is just noise. */}
         {(sources.length > 0 || !(context || environment)) && (
         <DropdownMenuLabel className={sectionLabelClass}>

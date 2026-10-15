@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { PendingApproval } from "@/core/realtime/items";
 import { useI18n } from "@/core/i18n/hooks";
+import { approvalCardCopy } from "@/core/i18n/locales/approval-card";
 import { cn } from "@/lib/utils";
 
 import {
@@ -62,33 +63,68 @@ export function approvalToolLabel(
   return t.messageGrouping.runAction;
 }
 
-function approvalArgsSummary(
-  params: {
-    argsPreview?: string;
-    detail?: string;
-  },
-  method: PendingApproval["method"],
-): string {
-  const preview = params.argsPreview?.trim();
-  if (!preview) return params.detail?.trim() ?? "";
+function parsedArgs(preview: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(preview);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? Object.fromEntries(Object.entries(parsed))
+      : null;
+  } catch {
+    return null;
+  }
+}
 
-  const field = method.includes("commandExecution") ? "command" : "path";
-  const quoted = new RegExp(
+function quotedField(preview: string, field: string): string | null {
+  const match = new RegExp(
     `["']${field}["']\\s*:\\s*["']([^"']+)["']`,
     "i",
   ).exec(preview);
-  if (quoted?.[1]) return quoted[1].trim();
+  return match?.[1]?.trim() || null;
+}
 
-  try {
-    const parsed = JSON.parse(preview) as Record<string, unknown>;
-    const value = parsed[field];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  } catch {
-    // Tool adapters may provide a Python-style dict preview. The targeted
-    // field extraction above handles that common form; otherwise retain the
-    // original preview instead of inventing a command or path.
+/** What the card shows under its title: the command, the file, the URL —
+ *  never the raw JSON arguments. A file write leads with the file name and
+ *  adds its size and first line; the full path stays in ``title``. */
+export function approvalArgsSummary(
+  params: { tool?: string; argsPreview?: string; detail?: string },
+  method: PendingApproval["method"],
+  lineCount: (count: number) => string,
+): { text: string; title: string } {
+  const preview = params.argsPreview?.trim();
+  if (!preview) {
+    const detail = params.detail?.trim() ?? "";
+    return { text: detail, title: detail };
   }
-  return preview;
+  const tool = canonicalToolName(params.tool ?? "");
+  const writes = WRITE_APPROVAL_TOOLS.has(tool) || EDIT_APPROVAL_TOOLS.has(tool);
+  const fields = writes
+    ? ["path", "file_path", "filepath", "filename"]
+    : SHELL_APPROVAL_TOOLS.has(tool) || method.includes("commandExecution")
+      ? ["command", "cmd", "path", "url", "query"]
+      : ["path", "file_path", "url", "query", "command"];
+  const args = parsedArgs(preview);
+  for (const field of fields) {
+    const value = args ? args[field] : quotedField(preview, field);
+    if (typeof value !== "string" || !value.trim()) continue;
+    const content = args?.content;
+    const target = value.trim();
+    if (writes) {
+      const name = target.split(/[\\/]/).pop() || target;
+      const lines =
+        typeof content === "string" && content
+          ? content.replace(/\n$/, "").split("\n")
+          : [];
+      const first = lines.find((line) => line.trim())?.trim() ?? "";
+      const text = [name, lines.length ? lineCount(lines.length) : "", first]
+        .filter(Boolean)
+        .join(" · ");
+      return { text, title: [target, first].filter(Boolean).join("\n") };
+    }
+    return { text: target, title: target };
+  }
+  // Tool adapters may send a Python-style preview; keep it rather than
+  // inventing a command or path.
+  return { text: preview, title: preview };
 }
 
 export function RealtimeApprovalPrompt({
@@ -102,6 +138,7 @@ export function RealtimeApprovalPrompt({
 }) {
   const { t, locale } = useI18n();
   const zh = locale === "zh-CN";
+  const cardCopy = approvalCardCopy(locale);
   const [busy, setBusy] = useState<string | number | null>(null);
   const inFlight = useRef(false);
   const liveApprovals = useRef(approvals);
@@ -137,6 +174,7 @@ export function RealtimeApprovalPrompt({
           tool?: string;
           argsPreview?: string;
           detail?: string;
+          unconfined?: boolean;
           roleProvisions?: RoleProvision[];
           staffingReview?: { role: string; name: string; source: string; responsibilities: string; phases: number[] }[];
         };
@@ -146,7 +184,11 @@ export function RealtimeApprovalPrompt({
           t,
           params.argsPreview,
         );
-        const summary = approvalArgsSummary(params, approval.method);
+        const summary = approvalArgsSummary(
+          params,
+          approval.method,
+          cardCopy.lineCount,
+        );
         const label = `${toolLabel} · ${t.toolApproval.requiresApproval}`;
         const labelId = `approval-${String(approval.requestId)}-label`;
         if (params.tool?.startsWith("project_")) {
@@ -170,7 +212,7 @@ export function RealtimeApprovalPrompt({
                       <p className="mt-1 text-xs">{zh ? "参与阶段" : "Stages"}：{role.phases.join(", ")}</p>
                     </li>)}
                   </ul>}
-                  <section aria-labelledby={labelId}><h3 id={labelId} className="sr-only">{label}</h3><p className="whitespace-pre-wrap text-sm leading-6">{summary}</p></section>
+                  <section aria-labelledby={labelId}><h3 id={labelId} className="sr-only">{label}</h3><p className="whitespace-pre-wrap text-sm leading-6">{summary.text}</p></section>
                 </div>
                 {error?.id === approval.requestId && <p role="alert" className="text-sm text-destructive">{error.message}</p>}
                 <div className="flex shrink-0 justify-end gap-2 border-t pt-3">
@@ -202,14 +244,19 @@ export function RealtimeApprovalPrompt({
                 >
                   {label}
                 </p>
-                {summary ? (
+                {summary.text ? (
                   <code
                     className={cn("block text-mini leading-4 text-muted-foreground",
                       params.tool?.startsWith("project_") ? "whitespace-pre-wrap font-sans" : "truncate font-mono")}
-                    title={summary}
+                    title={summary.title}
                   >
-                    {summary}
+                    {summary.text}
                   </code>
+                ) : null}
+                {params.unconfined ? (
+                  <p className="text-xs leading-4 text-warning">
+                    {cardCopy.unconfined}
+                  </p>
                 ) : null}
                 {error?.id === approval.requestId ? <p role="alert" className="text-xs text-destructive">{error.message}</p> : null}
               </div>

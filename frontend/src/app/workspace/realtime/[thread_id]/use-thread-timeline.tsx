@@ -26,6 +26,8 @@ import {
   type ModelSwitchEvent,
 } from "@/core/threads/model-switch-events";
 
+import { engineContextUsage } from "@/core/threads/engine-token-usage";
+
 import {
   estimateCurrentContextTokens,
   useThreadContextSegments,
@@ -187,18 +189,36 @@ export function useContextWindow({
       ) ?? models[0]
     );
   }, [models, modelName]);
-  const maxContextTokens = useMemo(() => resolveModelContextWindow(selectedModel), [selectedModel]);
-  const { segments: contextSegments, measured: contextMeasured } = useThreadContextSegments(isNewThread ? null : threadId, thread.messages, thread.lastTurnStatus, t);
+  const compressCopy = sessionStatusCopy(useI18n().locale);
+  // Codex reports how full its window really is; that beats any estimate.
+  const engineUsage = useMemo(() => engineContextUsage(thread.tokenUsage), [thread.tokenUsage]);
+  const maxContextTokens = useMemo(
+    () => engineUsage?.contextWindow ?? resolveModelContextWindow(selectedModel),
+    [engineUsage, selectedModel],
+  );
+  const { segments: itemizedSegments, measured: breakdownMeasured } = useThreadContextSegments(isNewThread ? null : threadId, thread.messages, thread.lastTurnStatus, t);
+  const contextMeasured = breakdownMeasured || engineUsage !== null;
+  // Fit the itemized estimate inside the engine's total; the rest is the
+  // engine's own instructions and tools.
+  const contextSegments = useMemo(() => {
+    if (!engineUsage) return itemizedSegments;
+    const itemized = itemizedSegments.reduce((sum, segment) => sum + segment.tokens, 0);
+    const scale = itemized > engineUsage.contextTokens ? engineUsage.contextTokens / itemized : 1;
+    const fitted = itemizedSegments.map((segment) => ({ ...segment, tokens: Math.round(segment.tokens * scale) }));
+    const rest = engineUsage.contextTokens - fitted.reduce((sum, segment) => sum + segment.tokens, 0);
+    return rest > 0 ? [...fitted, { label: compressCopy.engineContext, tokens: rest, color: "bg-muted-foreground/50" }] : fitted;
+  }, [compressCopy.engineContext, engineUsage, itemizedSegments]);
   const turnCount = useMemo(() => thread.messages.filter((message) => message.type === "human").length, [thread.messages]);
   // The visible-message estimate misses the system prompt and tools; a
   // measured breakdown counts them, so the total never trails its own bar.
   const contextTokens = useMemo(
     () =>
+      engineUsage?.contextTokens ??
       Math.max(
         estimateCurrentContextTokens(thread.messages),
         contextSegments.reduce((sum, segment) => sum + segment.tokens, 0),
       ),
-    [contextSegments, thread.messages],
+    [contextSegments, engineUsage, thread.messages],
   );
   // "auto" (or nothing) routes per turn, so no single model name is true.
   const modelLabel =
@@ -206,7 +226,6 @@ export function useContextWindow({
       ? null
       : (models.find((model) => model.selection_id === modelName || model.name === modelName || model.id === modelName)?.display_name ?? modelName);
   const compactThread = (thread as typeof thread & CompactableThread).compact;
-  const compressCopy = sessionStatusCopy(useI18n().locale);
   const handleCompressContext = useCallback(async () => {
     if (!compactThread || isCompressingContext) {
       if (!compactThread) {

@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import {
   ContextUsageDetails,
+  compactTokenCount,
   contextUsage,
   type ContextWindowSegment,
 } from "@/components/workspace/chat-input-box/context-usage-details";
@@ -20,9 +21,14 @@ import type { WorkLocation } from "@/core/execution/work-location";
 import { useI18n } from "@/core/i18n/hooks";
 import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
 import type { ExecutionEngine } from "@/core/realtime/execution-policy";
+import { cn } from "@/lib/utils";
 
-/** Usage at which the hint warns that the runtime's ~90% auto-compaction is near. */
+/** Usage at which the auto-compaction line turns amber. */
 const AUTO_COMPACT_HINT_PERCENT = 75;
+
+/** The runtime compacts on its own at about 90% of the window
+ * (runtime/memory/threads/compaction.compaction_trigger_tokens). */
+const AUTO_COMPACT_AT = 0.9;
 
 /** CompactionPolicy.keep_recent as wired in
  * runtime/platform/ui/_app_routers_extra.py: these turns always stay verbatim,
@@ -159,6 +165,10 @@ export function SessionContextSection({
   const elapsed = useElapsedSeconds(isCompressingContext);
   const tooFewTurns = turnCount <= KEEP_RECENT_TURNS;
   const { percentage } = contextUsage(contextTokens, maxContextTokens);
+  const untilAutoCompact = Math.max(
+    0,
+    Math.round(maxContextTokens * AUTO_COMPACT_AT) - contextTokens,
+  );
   return (
     <div className="px-2" data-testid="session-status-context">
       <ContextUsageDetails
@@ -167,35 +177,49 @@ export function SessionContextSection({
         segments={contextSegments}
         showHeader={false}
       />
-      {percentage >= AUTO_COMPACT_HINT_PERCENT ? (
-        <p className="mt-2 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs text-warning">
-          {copy.autoCompactSoon}
-        </p>
-      ) : null}
-      {onCompressContext ? (
-        // A menu item, so arrow keys reach it; it keeps the menu open so the
-        // progress stays in view.
-        <DropdownMenuItem
-          data-testid="session-status-compress"
-          onSelect={(event) => {
-            event.preventDefault();
-            void onCompressContext();
-          }}
-          disabled={isCompressingContext || tooFewTurns || contextTokens <= 0}
-          aria-busy={isCompressingContext}
-          title={tooFewTurns ? undefined : copy.compressHint}
-          className="mt-2.5 h-8 w-full justify-center rounded-lg border border-border-default text-xs font-medium text-foreground hover:bg-muted focus:bg-muted data-[disabled]:opacity-60"
-        >
-          {isCompressingContext ? (
-            <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
-          ) : (
-            <MinimizeIcon className="size-3.5" aria-hidden="true" />
+      {/* How much room is left, beside the action that makes more. */}
+      <div className="mt-2.5 flex min-h-8 items-center justify-between gap-3">
+        <span
+          data-testid="session-status-auto-compact"
+          className={cn(
+            "min-w-0 truncate text-xs",
+            percentage >= AUTO_COMPACT_HINT_PERCENT
+              ? "text-warning"
+              : "text-muted-foreground",
           )}
-          {isCompressingContext ? copy.compressing(elapsed) : copy.compress}
-        </DropdownMenuItem>
-      ) : null}
+        >
+          {untilAutoCompact > 0
+            ? copy.untilAutoCompact(compactTokenCount(untilAutoCompact))
+            : copy.autoCompactSoon}
+        </span>
+        {onCompressContext ? (
+          // A menu item, so arrow keys reach it; it keeps the menu open so the
+          // progress stays in view.
+          <DropdownMenuItem
+            data-testid="session-status-compress"
+            onSelect={(event) => {
+              event.preventDefault();
+              void onCompressContext();
+            }}
+            disabled={isCompressingContext || tooFewTurns || contextTokens <= 0}
+            aria-busy={isCompressingContext}
+            title={tooFewTurns ? undefined : copy.compressHint}
+            className="h-8 shrink-0 rounded-lg border border-border-default px-2.5 text-xs font-medium text-foreground hover:bg-muted focus:bg-muted data-[disabled]:opacity-60"
+          >
+            {isCompressingContext ? (
+              <Loader2Icon
+                className="size-3.5 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <MinimizeIcon className="size-3.5" aria-hidden="true" />
+            )}
+            {isCompressingContext ? copy.compressing(elapsed) : copy.compress}
+          </DropdownMenuItem>
+        ) : null}
+      </div>
       {onCompressContext && tooFewTurns && !isCompressingContext ? (
-        <p className="mt-1.5 text-center text-xs text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           {copy.compressAfterTurns(KEEP_RECENT_TURNS)}
         </p>
       ) : null}

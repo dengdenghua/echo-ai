@@ -34,10 +34,14 @@ export function RunDurationBadge({
             ? t.publicThinkingStatus.waitingForModel
             : t.publicThinkingStatus.processing;
   const elapsedLabel = formatStreamElapsed(vitals?.elapsedMs ?? 0);
-  // Time-to-first-token: rendered once the first token has arrived, so the
-  // user sees the model's response latency for this turn at a glance.
+  // Time-to-first-token is a diagnostic, not status: it lives in the hover
+  // tooltip once the first token has arrived instead of crowding the header.
   const ttftSeconds =
     vitals?.ttftMs != null && vitals.ttftMs >= 0 ? vitals.ttftMs / 1000 : null;
+  const ttftText =
+    ttftSeconds != null
+      ? `${t.publicThinkingStatus.ttftLabel} ${ttftSeconds.toFixed(1)}s`
+      : null;
 
   // Tone follows the run state machine (red = disconnected, yellow = slow,
   // green = working/waiting) instead of a fixed accent colour.
@@ -63,19 +67,16 @@ export function RunDurationBadge({
       )}
       data-testid="run-duration-badge"
       data-first-response-delayed={firstResponseDelayed ? "true" : "false"}
+      data-ttft={ttftText ?? undefined}
+      title={
+        ttftText
+          ? `${statusLabel} ${elapsedLabel} · ${ttftText}\n${t.publicThinkingStatus.ttftHint}`
+          : undefined
+      }
     >
       <span aria-hidden="true" className={cn("size-1.5 rounded-full", dot)} />
       <span className="max-w-24 truncate">{statusLabel}</span>
       <span className="tabular-nums opacity-70">{elapsedLabel}</span>
-      {ttftSeconds != null && (
-        <span
-          className="tabular-nums opacity-70"
-          title={t.publicThinkingStatus.ttftHint}
-          data-testid="ttft-badge"
-        >
-          {t.publicThinkingStatus.ttftLabel} {ttftSeconds.toFixed(1)}s
-        </span>
-      )}
     </div>
   );
 }

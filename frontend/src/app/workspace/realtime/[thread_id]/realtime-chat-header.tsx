@@ -214,6 +214,7 @@ export function RealtimeChatHeader({
       }}
       context={sessionContext}
       onOpenAllOutputs={openArtifactsPanel}
+      threadId={threadId}
     />
   ) : null;
   const headerActions = !isEchoAssistant ? (

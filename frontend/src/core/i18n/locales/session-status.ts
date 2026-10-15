@@ -21,6 +21,10 @@ export interface SessionStatusCopy {
   compressHint: string;
   /** The runtime always keeps the latest ``keep`` turns verbatim. */
   compressAfterTurns: (keep: number) => string;
+  /** Context the engine reports beyond what Echo can itemize. */
+  engineContext: string;
+  /** How much room is left before the runtime compacts by itself. */
+  untilAutoCompact: (tokens: string) => string;
   /** The total is a character estimate, not the measured request. */
   estimated: string;
   estimatedHint: string;
@@ -51,6 +55,8 @@ const zhCN: SessionStatusCopy = {
   compressing: (seconds) => `正在压缩… ${seconds}s`,
   compressHint:
     "把较早的对话折叠成摘要，最近几轮保持原样。压缩期间可以继续浏览对话。",
+  untilAutoCompact: (tokens) => `约 ${tokens} 后自动压缩`,
+  engineContext: "引擎指令与工具",
   compressAfterTurns: (keep) =>
     `超过 ${keep} 轮后可压缩，最近 ${keep} 轮始终保留原文`,
   estimated: "估算",
@@ -80,6 +86,8 @@ const enUS: SessionStatusCopy = {
   compressing: (seconds) => `Compressing… ${seconds}s`,
   compressHint:
     "Folds older turns into a summary and keeps the latest ones as they are. You can keep reading while it runs.",
+  untilAutoCompact: (tokens) => `Auto-compacts in about ${tokens}`,
+  engineContext: "Engine instructions and tools",
   compressAfterTurns: (keep) =>
     `Available after ${keep} turns; the latest ${keep} always stay as they are.`,
   estimated: "est.",
@@ -111,6 +119,8 @@ const jaJP: SessionStatusCopy = {
   compressing: (seconds) => `圧縮中… ${seconds}s`,
   compressHint:
     "古いやり取りを要約にまとめ、直近の数ターンはそのまま残します。圧縮中も会話を閲覧できます。",
+  untilAutoCompact: (tokens) => `あと約 ${tokens} で自動圧縮`,
+  engineContext: "エンジンの指示とツール",
   compressAfterTurns: (keep) =>
     `${keep} ターンを超えると圧縮できます。直近 ${keep} ターンは常にそのまま残ります。`,
   estimated: "推定",
@@ -142,6 +152,8 @@ const koKR: SessionStatusCopy = {
   compressing: (seconds) => `압축 중… ${seconds}s`,
   compressHint:
     "이전 대화를 요약으로 접고 최근 몇 턴은 그대로 둡니다. 압축 중에도 대화를 볼 수 있습니다.",
+  untilAutoCompact: (tokens) => `약 ${tokens} 후 자동 압축`,
+  engineContext: "엔진 지시와 도구",
   compressAfterTurns: (keep) =>
     `${keep}턴을 넘으면 압축할 수 있습니다. 최근 ${keep}턴은 항상 그대로 둡니다.`,
   estimated: "추정",

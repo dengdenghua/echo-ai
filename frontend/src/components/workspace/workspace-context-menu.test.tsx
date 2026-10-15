@@ -179,7 +179,7 @@ describe("WorkspaceContextMenu status sections", () => {
       fireEvent.click(trigger);
       const context = screen.getByTestId("session-status-context");
       expect(context).toHaveTextContent(
-        "older turns auto-compact at about 90%",
+        "Auto-compacts in about 10K",
       );
       const button = screen.getByTestId("session-status-compress");
       expect(button).toHaveAttribute("data-disabled");
