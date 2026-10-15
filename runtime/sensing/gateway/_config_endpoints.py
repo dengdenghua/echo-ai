@@ -74,7 +74,7 @@ def _build_endpoints(ctx: _ConfigCtx) -> None:
 
     _register_security(router, ctx)
     _register_models(router, ctx)
-    _register_opencode(router)
+    _register_opencode(router, ctx.stack)
     _register_custom_models(router, ctx)
     _register_local_models(router, ctx)
     _register_system(router, ctx)

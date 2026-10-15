@@ -279,6 +279,47 @@ def test_an_echo_routed_model_keeps_its_process_and_rebinds_the_proxy(tmp_path, 
     assert len(stops) == 1
 
 
+def test_prewarm_starts_an_echo_routed_model_with_no_turn_bound(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    backend, starts, _ = _fake_warm_pool(monkeypatch)
+    events = []
+
+    class Proxy:
+        async def start(self):
+            events.append("start")
+            return SimpleNamespace(
+                scoped_bearer_token="warm-token", base_url="http://127.0.0.1:9/v1"
+            )
+
+        def bind_turn(self, scope, session):
+            events.append(("bind", scope))
+
+        def release_turn(self):
+            events.append("release")
+
+        async def close(self):
+            events.append("close")
+
+    proxy = Proxy()
+    prewarm = SimpleNamespace(scope="prewarm", trusted_session=None, proxy=lambda: proxy)
+    reply = SimpleNamespace(scope="turn-a", trusted_session="session-a", proxy=lambda: proxy)
+
+    async def run():
+        assert await backend.prewarm_text_server(
+            "opencode", tmp_path, None, "echo-shared/m", shared_turn=prewarm
+        )
+        async with backend.managed_server(
+            "opencode", tmp_path, None, "echo-shared/m", shared_turn=reply
+        ):
+            pass
+        await backend._discard_idle_warm_server(tmp_path)
+
+    asyncio.run(run())
+    assert starts == ["echo-shared/m"]
+    assert events == ["start", "release", ("bind", "turn-a"), "release", "close"]
+
+
 def test_explicit_engine_and_continuations():
     route = select_execution_route(requested_engine=EngineId.OPENCODE, codex_partner=True)
     assert route.engine == EngineId.OPENCODE

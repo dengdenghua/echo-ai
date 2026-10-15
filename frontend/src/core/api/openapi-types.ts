@@ -11549,9 +11549,8 @@ export interface paths {
          * @description Start the engine a conversation's next OpenCode reply will use.
          *
          *     Best effort, so the first reply after idle skips ``opencode serve``'s
-         *     cold start. Shared (Echo-routed) models run a fresh process per turn
-         *     and are not warmed; any engine or model problem answers ``warm: false``
-         *     and is left for the turn itself to report.
+         *     cold start, Echo-routed models included. Any engine or model problem
+         *     answers ``warm: false`` and is left for the turn itself to report.
          */
         post: operations["api_opencode_prewarm_api_opencode_prewarm_post"];
         delete?: never;

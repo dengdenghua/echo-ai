@@ -13,6 +13,7 @@ import threading
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -111,6 +112,18 @@ def _shared_model_turn(
         model=selected,
     )
     return SharedModelTurn(router, scope, session)
+
+
+def prewarm_shared_turn(stack: Any, scope: TenantScope | None, model: str) -> Any:
+    """The proxy owner for warming an Echo-routed model before any turn."""
+
+    placeholder = SimpleNamespace(
+        tenant_id=scope.tenant_id if scope else None,
+        actor_id=scope.actor_id if scope else None,
+        thread_id="prewarm",
+        task_id="prewarm",
+    )
+    return _shared_model_turn(stack, placeholder, model, None)
 
 
 async def stream_role(

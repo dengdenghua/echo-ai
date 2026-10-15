@@ -692,7 +692,9 @@ async def _warm_text_server(
                     _schedule_warm_expiry(entry)
 
 
-async def prewarm_text_server(command: str, root: Path, key: str | None, model: str) -> bool:
+async def prewarm_text_server(
+    command: str, root: Path, key: str | None, model: str, *, shared_turn: Any = None
+) -> bool:
     """Have the text server a conversation's next reply will use running.
 
     The first reply after the pool went idle paid ``opencode serve``'s cold
@@ -700,7 +702,8 @@ async def prewarm_text_server(command: str, root: Path, key: str | None, model: 
     conversation opens on OpenCode. The process is registered idle while the
     pool lock is held, so a turn that arrives during the start waits and
     reuses it; an already-warm server only gets its idle timer renewed. A guess
-    never evicts a server someone else is keeping warm.
+    never evicts a server someone else is keeping warm. An Echo-routed model's
+    proxy starts with no turn bound; the first reply binds its own.
     """
     if threading.current_thread() is not threading.main_thread():
         return False
@@ -723,8 +726,10 @@ async def prewarm_text_server(command: str, root: Path, key: str | None, model: 
                 await _stop_entry(old)
         if len(_warm_servers) >= _MAX_WARM_SERVERS:
             return False
-        process, client = await _start_server(command, root, key, model)
-        entry = _WarmServer(signature, root.resolve(), process, client, loop, in_use=False)
+        entry = await _start_entry(signature, command, root, key, model, shared_turn)
+        if entry.proxy is not None:
+            entry.proxy.release_turn()
+        entry.in_use = False
         _warm_servers[signature] = entry
         _schedule_warm_expiry(entry)
     return True

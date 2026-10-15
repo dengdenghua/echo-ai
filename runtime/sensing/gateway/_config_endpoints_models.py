@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from ._config_endpoints import _ConfigCtx
 
 
-def _register_opencode(router: Any) -> None:
+def _register_opencode(router: Any, stack: Any) -> None:
     """The OpenCode engine's model questions, answered by the process the
     conversations of that identity share (``server_directory``)."""
 
@@ -69,28 +69,25 @@ def _register_opencode(router: Any) -> None:
         """Start the engine a conversation's next OpenCode reply will use.
 
         Best effort, so the first reply after idle skips ``opencode serve``'s
-        cold start. Shared (Echo-routed) models run a fresh process per turn
-        and are not warmed; any engine or model problem answers ``warm: false``
-        and is left for the turn itself to report.
+        cold start, Echo-routed models included. Any engine or model problem
+        answers ``warm: false`` and is left for the turn itself to report.
         """
         from runtime.execution import opencode_backend as backend
+        from runtime.execution.opencode_roles import prewarm_shared_turn
         from runtime.safety.auth.scope import scope_from_request
 
         scope = scope_from_request(request)
         try:
             resolved = backend.resolve_zen_model(model, backend.zen_catalog())
             command = backend.executable()
-            if (
-                not command
-                or backend.native_model(resolved)[0] == "echo-shared"
-                or not backend.inspect_readiness(scope)["available"]
-            ):
+            if not command or not backend.inspect_readiness(scope)["available"]:
                 return OpenCodePrewarmResponse(warm=False)
             warm = await backend.prewarm_text_server(
                 command,
                 backend.server_directory(scope),
                 backend.model_key(scope, resolved),
                 resolved,
+                shared_turn=prewarm_shared_turn(stack, scope, resolved),
             )
         except (backend.OpenCodeError, OSError):
             return OpenCodePrewarmResponse(warm=False)
