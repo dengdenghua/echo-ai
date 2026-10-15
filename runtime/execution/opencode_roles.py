@@ -75,6 +75,44 @@ async def _hold_state(key: str, interrupted: Callable[[], bool]) -> AsyncIterato
                 del _states[key]
 
 
+@dataclass(frozen=True)
+class SharedModelTurn:
+    """An Echo-routed model's turn: what its Responses proxy serves now."""
+
+    router: Any
+    scope: Any  # CodexResponsesScope
+    trusted_session: Session
+
+    def proxy(self) -> Any:
+        from runtime.execution.codex_backend.turn_bound_proxy import TurnBoundResponsesProxy
+
+        return TurnBoundResponsesProxy(
+            self.router, scope=self.scope, trusted_session=self.trusted_session
+        )
+
+
+def _shared_model_turn(
+    stack: Any, task: Any, model: str, session: Session
+) -> SharedModelTurn | None:
+    if backend.native_model(model)[0] != "echo-shared":
+        return None
+    from runtime.execution.codex_backend.responses_proxy import CodexResponsesScope
+    from runtime.execution.model_services import SharedExecutionRouter, native_model_services
+
+    router, _ = native_model_services(stack)
+    selected = backend.native_model(model)[1]
+    if not SharedExecutionRouter(router).has(selected):
+        raise backend.OpenCodeError("所选共享模型尚未就绪，请检查模型连接。")
+    scope = CodexResponsesScope(
+        tenant_id=task.tenant_id or "local",
+        principal_id=task.actor_id or "local",
+        thread_id=task.thread_id,
+        turn_id=task.task_id,
+        model=selected,
+    )
+    return SharedModelTurn(router, scope, session)
+
+
 async def stream_role(
     stack: Any,
     agent: Any,
@@ -218,37 +256,7 @@ async def stream_role(
                 connection = (
                     await lifetime.enter_async_context(host_tools.serve()) if host_tools else None
                 )
-                shared_provider = None
                 key = backend.model_key(scope, model)
-                if backend.native_model(model)[0] == "echo-shared":
-                    from runtime.execution.codex_backend.responses_proxy import (
-                        CodexResponsesScope,
-                        ScopedResponsesProxy,
-                    )
-                    from runtime.execution.model_services import (
-                        SharedExecutionRouter,
-                        native_model_services,
-                    )
-
-                    router, _ = native_model_services(stack)
-                    selected = backend.native_model(model)[1]
-                    if not SharedExecutionRouter(router).has(selected):
-                        raise backend.OpenCodeError("所选共享模型尚未就绪，请检查模型连接。")
-                    proxy = ScopedResponsesProxy(
-                        router,
-                        scope=CodexResponsesScope(
-                            tenant_id=task.tenant_id or "local",
-                            principal_id=task.actor_id or "local",
-                            thread_id=task.thread_id,
-                            turn_id=task.task_id,
-                            model=selected,
-                        ),
-                        trusted_session=session,
-                    )
-                    lifetime.push_async_callback(proxy.close)
-                    profile = await proxy.start()
-                    key = profile.scoped_bearer_token
-                    shared_provider = {"base_url": profile.base_url}
                 # Both modes must see the same native session database. MCP
                 # changes process lifetime, not conversation storage identity.
                 # Session coordinates remain isolated by Echo thread.
@@ -260,7 +268,7 @@ async def stream_role(
                         key,
                         model,
                         host_mcp=connection,
-                        **({"shared_provider": shared_provider} if shared_provider else {}),
+                        shared_turn=_shared_model_turn(stack, task, model, session),
                     )
                 )
                 if connection is not None:

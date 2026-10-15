@@ -306,8 +306,8 @@ def test_tool_free_stream_owns_lifetime_and_context(host, monkeypatch, tmp_path,
     monkeypatch.setattr(roles.backend, "executable", lambda: "fixture")
 
     @contextlib.asynccontextmanager
-    async def server(executable, root, key, model, *, host_mcp):
-        assert host_mcp is None
+    async def server(executable, root, key, model, *, host_mcp, shared_turn=None):
+        assert host_mcp is None and shared_turn is None
         lifecycle.append("open")
         try:
             yield object()

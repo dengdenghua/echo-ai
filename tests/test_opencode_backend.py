@@ -222,6 +222,63 @@ def test_prewarm_replaces_a_switched_model_but_never_evicts_others(tmp_path, mon
     assert starts == ["old", "new", "m", "m"]
 
 
+def test_an_echo_routed_model_keeps_its_process_and_rebinds_the_proxy(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    backend, starts, stops = _fake_warm_pool(monkeypatch)
+    started_with = []
+    real_start = backend._start_server
+
+    async def start(command, root, key, model, **kwargs):
+        started_with.append((key, kwargs.get("shared_provider")))
+        return await real_start(command, root, key, model, **kwargs)
+
+    monkeypatch.setattr(backend, "_start_server", start)
+    events = []
+
+    class Proxy:
+        async def start(self):
+            events.append("start")
+            return SimpleNamespace(
+                scoped_bearer_token="warm-token", base_url="http://127.0.0.1:9/v1"
+            )
+
+        def bind_turn(self, scope, session):
+            events.append(("bind", scope, session))
+
+        def release_turn(self):
+            events.append("release")
+
+        async def close(self):
+            events.append("close")
+
+    proxy = Proxy()
+
+    def turn(name):
+        return SimpleNamespace(scope=name, trusted_session=f"session-{name}", proxy=lambda: proxy)
+
+    async def run():
+        for name in ("turn-a", "turn-b"):
+            async with backend.managed_server(
+                "opencode", tmp_path, None, "echo-shared/m", shared_turn=turn(name)
+            ):
+                pass
+        await backend._discard_idle_warm_server(tmp_path)
+
+    asyncio.run(run())
+    assert starts == ["echo-shared/m"]
+    assert started_with == [("warm-token", {"base_url": "http://127.0.0.1:9/v1"})]
+    # The first turn is bound when the proxy starts; the second is rebound.
+    assert events == [
+        "start",
+        "release",
+        ("bind", "turn-b", "session-turn-b"),
+        "release",
+        "close",
+    ]
+    assert len(stops) == 1
+
+
 def test_explicit_engine_and_continuations():
     route = select_execution_route(requested_engine=EngineId.OPENCODE, codex_partner=True)
     assert route.engine == EngineId.OPENCODE

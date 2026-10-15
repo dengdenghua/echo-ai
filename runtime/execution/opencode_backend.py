@@ -88,6 +88,8 @@ class _WarmServer:
     loop: asyncio.AbstractEventLoop
     in_use: bool = True
     idle_handle: asyncio.TimerHandle | None = None
+    # Echo-routed models: the TurnBoundResponsesProxy this process talks to.
+    proxy: Any = None
 
 
 _warm_servers: dict[str, _WarmServer] = {}
@@ -544,7 +546,62 @@ async def _expire_warm_server(entry: _WarmServer) -> None:
         if _warm_servers.get(entry.signature) is not entry or entry.in_use:
             return
         del _warm_servers[entry.signature]
+    await _stop_entry(entry)
+
+
+async def _stop_entry(entry: _WarmServer) -> None:
     await _stop_server(entry.process, entry.client)
+    if entry.proxy is not None:
+        await entry.proxy.close()
+
+
+async def _start_entry(
+    signature: str, command: str, root: Path, key: str | None, model: str, shared_turn: Any
+) -> _WarmServer:
+    loop = asyncio.get_running_loop()
+    if shared_turn is None:
+        process, client = await _start_server(command, root, key, model)
+        return _WarmServer(signature, root.resolve(), process, client, loop)
+    proxy = shared_turn.proxy()
+    profile = await proxy.start()
+    try:
+        process, client = await _start_server(
+            command,
+            root,
+            profile.scoped_bearer_token,
+            model,
+            shared_provider={"base_url": profile.base_url},
+        )
+    except BaseException:
+        await proxy.close()
+        raise
+    return _WarmServer(signature, root.resolve(), process, client, loop, proxy=proxy)
+
+
+@asynccontextmanager
+async def _one_turn_server(
+    command: str,
+    root: Path,
+    key: str | None,
+    model: str,
+    *,
+    host_mcp: HostMCPConnection | None = None,
+    shared_provider: dict[str, Any] | None = None,
+    shared_turn: Any = None,
+) -> AsyncIterator[httpx.AsyncClient]:
+    proxy = None
+    if shared_turn is not None:
+        proxy = shared_turn.proxy()
+        profile = await proxy.start()
+        key, shared_provider = profile.scoped_bearer_token, {"base_url": profile.base_url}
+    try:
+        async with _ephemeral_server(
+            command, root, key, model, host_mcp=host_mcp, shared_provider=shared_provider
+        ) as client:
+            yield client
+    finally:
+        if proxy is not None:
+            await proxy.close()
 
 
 def _schedule_warm_expiry(entry: _WarmServer) -> None:
@@ -558,7 +615,7 @@ def _schedule_warm_expiry(entry: _WarmServer) -> None:
 
 @asynccontextmanager
 async def _warm_text_server(
-    command: str, root: Path, key: str | None, model: str
+    command: str, root: Path, key: str | None, model: str, *, shared_turn: Any = None
 ) -> AsyncIterator[httpx.AsyncClient]:
     signature = _server_signature(command, root, key, model)
     loop = asyncio.get_running_loop()
@@ -572,7 +629,7 @@ async def _warm_text_server(
                 if stale.idle_handle is not None:
                     stale.idle_handle.cancel()
                 if stale.loop is loop:
-                    await _stop_server(stale.process, stale.client)
+                    await _stop_entry(stale)
                 elif stale.process.returncode is None:
                     with contextlib.suppress(ProcessLookupError):
                         stale.process.terminate()
@@ -590,25 +647,26 @@ async def _warm_text_server(
                     _warm_servers.pop(old.signature, None)
                     if old.idle_handle is not None:
                         old.idle_handle.cancel()
-                    await _stop_server(old.process, old.client)
+                    await _stop_entry(old)
             if len(_warm_servers) >= _MAX_WARM_SERVERS:
                 victim = next((e for e in _warm_servers.values() if not e.in_use), None)
                 if victim is not None:
                     _warm_servers.pop(victim.signature, None)
                     if victim.idle_handle is not None:
                         victim.idle_handle.cancel()
-                    await _stop_server(victim.process, victim.client)
+                    await _stop_entry(victim)
             if len(_warm_servers) < _MAX_WARM_SERVERS:
-                process, client = await _start_server(command, root, key, model)
-                entry = _WarmServer(signature, root.resolve(), process, client, loop)
+                entry = await _start_entry(signature, command, root, key, model, shared_turn)
                 _warm_servers[signature] = entry
                 fresh = True
     if entry is None:
-        async with _ephemeral_server(command, root, key, model) as client:
+        async with _one_turn_server(command, root, key, model, shared_turn=shared_turn) as client:
             yield client
         return
     reusable = False
     try:
+        if not fresh and entry.proxy is not None and shared_turn is not None:
+            entry.proxy.bind_turn(shared_turn.scope, shared_turn.trusted_session)
         if not fresh:
             response = await entry.client.get("/global/health", timeout=1)
             if response.status_code != 200 or not response.json().get("healthy"):
@@ -620,11 +678,13 @@ async def _warm_text_server(
         yield entry.client
         reusable = getattr(entry.client, "_echo_reusable", True)
     finally:
+        if entry.proxy is not None:
+            entry.proxy.release_turn()
         async with lock:
             if _warm_servers.get(signature) is entry:
                 if not reusable:
                     del _warm_servers[signature]
-                    await _stop_server(entry.process, entry.client)
+                    await _stop_entry(entry)
                 else:
                     entry.in_use = False
                     _warm_servers.pop(signature)
@@ -660,7 +720,7 @@ async def prewarm_text_server(command: str, root: Path, key: str | None, model: 
                 _warm_servers.pop(old.signature, None)
                 if old.idle_handle is not None:
                     old.idle_handle.cancel()
-                await _stop_server(old.process, old.client)
+                await _stop_entry(old)
         if len(_warm_servers) >= _MAX_WARM_SERVERS:
             return False
         process, client = await _start_server(command, root, key, model)
@@ -682,7 +742,7 @@ async def _discard_idle_warm_server(root: Path) -> None:
             _warm_servers.pop(current.signature, None)
             if current.idle_handle is not None:
                 current.idle_handle.cancel()
-            await _stop_server(current.process, current.client)
+            await _stop_entry(current)
 
 
 @asynccontextmanager
@@ -694,26 +754,32 @@ async def managed_server(
     *,
     host_mcp: HostMCPConnection | None = None,
     shared_provider: dict[str, Any] | None = None,
+    shared_turn: Any = None,
 ) -> AsyncIterator[httpx.AsyncClient]:
-    # Text-only servers are reusable. Keep up to three isolated conversations
-    # warm so replies avoid paying the native process's cold-start cost.
+    """``shared_turn``: an Echo-routed model's turn (``SharedModelTurn``).
+
+    Text-only servers are reusable: up to three stay warm so replies skip the
+    native process's cold start. With an Echo-routed model the warm process
+    keeps its TurnBoundResponsesProxy, bound to one turn at a time.
+    """
     if (
         shared_provider is None
         and host_mcp is None
         and threading.current_thread() is threading.main_thread()
     ):
-        async with _warm_text_server(command, root, key, model) as client:
+        async with _warm_text_server(command, root, key, model, shared_turn=shared_turn) as client:
             yield client
         return
     if threading.current_thread() is threading.main_thread():
         await _discard_idle_warm_server(root)
-    async with _ephemeral_server(
+    async with _one_turn_server(
         command,
         root,
         key,
         model,
         host_mcp=host_mcp,
         shared_provider=shared_provider,
+        shared_turn=shared_turn,
     ) as client:
         yield client
 

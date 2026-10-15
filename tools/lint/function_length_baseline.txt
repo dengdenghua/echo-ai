@@ -150,7 +150,6 @@ runtime/sensing/gateway/a2a_server.py::mount_a2a_server	224
 runtime/execution/suckers/browser_act_skills.py::register_browser_act_skills	223
 runtime/platform/ui/health_router.py::build_runtime_self_check	222
 runtime/execution/suckers/_delegation_skills_judge.py::_run_tournament	221
-runtime/execution/opencode_roles.py::stream_role	219
 runtime/execution/suckers/_delegation_skills_parallel.py::_call_agent_parallel._run_one	219
 runtime/execution/parallel_agents/stack_runner.py::make_stack_subagent_runner.runner	217
 runtime/sensing/model_router/openai_router.py::OpenAIModelRouter.call_stream	217
