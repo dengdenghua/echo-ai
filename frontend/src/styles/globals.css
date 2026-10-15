@@ -366,6 +366,12 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  /* Border tiers (subtle/default/strong, defined with the ECHO mapping):
+     ~760 border-border-* / bg-border-subtle uses compiled to nothing without
+     these, falling back to line-strong or drawing no divider at all. */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);

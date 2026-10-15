@@ -31,4 +31,13 @@ describe("global appearance chrome rules", () => {
       /\.stable-scroll-viewport\s*\{[\s\S]*?scrollbar-gutter:\s*stable;[\s\S]*?transition:\s*none;/,
     );
   });
+
+  it("registers the border tiers so border-border-* utilities compile", () => {
+    for (const tier of ["subtle", "default", "strong"]) {
+      expect(css).toContain(`--color-border-${tier}: var(--border-${tier});`);
+      expect(css).toMatch(
+        new RegExp(`--border-${tier}: color-mix\\(in oklab, var\\(--border\\)`),
+      );
+    }
+  });
 });
