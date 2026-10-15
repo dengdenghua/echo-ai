@@ -347,6 +347,7 @@ tier: "standard"
 | `retrieve_router.py` | Retrieval router · ``/api/retrieve/rank``. |
 | `skill_market_router.py` | — |
 | `slash_command_expansion.py` | Slash-command expansion for realtime chat input. |
+| `square_router.py` | 广场(Square)只读代理 · ``/api/square/*``。 |
 | `storage_proxy_router.py` | Same-origin gateway for the private echo-storage service. |
 | `storage_supervisor.py` | Optional co-launch of the echo-storage sibling service. |
 | `streaming_journal.py` | — |
@@ -1884,6 +1885,23 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def maybe_expand_slash_command(goal)` | Expand a leading ``/<name>`` command into its configured template. |
+
+### `square_router.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def is_allowed_upstream_path(path)` | True when ``path`` is one of the allowlisted templates with valid ids filled in. |
+| class | `class SquarePost(BaseModel)` |  |
+| class | `class SquareFeedResponse(BaseModel)` |  |
+| class | `class SquareComment(BaseModel)` |  |
+| class | `class SquareCommentsResponse(BaseModel)` |  |
+| class | `class SquareUser(BaseModel)` |  |
+| class | `class SquareUserResponse(BaseModel)` |  |
+| class | `class SquareMarketItem(BaseModel)` |  |
+| class | `class SquareMarketResponse(BaseModel)` |  |
+| func | `def resolve_square_base_url(value)` | The configured Square root: an http(s) origin with an optional path, no trailing slash. |
+| func | `def create_square_router(base_url, transport, identity_store, require_auth, jwt_secret, jwt_issuer, jwt_audience)` | Build the ``/api/square`` read-only proxy. |
+| func | `def mount_square_router(ctx)` | Mount the proxy on the app being assembled by ``create_app``. |
 
 ### `storage_proxy_router.py`
 

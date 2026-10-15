@@ -14126,6 +14126,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/square/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Square Feed
+         * @description 灵感流:同手机「广场 · 灵感」,匿名读取。
+         */
+        get: operations["square_feed_api_square_feed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/square/market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Square Market
+         * @description 市场:技能 / 插件来自技能注册表,应用是广场上审核通过的手机小程序。
+         */
+        get: operations["square_market_api_square_market_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/square/posts/{post_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Square Post Comments
+         * @description 帖子评论(只读)。
+         */
+        get: operations["square_post_comments_api_square_posts__post_id__comments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/square/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Square User
+         * @description 作者主页:昵称、关注/粉丝数和 TA 的帖子。
+         */
+        get: operations["square_user_api_square_users__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/status": {
         parameters: {
             query?: never;
@@ -20747,6 +20827,238 @@ export interface components {
             model_name?: string | null;
             /** Task */
             task: string;
+        };
+        /** SquareComment */
+        SquareComment: {
+            /**
+             * Author
+             * @default
+             */
+            author: string;
+            /**
+             * Author Id
+             * @default
+             */
+            author_id: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Created At
+             * @default 0
+             */
+            created_at: number;
+            /** Id */
+            id: string;
+            /**
+             * Parent Id
+             * @default
+             */
+            parent_id: string;
+        };
+        /** SquareCommentsResponse */
+        SquareCommentsResponse: {
+            /** Comments */
+            comments: components["schemas"]["SquareComment"][];
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+        };
+        /** SquareFeedResponse */
+        SquareFeedResponse: {
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Posts */
+            posts: components["schemas"]["SquarePost"][];
+        };
+        /** SquareMarketItem */
+        SquareMarketItem: {
+            /**
+             * Author
+             * @default
+             */
+            author: string;
+            /**
+             * Category
+             * @default
+             */
+            category: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Downloads
+             * @default 0
+             */
+            downloads: number;
+            /** Id */
+            id: string;
+            /**
+             * License
+             * @default
+             */
+            license: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Platforms */
+            platforms: string[];
+            /**
+             * Slug
+             * @default
+             */
+            slug: string;
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+        };
+        /** SquareMarketResponse */
+        SquareMarketResponse: {
+            /** Items */
+            items: components["schemas"]["SquareMarketItem"][];
+            /** Kind */
+            kind: string;
+        };
+        /** SquarePost */
+        SquarePost: {
+            /**
+             * App Kind
+             * @default
+             */
+            app_kind: string;
+            /**
+             * App Ref
+             * @default
+             */
+            app_ref: string;
+            /**
+             * Author
+             * @default
+             */
+            author: string;
+            /**
+             * Author Id
+             * @default
+             */
+            author_id: string;
+            /**
+             * Author Initial
+             * @default
+             */
+            author_initial: string;
+            /**
+             * Comments Count
+             * @default 0
+             */
+            comments_count: number;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Cover Url
+             * @default
+             */
+            cover_url: string;
+            /**
+             * Created At
+             * @default 0
+             */
+            created_at: number;
+            /**
+             * Favorites Count
+             * @default 0
+             */
+            favorites_count: number;
+            /**
+             * Forked From
+             * @default
+             */
+            forked_from: string;
+            /** Id */
+            id: string;
+            /** Images */
+            images: string[];
+            /**
+             * Kind
+             * @description post = 图文帖;mini-app = 手机小程序分享帖
+             */
+            kind: string;
+            /**
+             * Likes Count
+             * @default 0
+             */
+            likes_count: number;
+            /**
+             * Price Credits
+             * @default 0
+             */
+            price_credits: number;
+            /**
+             * Sub Price Credits
+             * @default 0
+             */
+            sub_price_credits: number;
+            /**
+             * Tag
+             * @default
+             */
+            tag: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Topic
+             * @default recommend
+             */
+            topic: string;
+            /**
+             * Views Count
+             * @default 0
+             */
+            views_count: number;
+        };
+        /** SquareUser */
+        SquareUser: {
+            /**
+             * Followers Count
+             * @default 0
+             */
+            followers_count: number;
+            /**
+             * Following Count
+             * @default 0
+             */
+            following_count: number;
+            /**
+             * Nickname
+             * @default
+             */
+            nickname: string;
+            /** User Id */
+            user_id: string;
+        };
+        /** SquareUserResponse */
+        SquareUserResponse: {
+            /** Posts */
+            posts: components["schemas"]["SquarePost"][];
+            user: components["schemas"]["SquareUser"];
         };
         /** StandingConfirmBody */
         StandingConfirmBody: {
@@ -48787,6 +49099,138 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    square_feed_api_square_feed_get: {
+        parameters: {
+            query?: {
+                topic?: string;
+                sort?: string;
+                q?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SquareFeedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    square_market_api_square_market_get: {
+        parameters: {
+            query?: {
+                kind?: string;
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SquareMarketResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    square_post_comments_api_square_posts__post_id__comments_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SquareCommentsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    square_user_api_square_users__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SquareUserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

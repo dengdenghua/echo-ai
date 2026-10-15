@@ -117,6 +117,7 @@ def create_app(
     )
     from runtime.sensing.gateway.engine_packages_router import mount_engine_packages_router
     from runtime.sensing.gateway.page_translate_router import mount_page_translate_router
+    from runtime.sensing.gateway.square_router import mount_square_router
 
     ctx = setup_app(
         journal_path=journal_path,
@@ -188,5 +189,6 @@ def create_app(
     mount_routers_b(ctx, journal_path=journal_path)
     mount_page_translate_router(ctx)
     mount_engine_packages_router(ctx)
+    mount_square_router(ctx)
     warm_on_startup(ctx.app)
     return ctx.app

@@ -8782,6 +8782,333 @@
         "title": "SplitRequest",
         "type": "object"
       },
+      "SquareComment": {
+        "properties": {
+          "author": {
+            "default": "",
+            "title": "Author",
+            "type": "string"
+          },
+          "author_id": {
+            "default": "",
+            "title": "Author Id",
+            "type": "string"
+          },
+          "content": {
+            "default": "",
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "default": 0,
+            "title": "Created At",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "parent_id": {
+            "default": "",
+            "title": "Parent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "SquareComment",
+        "type": "object"
+      },
+      "SquareCommentsResponse": {
+        "properties": {
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/SquareComment"
+            },
+            "title": "Comments",
+            "type": "array"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "comments"
+        ],
+        "title": "SquareCommentsResponse",
+        "type": "object"
+      },
+      "SquareFeedResponse": {
+        "properties": {
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/SquarePost"
+            },
+            "title": "Posts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "posts"
+        ],
+        "title": "SquareFeedResponse",
+        "type": "object"
+      },
+      "SquareMarketItem": {
+        "properties": {
+          "author": {
+            "default": "",
+            "title": "Author",
+            "type": "string"
+          },
+          "category": {
+            "default": "",
+            "title": "Category",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "downloads": {
+            "default": 0,
+            "title": "Downloads",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "license": {
+            "default": "",
+            "title": "License",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "platforms": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Platforms",
+            "type": "array"
+          },
+          "slug": {
+            "default": "",
+            "title": "Slug",
+            "type": "string"
+          },
+          "version": {
+            "default": "",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "platforms"
+        ],
+        "title": "SquareMarketItem",
+        "type": "object"
+      },
+      "SquareMarketResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SquareMarketItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "items"
+        ],
+        "title": "SquareMarketResponse",
+        "type": "object"
+      },
+      "SquarePost": {
+        "properties": {
+          "app_kind": {
+            "default": "",
+            "title": "App Kind",
+            "type": "string"
+          },
+          "app_ref": {
+            "default": "",
+            "title": "App Ref",
+            "type": "string"
+          },
+          "author": {
+            "default": "",
+            "title": "Author",
+            "type": "string"
+          },
+          "author_id": {
+            "default": "",
+            "title": "Author Id",
+            "type": "string"
+          },
+          "author_initial": {
+            "default": "",
+            "title": "Author Initial",
+            "type": "string"
+          },
+          "comments_count": {
+            "default": 0,
+            "title": "Comments Count",
+            "type": "integer"
+          },
+          "content": {
+            "default": "",
+            "title": "Content",
+            "type": "string"
+          },
+          "cover_url": {
+            "default": "",
+            "title": "Cover Url",
+            "type": "string"
+          },
+          "created_at": {
+            "default": 0,
+            "title": "Created At",
+            "type": "integer"
+          },
+          "favorites_count": {
+            "default": 0,
+            "title": "Favorites Count",
+            "type": "integer"
+          },
+          "forked_from": {
+            "default": "",
+            "title": "Forked From",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Images",
+            "type": "array"
+          },
+          "kind": {
+            "description": "post = 图文帖;mini-app = 手机小程序分享帖",
+            "title": "Kind",
+            "type": "string"
+          },
+          "likes_count": {
+            "default": 0,
+            "title": "Likes Count",
+            "type": "integer"
+          },
+          "price_credits": {
+            "default": 0,
+            "title": "Price Credits",
+            "type": "integer"
+          },
+          "sub_price_credits": {
+            "default": 0,
+            "title": "Sub Price Credits",
+            "type": "integer"
+          },
+          "tag": {
+            "default": "",
+            "title": "Tag",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "topic": {
+            "default": "recommend",
+            "title": "Topic",
+            "type": "string"
+          },
+          "views_count": {
+            "default": 0,
+            "title": "Views Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "images"
+        ],
+        "title": "SquarePost",
+        "type": "object"
+      },
+      "SquareUser": {
+        "properties": {
+          "followers_count": {
+            "default": 0,
+            "title": "Followers Count",
+            "type": "integer"
+          },
+          "following_count": {
+            "default": 0,
+            "title": "Following Count",
+            "type": "integer"
+          },
+          "nickname": {
+            "default": "",
+            "title": "Nickname",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "SquareUser",
+        "type": "object"
+      },
+      "SquareUserResponse": {
+        "properties": {
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/SquarePost"
+            },
+            "title": "Posts",
+            "type": "array"
+          },
+          "user": {
+            "$ref": "#/components/schemas/SquareUser"
+          }
+        },
+        "required": [
+          "user",
+          "posts"
+        ],
+        "title": "SquareUserResponse",
+        "type": "object"
+      },
       "StandingConfirmBody": {
         "additionalProperties": false,
         "properties": {
@@ -50987,6 +51314,265 @@
         "summary": "Api Smart Routing Get",
         "tags": [
           "config"
+        ]
+      }
+    },
+    "/api/square/feed": {
+      "get": {
+        "description": "灵感流:同手机「广场 · 灵感」,匿名读取。",
+        "operationId": "square_feed_api_square_feed_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "topic",
+            "required": false,
+            "schema": {
+              "default": "recommend",
+              "maxLength": 32,
+              "title": "Topic",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "latest",
+              "maxLength": 16,
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 64,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 5000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SquareFeedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Square Feed",
+        "tags": [
+          "square"
+        ]
+      }
+    },
+    "/api/square/market": {
+      "get": {
+        "description": "市场:技能 / 插件来自技能注册表,应用是广场上审核通过的手机小程序。",
+        "operationId": "square_market_api_square_market_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "skill",
+              "pattern": "^(skill|plugin|app)$",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "latest",
+              "pattern": "^(latest|downloads|trending)$",
+              "title": "Sort",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SquareMarketResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Square Market",
+        "tags": [
+          "square"
+        ]
+      }
+    },
+    "/api/square/posts/{post_id}/comments": {
+      "get": {
+        "description": "帖子评论(只读)。",
+        "operationId": "square_post_comments_api_square_posts__post_id__comments_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "title": "Post Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 5000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SquareCommentsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Square Post Comments",
+        "tags": [
+          "square"
+        ]
+      }
+    },
+    "/api/square/users/{user_id}": {
+      "get": {
+        "description": "作者主页:昵称、关注/粉丝数和 TA 的帖子。",
+        "operationId": "square_user_api_square_users__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SquareUserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Square User",
+        "tags": [
+          "square"
         ]
       }
     },

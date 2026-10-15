@@ -47,7 +47,7 @@ graph LR
   sensing -- 54 --> projectos
   sensing -- 45 --> core
   execution -- 40 --> memory
-  sensing -- 38 --> adapters
+  sensing -- 39 --> adapters
   core -- 34 --> safety
   core -- 29 --> execution
   memory -- 26 --> safety
