@@ -33,18 +33,21 @@ export function threadDeleteErrorMessage(error: unknown): string {
   return "删除未完成，请稍后重试。对话已保留。";
 }
 
-/** OpenCode Zen's free tier refused this client (it serves only OpenCode's own app). */
-const FREE_TIER_REFUSED =
-  /free tier can only be used (?:in|from within) opencode|免费额度只允许其官方客户端/i;
+/**
+ * A Zen free model was asked without an OpenCode Zen API Key: upstream's
+ * FreeTierError, and the runtime's own wording for it.
+ */
+const FREE_MODEL_NEEDS_KEY =
+  /free tier can only be used from within opencode|免费额度只允许其官方客户端|先在设置里连接 OpenCode Zen|OpenCode 还没有可用的模型/i;
 
 /**
- * No model can run the turn: nothing configured, or only OpenCode's free
- * tier, which ECHO AI cannot use. Either way the fix is to add a model.
+ * No model can run the turn: nothing configured, or a Zen free model with
+ * no key yet. Either way the card offers 连接 OpenCode and 添加模型.
  */
 export function isNoModelConfigured(message: string): boolean {
   return (
-    /no LLM model configured|OpenCode 还没有可用的模型/i.test(message) ||
-    FREE_TIER_REFUSED.test(message)
+    /no LLM model configured/i.test(message) ||
+    FREE_MODEL_NEEDS_KEY.test(message)
   );
 }
 
@@ -60,8 +63,11 @@ export function publicExecutionErrorMessage(
   if (/model is unavailable|model_unavailable|model_not_found/i.test(message)) {
     return copy.modelUnavailable;
   }
-  if (FREE_TIER_REFUSED.test(message)) {
+  if (/free tier can only be used in opencode/i.test(message)) {
     return copy.freeTierNeedsOpencode;
+  }
+  if (FREE_MODEL_NEEDS_KEY.test(message)) {
+    return copy.freeModelNeedsKey;
   }
   if (isNoModelConfigured(message)) {
     return copy.noModel;

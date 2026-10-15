@@ -56,22 +56,28 @@ it.each([
   );
 });
 
-it("says the Zen free tier is out of reach instead of promising it", () => {
-  const expected =
-    "OpenCode 的免费模型只对它自己的客户端开放，ECHO AI 无法使用。请添加一个模型，或连接 OpenCode Zen / Go。";
-  for (const message of [
-    "http_400: Error from provider (Console): OpenCode's free tier can only be used in OpenCode",
-    "OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai",
-    "OpenCode 免费额度只允许其官方客户端使用，请改用已连接的付费模型或自有模型。",
-  ]) {
-    expect(publicExecutionErrorMessage(message)).toBe(expected);
-    // The card offers 添加模型 for these, like a desktop with no model.
-    expect(isNoModelConfigured(message)).toBe(true);
-  }
+it("distinguishes Zen engine restrictions from unavailable models", () => {
+  const message =
+    "http_400: Error from provider (Console): OpenCode's free tier can only be used in OpenCode";
+  expect(publicExecutionErrorMessage(message)).toBe(
+    "当前 Zen 免费模型仅支持 OpenCode 引擎，请在输入框切换引擎后重试。",
+  );
   expect(publicExecutionErrorMessage("Service temporarily unavailable")).toBe(
     "Service temporarily unavailable",
   );
   expect(isNoModelConfigured("Service temporarily unavailable")).toBe(false);
+});
+
+it("says a Zen free model needs a key, and offers the setup card", () => {
+  const expected = "先在设置里连接 OpenCode Zen（免费，需要 API Key）。";
+  for (const message of [
+    "OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai",
+    "OpenCode 免费额度只允许其官方客户端使用，请改用已连接的付费模型或自有模型。",
+    "先在设置里连接 OpenCode Zen（免费，需要 API Key），或选择你添加的模型。",
+  ]) {
+    expect(publicExecutionErrorMessage(message)).toBe(expected);
+    expect(isNoModelConfigured(message)).toBe(true);
+  }
 });
 
 describe("getStreamErrorMessage", () => {
@@ -98,7 +104,8 @@ it("tells a computer without any model how to get one", () => {
   const message = publicExecutionErrorMessage(
     "no LLM model configured — add one to data/custom_models.json (or set ANTHROPIC_API_KEY)",
   );
-  expect(message).toBe("还没有可用的模型。添加一个模型后，重新发送即可。");
-  expect(message).not.toContain("免费");
+  expect(message).toBe(
+    "还没有可用的模型：连接 OpenCode Zen 使用免费模型（需要 API Key），或添加自己的模型。",
+  );
   expect(message).not.toContain("custom_models.json");
 });

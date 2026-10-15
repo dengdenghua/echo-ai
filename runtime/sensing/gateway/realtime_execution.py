@@ -239,7 +239,7 @@ async def select_turn_execution(
         if requested == "auto" and reason_code in {"not_installed", "no_model"}:
             # The desktop installer no longer carries OpenCode, and without a
             # Zen/Go connection or a picked model it has nothing to run (Zen's
-            # free tier refuses every client but OpenCode's own). Like Codex
+            # free models answer only with an OpenCode Zen API Key). Like Codex
             # below, Auto settles on a path this computer has before any
             # effect (keeping the host's project/team scheduler); an explicit
             # OpenCode choice still fails with the engine's own reason.

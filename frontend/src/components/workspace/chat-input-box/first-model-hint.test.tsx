@@ -9,9 +9,9 @@ import { FirstModelHint, hasAnsweringModel } from "./first-model-hint";
 const state = vi.hoisted(() => ({
   models: [] as Model[],
   isLoading: false,
-  engines: [] as Array<Record<string, unknown>>,
 }));
 const addModel = vi.hoisted(() => vi.fn());
+const connectOpencode = vi.hoisted(() => vi.fn());
 
 vi.mock("@/core/models/hooks", () => ({
   useModels: () => ({
@@ -20,11 +20,10 @@ vi.mock("@/core/models/hooks", () => ({
     error: null,
   }),
 }));
-vi.mock("@/core/engines/api", async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  useEngines: () => ({ data: { engines: state.engines } }),
+vi.mock("@/core/models/setup", () => ({
+  openCustomModelSetup: addModel,
+  openOpencodeSetup: connectOpencode,
 }));
-vi.mock("@/core/models/setup", () => ({ openCustomModelSetup: addModel }));
 
 const mix: Model = { id: "echo-mix", name: "echo-mix", display_name: "mix" };
 const stub: Model = {
@@ -38,8 +37,8 @@ describe("FirstModelHint", () => {
   afterEach(() => {
     state.models = [];
     state.isLoading = false;
-    state.engines = [];
     addModel.mockReset();
+    connectOpencode.mockReset();
   });
 
   it("treats routing-only rows as no model", () => {
@@ -53,19 +52,12 @@ describe("FirstModelHint", () => {
     renderWithProviders(<FirstModelHint />, { locale: "zh-CN" });
     const hint = screen.getByTestId("first-model-hint");
     expect(hint).toHaveTextContent("先连接一个模型");
-    expect(hint).not.toHaveTextContent("免费");
+    // Free, but never without setup: the key is part of the sentence.
+    expect(hint).toHaveTextContent("OpenCode Zen 有免费模型（需要 API Key）");
+    fireEvent.click(screen.getByRole("button", { name: "连接 OpenCode" }));
+    expect(connectOpencode).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "添加模型" }));
     expect(addModel).toHaveBeenCalledTimes(1);
-    // OpenCode is not installed, so it cannot answer: no button for it.
-    expect(screen.queryByRole("button", { name: /OpenCode/ })).toBeNull();
-  });
-
-  it("offers OpenCode only once the engine is installed", () => {
-    state.engines = [{ id: "opencode", state: "ready" }];
-    renderWithProviders(<FirstModelHint />, { locale: "zh-CN" });
-    expect(
-      screen.getByRole("button", { name: "连接 OpenCode" }),
-    ).toBeInTheDocument();
   });
 
   it("stays out of the way when a model exists, while loading, or on Codex", () => {

@@ -156,10 +156,10 @@ def _has_status(detail: str, status: str) -> bool:
 def public_model_error(error: Any) -> str:
     detail = json.dumps(error, ensure_ascii=False).lower()
     if "free tier can only be used from within opencode" in detail or "freetiererror" in detail:
-        # Not an entitlement problem: Zen refuses free-tier traffic from a
-        # client it does not recognise as OpenCode itself. Switching model does
-        # not help, so do not send the user model-shopping.
-        return "OpenCode 免费额度只允许其官方客户端使用，请改用已连接的付费模型或自有模型。"
+        # Not an entitlement problem: Zen's free models answer only with an
+        # OpenCode Zen API Key, and this request carried none. Switching model
+        # does not help, so do not send the user model-shopping.
+        return "先在设置里连接 OpenCode Zen（免费，需要 API Key）。"
     if _has_status(detail, "429") or "limit" in detail or "rate" in detail:
         return "当前模型额度或请求频率受限，请稍后重试或切换模型。"
     if (

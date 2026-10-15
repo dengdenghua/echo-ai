@@ -76,7 +76,7 @@ _WARM_IDLE_SECONDS = 600.0
 # ``echo_fetch_url``. Network access goes through the ``echo_*`` host tools.
 DENIED_NATIVE_TOOLS = ("bash", "edit", "write", "webfetch", "websearch", "codesearch")
 
-NO_MODEL_MESSAGE = "OpenCode 还没有可用的模型：请连接 OpenCode Zen 或 Go，或选择你添加的模型。"
+NO_MODEL_MESSAGE = "先在设置里连接 OpenCode Zen（免费，需要 API Key），或选择你添加的模型。"
 
 
 @dataclass
@@ -173,11 +173,11 @@ def resolve_zen_model(selection: str | None, catalog: dict[str, Any]) -> str:
         selection = None
     entry = catalog.get("opencode-zen")
     if entry is None:
-        # There is no keyless default any more: Zen's free tier now refuses
-        # every client but OpenCode's own app, the official CLI included
-        # (checked 2026-10-15 with `opencode run -m opencode/big-pickle` from
-        # an empty home: "OpenCode's free tier can only be used from within
-        # OpenCode"). Without a Zen or Go connection the engine has no model.
+        # No keyless default: Zen's free models answer only with an OpenCode
+        # Zen API Key. Without one even the official CLI from an empty home
+        # gets "OpenCode's free tier can only be used from within OpenCode"
+        # (`opencode run -m opencode/big-pickle`, 2026-10-15). Without a Zen or
+        # Go connection the engine has no model.
         raise OpenCodeError(NO_MODEL_MESSAGE)
     if not isinstance(entry, dict) or entry.get("managed_by_plugin") != "opencode-zen":
         raise OpenCodeError("请先安装并连接 OpenCode Zen 模型插件。")
@@ -613,8 +613,10 @@ async def _warm_text_server(
             response = await entry.client.get("/global/health", timeout=1)
             if response.status_code != 200 or not response.json().get("healthy"):
                 raise OpenCodeError("OpenCode 本地引擎连接中断，请重试。")
-            if needs_catalog_check(model):
-                await validate_catalog_model(entry.client, model, free_only=not key)
+            # No catalog check here: the model and key are part of the
+            # signature, and _start_server validated them against this
+            # process's catalog. Reading /provider again cost ~1.07s on every
+            # warm turn (measured 2026-10-15).
         yield entry.client
         reusable = getattr(entry.client, "_echo_reusable", True)
     finally:

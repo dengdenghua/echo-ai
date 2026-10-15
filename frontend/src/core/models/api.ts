@@ -11,16 +11,6 @@ function isOfficialModel(model: Model): boolean {
   );
 }
 
-/** OpenCode Zen's free tier serves only OpenCode's own app; through ECHO AI
- *  (engine or API) it answers "free tier can only be used in OpenCode", so
- *  offering those rows would only set up a failed turn. */
-function isUnservedOpenCodeFreeModel(model: Model): boolean {
-  return (
-    model.is_free === true &&
-    (model.entry_id === "opencode-zen" || model.entry_id === "opencode-go")
-  );
-}
-
 export async function loadModels(): Promise<Model[]> {
   // Use the LLM catalog endpoint, not /api/models — the latter aliases
   // the OpenAI-compat gateway which exposes *skills* (e.g.
@@ -31,7 +21,5 @@ export async function loadModels(): Promise<Model[]> {
     errorMessage: (failure) =>
       `Failed to load models: ${failure.status} ${failure.statusText}`,
   })) as { models: Model[] };
-  return (models ?? []).filter(
-    (model) => !isOfficialModel(model) && !isUnservedOpenCodeFreeModel(model),
-  );
+  return (models ?? []).filter((model) => !isOfficialModel(model));
 }

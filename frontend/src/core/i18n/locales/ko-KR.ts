@@ -6850,7 +6850,7 @@ export const koKR: Translations = {
     tabCustom: "Custom",
     addModel: "모델 추가",
     noCustomModels: "커스텀 모델 없음",
-    openCodeZenEmpty: "OpenCode Zen이 연결되지 않았습니다. 연결하면 여기서 Zen 모델을 고를 수 있습니다.",
+    openCodeZenEmpty: "OpenCode Zen이 연결되지 않았습니다. 먼저 설정에서 OpenCode Zen을 연결하면(무료, API 키 필요) 여기서 모델을 고를 수 있습니다.",
     openCodeGoEmpty: "OpenCode Go 요금제가 연결되지 않았습니다. 연결하면 요금제 모델이 여기에 표시됩니다.",
     connectOpenCode: "OpenCode 연결",
     autoModelLabel: "Auto",

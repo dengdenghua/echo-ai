@@ -118,10 +118,10 @@ export function CodexHotspotPanel({
             远程角色引擎
             <select value={taskEngine} onChange={(e) => setTaskEngine(e.target.value)} className="ml-2 rounded border bg-background p-1">
               <option value="codex">Codex</option>
-              <option value="opencode" disabled>OpenCode（暂不可用）</option>
+              <option value="opencode">OpenCode</option>
             </select>
           </label>
-          {taskEngine === "opencode" && <p className="text-muted-foreground">OpenCode 角色只能用 Zen 的免费模型，而它现在只对 OpenCode 自己的客户端开放，暂时无法作为远程角色。</p>}
+          {taskEngine === "opencode" && <p className="text-muted-foreground">OpenCode 角色使用 Zen 的免费模型（需连接 OpenCode Zen 并填入 API Key），仅支持对话任务。</p>}
           {status?.enabled && (
             <button
               type="button"

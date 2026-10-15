@@ -98,8 +98,10 @@ def test_text_only_server_reuses_one_warm_process(tmp_path, monkeypatch):
     async def stop(*args):
         stops.append(args)
 
+    validations = []
+
     async def validate(*args, **kwargs):
-        return None
+        validations.append(args)
 
     monkeypatch.setattr(backend, "_start_server", start)
     monkeypatch.setattr(backend, "_stop_server", stop)
@@ -124,6 +126,8 @@ def test_text_only_server_reuses_one_warm_process(tmp_path, monkeypatch):
     assert asyncio.run(run()) == [client, client]
     assert len(starts) == 1
     assert len(stops) == 1
+    # _start_server checked the catalog once; reuse does not read it again.
+    assert validations == []
 
 
 def test_explicit_engine_and_continuations():
@@ -192,8 +196,8 @@ def test_shared_models_use_only_turn_proxy_credentials(tmp_path):
 
 
 def test_without_a_connection_opencode_has_no_default_model(tmp_path, monkeypatch):
-    # Zen's free tier refuses every client but OpenCode's own app, so there
-    # is no keyless default: the engine is installed, yet it has no model.
+    # Zen's free models answer only with an OpenCode Zen API Key, so there is
+    # no keyless default: the engine is installed, yet it has no model.
     from runtime.execution import opencode_backend as backend
 
     monkeypatch.setattr(backend, "executable", lambda: "opencode")
@@ -202,7 +206,7 @@ def test_without_a_connection_opencode_has_no_default_model(tmp_path, monkeypatc
     assert backend.inspect_readiness(None)["available"] is True
     assert backend.zen_key(None) is None
     for selection in (None, "auto", custom_model_selection_id("opencode-zen", "big-pickle")):
-        with pytest.raises(OpenCodeError, match="还没有可用的模型"):
+        with pytest.raises(OpenCodeError, match="免费，需要 API Key"):
             resolve_zen_model(selection, {})
         assert backend.can_serve(selection) is False
     with pytest.raises(OpenCodeError):
@@ -424,7 +428,7 @@ async def test_an_unreadable_pending_list_is_not_an_error():
 
 
 def test_the_free_tier_gate_is_not_reported_as_a_missing_entitlement():
-    """Switching model does not help: the gate is about the client, not the plan."""
+    """Switching model does not help: the free models need an OpenCode Zen key."""
 
     message = public_model_error(
         {
@@ -439,7 +443,7 @@ def test_the_free_tier_gate_is_not_reported_as_a_missing_entitlement():
         }
     )
     assert "使用资格" not in message
-    assert "OpenCode" in message
+    assert message == "先在设置里连接 OpenCode Zen（免费，需要 API Key）。"
 
 
 def test_a_millisecond_timestamp_is_not_mistaken_for_an_http_status():

@@ -1,9 +1,9 @@
 /**
  * A quiet line above the composer while no model can answer yet, so a new
  * user learns what to do before the first turn fails rather than after.
- * Typing stays open; the line only points at 添加模型 (and 连接 OpenCode
- * once that engine is installed, since only a Zen/Go connection lets it
- * answer). It disappears as soon as the catalog lists a real model.
+ * Typing stays open; the line points at 连接 OpenCode (Zen's free models,
+ * which need an OpenCode Zen API Key) and 添加模型 (the user's own API).
+ * It disappears as soon as the catalog lists a real model.
  */
 import { ModelSetupButtons } from "@/components/workspace/messages/model-setup-actions";
 import { useI18n } from "@/core/i18n/hooks";

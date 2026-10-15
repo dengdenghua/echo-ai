@@ -58,10 +58,7 @@ import {
 import { registerPageAgentCapability } from "@/core/page-agent-bridge";
 import { useLocalSettings } from "@/core/settings/hooks";
 import { useModels } from "@/core/models/hooks";
-import {
-  consumeCustomModelSetup,
-  CUSTOM_MODEL_SETUP_EVENT,
-} from "@/core/models/setup";
+import { useModelSetupRequests } from "@/core/models/setup";
 import { ModelPicker } from "@/components/workspace/model-picker";
 import { ModelCookbook } from "@/components/workspace/model-cookbook";
 import { CoderEngineSettings } from "@/components/workspace/coder-engine-settings";
@@ -1455,14 +1452,11 @@ export default function ModelSettingsPage() {
     scrollToSection("model-settings-add");
   }, [scrollToSection]);
 
-  useEffect(() => {
-    const handle = () => {
-      if (consumeCustomModelSetup()) handleOverviewAddModel();
-    };
-    handle();
-    window.addEventListener(CUSTOM_MODEL_SETUP_EVENT, handle);
-    return () => window.removeEventListener(CUSTOM_MODEL_SETUP_EVENT, handle);
-  }, [handleOverviewAddModel]);
+  const openOpenCodeSection = useCallback(() => {
+    setOpenCodeOpen(true);
+    scrollToSection("model-settings-opencode");
+  }, [scrollToSection]);
+  useModelSetupRequests(handleOverviewAddModel, openOpenCodeSection);
 
   const handleOverviewScanLocal = useCallback(() => {
     setShowAdd(false);
@@ -1753,10 +1747,7 @@ export default function ModelSettingsPage() {
         gatewayStatus={gatewayStatus}
         onAddModel={handleOverviewAddModel}
         onScanLocal={handleOverviewScanLocal}
-        onOpenZen={() => {
-          setOpenCodeOpen(true);
-          scrollToSection("model-settings-opencode");
-        }}
+        onOpenZen={openOpenCodeSection}
         onOpenCodex={() => {
           setCodexAccountSetupRequest((request) => request + 1);
           setCodexOpen(true);

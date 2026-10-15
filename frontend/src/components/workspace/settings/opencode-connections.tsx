@@ -43,8 +43,8 @@ export function OpenCodeConnections({
   return (
     <div className="space-y-3">
       <p className="text-xs leading-5 text-muted-foreground">
-        一份 OpenCode Key 连接 Zen 与 Go（Go
-        需要有效套餐）。使用哪个模型，在对话输入框选择。
+        Zen 有免费模型，需要填入 OpenCode API Key；Go
+        需要有效套餐。使用哪个模型，在对话输入框选择。
       </p>
       {query.isPending ? (
         <p role="status" className="text-xs">
@@ -81,7 +81,7 @@ export function OpenCodeConnections({
                 {cap.connected
                   ? "已连接"
                   : cap.id === "opencode-zen"
-                    ? "需要 OpenCode Key"
+                    ? "免费模型，需要 API Key"
                     : "需要有效 Go 套餐"}
               </div>
             </div>
