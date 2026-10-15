@@ -17,6 +17,20 @@ export const TAB_GROUP_COLORS = [
 
 export type TabGroupColor = (typeof TAB_GROUP_COLORS)[number];
 
+/**
+ * The colours offered for new groups: one per ECHO categorical slot, so no
+ * two choices look alike. The remaining keys stay valid for stored groups
+ * and extensions.
+ */
+export const TAB_GROUP_PICKER_COLORS = [
+  "blue",
+  "pink",
+  "cyan",
+  "purple",
+  "green",
+  "grey",
+] as const satisfies readonly TabGroupColor[];
+
 export interface BrowserTabGroup {
   id: string;
   title: string;
@@ -47,8 +61,8 @@ export function nextGroupColor(groups: BrowserTabGroup[]): TabGroupColor {
   for (const group of groups) {
     used.set(group.color, (used.get(group.color) ?? 0) + 1);
   }
-  let best: TabGroupColor = TAB_GROUP_COLORS[0];
-  for (const color of TAB_GROUP_COLORS) {
+  let best: TabGroupColor = TAB_GROUP_PICKER_COLORS[0];
+  for (const color of TAB_GROUP_PICKER_COLORS) {
     if ((used.get(color) ?? 0) < (used.get(best) ?? 0)) best = color;
   }
   return best;

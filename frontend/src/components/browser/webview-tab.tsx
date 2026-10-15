@@ -1113,7 +1113,7 @@ function BrowserDesktopHome({
               pointerEvents: "none",
             }
       }
-      className="relative min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_18%_16%,rgba(255,255,255,0.62),transparent_25%),radial-gradient(circle_at_80%_8%,rgba(128,145,165,0.34),transparent_28%),linear-gradient(145deg,#9fa8b2_0%,#b7a09b_54%,#c5a093_100%)] text-white"
+      className="relative min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_18%_16%,rgba(255,255,255,0.62),transparent_25%),linear-gradient(145deg,var(--echo-ink-faint)_0%,var(--echo-ink-muted)_100%)] text-white"
     >
       <div
         className={cn(
@@ -1187,7 +1187,7 @@ function BrowserDesktopHome({
             mobileDesktop && "h-12 rounded-2xl px-4",
           )}
         >
-          <SearchIcon className="size-5 shrink-0 text-info" />
+          <SearchIcon className="size-5 shrink-0 text-muted-foreground" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -1218,7 +1218,7 @@ function BrowserDesktopHome({
             <button
               type="button"
               onClick={() => setEditMode(false)}
-              className="rounded-full bg-info px-3 py-1.5 text-xs font-medium text-white shadow-[var(--shadow-md)] shadow-black/10 backdrop-blur-xl transition hover:bg-info"
+              className="rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-[var(--shadow-md)] shadow-black/10 backdrop-blur-xl transition hover:bg-primary/90"
             >
               {wt.finishEditing}
             </button>
@@ -1264,15 +1264,13 @@ function BrowserDesktopHome({
                 >
                   <div
                     className={cn(
-                      "text-4xl font-semibold text-destructive",
+                      "text-4xl font-semibold text-core",
                       mobileDesktop && "text-3xl",
                     )}
                   >
                     {day}
                   </div>
-                  <div className="text-sm font-medium text-destructive">
-                    {week}
-                  </div>
+                  <div className="text-sm font-medium text-core">{week}</div>
                 </div>
                 <div
                   className={cn(
@@ -1568,11 +1566,11 @@ function DesktopControlPanel({
                 className={cn(
                   "flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:bg-white/70",
                   index === 0
-                    ? "border-info/60 bg-white/70"
+                    ? "border-core/60 bg-white/70"
                     : "border-white/42 bg-white/38",
                 )}
               >
-                <span className="size-10 rounded-2xl bg-gradient-to-br from-muted-foreground via-zinc-300 to-destructive shadow-inner" />
+                <span className="size-10 rounded-2xl bg-gradient-to-br from-muted-foreground via-muted to-background shadow-inner" />
                 <span>
                   <span className="block text-sm font-semibold">{name}</span>
                   <span className="block text-xs text-muted-foreground">
@@ -1593,7 +1591,7 @@ function DesktopControlPanel({
                     key={wt.widgetPanelNames[index]}
                     className="flex items-center gap-3 rounded-2xl bg-white/46 p-3"
                   >
-                    <span className="grid size-10 place-items-center rounded-2xl bg-info text-white">
+                    <span className="grid size-10 place-items-center rounded-2xl bg-foreground/10 text-foreground">
                       <Icon className="size-5" />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -1617,10 +1615,10 @@ function DesktopControlPanel({
         {panel === "wallpaper" && (
           <div className="grid grid-cols-2 gap-3">
             {[
-              "from-muted-foreground via-zinc-300 to-destructive",
-              "from-sky-300 via-indigo-300 to-muted-foreground",
-              "from-success via-teal-400 to-muted-foreground/80",
-              "from-stone-500 via-neutral-400 to-orange-200",
+              "from-muted-foreground via-muted to-background",
+              "from-foreground/70 via-muted-foreground to-muted",
+              "from-muted via-background to-muted-foreground/60",
+              "from-foreground/80 via-muted-foreground/60 to-background",
             ].map((gradient, index) => (
               <button
                 key={gradient}

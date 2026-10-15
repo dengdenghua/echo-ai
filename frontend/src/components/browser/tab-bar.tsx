@@ -35,6 +35,10 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useI18n } from "@/core/i18n/hooks";
+import {
+  categoricalVar,
+  type CategoricalSlot,
+} from "@/lib/categorical-palette";
 import { cn } from "@/lib/utils";
 
 import {
@@ -43,33 +47,43 @@ import {
   type BrowserTabGroup,
   useBrowserStore,
 } from "./browser-store";
-import { TAB_GROUP_COLORS, type TabGroupColor } from "./tab-layout";
+import { TAB_GROUP_PICKER_COLORS, type TabGroupColor } from "./tab-layout";
 
 const TAB_LIST_THRESHOLD = 6;
 
-export const TAB_GROUP_COLOR_VALUES: Record<TabGroupColor, string> = {
-  blue: "#3b82f6",
-  red: "#ef4444",
-  yellow: "#eab308",
-  green: "#22c55e",
-  pink: "#ec4899",
-  purple: "#a855f7",
-  cyan: "#06b6d4",
-  orange: "#f97316",
-  grey: "#6b7280",
+/**
+ * Group colours keep Chromium's tabGroups keys (stored and passed to
+ * extensions as-is) but draw from the ECHO categorical ramp. The picker
+ * offers one key per slot; the other keys are legacy and share a slot.
+ */
+const TAB_GROUP_SLOTS: Record<TabGroupColor, CategoricalSlot> = {
+  cyan: 1,
+  blue: 2,
+  pink: 3,
+  red: 3,
+  orange: 3,
+  purple: 4,
+  grey: 5,
+  yellow: 5,
+  green: 6,
 };
 
-const TAB_GROUP_COLOR_NAMES: Record<TabGroupColor, string> = {
-  blue: "蓝色",
-  red: "红色",
-  yellow: "黄色",
-  green: "绿色",
-  pink: "粉色",
-  purple: "紫色",
-  cyan: "青色",
-  orange: "橙色",
-  grey: "灰色",
+const SLOT_NAMES: Record<CategoricalSlot, string> = {
+  1: "青色",
+  2: "蓝色",
+  3: "粉色",
+  4: "紫色",
+  5: "灰色",
+  6: "深青色",
 };
+
+function groupColor(color: TabGroupColor): string {
+  return categoricalVar(TAB_GROUP_SLOTS[color]);
+}
+
+function groupColorName(color: TabGroupColor): string {
+  return SLOT_NAMES[TAB_GROUP_SLOTS[color]];
+}
 
 /** Tabs that can sit in a split pane: real pages in the desktop app. */
 function canSplit(tab: BrowserTab | undefined | null): boolean {
@@ -108,7 +122,7 @@ function GroupDot({ color }: { color: TabGroupColor }) {
   return (
     <span
       className="size-2.5 rounded-full"
-      style={{ backgroundColor: TAB_GROUP_COLOR_VALUES[color] }}
+      style={{ backgroundColor: groupColor(color) }}
     />
   );
 }
@@ -121,7 +135,7 @@ function TabIcon({ tab }: { tab: BrowserTab }) {
     return <Loader2Icon className="size-3.5 shrink-0 animate-spin" />;
   }
   if (tab.private) {
-    return <EyeOffIcon className="size-3.5 shrink-0 text-violet-500" />;
+    return <EyeOffIcon className="size-3.5 shrink-0 text-foreground" />;
   }
   if (tab.url === BROWSER_HOME_URL) {
     return <DnaIcon className="size-3.5 shrink-0 text-primary" />;
@@ -296,7 +310,7 @@ export function TabBar() {
               : crowded
                 ? "min-w-[64px] max-w-[132px]"
                 : "min-w-[84px] max-w-[160px]",
-          tab.private && "bg-violet-500/10",
+          tab.private && "bg-foreground/10",
           active
             ? "bg-card/90 text-foreground shadow-[var(--shadow-xs)] after:scale-x-100"
             : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -316,7 +330,7 @@ export function TabBar() {
             WebkitAppRegion: "no-drag",
             ...(group
               ? {
-                  boxShadow: `inset 0 -2px 0 ${TAB_GROUP_COLOR_VALUES[group.color]}`,
+                  boxShadow: `inset 0 -2px 0 ${groupColor(group.color)}`,
                 }
               : null),
           } as CSSProperties
@@ -378,8 +392,8 @@ export function TabBar() {
       className="flex h-6 max-w-28 shrink-0 items-center gap-1 rounded-md px-1.5 text-mini font-medium"
       style={
         {
-          color: TAB_GROUP_COLOR_VALUES[group.color],
-          backgroundColor: `${TAB_GROUP_COLOR_VALUES[group.color]}22`,
+          color: groupColor(group.color),
+          backgroundColor: `color-mix(in oklch, ${groupColor(group.color)} 14%, transparent)`,
           WebkitAppRegion: "no-drag",
         } as CSSProperties
       }
@@ -467,7 +481,7 @@ export function TabBar() {
                   closeMenus();
                 }}
               >
-                添加到「{group.title || TAB_GROUP_COLOR_NAMES[group.color]}」
+                添加到「{group.title || groupColorName(group.color)}」
               </MenuItem>
             ))}
           {menuTab.groupId ? (
@@ -568,11 +582,11 @@ export function TabBar() {
             role="group"
             aria-label="分组颜色"
           >
-            {TAB_GROUP_COLORS.map((color) => (
+            {TAB_GROUP_PICKER_COLORS.map((color) => (
               <button
                 key={color}
                 type="button"
-                aria-label={TAB_GROUP_COLOR_NAMES[color]}
+                aria-label={groupColorName(color)}
                 aria-pressed={menuGroup.color === color}
                 onClick={() => updateGroup(menuGroup.id, { color })}
                 className={cn(
@@ -582,8 +596,8 @@ export function TabBar() {
                 )}
                 style={
                   {
-                    backgroundColor: TAB_GROUP_COLOR_VALUES[color],
-                    "--tw-ring-color": TAB_GROUP_COLOR_VALUES[color],
+                    backgroundColor: groupColor(color),
+                    "--tw-ring-color": groupColor(color),
                   } as CSSProperties
                 }
               />

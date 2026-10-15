@@ -91,7 +91,7 @@ describe("split and helpers", () => {
 
   it("picks the least used color", () => {
     expect(nextGroupColor([])).toBe("blue");
-    expect(nextGroupColor([group("1", "blue")])).toBe("red");
+    expect(nextGroupColor([group("1", "blue")])).toBe("pink");
   });
 
   it("finds the nearest tab outside a group", () => {

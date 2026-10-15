@@ -521,60 +521,52 @@ const DESKTOP_BACKDROPS: Record<DesktopBackdropId, DesktopBackdropConfig> = {
   "theme-mist": {
     imageUrl:
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1920&q=80",
-    className:
-      "bg-[radial-gradient(circle_at_16%_10%,rgba(236,253,245,0.72),transparent_27%),radial-gradient(circle_at_78%_6%,rgba(125,211,252,0.42),transparent_25%),radial-gradient(circle_at_88%_70%,rgba(251,207,232,0.38),transparent_31%),radial-gradient(circle_at_34%_88%,rgba(253,230,138,0.24),transparent_30%),linear-gradient(145deg,#5f8c91_0%,#8ea7bd_34%,#bba8b8_68%,#d1ad8f_100%)]",
+    className: "bg-linear-to-br from-muted-foreground via-muted to-background",
     swatchClassName:
-      "bg-gradient-to-br from-muted-foreground via-zinc-300 to-destructive",
+      "bg-linear-to-br from-muted-foreground via-muted to-background",
   },
   "theme-focus": {
     imageUrl:
       "https://images.unsplash.com/photo-1444703686981-a3abbc4d4fe3?auto=format&fit=crop&w=1920&q=80",
-    className:
-      "bg-[radial-gradient(circle_at_18%_10%,rgba(59,130,246,0.34),transparent_28%),radial-gradient(circle_at_82%_14%,rgba(168,85,247,0.24),transparent_30%),radial-gradient(circle_at_76%_82%,rgba(14,165,233,0.18),transparent_32%),linear-gradient(145deg,#0f172a_0%,#1e293b_42%,#111827_100%)]",
+    className: "bg-linear-to-br from-foreground to-muted-foreground",
     swatchClassName:
       "bg-gradient-to-br from-background via-muted-foreground/30 to-primary",
   },
   "theme-clear": {
     imageUrl:
       "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=80",
-    className:
-      "bg-[radial-gradient(circle_at_18%_12%,rgba(191,219,254,0.86),transparent_28%),radial-gradient(circle_at_78%_18%,rgba(125,211,252,0.48),transparent_28%),radial-gradient(circle_at_82%_82%,rgba(224,242,254,0.82),transparent_34%),linear-gradient(145deg,#eff6ff_0%,#dbeafe_36%,#f8fafc_72%,#e0f2fe_100%)]",
-    swatchClassName: "bg-gradient-to-br from-sky-200 via-white to-blue-300",
+    className: "bg-linear-to-br from-muted via-background to-muted",
+    swatchClassName: "bg-linear-to-br from-muted via-background to-muted",
   },
   "wallpaper-sky": {
     imageUrl:
       "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1920&q=80",
-    className:
-      "bg-[radial-gradient(circle_at_22%_14%,rgba(219,234,254,0.92),transparent_26%),radial-gradient(circle_at_72%_16%,rgba(103,232,249,0.44),transparent_28%),linear-gradient(145deg,#60a5fa_0%,#93c5fd_45%,#f8fafc_100%)]",
-    swatchClassName: "bg-gradient-to-br from-sky-300 via-blue-300 to-white",
+    className: "bg-linear-to-b from-muted-foreground/70 to-background",
+    swatchClassName: "bg-linear-to-b from-muted-foreground/70 to-background",
   },
   "wallpaper-clear-sky": {
     imageUrl:
       "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1920&q=80",
-    className:
-      "bg-[radial-gradient(circle_at_24%_16%,rgba(219,234,254,0.72),transparent_30%),radial-gradient(circle_at_76%_28%,rgba(226,232,240,0.52),transparent_32%),linear-gradient(145deg,#dbeafe_0%,#f8fafc_52%,#e0f2fe_100%)]",
-    swatchClassName: "bg-gradient-to-br from-blue-100 via-white to-sky-200",
+    className: "bg-linear-to-b from-muted to-background",
+    swatchClassName: "bg-linear-to-b from-muted to-background",
   },
   "wallpaper-forest": {
     imageUrl:
       "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1920&q=80",
-    className:
-      "bg-[radial-gradient(circle_at_18%_12%,rgba(187,247,208,0.56),transparent_30%),radial-gradient(circle_at_78%_70%,rgba(45,212,191,0.28),transparent_34%),linear-gradient(145deg,#134e4a_0%,#3f6212_46%,#a7f3d0_100%)]",
-    swatchClassName: "bg-gradient-to-br from-success via-teal-500 to-lime-700",
+    className: "bg-linear-to-br from-foreground/80 to-muted",
+    swatchClassName: "bg-linear-to-br from-foreground/80 to-muted",
   },
   "wallpaper-ember": {
     imageUrl:
       "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1920&q=80",
-    className:
-      "bg-[radial-gradient(circle_at_20%_16%,rgba(254,215,170,0.66),transparent_30%),radial-gradient(circle_at_84%_76%,rgba(251,113,133,0.36),transparent_32%),linear-gradient(145deg,#44403c_0%,#a16207_50%,#fed7aa_100%)]",
-    swatchClassName:
-      "bg-gradient-to-br from-stone-600 via-warning to-orange-200",
+    className: "bg-linear-to-br from-foreground/70 to-background",
+    swatchClassName: "bg-linear-to-br from-foreground/70 to-background",
   },
 };
 
 function getBackdropImageStyle(
   backdrop: DesktopBackdropConfig,
-  overlay = "linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.12))",
+  overlay = "linear-gradient(180deg,rgba(9,10,12,0.18),rgba(9,10,12,0.12))",
 ): CSSProperties | undefined {
   if (!backdrop.imageUrl) return undefined;
   return {
@@ -2954,7 +2946,7 @@ function DesktopControlPanel({
                   <span
                     style={getBackdropImageStyle(
                       backdrop,
-                      "linear-gradient(180deg,rgba(15,23,42,0.04),rgba(15,23,42,0.1))",
+                      "linear-gradient(180deg,rgba(9,10,12,0.04),rgba(9,10,12,0.1))",
                     )}
                     className={cn(
                       "size-10 rounded-lg shadow-inner",
@@ -3022,7 +3014,7 @@ function DesktopControlPanel({
                   aria-pressed={selectedBackdrop === backdropId}
                   style={getBackdropImageStyle(
                     backdrop,
-                    "linear-gradient(180deg,rgba(15,23,42,0.02),rgba(15,23,42,0.12))",
+                    "linear-gradient(180deg,rgba(9,10,12,0.02),rgba(9,10,12,0.12))",
                   )}
                   className={cn(
                     "relative h-24 rounded-xl border border-white/20 transition overflow-hidden",
