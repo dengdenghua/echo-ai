@@ -16,7 +16,10 @@ export function previewExecutionEngine({
   preference,
   roleBackend,
   orchestrated,
+  codexAvailable,
   opencodeMissing = false,
+  opencodeNoModel = false,
+  echoReady = true,
 }: {
   preference: ExecutionEnginePreference;
   roleBackend?: unknown;
@@ -25,10 +28,15 @@ export function previewExecutionEngine({
   codexAvailable: boolean;
   /** OpenCode is not installed: Auto runs on Echo's own models instead. */
   opencodeMissing?: boolean;
+  /** OpenCode runs but has no model for this pick (no Zen/Go connection). */
+  opencodeNoModel?: boolean;
+  /** Echo's own catalog has a model; unknown counts as yes. */
+  echoReady?: boolean;
 }): ExecutionEngine {
   if (preference !== "auto") return preference;
-  const opencode = opencodeMissing ? "echo" : "opencode";
-  if (orchestrated) return opencode;
-  if (roleBackend === "codex_app_server") return "codex";
-  return opencode;
+  if (!orchestrated && roleBackend === "codex_app_server") return "codex";
+  if (!opencodeMissing && !opencodeNoModel) return "opencode";
+  // Auto settles on Echo's own models when OpenCode cannot answer — or on a
+  // signed-in Codex when Echo has none either, as on a new computer.
+  return !echoReady && codexAvailable ? "codex" : "echo";
 }

@@ -169,6 +169,7 @@ export function RealtimeChatInput({
       // native roles serialize the thread's model source.
       modelProfileControl={!embeddedDesignChat}
       executionEngine={selectedExecutionEngine}
+      executionEngineReady={executionSelection.engineReady}
       executionEngineControl={
         !embeddedDesignChat ? (
           <RealtimeExecutionEngineControl

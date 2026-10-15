@@ -4,6 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { coderQueryKeys, getCoderModelProfile } from "@/core/coder/api";
 import { apiGet } from "@/core/api/request";
 import type { EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
+import { useModels } from "@/core/models/hooks";
+import {
+  hasAnsweringModel,
+  opencodeServesSelection,
+} from "@/core/models/readiness";
+import {
+  canAnswerOn,
+  defaultExecutionEngine,
+  type EngineReadiness,
+} from "@/core/realtime/default-engine";
 import {
   executionEnginePreference,
   previewExecutionEngine,
@@ -26,6 +36,7 @@ export function useExecutionEngine({
   roleBackend,
   codingTask,
   orchestrated,
+  modelName,
   enabled,
 }: {
   threadId: string;
@@ -35,9 +46,13 @@ export function useExecutionEngine({
   codingTask: boolean;
   orchestrated: boolean;
   nativeTopology?: boolean;
+  /** The conversation's model pick; OpenCode needs one it can serve. */
+  modelName?: string | null;
   enabled: boolean;
 }) {
   const storageKey = `echo:execution-engine:${principal}:${threadId}`;
+  // The person's last explicit pick, offered to their next new conversation.
+  const lastChoiceKey = `echo:execution-engine-last:${principal}`;
   const parentStorageKey = parentThreadId
     ? `echo:execution-engine:${principal}:${parentThreadId}`
     : null;
@@ -46,10 +61,15 @@ export function useExecutionEngine({
     key: storageKey,
     value: readPreference(storageKey) ?? inherited,
   }));
+  const [lastChoice, setLastChoice] = useState(() => ({
+    key: lastChoiceKey,
+    value: readPreference(lastChoiceKey),
+  }));
   useEffect(() => {
     const saved = readPreference(storageKey);
     const parent = parentStorageKey ? readPreference(parentStorageKey) : null;
     setSelection({ key: storageKey, value: saved ?? parent });
+    setLastChoice({ key: lastChoiceKey, value: readPreference(lastChoiceKey) });
     if (saved === null && parent !== null) {
       try {
         window.localStorage.setItem(storageKey, parent);
@@ -57,7 +77,7 @@ export function useExecutionEngine({
         /* Optional storage. */
       }
     }
-  }, [storageKey, parentStorageKey]);
+  }, [storageKey, parentStorageKey, lastChoiceKey]);
   const opencode = useQuery({
     queryKey: ["opencode-status", principal],
     queryFn: async ({ signal }) =>
@@ -73,24 +93,45 @@ export function useExecutionEngine({
     enabled,
     staleTime: 30_000,
   });
+  const profile = useQuery({
+    queryKey: coderQueryKeys(principal).profile,
+    queryFn: ({ signal }) => getCoderModelProfile(signal),
+    enabled,
+    staleTime: 30_000,
+  });
+  const catalog = useModels({ enabled });
   // The slim desktop installer has no OpenCode until the store installs it;
   // Auto then runs on Echo's own models instead of failing the first message.
   const opencodeMissing = opencode.data?.reason_code === "not_installed";
+  const catalogKnown = !catalog.isLoading && !catalog.error;
+  const opencodeHasModel = opencodeServesSelection(catalog.models, modelName);
+  const codexAvailable = profile.data?.execution_available === true;
+  const readiness: EngineReadiness = {
+    known: opencode.isSuccess && !profile.isPending && catalogKnown,
+    opencodeMissing,
+    opencodeReady: opencode.data?.available === true && opencodeHasModel,
+    codexReady: codexAvailable,
+    echoReady: !catalogKnown || hasAnsweringModel(catalog.models),
+  };
   const savedPreference =
     (selection.key === storageKey
       ? selection.value
       : readPreference(storageKey)) ?? inherited;
   // Default synchronously: waiting for readiness would briefly submit Auto
-  // and could send an early request to another provider. Readiness only
-  // controls availability, never the user's model/engine ownership.
+  // and could send an early request to another provider. Once readiness
+  // arrives, an unpicked conversation starts on an engine that can answer;
+  // a pick the person made is never replaced.
   const preference =
     savedPreference ??
-    (enabled &&
-    !orchestrated &&
-    !opencodeMissing &&
-    roleBackend !== "codex_app_server"
-      ? "opencode"
-      : "auto");
+    defaultExecutionEngine({
+      independent:
+        enabled && !orchestrated && roleBackend !== "codex_app_server",
+      lastChoice:
+        lastChoice.key === lastChoiceKey
+          ? lastChoice.value
+          : readPreference(lastChoiceKey),
+      readiness,
+    });
   const rememberForThread = useCallback(
     (id: string) => {
       setSelection({ key: storageKey, value: preference });
@@ -108,33 +149,40 @@ export function useExecutionEngine({
   const setPreference = useCallback(
     (value: ExecutionEnginePreference) => {
       setSelection({ key: storageKey, value });
+      setLastChoice({ key: lastChoiceKey, value });
       try {
         window.localStorage.setItem(storageKey, value);
+        window.localStorage.setItem(lastChoiceKey, value);
       } catch {
         /* Storage is optional. */
       }
     },
-    [storageKey],
+    [storageKey, lastChoiceKey],
   );
-  const profile = useQuery({
-    queryKey: coderQueryKeys(principal).profile,
-    queryFn: ({ signal }) => getCoderModelProfile(signal),
-    enabled,
-    staleTime: 30_000,
+  const engine = previewExecutionEngine({
+    preference,
+    roleBackend,
+    codingTask,
+    orchestrated,
+    codexAvailable,
+    opencodeMissing,
+    opencodeNoModel:
+      opencode.data?.available === true && catalogKnown && !opencodeHasModel,
+    echoReady: readiness.echoReady,
   });
-  const codexAvailable = profile.data?.execution_available === true;
   return {
     preference,
     setPreference,
     rememberForThread,
-    engine: previewExecutionEngine({
-      preference,
-      roleBackend,
-      codingTask,
-      orchestrated,
-      codexAvailable,
-      opencodeMissing,
-    }),
+    engine,
+    /** Whether the engine this conversation runs on can answer; null while
+     * that is still being checked, false when it could not be checked. */
+    engineReady: readiness.known
+      ? canAnswerOn(engine, readiness)
+      : enabled &&
+          (opencode.isPending || profile.isPending || catalog.isLoading)
+        ? null
+        : false,
     codexAvailable,
     /** The model Codex turns run on, as the composer's Codex control shows it. */
     codexModel:

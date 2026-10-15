@@ -692,9 +692,9 @@ function RealtimePageContent({
       undefined,
     principal: user?.actor_id || user?.user_id || "local",
     roleBackend: perspectiveDisplayAgent?.capabilities?.execution_backend,
-    // General/Design and directory scope do not determine task intent.
-    // Automatic selection is resolved by the host from the submitted request.
+    // General/Design and directory scope do not imply task intent: the host decides.
     codingTask: false,
+    modelName: settings.context.model_name,
     orchestrated: collaborationEnabled,
     nativeTopology: collaborationEnabled && teamModeIntent === "cluster",
     enabled: !embeddedDesignChat && !authLoading,

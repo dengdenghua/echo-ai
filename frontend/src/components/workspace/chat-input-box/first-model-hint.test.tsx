@@ -4,7 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Model } from "@/core/models/types";
 import { renderWithProviders } from "@/test/harness";
 
-import { FirstModelHint, hasAnsweringModel } from "./first-model-hint";
+import {
+  hasAnsweringModel,
+  opencodeServesSelection,
+} from "@/core/models/readiness";
+
+import { FirstModelHint } from "./first-model-hint";
 
 const state = vi.hoisted(() => ({
   models: [] as Model[],
@@ -72,5 +77,39 @@ describe("FirstModelHint", () => {
     state.isLoading = false;
     renderWithProviders(<FirstModelHint executionEngine="codex" />);
     expect(screen.queryByTestId("first-model-hint")).toBeNull();
+  });
+
+  it("never shows while the selected engine can answer, or while that is checked", () => {
+    state.models = [mix];
+    const { unmount } = renderWithProviders(
+      <FirstModelHint executionEngine="echo" engineReady />,
+    );
+    expect(screen.queryByTestId("first-model-hint")).toBeNull();
+    unmount();
+    // Readiness still loading: no line that a signed-in Codex then retracts.
+    const checking = renderWithProviders(
+      <FirstModelHint executionEngine="opencode" engineReady={null} />,
+    );
+    expect(screen.queryByTestId("first-model-hint")).toBeNull();
+    checking.unmount();
+    renderWithProviders(
+      <FirstModelHint executionEngine="opencode" engineReady={false} />,
+    );
+    expect(screen.getByTestId("first-model-hint")).toBeInTheDocument();
+  });
+
+  it("knows which picks OpenCode can serve", () => {
+    const zen: Model = {
+      id: "big-pickle",
+      name: "big-pickle",
+      display_name: "Big Pickle",
+      entry_id: "opencode-zen",
+    };
+    // Auto needs a connected Zen; a concrete catalog model runs as is.
+    expect(opencodeServesSelection([mix, stub], "auto")).toBe(false);
+    expect(opencodeServesSelection([mix, zen], "auto")).toBe(true);
+    expect(opencodeServesSelection([mix, stub], "stub-chat")).toBe(true);
+    expect(opencodeServesSelection([mix, stub], "echo-mix")).toBe(false);
+    expect(opencodeServesSelection([mix], "deleted-model")).toBe(false);
   });
 });

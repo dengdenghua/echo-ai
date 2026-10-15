@@ -145,6 +145,8 @@ export interface ChatInputBoxProps {
    * selectable: Echo uses per-thread model_name, Codex uses its scoped
    * server profile. */
   executionEngine?: "echo" | "codex" | "opencode";
+  /** That engine can answer now; null while checking. Hides the first-run line. */
+  executionEngineReady?: boolean | null;
   executionEngineControl?: ReactNode;
   workspaceControl?: ReactNode;
   contextActions?: ReactNode;
@@ -550,7 +552,10 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
           onDismiss={onDismissModeIntent}
         />
       ) : null}
-      <FirstModelHint executionEngine={props.executionEngine} />
+      <FirstModelHint
+        executionEngine={props.executionEngine}
+        engineReady={props.executionEngineReady}
+      />
       <ChatComposer {...props} />
       {showStatusStrip && (
         <div
