@@ -1,9 +1,7 @@
 import {
   SearchIcon,
   RefreshCwIcon,
-  Loader2Icon,
   NetworkIcon,
-  PaletteIcon,
   SlidersHorizontalIcon,
   TagsIcon,
   EyeIcon,
@@ -28,9 +26,14 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { authHeaders } from "@/core/auth/api";
 import { useGlobalControlPlaneAccess } from "@/core/auth/use-control-plane-access";
+import { BrandProgressLine } from "@/components/brand/brand-progress";
 import { useI18n } from "@/core/i18n/hooks";
 import { scopedControlPlaneUrl } from "@/core/observability/api";
 import { swallow } from "@/core/utils/log";
+import {
+  categoricalSlot,
+  resolveCategoricalRamp,
+} from "@/lib/categorical-palette";
 import { cn } from "@/lib/utils";
 
 interface ApiNode {
@@ -158,30 +161,24 @@ interface GraphFilters {
 
 type DisplayToggleKey = "showLabels" | "showLinks" | "showStars" | "autoRotate";
 
-const LINK_COLOR = "#9aa8ba";
-const ACTIVE_LINK_COLOR = "#7dd3fc";
-const SPACE_BG = "#05070d";
-
-const ENTITY_COLORS: Record<string, string> = {
-  center: "#f472b6",
-  subject: "#22d3ee",
-  object: "#a3e635",
-  neighbor: "#f59e0b",
-  other: "#94a3b8",
+// The scene is a Graphite island in both themes; its colours are the
+// Graphite tokens, read from the container (see sceneColors).
+const SCENE_FALLBACK = {
+  ground: "#090a0c",
+  link: "#9aa3ae",
+  activeLink: "#6fe3f0",
+  dim: "#3a4049",
 };
 
-const TYPE_PALETTE = [
-  "#22d3ee",
-  "#a3e635",
-  "#f472b6",
-  "#f59e0b",
-  "#818cf8",
-  "#34d399",
-  "#fb7185",
-  "#c084fc",
-  "#67e8f9",
-  "#fda4af",
-];
+// Entity roles keep fixed ramp slots (cool core/signal for the two common
+// roles); any other type takes a stable slot by name.
+const ENTITY_SLOTS: Record<string, number> = {
+  subject: 1,
+  object: 2,
+  neighbor: 6,
+  center: 4,
+  other: 5,
+};
 
 const DEFAULT_DISPLAY_SETTINGS: GraphDisplaySettings = {
   showLabels: true,
@@ -211,13 +208,25 @@ function seededUnit(value: string): number {
   return hashString(value) / 0xffffffff;
 }
 
-function colorForEntityType(entityType?: string): string {
+function colorForEntityType(
+  ramp: readonly string[],
+  entityType?: string,
+): string {
   const key = entityType?.trim() || "other";
-  return (
-    ENTITY_COLORS[key] ??
-    TYPE_PALETTE[hashString(key) % TYPE_PALETTE.length] ??
-    "#94a3b8"
-  );
+  const slot = ENTITY_SLOTS[key] ?? categoricalSlot(key);
+  return ramp[slot - 1] ?? SCENE_FALLBACK.link;
+}
+
+function sceneColors(element: Element | null) {
+  const style = element ? getComputedStyle(element) : null;
+  const read = (name: string, fallback: string) =>
+    style?.getPropertyValue(name).trim() || fallback;
+  return {
+    ground: read("--echo-ground", SCENE_FALLBACK.ground),
+    link: read("--echo-ink-muted", SCENE_FALLBACK.link),
+    activeLink: read("--echo-core", SCENE_FALLBACK.activeLink),
+    dim: SCENE_FALLBACK.dim,
+  };
 }
 
 function nodeVisualSize(
@@ -496,18 +505,18 @@ function makeLabelTexture(text: string): THREE.CanvasTexture {
   if (ctx) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.font =
-      "500 28px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      '500 28px Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif';
     const metrics = ctx.measureText(text);
     const width = clamp(metrics.width + 42, 96, 500);
     const x = (canvas.width - width) / 2;
-    ctx.fillStyle = "rgba(5, 8, 16, 0.74)";
-    ctx.strokeStyle = "rgba(148, 163, 184, 0.26)";
+    ctx.fillStyle = "rgba(23, 26, 31, 0.86)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.roundRect(x, 38, width, 48, 14);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "rgba(241, 245, 249, 0.92)";
+    ctx.fillStyle = "rgba(238, 241, 244, 0.92)";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text, 256, 62, 444);
@@ -528,7 +537,7 @@ function makeStarField(count: number): THREE.Points {
     positions[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
     positions[i * 3 + 1] = Math.cos(phi) * radius * 0.8;
     positions[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * radius;
-    color.setHSL(0.55 + seededUnit(`star:${i}:h`) * 0.14, 0.5, 0.62);
+    color.setHSL(0.57, 0.08, 0.42 + seededUnit(`star:${i}:h`) * 0.24);
     colors[i * 3] = color.r;
     colors[i * 3 + 1] = color.g;
     colors[i * 3 + 2] = color.b;
@@ -540,7 +549,7 @@ function makeStarField(count: number): THREE.Points {
     size: 2.2,
     vertexColors: true,
     transparent: true,
-    opacity: 0.74,
+    opacity: 0.5,
     depthWrite: false,
   });
   return new THREE.Points(geometry, material);
@@ -597,7 +606,7 @@ function RangeControl({
         step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-1.5 w-full cursor-pointer accent-sky-300"
+        className="h-1.5 w-full cursor-pointer accent-[var(--echo-core)]"
       />
     </label>
   );
@@ -613,8 +622,8 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-2 border-t border-white/10 pt-3 first:border-t-0 first:pt-0">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-caps text-muted-foreground">
+    <section className="space-y-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
+      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
         <Icon className="size-3.5" />
         {title}
       </div>
@@ -651,7 +660,6 @@ function KnowledgeGraph3DContent() {
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(true);
-  const [graphTheme, setGraphTheme] = useState<"nebula" | "aurora">("nebula");
   const [displaySettings, setDisplaySettings] = useState(
     DEFAULT_DISPLAY_SETTINGS,
   );
@@ -758,6 +766,7 @@ function KnowledgeGraph3DContent() {
 
       positionsRef.current = new Map();
       expandedRef.current.clear();
+      const ramp = resolveCategoricalRamp(containerRef.current);
       setBaseNodes(
         entities.map((entity) => ({
           id: entity.id,
@@ -772,7 +781,7 @@ function KnowledgeGraph3DContent() {
           sources: entity.sources ?? [],
           firstSeen: entity.first_seen ?? null,
           lastSeen: entity.last_seen ?? null,
-          color: colorForEntityType(entity.entity_type),
+          color: colorForEntityType(ramp, entity.entity_type),
         })),
       );
       setBaseEdges(
@@ -813,6 +822,7 @@ function KnowledgeGraph3DContent() {
           await response.json();
         const anchor =
           positionsRef.current.get(nodeId)?.clone() ?? new THREE.Vector3();
+        const ramp = resolveCategoricalRamp(containerRef.current);
         setBaseNodes((previous) => {
           const existing = new Set(previous.map((node) => node.id));
           const additions = data.nodes
@@ -842,7 +852,7 @@ function KnowledgeGraph3DContent() {
                 sources: [],
                 firstSeen: null,
                 lastSeen: null,
-                color: colorForEntityType(node.entity_type || "neighbor"),
+                color: colorForEntityType(ramp, node.entity_type || "neighbor"),
               };
             });
           return [...previous, ...additions];
@@ -893,11 +903,12 @@ function KnowledgeGraph3DContent() {
       return;
     }
 
+    const colors = sceneColors(container);
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(new THREE.Color(SPACE_BG), 0.00042);
+    scene.fog = new THREE.FogExp2(new THREE.Color(colors.ground), 0.00042);
     const camera = new THREE.PerspectiveCamera(48, 1, 1, 5000);
     camera.position.set(0, 160, 880);
-    renderer.setClearColor(graphTheme === "aurora" ? "#071a1d" : SPACE_BG, 1);
+    renderer.setClearColor(colors.ground, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     // Cap supersampling so large Retina canvases do not multiply GPU work.
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -927,12 +938,10 @@ function KnowledgeGraph3DContent() {
 
     const graphGroup = new THREE.Group();
     scene.add(graphGroup);
-    const ambient = new THREE.AmbientLight(0xb8d8ff, 0.95);
-    const coreLight = new THREE.PointLight(0x7dd3fc, 550, 2400, 1.45);
+    const ambient = new THREE.AmbientLight(0xe6edf3, 0.95);
+    const coreLight = new THREE.PointLight(colors.activeLink, 420, 2400, 1.45);
     coreLight.position.set(0, 120, 420);
-    const warmLight = new THREE.PointLight(0xf59e0b, 170, 1500, 1.35);
-    warmLight.position.set(-340, -160, -360);
-    scene.add(ambient, coreLight, warmLight);
+    scene.add(ambient, coreLight);
 
     const starField = makeStarField(1200);
     scene.add(starField);
@@ -1038,7 +1047,7 @@ function KnowledgeGraph3DContent() {
       starFieldRef.current = null;
       nodeMeshesRef.current = new Map();
     };
-  }, [expandNode, graphTheme]);
+  }, [expandNode]);
 
   useEffect(() => {
     const group = graphGroupRef.current;
@@ -1048,6 +1057,7 @@ function KnowledgeGraph3DContent() {
     group.clear();
     glowTextureRef.current = null;
     nodeMeshesRef.current = new Map();
+    const colors = sceneColors(containerRef.current);
     const activeNodeId = hoverId ?? selectedId;
     const activeNeighbors = activeNodeId
       ? neighborIds(renderedGraph.edges, activeNodeId)
@@ -1082,7 +1092,7 @@ function KnowledgeGraph3DContent() {
           new THREE.LineSegments(
             geometry,
             new THREE.LineBasicMaterial({
-              color: LINK_COLOR,
+              color: colors.link,
               transparent: true,
               opacity: activeNodeId ? 0.12 : 0.42 * displaySettings.linkScale,
               blending: THREE.AdditiveBlending,
@@ -1101,7 +1111,7 @@ function KnowledgeGraph3DContent() {
           new THREE.LineSegments(
             geometry,
             new THREE.LineBasicMaterial({
-              color: ACTIVE_LINK_COLOR,
+              color: colors.activeLink,
               transparent: true,
               opacity: 0.96,
               blending: THREE.AdditiveBlending,
@@ -1123,7 +1133,7 @@ function KnowledgeGraph3DContent() {
         nodeVisualSize(node.degree, displaySettings) *
         (isSelected || isHovered ? 1.28 : 1);
       const color = new THREE.Color(
-        activeNodeId && !active ? "#475569" : node.color,
+        activeNodeId && !active ? colors.dim : node.color,
       );
       const mesh = new THREE.Mesh(
         new THREE.SphereGeometry(
@@ -1134,7 +1144,7 @@ function KnowledgeGraph3DContent() {
         new THREE.MeshStandardMaterial({
           color,
           emissive: color,
-          emissiveIntensity: activeNodeId ? (active ? 1.35 : 0.24) : 0.9,
+          emissiveIntensity: activeNodeId ? (active ? 1.1 : 0.2) : 0.6,
           roughness: 0.42,
           metalness: 0.08,
           transparent: true,
@@ -1149,12 +1159,12 @@ function KnowledgeGraph3DContent() {
           map: glowTexture,
           color,
           transparent: true,
-          opacity: activeNodeId ? (active ? 0.6 : 0.12) : 0.36,
+          opacity: activeNodeId ? (active ? 0.42 : 0.08) : 0.22,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
         }),
       );
-      glow.scale.setScalar(size * (active ? 8.2 : 5.2));
+      glow.scale.setScalar(size * (active ? 6.4 : 4.2));
       glow.position.copy(node.position);
 
       group.add(glow, mesh);
@@ -1178,8 +1188,8 @@ function KnowledgeGraph3DContent() {
           }),
         );
         label.position.copy(node.position);
-        label.position.y += size + 24;
-        label.scale.set(150, 38, 1);
+        label.position.y += size + 30;
+        label.scale.set(210, 53, 1);
         group.add(label);
       }
     }
@@ -1216,30 +1226,26 @@ function KnowledgeGraph3DContent() {
   }, []);
 
   return (
-    <div className="relative h-[var(--panel-height-2xl)] min-h-[var(--panel-height-xl)] overflow-hidden bg-[#05070d] shadow-[inset_0_0_120px_rgba(14,165,233,0.12)]">
+    <div
+      data-echo-theme="graphite"
+      className="relative h-[var(--panel-height-2xl)] min-h-[var(--panel-height-xl)] overflow-hidden rounded-md border border-border bg-[var(--echo-ground)] text-foreground"
+    >
       <div
         ref={containerRef}
         className="absolute inset-0"
         data-knowledge-graph3d-container="true"
         data-knowledge-graph-3d-container
       />
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-0",
-          graphTheme === "aurora"
-            ? "bg-[radial-gradient(circle_at_18%_20%,rgba(45,212,191,0.24),transparent_32%),radial-gradient(circle_at_78%_72%,rgba(59,130,246,0.2),transparent_36%),linear-gradient(180deg,rgba(6,78,59,0.18),rgba(2,44,54,0.5))]"
-            : "bg-[radial-gradient(circle_at_24%_18%,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_74%_68%,rgba(163,230,53,0.12),transparent_34%),linear-gradient(180deg,rgba(2,6,23,0.16),rgba(2,6,23,0.52))]",
-        )}
-      />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,color-mix(in_oklch,var(--echo-core)_7%,transparent),transparent_62%)]" />
 
       {!loading && !webglError && renderedGraph.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center px-6 text-center">
-          <div className="max-w-xs rounded-lg border border-white/10 bg-black/25 px-5 py-4 backdrop-blur-sm">
-            <NetworkIcon className="mx-auto size-6 text-white/45" />
-            <div className="mt-2 text-sm font-medium text-white/80">
+          <div className="max-w-xs rounded-lg border border-border bg-card/70 px-5 py-4 backdrop-blur-sm">
+            <NetworkIcon className="mx-auto size-6 text-muted-foreground" />
+            <div className="mt-2 text-sm font-medium text-foreground">
               暂无图谱数据
             </div>
-            <div className="mt-1 text-xs leading-5 text-white/50">
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">
               先扫描本地文档，生成实体与关系后会显示在这里。
             </div>
           </div>
@@ -1247,9 +1253,9 @@ function KnowledgeGraph3DContent() {
       )}
 
       {(loading || webglError) && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#05070d]/80">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[var(--echo-ground)]/80">
           {loading ? (
-            <Loader2Icon className="size-6 animate-spin text-foreground/80" />
+            <BrandProgressLine className="w-28" />
           ) : (
             <div className="max-w-sm rounded-lg border border-destructive/30 bg-destructive/20 px-4 py-3 text-sm text-destructive">
               {webglError}
@@ -1303,24 +1309,13 @@ function KnowledgeGraph3DContent() {
         >
           <SlidersHorizontalIcon className="size-4" />
         </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-9 border-border-default bg-background/90 text-foreground/90 hover:bg-muted hover:text-foreground"
-          onClick={() =>
-            setGraphTheme((theme) => (theme === "nebula" ? "aurora" : "nebula"))
-          }
-          aria-label="切换图谱主题"
-        >
-          <PaletteIcon className="size-4" />
-        </Button>
       </div>
 
       {showSettings && (
         <aside className="absolute bottom-3 left-3 right-3 z-10 max-h-[42vh] space-y-3 overflow-y-auto rounded-lg border border-border-default bg-background/80 p-3 text-foreground shadow-2xl backdrop-blur-md sm:bottom-auto sm:left-auto sm:right-4 sm:top-4 sm:max-h-[calc(100%-2rem)] sm:w-[250px]">
           {focusNode && (
             <Section icon={InfoIcon} title={controls.focus}>
-              <div className="space-y-2 rounded-md border border-white/10 bg-background/40 p-2">
+              <div className="space-y-2 rounded-md border border-border bg-background/40 p-2">
                 <div className="min-w-0">
                   <div className="truncate text-xs font-semibold text-foreground">
                     {focusNode.label}
@@ -1332,7 +1327,7 @@ function KnowledgeGraph3DContent() {
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 text-center">
-                  <div className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-1">
+                  <div className="rounded border border-border bg-foreground/[0.03] px-1.5 py-1">
                     <div className="text-xs text-muted-foreground">
                       {controls.degree}
                     </div>
@@ -1340,7 +1335,7 @@ function KnowledgeGraph3DContent() {
                       {focusNode.backendDegree || focusEdges.length}
                     </div>
                   </div>
-                  <div className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-1">
+                  <div className="rounded border border-border bg-foreground/[0.03] px-1.5 py-1">
                     <div className="text-xs text-muted-foreground">
                       {controls.confidence}
                     </div>
@@ -1348,7 +1343,7 @@ function KnowledgeGraph3DContent() {
                       {formatConfidence(focusNode.confidenceAvg)}
                     </div>
                   </div>
-                  <div className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-1">
+                  <div className="rounded border border-border bg-foreground/[0.03] px-1.5 py-1">
                     <div className="text-xs text-muted-foreground">
                       {controls.updated}
                     </div>
@@ -1370,8 +1365,8 @@ function KnowledgeGraph3DContent() {
                   </div>
                 )}
                 {focusEdges.length > 0 && (
-                  <div className="space-y-1 border-t border-white/10 pt-2">
-                    <div className="text-xs font-semibold uppercase tracking-caps text-muted-foreground">
+                  <div className="space-y-1 border-t border-border pt-2">
+                    <div className="text-xs font-semibold text-muted-foreground">
                       {controls.evidence}
                     </div>
                     {focusEdges.map((edge) => {
@@ -1380,7 +1375,7 @@ function KnowledgeGraph3DContent() {
                       return (
                         <div
                           key={edge.id}
-                          className="rounded border border-white/10 bg-white/[0.025] px-2 py-1.5"
+                          className="rounded border border-border bg-foreground/[0.025] px-2 py-1.5"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="truncate text-xs text-foreground/80">

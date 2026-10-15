@@ -25,6 +25,7 @@ import {
 import { KnowledgeGraphView } from "./knowledge-graph-view";
 import { serviceErrorMessage } from "@/core/utils/service-error";
 import { BrandLoadingPanel } from "@/components/brand/brand-progress";
+import { categoricalSlot, categoricalVar } from "@/lib/categorical-palette";
 
 interface KGEntity {
   id: string;
@@ -375,7 +376,6 @@ function KnowledgeRelationMap({
   relationships: KGRelationship[];
   searchQuery: string;
 }) {
-  const palette = ["#67e8f9", "#a7f3d0", "#f9a8d4", "#fde68a", "#c4b5fd"];
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [localDepth, setLocalDepth] = useState<0 | 1 | 2>(0);
@@ -500,13 +500,13 @@ function KnowledgeRelationMap({
   const typeLabelFor = (type: string) =>
     ({ object: "对象", subject: "主题" })[type] ?? type;
   return (
-    <div className="relative overflow-hidden rounded-md border border-border bg-[#07101c]">
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md border border-white/10 bg-black/35 p-1 text-mini text-white/60 backdrop-blur-md">
+    <div className="relative overflow-hidden rounded-md border border-border bg-[var(--echo-surface-sunken)]">
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md border border-border bg-popover/85 p-1 text-mini text-muted-foreground backdrop-blur-md">
         <select
           aria-label="按实体类型筛选"
           value={entityType}
           onChange={(event) => setEntityType(event.target.value)}
-          className="h-6 max-w-28 rounded border-0 bg-white/10 px-1.5 text-mini text-white outline-none"
+          className="h-6 max-w-28 rounded border-0 bg-muted px-1.5 text-mini text-foreground outline-none"
         >
           <option value="all">全部类型</option>
           {entityTypes.map((type) => (
@@ -515,7 +515,7 @@ function KnowledgeRelationMap({
             </option>
           ))}
         </select>
-        <span className="mx-0.5 h-4 w-px bg-white/10" />
+        <span className="mx-0.5 h-4 w-px bg-border" />
         {(
           [
             [0, "全局"],
@@ -527,17 +527,17 @@ function KnowledgeRelationMap({
             key={depth}
             type="button"
             onClick={() => setLocalDepth(depth)}
-            className={`rounded px-2 py-1 transition-colors ${localDepth === depth ? "bg-white text-black" : "hover:bg-white/10 hover:text-white"}`}
+            className={`rounded px-2 py-1 transition-colors ${localDepth === depth ? "bg-foreground text-background" : "hover:bg-muted hover:text-foreground"}`}
           >
             {label}
           </button>
         ))}
-        <span className="mx-0.5 h-4 w-px bg-white/10" />
+        <span className="mx-0.5 h-4 w-px bg-border" />
         <button
           type="button"
           aria-pressed={hideOrphans}
           onClick={() => setHideOrphans((value) => !value)}
-          className={`rounded px-2 py-1 transition-colors ${hideOrphans ? "bg-white/15 text-white" : "hover:bg-white/10 hover:text-white"}`}
+          className={`rounded px-2 py-1 transition-colors ${hideOrphans ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground"}`}
         >
           隐藏孤立
         </button>
@@ -545,7 +545,7 @@ function KnowledgeRelationMap({
           type="button"
           aria-pressed={showArrows}
           onClick={() => setShowArrows((value) => !value)}
-          className={`rounded px-2 py-1 transition-colors ${showArrows ? "bg-white/15 text-white" : "hover:bg-white/10 hover:text-white"}`}
+          className={`rounded px-2 py-1 transition-colors ${showArrows ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground"}`}
         >
           方向
         </button>
@@ -563,8 +563,16 @@ function KnowledgeRelationMap({
         >
           <defs>
             <radialGradient id="knowledge-map-glow" cx="50%" cy="50%">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity=".18" />
-              <stop offset="100%" stopColor="#07101c" stopOpacity="0" />
+              <stop
+                offset="0%"
+                style={{ stopColor: "var(--echo-core)" }}
+                stopOpacity=".1"
+              />
+              <stop
+                offset="100%"
+                style={{ stopColor: "var(--echo-core)" }}
+                stopOpacity="0"
+              />
             </radialGradient>
             <filter
               id="knowledge-map-shadow"
@@ -588,28 +596,42 @@ function KnowledgeRelationMap({
               markerHeight="5"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#93c5fd" fillOpacity=".7" />
+              <path
+                d="M 0 0 L 10 5 L 0 10 z"
+                style={{ fill: "var(--echo-ink-muted)" }}
+                fillOpacity=".7"
+              />
             </marker>
           </defs>
           <rect width="1000" height="560" fill="url(#knowledge-map-glow)" />
-          <circle cx="500" cy="280" r="72" fill="#38bdf8" fillOpacity=".035" />
+          <circle
+            cx="500"
+            cy="280"
+            r="72"
+            style={{ fill: "var(--echo-core)" }}
+            fillOpacity=".035"
+          />
           <circle
             cx="500"
             cy="280"
             r="118"
             fill="none"
-            stroke="#7dd3fc"
-            strokeOpacity=".07"
+            style={{ stroke: "var(--echo-ink-muted)" }}
+            strokeOpacity=".16"
           />
           <circle
             cx="500"
             cy="280"
             r="218"
             fill="none"
-            stroke="#7dd3fc"
-            strokeOpacity=".045"
+            style={{ stroke: "var(--echo-ink-muted)" }}
+            strokeOpacity=".1"
           />
-          <g fill="none" stroke="#93c5fd" strokeWidth="1.2">
+          <g
+            fill="none"
+            style={{ stroke: "var(--echo-ink-muted)" }}
+            strokeWidth="1.2"
+          >
             {visibleRelationships.map((relationship) => {
               const source = positions.get(relationship.source_name);
               const target = positions.get(relationship.target_name);
@@ -634,14 +656,13 @@ function KnowledgeRelationMap({
             })}
           </g>
           {nodePositions.map(({ node, point, rank }) => {
-            const color =
-              palette[
-                Math.abs(
-                  node.entity_type
-                    .split("")
-                    .reduce((sum, char) => sum + char.charCodeAt(0), 0),
-                ) % palette.length
-              ];
+            const color = categoricalVar(
+              node.entity_type === "object"
+                ? 2
+                : node.entity_type === "subject"
+                  ? 1
+                  : categoricalSlot(node.entity_type),
+            );
             const nodeDegree = degree.get(node.name) ?? 0;
             const radius =
               rank === 0 ? 12 : Math.min(8, 4.5 + nodeDegree * 0.7);
@@ -663,13 +684,15 @@ function KnowledgeRelationMap({
               >
                 <circle
                   r={radius * 2.7}
-                  fill={color}
-                  fillOpacity={selected ? ".2" : ".09"}
+                  style={{ fill: color }}
+                  fillOpacity={selected ? ".16" : ".07"}
                 />
                 <circle
                   r={radius}
-                  fill={color}
-                  stroke={selected || active ? "#ffffff" : color}
+                  style={{
+                    fill: color,
+                    stroke: selected || active ? "var(--echo-core)" : color,
+                  }}
                   strokeWidth={selected || active ? 2 : 0}
                 />
                 <rect
@@ -678,8 +701,8 @@ function KnowledgeRelationMap({
                   width="112"
                   height="20"
                   rx="10"
-                  fill="#020617"
-                  fillOpacity={showLabel ? ".78" : ".2"}
+                  style={{ fill: "var(--echo-surface-raised)" }}
+                  fillOpacity={showLabel ? ".9" : ".2"}
                   className={
                     showLabel
                       ? "opacity-100"
@@ -689,7 +712,7 @@ function KnowledgeRelationMap({
                 <text
                   y={-radius - 14}
                   textAnchor="middle"
-                  fill={color}
+                  style={{ fill: "var(--echo-ink)" }}
                   fontSize={rank === 0 ? "13" : "11"}
                   fontWeight="600"
                   className={
@@ -706,16 +729,16 @@ function KnowledgeRelationMap({
         </svg>
       )}
       {selectedNode && (
-        <div className="absolute bottom-3 left-3 max-w-[var(--text-truncate-2xl)] rounded-md border border-white/10 bg-black/45 px-3 py-2 text-white backdrop-blur-md">
+        <div className="absolute bottom-3 left-3 max-w-[var(--text-truncate-2xl)] rounded-md border border-border bg-popover/90 px-3 py-2 text-foreground backdrop-blur-md">
           <div className="truncate text-xs font-semibold">
             {labelFor(selectedNode.name)}
           </div>
-          <div className="mt-1 text-mini text-white/55">
+          <div className="mt-1 text-mini text-muted-foreground">
             {typeLabelFor(selectedNode.entity_type)} ·{" "}
             {degree.get(selectedNode.name) ?? 0} 条关系
           </div>
           {selectedNode.description && (
-            <div className="mt-1 line-clamp-2 text-mini leading-4 text-white/65">
+            <div className="mt-1 line-clamp-2 text-mini leading-4 text-muted-foreground">
               {selectedNode.description}
             </div>
           )}
