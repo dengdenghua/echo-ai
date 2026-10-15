@@ -109,7 +109,7 @@ describe("ChatsDrawer", () => {
       "href",
       "/workspace/realtime/echo-assistant?agent=echo",
     );
-    expect(screen.getByRole("link", { name: "发现社区" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "广场" })).toHaveAttribute(
       "href",
       "/workspace/community",
     );
@@ -132,7 +132,7 @@ describe("ChatsDrawer", () => {
 
   it("lists only installed optional apps, like the desktop sidebar", () => {
     // Regression: the phone drawer listed every catalog app (自进化, 自动化,
-    // 发现社区 …) on a fresh install, all with the same compass icon.
+    // 广场 …) on a fresh install, all with the same compass icon.
     resetModuleStateCache();
     setModuleAvailabilitySnapshot({
       projects: true,
@@ -151,13 +151,7 @@ describe("ChatsDrawer", () => {
       "href",
       "/workspace/projects",
     );
-    for (const name of [
-      "设计画布",
-      "叙事工坊",
-      "自进化",
-      "自动化",
-      "发现社区",
-    ]) {
+    for (const name of ["设计画布", "叙事工坊", "自进化", "自动化", "广场"]) {
       expect(screen.queryByRole("link", { name })).toBeNull();
     }
     expect(screen.getByRole("link", { name: "HUB" })).toBeInTheDocument();

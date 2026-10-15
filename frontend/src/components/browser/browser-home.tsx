@@ -1824,7 +1824,7 @@ export function BrowserHome({
           type="button"
           onClick={() => openDesktopApp("echo://workspace/community")}
           className="mt-1 grid size-8 place-items-center rounded-xl text-foreground/60 transition-colors hover:bg-white/12 hover:text-foreground"
-          title="发现社区"
+          title={t.sidebar.navCommunity}
         >
           <CompassIcon className="size-[18px]" />
         </button>

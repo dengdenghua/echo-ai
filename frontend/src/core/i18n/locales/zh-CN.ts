@@ -1944,7 +1944,7 @@ export const zhCN: Translations = {
     navPaperTrading: "模拟炒股",
     navPaperTradingDesc:
       "平台配资盘 · 原版网页(iframe 内嵌,复刻版已移至插件中心)",
-    navCommunity: "发现社区",
+    navCommunity: "广场",
     navMcp: "MCP",
     navEvolution: "自进化",
     navMail: "邮箱",
@@ -2041,7 +2041,7 @@ export const zhCN: Translations = {
     modulePinned: "常驻",
     moduleGroupWorkspace: "工作台核心",
     moduleGroupKnowledge: "知识与存储",
-    moduleGroupCommunity: "社区与发现",
+    moduleGroupCommunity: "广场",
     moduleGroupGrowth: "成长与运营",
     sectionTaskHistory: "历史任务",
     noTaskHistory: "暂无历史任务",

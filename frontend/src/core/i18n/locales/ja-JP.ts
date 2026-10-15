@@ -2017,7 +2017,7 @@ export const jaJP: Translations = {
     navPaperTrading: "株式シミュレーション",
     navPaperTradingDesc:
       "プラットフォーム配資盤 · 模擬取引(ページ付きプラグイン)",
-    navCommunity: "コミュニティ",
+    navCommunity: "広場",
     navMcp: "MCP",
     navEvolution: "自己進化",
     navMail: "メール",
@@ -2117,7 +2117,7 @@ export const jaJP: Translations = {
     modulePinned: "常時表示",
     moduleGroupWorkspace: "ワークスペース",
     moduleGroupKnowledge: "ナレッジとストレージ",
-    moduleGroupCommunity: "コミュニティ",
+    moduleGroupCommunity: "広場",
     moduleGroupGrowth: "グロース",
     sectionTaskHistory: "タスク履歴",
     noTaskHistory: "過去のタスクはありません",

@@ -53,7 +53,6 @@ frontend/src/components/workspace/channel-pairings-sheet.tsx	1
 frontend/src/components/workspace/chat-input-box/helpers.ts	1
 frontend/src/components/workspace/codex-hotspot-panel.tsx	1
 frontend/src/components/workspace/collab/create-task-dialog.tsx	1
-frontend/src/components/workspace/community/community-data.ts	1
 frontend/src/components/workspace/gene-lock-badge.tsx	1
 frontend/src/components/workspace/inline-completion.ts	1
 frontend/src/components/workspace/intelligence-panel.tsx	1

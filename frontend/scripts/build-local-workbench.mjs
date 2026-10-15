@@ -51,8 +51,8 @@ const packages = {
     module: "intelligence",
   },
   community: {
-    name: "发现社区",
-    description: "发现并复用社区工作流",
+    name: "广场",
+    description: "大家分享的玩法、技能与应用",
     route: "/workspace/community",
     module: "community",
   },
