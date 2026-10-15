@@ -257,6 +257,7 @@ function OwnerSetupForm({
             clear("code");
           }}
           placeholder="XXXX-XXXX-XXXX"
+          lang="en"
           autoComplete="one-time-code"
           spellCheck={false}
           className={`${INPUT_CLASS} font-mono uppercase tracking-wider`}

@@ -250,7 +250,10 @@ export function CoderAccountLogin({
               <span className="text-xs text-muted-foreground">
                 {copy.deviceCode}
               </span>
-              <code className="rounded-md border border-border bg-background px-2 py-1 font-mono text-base tracking-wider">
+              <code
+                lang="en"
+                className="rounded-md border border-border bg-background px-2 py-1 font-mono text-base tracking-wider"
+              >
                 {activeLogin.user_code}
               </code>
               <Button

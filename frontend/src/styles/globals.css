@@ -1549,7 +1549,6 @@
       color-mix(in oklab, var(--foreground) 20%, transparent);
     color: color-mix(in oklab, var(--primary) 72%, var(--foreground));
     font-size: 0.82em;
-    letter-spacing: 0.01em;
   }
 
   .chat-markdown [data-streamdown="table-cell"] {
@@ -2057,18 +2056,24 @@
   }
 }
 
-/* ECHO type rule (BRAND.md): Chinese is never letter-spaced. Eyebrow and
-   caps labels take their text from the locale, so in a Chinese UI the
-   positive tracking tiers fall back to normal spacing. Unlayered so it wins
-   over the utility layer. A Latin-only telemetry label that should keep its
-   spacing marks itself `lang="en"`. */
-:lang(zh):is(
+/* ECHO type rule (BRAND.md): CJK text is never letter-spaced. Eyebrows,
+   caps labels and headings take their text from the locale, so in a
+   Chinese, Japanese or Korean UI every tracking tier, wide or tight, falls
+   back to normal spacing; command-palette group headings get theirs from a
+   parent variant. Unlayered so it wins over the utility layer. Matched per
+   element, so a Latin-only eyebrow or telemetry label keeps its spacing by
+   marking itself `lang="en"` (font-mono is no proxy: several mono
+   eyebrows carry locale text). */
+:is(:lang(zh), :lang(ja), :lang(ko)):is(
     .tracking-eyebrow,
     .tracking-caps,
+    .tracking-tighter,
+    .tracking-tight,
     .tracking-wide,
     .tracking-wider,
     .tracking-widest,
-    [class*="tracking-[0."]
+    [class*="tracking-["],
+    [cmdk-group-heading]
   ) {
   letter-spacing: normal;
 }
