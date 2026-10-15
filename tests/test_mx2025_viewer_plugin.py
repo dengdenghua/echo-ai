@@ -22,6 +22,7 @@ from runtime.platform.plugins.bundled.mx2025_viewer.proxy import (
 )
 from runtime.platform.plugins.plugin_base import ModuleContext
 from runtime.platform.plugins.plugin_hub import PluginHub
+from runtime.platform.plugins.workbench_activation import WorkbenchActivationStore
 
 PLUGIN_ID = "mx2025_viewer"
 PLUGIN_DIR = (
@@ -74,14 +75,25 @@ def _mounted_routes(app: FastAPI):
 
 
 def test_bundled_manifest_defaults_origin_proxy_on(tmp_path: Path) -> None:
+    activation = tmp_path / "state" / "activation"
+    data = tmp_path / "state" / "data"
     hub = PluginHub(
-        plugin_dir=tmp_path,
+        plugin_dir=tmp_path / "plugins",
         bundled_plugin_dir=PLUGIN_DIR.parent,
+        activation_root=activation,
+        data_root=data,
     )
     discovered = [item for item in hub.discover() if item["id"] == PLUGIN_ID]
 
     assert len(discovered) == 1
     assert discovered[0]["bundled"] is True
+    # Long-tail plugin: installed on demand, then loadable.
+    assert discovered[0]["installed"] is False
+    WorkbenchActivationStore(
+        root=activation,
+        data_root=data,
+        factory_root=PLUGIN_DIR.parent,
+    ).install(PLUGIN_ID)
     plugin = hub.load(PLUGIN_ID)
     assert plugin is not None
     assert plugin.version == MX2025ViewerPlugin.version

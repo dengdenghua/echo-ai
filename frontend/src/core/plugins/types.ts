@@ -299,6 +299,8 @@ export interface HubPluginInfo {
   installed?: boolean;
   started?: boolean;
   enabled: boolean;
+  /** Bundled with ECHO AI but installed on demand (not loaded at startup). */
+  optional?: boolean;
   error?: string | null;
   dir: string;
   dependencies: string[];

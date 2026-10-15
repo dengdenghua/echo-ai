@@ -85,7 +85,7 @@ import {
   UninstallWorkbenchDialog,
 } from "./workbench-app-dialogs";
 import { hubCopy } from "@/core/i18n/locales/hub";
-import { EngineStoreSection } from "./engine-store-section";
+import { OnDemandStoreSections } from "./plugin-store-section";
 import {
   WorkbenchInstallControl,
   WorkbenchManageMenu,
@@ -894,7 +894,7 @@ export function AgentWorldUnified() {
                     })}
                   </div>
                 </div>
-                <EngineStoreSection />
+                <OnDemandStoreSections />
                 <div>
                   <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>

@@ -955,6 +955,7 @@ def create_agent_world_router(
     ) -> dict[str, Any]:
         from runtime.execution.suckers.market_skills import immutable_prompt_catalog_required
         from runtime.platform.plugins import install_errors as failures
+        from runtime.platform.plugins.optional_plugins import install_companions
 
         cat = _cloud_catalog("plugins")
         item = next((i for i in cat.items() if i.get("id") == plugin_id), None)
@@ -1100,13 +1101,11 @@ def create_agent_world_router(
                             hub.start(runtime_member)
                     raise
                 if parent_has_runtime:
-                    result.update(
-                        loaded=True,
-                        started=True,
-                        restart_required=False,
-                    )
+                    result.update(loaded=True, started=True, restart_required=False)
                 if activated_dependencies:
                     result["activated_dependencies"] = activated_dependencies
+                # Bundled editors the package embeds (design canvas) go live too.
+                result["installed_companions"] = install_companions(hub, member)
             return result
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc

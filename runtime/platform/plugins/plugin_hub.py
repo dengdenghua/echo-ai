@@ -242,6 +242,7 @@ class PluginHub:
                         "activation": _manifest_activation_mode(manifest_data),
                         "dir": str(item),
                         "bundled": bundled,
+                        "optional": bundled and self._activation_store.is_optional(pname),
                         "loaded": pname in self._plugins,
                         "started": pname in self._started,
                         "installed": bool(activation["installed"]),
@@ -756,6 +757,10 @@ class PluginHub:
 
     # ── Persistent install / enable lifecycle ─────────────────
 
+    def migrate_optional_plugins(self) -> list[str]:
+        """Apply the one-time upgrade rule for on-demand seeds before startup loads."""
+        return self._activation_store.migrate_optional_plugins()
+
     def install_plugin(
         self,
         name: str,
@@ -1010,14 +1015,9 @@ class PluginHub:
         ctx = self._contexts.get(name)
         if ctx is None:
             return False
-        if self._bundled_dir is not None:
-            try:
-                Path(ctx.plugin_dir).relative_to(self._bundled_dir)
-            except ValueError:  # noqa: BLE001 — expected when plugin is outside bundled directory
-                pass
-            else:
-                _LOG.warning("Bundled plugin config is read-only: %s", name)
-                return False
+        if self._bundled_dir is not None and Path(ctx.plugin_dir).is_relative_to(self._bundled_dir):
+            _LOG.warning("Bundled plugin config is read-only: %s", name)
+            return False
         ctx.config.update(config)
 
         # Persist to plugin.yaml
@@ -1109,9 +1109,7 @@ class PluginHub:
                     "config_schema": (
                         ctx.manifest.config_schema
                         if ctx
-                        else (self._read_manifest_file(Path(discovered["dir"])) or {}).get(
-                            "config_schema", {}
-                        )
+                        else manifest_data.get("config_schema", {})
                     ),
                     "config_ui": instance.config_ui_component if instance else None,
                     "loaded": instance is not None,

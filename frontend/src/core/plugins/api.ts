@@ -1,4 +1,5 @@
 import {
+  apiDelete,
   apiGet,
   apiPost,
   apiPut,
@@ -197,26 +198,36 @@ export async function hubAutomationDiagnostics(
   );
 }
 
+function lifecycleError(failure: ApiFailure): string {
+  const detail = failureDetail(failure);
+  return typeof detail === "string"
+    ? detail
+    : `Plugin update failed (${failure.status})`;
+}
+
 /** Persist lifecycle changes; factory uninstall keeps user data by default. */
 export async function hubChangeLifecycle(
   name: string,
   action: HubLifecycleAction,
 ): Promise<void> {
   // The success body is intentionally ignored, so read nothing from it.
+  if (action === "uninstall") {
+    // Uninstall is DELETE …/install; without data_policy the data is kept.
+    await apiDelete("/api/plugin-hub/plugins/{name}/install", {
+      path: { name },
+      errorMessage: lifecycleError,
+    });
+    return;
+  }
   await untypedApi.fetch(
     "post",
     `/api/plugin-hub/plugins/${encodeURIComponent(name)}/${action}`,
     {
       reason:
-        "dynamic lifecycle action; POST …/uninstall and the {} bodies sent " +
-        "to enable/disable are not in the OpenAPI snapshot",
+        "dynamic lifecycle action; the {} bodies sent to enable/disable " +
+        "are not in the OpenAPI snapshot",
       body: {},
-      errorMessage: (failure) => {
-        const detail = failureDetail(failure);
-        return typeof detail === "string"
-          ? detail
-          : `Plugin update failed (${failure.status})`;
-      },
+      errorMessage: lifecycleError,
     },
   );
 }

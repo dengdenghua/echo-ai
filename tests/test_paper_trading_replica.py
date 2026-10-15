@@ -29,14 +29,17 @@ PLUGIN_DIR = (
 )
 
 
-def test_replica_plugin_is_discoverable_in_hub() -> None:
-    hub = PluginHub()
+def test_replica_plugin_is_discoverable_in_hub(tmp_path: Path) -> None:
+    hub = PluginHub(activation_root=tmp_path / "activation", data_root=tmp_path / "data")
     matches = [item for item in hub.discover() if item["id"] == PLUGIN_ID]
 
     assert len(matches) == 1
     assert matches[0]["bundled"] is True
     assert "复刻版" in matches[0]["name"]
-    assert hub.load(PLUGIN_ID) is not None
+    # Long-tail plugin: listed in the store, installed on demand.
+    assert matches[0]["optional"] is True
+    assert matches[0]["installed"] is False
+    assert hub.install_plugin(PLUGIN_ID)["loaded"] is True
 
 
 def test_replica_plugin_serves_page_and_has_no_embed() -> None:

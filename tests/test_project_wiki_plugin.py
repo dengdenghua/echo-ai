@@ -12,13 +12,17 @@ from runtime.platform.plugins.plugin_hub import PluginHub
 from runtime.sensing.gateway import wiki_generic
 
 
-def test_bundled_project_wiki_is_discoverable_and_loadable() -> None:
-    hub = PluginHub()
+def test_bundled_project_wiki_is_discoverable_and_installable(tmp_path: Path) -> None:
+    hub = PluginHub(activation_root=tmp_path / "activation", data_root=tmp_path / "data")
     matches = [item for item in hub.discover() if item["id"] == PLUGIN_ID]
 
     assert len(matches) == 1
     assert matches[0]["bundled"] is True
-    assert hub.load(PLUGIN_ID) is not None
+    # The core project Wiki imports the service module directly, so the
+    # plugin (its contract route) is installed on demand.
+    assert matches[0]["optional"] is True
+    assert matches[0]["installed"] is False
+    assert hub.install_plugin(PLUGIN_ID)["loaded"] is True
     assert hub.update_plugin_config(PLUGIN_ID, {"output_dir": "elsewhere"}) is False
 
 

@@ -19,13 +19,17 @@ from runtime.platform.plugins.plugin_hub import PluginHub
 PLUGIN_ID = "github"
 
 
-def test_bundled_github_is_discoverable_and_loadable() -> None:
-    hub = PluginHub()
+def test_bundled_github_is_discoverable_and_installable(tmp_path) -> None:
+    hub = PluginHub(activation_root=tmp_path / "activation", data_root=tmp_path / "data")
     matches = [item for item in hub.discover() if item["id"] == PLUGIN_ID]
 
     assert len(matches) == 1
     assert matches[0]["bundled"] is True
-    assert hub.load(PLUGIN_ID) is not None
+    # Long-tail plugin: listed in the store, installed on demand.
+    assert matches[0]["optional"] is True
+    assert matches[0]["installed"] is False
+    assert hub.install_plugin(PLUGIN_ID)["loaded"] is True
+    assert hub.get_plugin(PLUGIN_ID) is not None
 
 
 def test_github_registers_four_skills() -> None:

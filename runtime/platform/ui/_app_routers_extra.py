@@ -31,6 +31,28 @@ def _plugin_hub_roots() -> tuple[Path, Path]:
     )
 
 
+def _load_startup_plugins(hub: Any) -> list[str]:
+    """Settle on-demand plugin state after an upgrade, then load startup plugins.
+
+    Long-tail bundled plugins are installed on demand. The one-time upgrade
+    rule (``optional_plugins``) must run before ``load_all`` so a plugin the
+    user already relied on is loaded on this very start. A failed migration
+    only leaves those plugins available in the store; it never blocks startup.
+    """
+
+    log = logging.getLogger(__name__)
+    migrate = getattr(hub, "migrate_optional_plugins", None)
+    if callable(migrate):
+        try:
+            kept = migrate()
+        except Exception as exc:  # noqa: BLE001 — retried on the next start
+            log.warning("On-demand plugin migration failed: %s", exc)
+        else:
+            if kept:
+                log.info("Kept %d previously used on-demand plugins installed: %s", len(kept), kept)
+    return hub.load_all()
+
+
 def _register_plugin_hub_lifecycle(app: Any, hub: Any) -> None:
     """Start loaded plugins with the app and stop their background work cleanly."""
 
@@ -685,7 +707,7 @@ def mount_routers_b(
         )
         if stack is not None:
             stack.plugin_hub = _hub
-        _loaded = _hub.load_all()
+        _loaded = _load_startup_plugins(_hub)
         if _loaded:
             logging.getLogger(__name__).info(
                 "PluginHub loaded %d startup plugins: %s",

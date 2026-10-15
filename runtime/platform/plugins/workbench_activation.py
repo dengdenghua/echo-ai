@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from runtime.platform.io import atomic_write_json, read_json_with_backup
+from runtime.platform.plugins.optional_plugins import factory_specs, is_optional_plugin
+from runtime.platform.plugins.optional_plugins import migrate as migrate_optional
 from runtime.platform.process.paths import app_paths
 
 ACTIVATION_SCHEMA = "echo.workbench_activation.v1"
@@ -28,6 +30,8 @@ FACTORY_WORKBENCHES: dict[str, dict[str, str]] = {
         "version": "0.2.0",
         "data_dir_name": "narrative-studio",
     },
+    # Long-tail bundled plugins: shipped as seeds, installed on demand.
+    **factory_specs(),
 }
 
 
@@ -39,8 +43,10 @@ class WorkbenchActivationStore:
     """Read and mutate workbench activation descriptors.
 
     A missing descriptor means an available factory seed keeps the historical
-    installed-and-enabled behaviour.  The first lifecycle mutation writes an
-    explicit descriptor, so disable/uninstall remains durable across restarts.
+    installed-and-enabled behaviour, except for install-on-demand seeds
+    (``optional_plugins``), which stay available until installed.  The first
+    lifecycle mutation writes an explicit descriptor, so install, disable and
+    uninstall remain durable across restarts.
     """
 
     def __init__(
@@ -62,6 +68,12 @@ class WorkbenchActivationStore:
     @staticmethod
     def is_factory(plugin_id: str) -> bool:
         return plugin_id in FACTORY_WORKBENCHES
+
+    @staticmethod
+    def is_optional(plugin_id: str) -> bool:
+        """Whether this seed is installed only when the user asks for it."""
+
+        return is_optional_plugin(plugin_id)
 
     def factory_path(self, plugin_id: str) -> Path:
         self._require_factory(plugin_id)
@@ -88,13 +100,11 @@ class WorkbenchActivationStore:
                 raw = None
         else:
             raw = read_json_with_backup(activation, default=None)
-        descriptor_exists = (
-            activation.exists() or activation.with_suffix(activation.suffix + ".bak").exists()
-        )
+        descriptor_exists = self._descriptor_exists(plugin_id)
         error = None
         if not isinstance(raw, dict) or raw.get("schema") != ACTIVATION_SCHEMA:
             available = self.factory_path(plugin_id).is_dir()
-            installed = available and not descriptor_exists
+            installed = available and not descriptor_exists and spec.get("default") != "available"
             enabled = installed
             updated_at = None
             explicit = descriptor_exists
@@ -253,10 +263,27 @@ class WorkbenchActivationStore:
             )
         return values
 
+    def migrate_optional_plugins(self) -> list[str]:
+        """Keep previously used on-demand seeds installed after an upgrade.
+
+        Runs once per data directory (see ``optional_plugins.migrate``) and
+        returns the plugin ids that received an installed descriptor.
+        """
+
+        return migrate_optional(
+            root=self.root,
+            data_root=self.data_root,
+            has_descriptor=self._descriptor_exists,
+            available=lambda plugin_id: self.factory_path(plugin_id).is_dir(),
+            keep_installed=lambda plugin_id: self._write(plugin_id, installed=True, enabled=True),
+        )
+
     def restore_state(self, plugin_id: str, state: dict[str, Any]) -> None:
         """Restore installed/enabled bits after a failed runtime transition."""
 
-        if not state.get("explicit") and state.get("installed") and state.get("enabled"):
+        if not state.get("explicit"):
+            # No descriptor existed: removing ours restores the seed default
+            # (installed for core seeds, available for on-demand ones).
             activation = self.activation_path(plugin_id)
             with contextlib.suppress(OSError):
                 activation.unlink()
@@ -282,6 +309,7 @@ class WorkbenchActivationStore:
         recovery.mkdir(parents=True, exist_ok=False)
         target = recovery / FACTORY_WORKBENCHES[plugin_id]["data_dir_name"]
         try:
+            target.parent.mkdir(parents=True, exist_ok=True)
             source.replace(target)
             atomic_write_json(
                 recovery / "recovery.json",
@@ -311,6 +339,10 @@ class WorkbenchActivationStore:
             return (base / recovery_id) if recovery_id in known else None
         rows = self.recoveries(plugin_id)
         return (base / rows[0]["recovery_id"]) if rows else None
+
+    def _descriptor_exists(self, plugin_id: str) -> bool:
+        activation = self.activation_path(plugin_id)
+        return activation.exists() or activation.with_suffix(activation.suffix + ".bak").exists()
 
     def _write(self, plugin_id: str, *, installed: bool, enabled: bool) -> None:
         spec = self._require_factory(plugin_id)
