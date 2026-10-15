@@ -605,7 +605,7 @@ export default function PrivacySettingsPage() {
                         aiModeBusy && "opacity-60 cursor-not-allowed",
                       )}
                     >
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 whitespace-nowrap">
                         <span className="text-sm font-medium">{label}</span>
                         <div className="flex items-center gap-1.5">
                           {recommended && (
