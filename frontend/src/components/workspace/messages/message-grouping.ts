@@ -23,6 +23,7 @@ function stringArg(value: unknown): string | undefined {
 
 import type { ActivityItem, ActivityKind } from "./collapsible-activity-group";
 import {
+  canonicalToolName,
   isFileMutationToolName,
   isReadToolName,
   isShellToolName,
@@ -352,7 +353,7 @@ function buildReadLabel(
     }
   }
   const target = value ? safeTargetLabel(value) : "";
-  const lower = name.toLowerCase();
+  const lower = canonicalToolName(name);
   const action =
     lower.includes("search") ||
     lower.includes("grep") ||

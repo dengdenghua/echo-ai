@@ -3,6 +3,7 @@ import type { Translations } from "@/core/i18n/locales/types";
 
 import type { AgentTile, AgentWorkbenchTabId } from "../agent-workbench-utils";
 import type { AgentPhase } from "../agent-phases";
+import { stepEvidenceTab } from "../messages/process-step-display";
 import type { WorkBlock } from "../work-blocks";
 import { workBlockLabelsFromShape } from "../work-blocks";
 
@@ -102,7 +103,9 @@ export function dockAgentStatusLabel(
  * opening a second copy of the activity log.
  */
 export function evidenceTabForWorkBlock(block: WorkBlock): AgentWorkbenchTabId {
-  if (block.kind === "terminal") return "terminal";
+  // The terminal tab is the user's own interactive shell; it cannot replay a
+  // command the agent ran, so a shell step's evidence is its trace.
+  if (block.kind === "terminal") return stepEvidenceTab("terminal");
   if (block.kind === "browser") return "browser";
 
   const eventName = block.event.name.trim().toLowerCase();

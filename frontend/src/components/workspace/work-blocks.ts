@@ -1,6 +1,11 @@
 import { swallow } from "@/core/utils/log";
 import type { LiveToolEvent } from "./live-tool-timeline";
 import { effectiveToolInput } from "./messages/action-display";
+import {
+  canonicalToolName,
+  isFileMutationToolName,
+  isShellToolName,
+} from "./tool-name-groups";
 
 export type WorkBlockKind =
   | "agent"
@@ -422,7 +427,10 @@ function isVisibleWorkEvent(event: LiveToolEvent): boolean {
   return true;
 }
 
-function workKind(name: string): WorkBlockKind {
+function workKind(rawName: string): WorkBlockKind {
+  // Classify by what the tool does, not who hosted it: Codex reports Echo
+  // host tools as ``dynamic__run_command`` / ``dynamic__write_text_file``.
+  const name = canonicalToolName(rawName);
   if (name === "call_agent_parallel") return "swarm";
   if (name === "todo_write") return "todo";
   if (
@@ -431,6 +439,8 @@ function workKind(name: string): WorkBlockKind {
     )
   )
     return "skill";
+  if (isShellToolName(name)) return "terminal";
+  if (isFileMutationToolName(name)) return "file";
   if (/shell|bash|terminal|cmd|exec|python/i.test(name)) return "terminal";
   if (/fetch|browser|url|web/i.test(name)) return "browser";
   if (/search|grep|glob|list/i.test(name)) return "search";

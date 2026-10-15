@@ -155,6 +155,7 @@ export function CodeEditor({
   autoFocus,
   settings,
   filePath,
+  syntaxPath,
   workspacePath,
   threadId,
   onSave,
@@ -168,6 +169,9 @@ export function CodeEditor({
   autoFocus?: boolean;
   settings?: unknown;
   filePath?: string;
+  /** Picks syntax highlighting only. Unlike filePath it enables no saving or
+   * code-intelligence tools, for read-only previews of produced files. */
+  syntaxPath?: string;
   workspacePath?: string;
   threadId?: string;
   onSave?: (content: string) => void;
@@ -196,9 +200,10 @@ export function CodeEditor({
     "resize-none border-none p-4! [&_.cm-line]:px-2! [&_.cm-line]:py-0!",
   );
 
+  const languagePath = filePath ?? syntaxPath;
   useEffect(() => {
     let cancelled = false;
-    void loadCodeMirrorExtensions(filePath).then(async (loaded) => {
+    void loadCodeMirrorExtensions(languagePath).then(async (loaded) => {
       if (cancelled) return;
       if (!readonly && filePath) {
         try {
@@ -213,7 +218,7 @@ export function CodeEditor({
     return () => {
       cancelled = true;
     };
-  }, [filePath, readonly]);
+  }, [filePath, languagePath, readonly]);
 
   useEffect(() => {
     if (previousFilePathRef.current !== filePath) {

@@ -40,6 +40,7 @@ import {
   WRITE_TOOL_NAMES,
   canonicalToolName,
   shellCommandFromInput,
+  stripToolNamespace,
 } from "../tool-name-groups";
 
 export type ActionAggregateKind =
@@ -507,7 +508,7 @@ export function getActionDisplay(
     };
   }
 
-  if (isTodoToolName(toolName)) {
+  if (isTodoToolName(name)) {
     return {
       labelKey: "update_plan",
       verb: "更新计划",
@@ -518,7 +519,7 @@ export function getActionDisplay(
     };
   }
 
-  if (isCapabilityToolName(toolName)) {
+  if (isCapabilityToolName(name)) {
     return {
       labelKey: "use_capability",
       verb: "使用能力",
@@ -529,7 +530,7 @@ export function getActionDisplay(
     };
   }
 
-  if (isTeammateToolName(toolName)) {
+  if (isTeammateToolName(name)) {
     const teammateName = extractTeammateName(args);
     return {
       labelKey: "delegate_task",
@@ -612,7 +613,7 @@ export function getActionDisplay(
     };
   }
 
-  const words = camelToWords(toolName);
+  const words = camelToWords(stripToolNamespace(toolName));
   const explicitDescription =
     typeof args.description === "string" && args.description.trim()
       ? args.description.trim()

@@ -26,8 +26,8 @@ frontend/src/components/store/cloud-skills-panel.tsx	1095
 frontend/src/components/workspace/a2a-agents-panel.tsx	1072
 frontend/src/components/workspace/agent-operator-panel.test.tsx	2045
 frontend/src/components/workspace/agent-operator/index.tsx	1103
-frontend/src/components/workspace/agent-workbench-pages.tsx	2085
-frontend/src/components/workspace/agent-workbench-panel.test.tsx	3406
+frontend/src/components/workspace/agent-workbench-pages.tsx	2084
+frontend/src/components/workspace/agent-workbench-panel.test.tsx	3404
 frontend/src/components/workspace/agents/agent-role-profile-dialog.tsx	1944
 frontend/src/components/workspace/agents/agent-world-unified.tsx	1042
 frontend/src/components/workspace/agents/arms-editor.tsx	1028
@@ -43,8 +43,8 @@ frontend/src/components/workspace/intelligence-panel.tsx	1565
 frontend/src/components/workspace/knowledge-graph-view.tsx	1547
 frontend/src/components/workspace/live-tool-timeline.tsx	1692
 frontend/src/components/workspace/messages/inline-subagent-cards.tsx	1596
-frontend/src/components/workspace/messages/message-group.test.tsx	3339
-frontend/src/components/workspace/messages/message-group.tsx	3350
+frontend/src/components/workspace/messages/message-group.test.tsx	3304
+frontend/src/components/workspace/messages/message-group.tsx	3303
 frontend/src/components/workspace/messages/message-list-item.tsx	1336
 frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3251
 frontend/src/components/workspace/messages/message-output-summary.test.tsx	1218

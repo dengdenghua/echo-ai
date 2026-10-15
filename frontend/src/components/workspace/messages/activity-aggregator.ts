@@ -140,7 +140,9 @@ export function aggregateSimilarToolCalls(
       if (first) {
         result.push({
           type: "aggregatedToolGroup",
-          id: `agg-${first.id ?? first.step.id ?? "tool"}-${currentGroup.length}`,
+          // Keyed by its first step only: a live group grows, and an id that
+          // changed with the count dropped the reader's expanded state.
+          id: `agg-${first.id ?? first.step.id ?? "tool"}`,
           aggregateKind: currentKind ?? "other",
           count: currentGroup.length,
           phaseId: currentPhaseId,

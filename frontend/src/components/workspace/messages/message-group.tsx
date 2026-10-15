@@ -90,7 +90,6 @@ import {
   getActionDisplay,
   getActionIcon,
   aggregateIconName,
-  type ActionDisplay,
   type ActionAggregateKind,
 } from "./action-display";
 import {
@@ -98,6 +97,12 @@ import {
   isExecutionTimelineItem,
 } from "./timeline-pipeline";
 import { projectToolNarrative } from "./narrative-block";
+import {
+  localizedActionVerb,
+  localizedAggregateVerb,
+  stepEvidenceTab,
+} from "./process-step-display";
+import { ProcessStepDetail, stepDetailText } from "./process-step-detail";
 import { formatProcessReplayLabel } from "./process-replay-label";
 
 const HIDDEN_TIMELINE_TOOL_NAMES = new Set([
@@ -127,7 +132,7 @@ const RAW_PUBLIC_TOOL_CALLBACK_RE =
   /^(web_search|fetch_url|web_fetch|read_file|glob_files|find_files|exec_shell|shell_command|run_command|todo_write|apply_patch|write_file|edit_file|str_replace)(?:\s*\([^)]*\))?$/i;
 
 function isHiddenTimelineToolName(name: string): boolean {
-  const normalized = name.toLowerCase();
+  const normalized = canonicalToolName(name);
   return (
     HIDDEN_TIMELINE_TOOL_NAMES.has(normalized) ||
     isAutoVerificationToolName(normalized)
@@ -135,7 +140,7 @@ function isHiddenTimelineToolName(name: string): boolean {
 }
 
 function isTeamCallToolName(name: string): boolean {
-  const normalized = name.toLowerCase();
+  const normalized = canonicalToolName(name);
   return (
     normalized === "call_agent_parallel" ||
     normalized === "call_agent" ||
@@ -253,7 +258,7 @@ function publicActionTextFromTraceTool(
   t: ReturnType<typeof useI18n>["t"] | undefined,
 ): string | null {
   if (!t || isHiddenTimelineToolName(name)) return null;
-  const normalized = name.toLowerCase();
+  const normalized = canonicalToolName(name);
   const withTarget = (label: string) =>
     target ? `${label}: ${target}` : label;
   if (isTeamCallToolName(normalized)) {
@@ -1210,6 +1215,8 @@ export function MessageGroup({
         step.type === "toolCall" && typeof step.args.output === "string"
           ? step.args.output.trim()
           : "";
+      const stepDetail =
+        item.type === "toolCall" && step.type === "toolCall" ? stepDetailText(step) : null;
       // Show the typewriter output window only while the latest step is
       // actually running; once it settles the window folds back to the row.
       const liveExecStreamActive =
@@ -1223,6 +1230,20 @@ export function MessageGroup({
         isAggregatedGroup &&
         (expandedAggregatedGroups[item.id] ??
           (detailConfig.level === "high" && item.count <= 8));
+      const toggleAggregated = () =>
+        setExpandedAggregatedGroups((current) => ({
+          ...current,
+          [item.id]: !aggregatedExpanded,
+        }));
+      // Nested rows can all resolve to null (e.g. suppressed sub-agent rows);
+      // an empty child list must not draw its connector line.
+      const nestedRows = isAggregatedGroup
+        ? renderCompactTimelineItems(
+            item.items,
+            `${keyPrefix}-${item.id}-sub`,
+            { nested: true },
+          ).filter(Boolean)
+        : [];
       const coveredItems =
         compactExecutionCoverage.get(item.id) ?? [item];
       const groupedTargetSummary =
@@ -1547,10 +1568,20 @@ export function MessageGroup({
                   .processAction !== "true"
               )
                 return;
-              // Always activate timeline and open workbench for full context
+              // A multi-step summary expands its steps inline; a single step
+              // (or an effect awaiting review) opens its workbench evidence.
+              if (nestedRows.length > 0 && !needsEffectReview) {
+                toggleAggregated();
+                return;
+              }
+              // Its evidence is the trace this page does not show: open it here.
+              if (stepDetail && stepEvidenceTab(actionWorkbenchTab) === "agent") {
+                setExpandedThinkingRows((current) => ({ ...current, [item.id]: !current[item.id] }));
+                return;
+              }
               activateTimelineItem(timelineItemLinkageId(item), "chat");
               emitOpenAgentWorkbench({
-                tab: actionWorkbenchTab,
+                tab: stepEvidenceTab(actionWorkbenchTab),
                 eventId: workbenchOpenEventId,
                 eventKind: isThinking ? "thinking" : "execution",
                 view: isThinking ? "summary" : "trace",
@@ -1586,6 +1617,9 @@ export function MessageGroup({
           >
             <button
               type="button"
+              aria-expanded={
+                nestedRows.length > 0 ? aggregatedExpanded : undefined
+              }
               data-process-action="true"
               data-testid={
                 !hasResources
@@ -1779,15 +1813,10 @@ export function MessageGroup({
                 />
               </button>
             )}
-            {isAggregatedGroup && (
+            {nestedRows.length > 0 && (
               <button
                 type="button"
-                onClick={() =>
-                  setExpandedAggregatedGroups((current) => ({
-                    ...current,
-                    [item.id]: !aggregatedExpanded,
-                  }))
-                }
+                onClick={toggleAggregated}
                 className="p-0.5 opacity-0 transition-opacity group-hover/process-row:opacity-100 hover:text-muted-foreground"
                 aria-label={
                   aggregatedExpanded
@@ -1838,6 +1867,13 @@ export function MessageGroup({
               </CollapsibleContent>
             </Collapsible>
           )}
+          {stepDetail && (
+            <Collapsible open={(expandedThinkingRows[item.id] ?? false) && !liveExecStreamActive}>
+              <CollapsibleContent className="overflow-hidden data-[state=open]:animate-[collapsible-down_150ms_ease-out] data-[state=closed]:animate-[collapsible-up_150ms_ease-out]">
+                <ProcessStepDetail text={stepDetail} />
+              </CollapsibleContent>
+            </Collapsible>
+          )}
           {hasThinkingDetail && (
             <Collapsible open={expandedThinkingRows[item.id] ?? false}>
               <CollapsibleContent
@@ -1859,17 +1895,13 @@ export function MessageGroup({
               {factSummaryText}
             </div>
           )}
-          {isAggregatedGroup && (
+          {nestedRows.length > 0 && (
             <Collapsible open={aggregatedExpanded}>
               <CollapsibleContent
                 className="ml-2 space-y-0.5 border-l border-border/40 pl-2 data-[state=open]:animate-[collapsible-down_150ms_ease-out] data-[state=closed]:animate-[collapsible-up_150ms_ease-out]"
                 data-testid="aggregated-group-children"
               >
-                {renderCompactTimelineItems(
-                  item.items,
-                  `${keyPrefix}-${item.id}-sub`,
-                  { nested: true },
-                )}
+                {nestedRows}
               </CollapsibleContent>
             </Collapsible>
           )}
@@ -2479,85 +2511,6 @@ function formatFactSummary(
       return t.messageGrouping.factSummaryFailed;
     case "exit_code":
       return t.messageGrouping.factSummaryExitCode(fact.value);
-  }
-}
-
-function localizedActionVerb(
-  display: ActionDisplay,
-  t: ReturnType<typeof useI18n>["t"],
-): string {
-  const labels = t.messageGrouping.actionLabels;
-  switch (display.labelKey) {
-    case "create_file":
-      return labels.createFile;
-    case "edit_file":
-      return labels.editFile;
-    case "search_files":
-      return labels.searchFiles;
-    case "view_directory":
-      return labels.viewDirectory;
-    case "read_file":
-      return labels.readFile;
-    case "run_command":
-      return labels.runCommand;
-    case "search_web":
-      return labels.searchWeb;
-    case "browse_web":
-      return labels.browseWeb;
-    case "browser_click":
-      return labels.browserClick;
-    case "browser_type":
-      return labels.browserType;
-    case "browser_screenshot":
-      return labels.browserScreenshot;
-    case "browser_navigate":
-      return labels.browserNavigate;
-    case "browser_action":
-      return labels.browserAction;
-    case "update_plan":
-      return labels.updatePlan;
-    case "use_capability":
-      return labels.useCapability;
-    case "delegate_task":
-      return labels.delegateTask;
-    case "submit_result":
-      return labels.submitResult;
-    case "delete_file":
-      return labels.deleteFile;
-    case "move_file":
-      return labels.moveFile;
-    case "start_preview":
-      return labels.startPreview;
-    case "network_request":
-      return labels.networkRequest;
-    case "raw":
-      return display.verb;
-  }
-}
-
-function localizedAggregateVerb(
-  kind: ActionAggregateKind,
-  count: number,
-  t: ReturnType<typeof useI18n>["t"],
-): string {
-  const labels = t.messageGrouping.actionLabels;
-  switch (kind) {
-    case "file_write":
-      return labels.aggregateFileWrite(count);
-    case "file_read":
-      return labels.aggregateFileRead(count);
-    case "command":
-      return labels.aggregateCommand(count);
-    case "web_search":
-      return labels.aggregateWebSearch(count);
-    case "browser":
-      return labels.aggregateBrowser(count);
-    case "teammate":
-      return labels.aggregateTeammate(count);
-    case "todo":
-      return labels.aggregateTodo(count);
-    case "other":
-      return labels.aggregateOther(count);
   }
 }
 

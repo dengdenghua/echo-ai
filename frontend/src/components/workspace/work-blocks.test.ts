@@ -372,4 +372,30 @@ describe("work blocks", () => {
     expect(blocks[1].title).toEqual({ key: "skillDocx" });
     expect(workBlockTitle(blocks[1])).toContain("DOCX");
   });
+
+  test("classifies Codex dynamic host tools by their bare tool name", () => {
+    const blocks = toWorkBlocks([
+      event({ id: "run", name: "dynamic__run_command", startedAt: 1 }),
+      event({ id: "shell", name: "dynamic__exec_shell", startedAt: 2 }),
+      event({
+        id: "write",
+        name: "dynamic__write_text_file",
+        startedAt: 3,
+        input: { path: "src/hello.py" },
+      }),
+      event({ id: "patch", name: "echo__apply_patch", startedAt: 4 }),
+      event({ id: "read", name: "dynamic__read_file", startedAt: 5 }),
+      event({ id: "list", name: "dynamic__list_cwd", startedAt: 6 }),
+    ]);
+
+    expect(blocks.map((block) => block.kind)).toEqual([
+      "terminal",
+      "terminal",
+      "file",
+      "file",
+      "read",
+      "search",
+    ]);
+    expect(blocks[2].target).toBe("hello.py");
+  });
 });

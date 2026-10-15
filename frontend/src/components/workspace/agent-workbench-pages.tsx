@@ -56,6 +56,7 @@ import { RoutedWebLink } from "@/components/ui/routed-web-link";
 import { SubtaskHoverPreview } from "./messages/parallel-subtasks-grid";
 import { CollaborationCollectorPanel } from "./collaboration-collector-panel";
 import type { LiveToolEvent } from "./live-tool-timeline";
+import { canonicalToolName } from "./tool-name-groups";
 import {
   Tooltip,
   TooltipContent,
@@ -234,9 +235,9 @@ export function buildObservedReferenceTabs(
 
   for (const block of blocks) {
     if (isAgentLifecycleBlock(block)) continue;
-    // A todo_write event is execution progress, not an observed input or
-    // evidence source. It is rendered by the dedicated Progress section.
-    if (block.kind === "todo") continue;
+    // todo_write is execution progress and writes/edits/deletes are outputs
+    // of this run; neither is an observed input or evidence source.
+    if (block.kind === "todo" || block.kind === "file") continue;
     const tabId = referenceTabForBlock(block);
     buckets[tabId].push(...referenceItemsForBlock(block, t));
   }
@@ -305,16 +306,16 @@ function referenceItemsForBlock(
   }
 
   const target = referenceTarget(block);
-  const title = target || blockTitle || block.event.name;
-  if (!title) return [];
+  // No concrete target means no source; never fall back to the tool name.
+  if (!target) return [];
   const detail =
-    target && blockTitle !== target
+    blockTitle !== target
       ? blockTitle
       : block.subtitle || compactReference(block.outputText, 96);
   return [
     {
       id: block.id,
-      title: compactReference(title, 120),
+      title: compactReference(target, 120),
       subtitle: detail ? compactReference(detail, 128) : undefined,
       tag: referenceStatusLabel(block.status, t),
     },
@@ -592,13 +593,16 @@ function cleanWebText(text: string): string {
 
 function referenceTarget(block: WorkBlock): string {
   const input = block.event.input;
+  const own = canonicalToolName(block.event.name);
+  const notOwn = (value: string) =>
+    canonicalToolName(value) === own ? "" : value;
   return (
     changePaths(input)[0] ||
     firstInputString(input, ["path", "file_path", "filepath", "filename"]) ||
     firstInputString(input, ["url"]) ||
     firstInputString(input, ["query", "pattern"]) ||
-    firstInputString(input, ["command", "cmd"]) ||
-    firstInputString(input, ["key", "name", "title"])
+    notOwn(firstInputString(input, ["command", "cmd"])) ||
+    notOwn(firstInputString(input, ["key", "name", "title"]))
   );
 }
 

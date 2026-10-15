@@ -349,10 +349,8 @@ describe("<AgentWorkbenchPanel />", () => {
     expect(screen.queryByTestId("workbench-current-objective")).toBeNull();
     expect(screen.queryByTestId("workbench-result-receipt")).toBeNull();
     expect(screen.queryByRole("heading", { name: "产物" })).toBeNull();
-    expect(screen.getByRole("button", { name: /^参考资料/ })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    // A written file is an output, so it does not open a references section.
+    expect(screen.queryByRole("button", { name: /^参考资料/ })).toBeNull();
   });
 
   test("keeps the todo list visible after a transcript process event is focused", () => {
@@ -1526,10 +1524,9 @@ describe("<AgentWorkbenchPanel />", () => {
       }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("context.ts")).toBeInTheDocument();
-    expect(screen.getByText("market_report.md")).toBeInTheDocument();
-    expect(screen.getByText("analyze.py")).toBeInTheDocument();
-    expect(screen.getByText("MD")).toBeInTheDocument();
-    expect(screen.getByText("PY")).toBeInTheDocument();
+    // Files this run wrote are its outputs, never sources it consulted.
+    expect(screen.queryByText("market_report.md")).not.toBeInTheDocument();
+    expect(screen.queryByText("analyze.py")).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -2462,7 +2459,10 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    await waitFor(() => expect(onSelectTab).toHaveBeenCalledWith("terminal"));
+    // The terminal tab is the user's own shell and cannot replay this
+    // command, so a shell step lands on its trace instead of a new terminal.
+    await waitFor(() => expect(onSelectTab).toHaveBeenLastCalledWith("agent"));
+    expect(onSelectTab).not.toHaveBeenCalledWith("terminal");
   });
 
   // SKIPPED: focusedProcessEvent detail rendering was removed in recent refactor.
@@ -3067,10 +3067,8 @@ describe("<AgentWorkbenchPanel />", () => {
       "aria-expanded",
       "true",
     );
-    expect(screen.getByRole("button", { name: /^参考资料/ })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    // The created file is listed as an output only, not also as a source.
+    expect(screen.queryByRole("button", { name: /^参考资料/ })).toBeNull();
 
     const generatedLabel = "生成产物";
     const generatedList = listAfterSummaryLabel(generatedLabel);

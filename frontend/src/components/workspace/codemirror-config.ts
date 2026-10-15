@@ -75,5 +75,20 @@ export async function loadCodeMirrorExtensions(
     return [python()];
   }
 
-  return [];
+  // Everything else (YAML, TOML, shell, SQL …) resolves through the shared
+  // language registry, which fetches only the matching grammar.
+  const path = filePath?.split(/[?#]/, 1)[0] ?? "";
+  const name = path.split(/[\\/:]/).pop() ?? "";
+  if (!name) return [];
+  try {
+    const { languages } = await import("@codemirror/language-data");
+    const match = languages.find(
+      (language) =>
+        (ext && language.extensions.includes(ext.slice(1))) ||
+        language.filename?.test(name),
+    );
+    return match ? [await match.load()] : [];
+  } catch {
+    return [];
+  }
 }

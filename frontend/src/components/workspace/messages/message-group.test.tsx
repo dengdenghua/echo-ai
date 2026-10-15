@@ -12,6 +12,20 @@ function renderedText(text: string) {
     !Array.from(element.children).some((child) => child.textContent === text);
 }
 
+// A multi-step summary row expands its steps inline and opens nothing; only
+// an individual step row opens workbench evidence.
+function expectInlineSteps(row: HTMLElement, targets: string[]) {
+  const opened: Event[] = [];
+  const onOpen = (event: Event) => opened.push(event);
+  window.addEventListener(AGENT_WORKBENCH_OPEN_EVENT, onOpen);
+  fireEvent.click(row);
+  window.removeEventListener(AGENT_WORKBENCH_OPEN_EVENT, onOpen);
+  expect(opened).toHaveLength(0);
+  expect(row).toHaveAttribute("aria-expanded", "true");
+  const children = screen.getByTestId("aggregated-group-children");
+  for (const target of targets) expect(children).toHaveTextContent(target);
+}
+
 import { AGENT_WORKBENCH_OPEN_EVENT } from "../agent-workbench-events";
 import {
   hasVisibleMessageGroupContent,
@@ -469,23 +483,11 @@ describe("MessageGroup reasoning grouping", () => {
       screen.queryByTestId("process-timeline-event-thinking"),
     ).not.toBeInTheDocument();
 
-    const opened: CustomEvent[] = [];
-    const handleOpen = (event: Event) => opened.push(event as CustomEvent);
-    window.addEventListener(AGENT_WORKBENCH_OPEN_EVENT, handleOpen);
     expect(
       screen.queryByTestId("process-details-trigger"),
     ).not.toBeInTheDocument();
-    fireEvent.click(visibleExecution);
-    expect(opened.at(-1)?.detail).toMatchObject({
-      eventKind: "execution",
-      view: "trace",
-      processEvent: { count: 4 },
-    });
-    for (const path of paths) {
-      expect(opened.at(-1)?.detail.processEvent.detail).toContain(path);
-    }
     expect(screen.queryByText("a.py")).not.toBeInTheDocument();
-    window.removeEventListener(AGENT_WORKBENCH_OPEN_EVENT, handleOpen);
+    expectInlineSteps(visibleExecution, paths);
   });
 
   it("renders identical public summary and checkpoint text only once", () => {
@@ -1747,24 +1749,9 @@ describe("MessageGroup reasoning grouping", () => {
     expect(executions).toHaveLength(1);
     expect(executions[0]).toHaveTextContent("app.tsx");
     expect(executions[0]).not.toHaveTextContent("plan.md");
-    const execution = executions[0]!;
-
-    const opened: CustomEvent[] = [];
-    const handleOpen = (event: Event) => opened.push(event as CustomEvent);
-    window.addEventListener(AGENT_WORKBENCH_OPEN_EVENT, handleOpen);
-    fireEvent.click(execution);
-
-    expect(opened.at(-1)?.detail.processEvent).toMatchObject({
-      kind: "execution",
-      count: 3,
-    });
-    expect(opened.at(-1)?.detail.processEvent.detail).toContain("src/app.tsx");
-    expect(opened.at(-1)?.detail.processEvent.detail).toContain("plan.md");
-
+    expectInlineSteps(executions[0]!, ["src", "app.tsx"]);
     expect(screen.queryByText("已浏览目录")).not.toBeInTheDocument();
     expect(screen.queryByText("已读取")).not.toBeInTheDocument();
-    expect(opened.at(-1)?.detail.processEvent.detail).toContain("plan.md");
-    window.removeEventListener(AGENT_WORKBENCH_OPEN_EVENT, handleOpen);
   });
 
   it("keeps crawler transport files out of the conversation lane", () => {
@@ -1917,18 +1904,7 @@ describe("MessageGroup reasoning grouping", () => {
     );
     expect(executions).toHaveLength(1);
     expect(executions[0]).toHaveTextContent("a.ts · b.ts · c.ts");
-
-    const opened: CustomEvent[] = [];
-    const handleOpen = (event: Event) => opened.push(event as CustomEvent);
-    window.addEventListener(AGENT_WORKBENCH_OPEN_EVENT, handleOpen);
-    fireEvent.click(executions[0]!);
-
-    const detail = opened.at(-1)?.detail.processEvent.detail as string;
-    expect(detail).toContain("a.ts");
-    expect(detail).toContain("b.ts");
-    expect(detail).toContain("c.ts");
-    expect(opened.at(-1)?.detail.processEvent.count).toBe(3);
-    window.removeEventListener(AGENT_WORKBENCH_OPEN_EVENT, handleOpen);
+    expectInlineSteps(executions[0]!, ["a.ts", "b.ts", "c.ts"]);
   });
 
   it("folds mixed-kind execution into one conversational receipt", () => {
@@ -2393,18 +2369,7 @@ describe("MessageGroup streaming lifecycle", () => {
       "file-5.ts · file-6.ts · file-7.ts +5",
     );
 
-    const opened: CustomEvent[] = [];
-    const handleOpen = (event: Event) => opened.push(event as CustomEvent);
-    window.addEventListener(AGENT_WORKBENCH_OPEN_EVENT, handleOpen);
-    fireEvent.click(visibleExecutions[0]!);
-    expect(opened.at(-1)?.detail.processEvent).toMatchObject({ count: 8 });
-    expect(opened.at(-1)?.detail.processEvent.detail).toContain(
-      "src/file-0.ts",
-    );
-    expect(opened.at(-1)?.detail.processEvent.detail).toContain(
-      "src/file-7.ts",
-    );
-    window.removeEventListener(AGENT_WORKBENCH_OPEN_EVENT, handleOpen);
+    expectInlineSteps(visibleExecutions[0]!, ["file-0.ts", "file-7.ts"]);
   });
 
   it("transitions from streaming to completed without losing tool calls", () => {

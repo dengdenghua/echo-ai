@@ -47,20 +47,22 @@ export const SHELL_TOOL_NAMES = new Set([
   "shell_command",
 ]);
 
+// Family checks accept raw or canonical names, so a namespaced host tool
+// (``dynamic__write_text_file``) lands in the same family as its bare name.
 export function isSearchToolName(name: string): boolean {
-  return SEARCH_TOOL_NAMES.has(name);
+  return SEARCH_TOOL_NAMES.has(canonicalToolName(name));
 }
 
 export function isReadToolName(name: string): boolean {
-  return READ_TOOL_NAMES.has(name);
+  return READ_TOOL_NAMES.has(canonicalToolName(name));
 }
 
 export function isWriteToolName(name: string): boolean {
-  return WRITE_TOOL_NAMES.has(name);
+  return WRITE_TOOL_NAMES.has(canonicalToolName(name));
 }
 
 export function isEditToolName(name: string): boolean {
-  return EDIT_TOOL_NAMES.has(name);
+  return EDIT_TOOL_NAMES.has(canonicalToolName(name));
 }
 
 export function isFileMutationToolName(name: string): boolean {
@@ -68,7 +70,7 @@ export function isFileMutationToolName(name: string): boolean {
 }
 
 export function isShellToolName(name: string): boolean {
-  return SHELL_TOOL_NAMES.has(name);
+  return SHELL_TOOL_NAMES.has(canonicalToolName(name));
 }
 
 export function shellCommandFromInput(
@@ -80,18 +82,30 @@ export function shellCommandFromInput(
     const value = input[key];
     if (typeof value !== "string") continue;
     const trimmed = value.trim();
-    if (trimmed && trimmed !== toolName) return trimmed;
+    if (!trimmed || trimmed === toolName) continue;
+    // A serialized argument object is evidence for the workbench, not a
+    // command line to show in the transcript.
+    if (key === "inputPreview" && /^[{[]/.test(trimmed)) continue;
+    return trimmed;
   }
   return undefined;
 }
 
 // External execution engines report their native tools with an engine
-// namespace (``opencode.bash``). The namespace says who ran the tool, not what
-// it did, so presenters strip it before mapping the name to a label.
-const ENGINE_TOOL_PREFIX_RE = /^(?:opencode|codex)\./i;
+// namespace (``opencode.bash``), and Codex reports Echo host tools it called
+// as dynamic tools (``dynamic__write_text_file``, or an ``echo`` namespace).
+// The namespace says who ran the tool, not what it did, so presenters strip it
+// before mapping the name to a label.
+const ENGINE_TOOL_PREFIX_RE =
+  /^(?:(?:opencode|codex|echo)\.|(?:dynamic|echo)__)+/i;
+
+/** Strip the engine/host namespace but keep the original casing. */
+export function stripToolNamespace(name: string): string {
+  return name.trim().replace(ENGINE_TOOL_PREFIX_RE, "");
+}
 
 export function canonicalToolName(name: string): string {
-  return name.trim().replace(ENGINE_TOOL_PREFIX_RE, "").toLowerCase();
+  return stripToolNamespace(name).toLowerCase();
 }
 
 // Tools that read one known web page. Approval prompts and transcript rows

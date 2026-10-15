@@ -58,6 +58,8 @@ import {
 import type { WorkbenchRosterSeat } from "./agent-workbench-panel/helpers";
 import { useWorkbenchSelection } from "./agent-workbench-panel/use-workbench-selection";
 import { ArtifactInlinePreviewEmbedded } from "./agent-workbench-panel/artifact-inline-preview";
+import { conversationLandingTab } from "./agent-workbench-panel/conversation-landing-tab";
+import { useOptionalArtifacts } from "./artifacts/context";
 import { WorkbenchSnapshotCache } from "@/core/cache/workbench-snapshot-cache";
 import { workspacePresetForAgent } from "@/core/workspace/workspace-presets";
 
@@ -425,6 +427,11 @@ function AgentWorkbenchPanelImpl({
         "terminal",
       ]),
   );
+  // Tabs the user closed; the no-target landing tab skips them.
+  const [dismissedTabs, setDismissedTabs] = useState<
+    ReadonlySet<AgentWorkbenchTabId>
+  >(() => new Set());
+  const hasArtifacts = (useOptionalArtifacts()?.artifacts.length ?? 0) > 0;
   // Browser tab source: while the run streams, the inline srcDoc blocks are
   // the freshest view; once the run settles a deployed URL wins. The override
   // lets the user flip between the two when both exist.
@@ -539,7 +546,13 @@ function AgentWorkbenchPanelImpl({
     !selectedAgent &&
     !selectedRosterSeat &&
     !selectedEffectKey
-      ? (mergeProjectHome ? "project" : isDevelopmentWorkbench ? "diff" : "workspace")
+      ? conversationLandingTab({
+          mergeProjectHome,
+          isDevelopmentWorkbench,
+          hasArtifacts: hasArtifacts && Boolean(threadId),
+          hasDiff: visibleDiffEntries.length > 0,
+          dismissed: dismissedTabs,
+        })
       : normalizedActiveTab;
   const workbenchTabs: WorkbenchTab[] = useMemo(
     () => [
@@ -603,6 +616,7 @@ function AgentWorkbenchPanelImpl({
         next.add(tabId);
         return next;
       });
+      setDismissedTabs((prev) => new Set(prev).add(tabId));
       if (effectiveActiveTab === tabId) {
         onSelectTab?.("agent");
       }
@@ -613,6 +627,11 @@ function AgentWorkbenchPanelImpl({
   const handleOpenTab = useCallback(
     (tabId: AgentWorkbenchTabId) => {
       setClosedTabs((prev) => {
+        const next = new Set(prev);
+        next.delete(tabId);
+        return next;
+      });
+      setDismissedTabs((prev) => {
         const next = new Set(prev);
         next.delete(tabId);
         return next;
@@ -674,6 +693,8 @@ function AgentWorkbenchPanelImpl({
   if (
     emptyShell &&
     effectiveActiveTab !== "project" &&
+    // Produced files are content even when no tool events were replayed.
+    !(effectiveActiveTab === "artifacts" && hasArtifacts && threadId) &&
     !selectedEffectKey &&
     !focusedProcessEvent
   ) {

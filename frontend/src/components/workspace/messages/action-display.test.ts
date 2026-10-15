@@ -50,6 +50,40 @@ describe("getActionDisplay", () => {
     expect(d.workbenchTab).toBe("terminal");
   });
 
+  it("gives Codex dynamic host tools their bare tool's friendly label", () => {
+    const write = getActionDisplay("dynamic__write_text_file", {
+      path: "hello.py",
+      content: 'print("hi")',
+      command: "dynamic__write_text_file",
+    });
+    expect(write.labelKey).toBe("create_file");
+    expect(write.object).toBe("hello.py");
+    expect(write.workbenchTab).toBe("diff");
+
+    const list = getActionDisplay("dynamic__list_cwd", { path: "." });
+    expect(list.labelKey).toBe("view_directory");
+    expect(getActionDisplay("dynamic__read_file", {}).labelKey).toBe(
+      "read_file",
+    );
+    const run = getActionDisplay("dynamic__run_command", {
+      command: "python hello.py",
+    });
+    expect(run.labelKey).toBe("run_command");
+    expect(run.object).toBe("python hello.py");
+    expect(getActionDisplay("echo__exec_shell", {}).labelKey).toBe(
+      "run_command",
+    );
+    expect(getActionDisplay("echo.edit_text_file", {}).labelKey).toBe(
+      "edit_file",
+    );
+  });
+
+  it("never renders the dynamic namespace in a raw fallback label", () => {
+    const d = getActionDisplay("dynamic__git_status", {});
+    expect(d.labelKey).toBe("raw");
+    expect(d.verb).toBe("Git Status");
+  });
+
   it("strips the engine namespace from native engine tools", () => {
     const d = getActionDisplay("opencode.bash", {
       command: "curl -sI https://example.com",

@@ -39,6 +39,16 @@ import type { DiffEntry } from "../agent-workbench-utils";
 const LazyStreamdown = lazy(
   () => import("@/components/ai-elements/streamdown-host"),
 );
+// The same read-only CodeMirror view the artifact drawer uses for code; its
+// chunk loads only when a code or text file is previewed.
+const LazyCodeEditor = lazy(() =>
+  import("@/components/workspace/code-editor").then((m) => ({
+    default: m.CodeEditor,
+  })),
+);
+
+/** Rendering more than this freezes the panel; the full file is a download. */
+const CODE_PREVIEW_LIMIT = 200 * 1024;
 
 /**
  * Two-state artifact panel for the workbench's "产物" tab.
@@ -240,10 +250,14 @@ export function PreviewPane({
   });
   const effectiveContent = isWriteFile ? "" : (content ?? "");
 
-  const lang = checkCodeFile(displayPath).language;
+  const { isCodeFile, language: lang } = checkCodeFile(displayPath);
   const isHtml = lang === "html";
   const isMarkdown = lang === "markdown";
   const officeKind = officeArtifactKind(displayPath);
+  const codeTruncated = effectiveContent.length > CODE_PREVIEW_LIMIT;
+  const codeText = codeTruncated
+    ? effectiveContent.slice(0, CODE_PREVIEW_LIMIT)
+    : effectiveContent;
 
   return (
     <div className="flex min-h-0 size-full flex-col">
@@ -322,6 +336,29 @@ export function PreviewPane({
             threadId={threadId}
             url={url}
           />
+        ) : isCodeFile ? (
+          <div className="flex size-full min-h-0 flex-col">
+            {codeTruncated && (
+              <p className="shrink-0 border-b border-border-subtle bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+                {workbenchArtifactsCopy(locale).previewTruncated}
+              </p>
+            )}
+            <Suspense
+              fallback={
+                <pre className="min-h-0 flex-1 overflow-auto p-4 font-mono text-sm text-muted-foreground">
+                  {codeText}
+                </pre>
+              }
+            >
+              <LazyCodeEditor
+                className="min-h-0 flex-1 resize-none rounded-none border-none"
+                value={codeText}
+                readonly
+                syntaxPath={displayPath}
+                threadId={threadId}
+              />
+            </Suspense>
+          </div>
         ) : (
           <div className="flex size-full items-center justify-center p-4 text-xs text-muted-foreground">
             {workbenchArtifactsCopy(locale).previewUnsupported}

@@ -1,5 +1,5 @@
-import { useContext, useEffect, useRef, useState } from "react";
-import { Loader2Icon } from "lucide-react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2Icon, PackageIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { FileReferenceChip } from "@/components/ui/file-reference-chip";
+import { useOptionalArtifacts } from "@/components/workspace/artifacts/context";
 import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import {
@@ -15,10 +16,16 @@ import {
   resolveFileReference,
 } from "@/core/navigation/file-reference";
 import {
+  artifactsNamed,
+  findArtifactForFileReference,
+} from "@/core/artifacts/file-reference-artifact";
+import {
   artifactRefFromMarkdownHref,
   dispatchOpenArtifact,
 } from "@/core/artifacts/open-artifact";
+import { artifactDisplayPath } from "@/core/artifacts/utils";
 import { useI18n } from "@/core/i18n/hooks";
+import { linkedFileReferenceCopy } from "@/core/i18n/locales/linked-file-reference";
 import { quoteIntoTask } from "@/core/threads/task-interaction";
 import { MediaReference } from "./media-reference";
 
@@ -43,13 +50,29 @@ export function LinkedFileReference({
   const textRef = useRef<HTMLPreElement>(null);
   const [selection, setSelection] = useState<{ text: string; lines: string }>();
   const [fingerprint, setFingerprint] = useState("");
+  const [failedStatus, setFailedStatus] = useState<number>();
   const resolvedPath = resolveFileReference(path, scope.basePath);
   const line = Number(lines?.split("-")[0]);
+  // A file the run produced lives in the thread's output area, not under the
+  // workspace root the chip would otherwise resolve against.
+  const artifacts = useOptionalArtifacts()?.artifacts;
+  const artifact = useMemo(
+    () => findArtifactForFileReference(path, artifacts ?? []),
+    [artifacts, path],
+  );
+  const sameNameArtifacts = useMemo(
+    () =>
+      failedStatus === 403 || failedStatus === 404
+        ? artifactsNamed(path, artifacts ?? []).slice(0, 3)
+        : [],
+    [artifacts, failedStatus, path],
+  );
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
     setContent(undefined);
     setError(undefined);
+    setFailedStatus(undefined);
     setMedia(undefined);
     setTruncated(false);
     setSelection(undefined);
@@ -69,6 +92,7 @@ export function LinkedFileReference({
       { headers: authHeaders(), signal: controller.signal },
     )
       .then(async (res) => {
+        if (!res.ok && !controller.signal.aborted) setFailedStatus(res.status);
         if (!res.ok)
           throw new Error(
             zh
@@ -115,12 +139,14 @@ export function LinkedFileReference({
       lineRef.current?.scrollIntoView?.({ block: "center" });
   }, [content]);
   const openFile = () => {
-    const artifact = artifactRefFromMarkdownHref(path);
+    const outputRef = artifactRefFromMarkdownHref(path);
     if (
-      artifact?.startsWith("workspace-output:") &&
-      dispatchOpenArtifact(artifact)
+      outputRef?.startsWith("workspace-output:") &&
+      dispatchOpenArtifact(outputRef)
     )
       return;
+    // Same hand-off as the status menu's 产出 list: the 产物 tab.
+    if (artifact && dispatchOpenArtifact(artifact)) return;
     setOpen(true);
   };
   return (
@@ -142,7 +168,27 @@ export function LinkedFileReference({
               </DialogDescription>
             </DialogHeader>
             {error ? (
-              <p role="alert">{error}</p>
+              <>
+                <p role="alert">{error}</p>
+                {sameNameArtifacts.map((match) => (
+                  <button
+                    key={match}
+                    type="button"
+                    className="inline-flex items-center gap-2 justify-self-start rounded-md border px-3 py-2 text-sm"
+                    onClick={() => {
+                      if (dispatchOpenArtifact(match)) setOpen(false);
+                    }}
+                  >
+                    <PackageIcon className="size-4" aria-hidden="true" />
+                    {linkedFileReferenceCopy(locale).openInArtifacts}
+                    {sameNameArtifacts.length > 1 && (
+                      <span className="text-muted-foreground">
+                        {artifactDisplayPath(match)}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </>
             ) : media ? (
               <>
                 {media.type.startsWith("image/") ||
