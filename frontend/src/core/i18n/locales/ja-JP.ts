@@ -3800,7 +3800,7 @@ export const jaJP: Translations = {
       gepaDryRunBadge: "プレビュー",
       gepaAutoApplyBadge: "自動適用",
       gepaDryRunHint:
-        "💡 GEPA は dry-run 中です。ECHO_GEPA_AUTO_APPLY=1 を設定すると、実際に recipe weights が更新されます。",
+        "GEPA は dry-run 中です。ECHO_GEPA_AUTO_APPLY=1 を設定すると、実際に recipe weights が更新されます。",
       notGenerated: "未生成",
       camouflageTitle: "プロンプト進化（モデル駆動）",
       camouflageDescription:
@@ -6944,7 +6944,7 @@ export const jaJP: Translations = {
     openCodeZenEmpty: "OpenCode Zen は未接続です。先に設定で OpenCode Zen を接続すると（無料、API キーが必要）、ここでモデルを選べます。",
     openCodeGoEmpty: "OpenCode Go プランは未接続です。接続すると、プランのモデルがここに表示されます。",
     connectOpenCode: "OpenCode を接続",
-    autoModelLabel: "Auto",
+    autoModelLabel: "自動",
     autoModelDescription:
       "タスクタイプに応じてシステムが最適なモデルを自動選択",
     autoModelBadge: "Smart",
@@ -8346,7 +8346,7 @@ export const jaJP: Translations = {
   loginPage: {
     appSubtitle: "ログインしてエージェントを利用",
     checkingProviders: "ログイン方法を確認中…",
-    noProvidersTitle: "⚠️ サーバーで有効なログイン方法がありません",
+    noProvidersTitle: "サーバーで有効なログイン方法がありません",
     noProvidersHint: "アカウントログインまたはローカル認証を有効にしてください",
     tabPhone: "📱 電話番号",
     tabLocal: "💻 ローカル",
@@ -8369,7 +8369,7 @@ export const jaJP: Translations = {
     loginButton: "ログイン",
     spinnerWait: "しばらくお待ちください",
     localBanner:
-      "⚠️ パスワードなし · ユーザー名を入力するだけでログイン · 本機/イントラネット専用",
+      "パスワードなし · ユーザー名を入力するだけでログイン · 本機/イントラネット専用",
     usernameLabel: "ユーザー名",
     displayNameLabel: "表示名（任意）",
     loggingIn: "ログイン中…",

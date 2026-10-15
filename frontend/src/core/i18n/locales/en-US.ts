@@ -3820,7 +3820,7 @@ export const enUS: Translations = {
       gepaDryRunBadge: "dry-run",
       gepaAutoApplyBadge: "auto-apply",
       gepaDryRunHint:
-        "💡 GEPA is in dry-run. Set ECHO_GEPA_AUTO_APPLY=1 to actually update recipe weights.",
+        "GEPA is in dry-run. Set ECHO_GEPA_AUTO_APPLY=1 to actually update recipe weights.",
       notGenerated: "Not generated",
       camouflageTitle: "Camouflage Evolution (LLM-driven)",
       camouflageDescription:
@@ -8378,7 +8378,7 @@ Strategy:
   loginPage: {
     appSubtitle: "Log in to use agents",
     checkingProviders: "Checking login methods…",
-    noProvidersTitle: "⚠️ No login methods enabled on the server",
+    noProvidersTitle: "No login methods enabled on the server",
     noProvidersHint: "Enable account login or local auth",
     tabPhone: "📱 Phone",
     tabLocal: "💻 Local",
@@ -8400,7 +8400,7 @@ Strategy:
     loginButton: "Log in",
     spinnerWait: "Please wait",
     localBanner:
-      "⚠️ No password · enter a username to log in · local/intranet only",
+      "No password · enter a username to log in · local/intranet only",
     usernameLabel: "Username",
     displayNameLabel: "Display name (optional)",
     loggingIn: "Logging in…",

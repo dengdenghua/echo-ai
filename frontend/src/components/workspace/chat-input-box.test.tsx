@@ -679,7 +679,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getByText("Plan")).toBeInTheDocument();
     expect(
       screen.getByText("Goal").closest('[role="menuitem"]'),
-    ).toHaveTextContent("🎯Goal");
+    ).toContainHTML("lucide-target");
     expect(screen.getByText("Milestone")).toBeInTheDocument();
     expect(screen.getByText("Browser")).toBeInTheDocument();
     expect(screen.getByText("Chrome")).toBeInTheDocument();
@@ -737,8 +737,8 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
       "Goal",
     );
-    expect(screen.getByTestId("composer-command-prefix")).toHaveTextContent(
-      "🎯",
+    expect(screen.getByTestId("composer-command-prefix")).toContainHTML(
+      "lucide-target",
     );
     expect(screen.getByTestId("composer-command-prefix")).toHaveClass(
       "font-bold",
@@ -753,7 +753,7 @@ describe("<ChatInputBox /> cowork materials", () => {
     );
     expect(
       screen.getByTestId("composer-long-task-indicator"),
-    ).toHaveTextContent("🎯");
+    ).toContainHTML("lucide-target");
     const longTaskIndicator = screen.getByTestId(
       "composer-long-task-indicator",
     );

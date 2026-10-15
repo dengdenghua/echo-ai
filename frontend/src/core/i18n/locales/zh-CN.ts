@@ -3555,7 +3555,7 @@ export const zhCN: Translations = {
       gepaDryRunBadge: "预演",
       gepaAutoApplyBadge: "自动应用",
       gepaDryRunHint:
-        "💡 GEPA 处于 dry-run · 设置环境变量 ECHO_GEPA_AUTO_APPLY=1 后才会真改 recipe weights。",
+        "GEPA 处于 dry-run · 设置环境变量 ECHO_GEPA_AUTO_APPLY=1 后才会真改 recipe weights。",
       notGenerated: "未生成",
       camouflageTitle: "提示词进化（模型驱动）",
       camouflageDescription:
@@ -6593,7 +6593,7 @@ export const zhCN: Translations = {
     openCodeZenEmpty: "还没有连接 OpenCode Zen。先在设置里连接 OpenCode Zen（免费，需要 API Key），连接后可在这里选择模型。",
     openCodeGoEmpty: "还没有连接 OpenCode Go 套餐。连接后，这里会列出套餐里的模型。",
     connectOpenCode: "连接 OpenCode",
-    autoModelLabel: "Auto",
+    autoModelLabel: "自动",
     autoModelDescription: "让系统根据任务类型自动选择最合适的模型",
     autoModelBadge: "智能",
     freeBadge: "免费",
@@ -7929,7 +7929,7 @@ export const zhCN: Translations = {
   loginPage: {
     appSubtitle: "登录使用智能体",
     checkingProviders: "检查登录方式…",
-    noProvidersTitle: "⚠️ 服务端没开启任何登录方式",
+    noProvidersTitle: "服务端没开启任何登录方式",
     noProvidersHint: "请启用账号登录或本地账号登录",
     tabPhone: "📱 手机号",
     tabLocal: "💻 本地",
@@ -7950,7 +7950,7 @@ export const zhCN: Translations = {
     verifying: "验证中…",
     loginButton: "登录",
     spinnerWait: "请稍候",
-    localBanner: "⚠️ 无密码 · 输入用户名即可登录 · 仅限本机/内网使用",
+    localBanner: "无密码 · 输入用户名即可登录 · 仅限本机/内网使用",
     usernameLabel: "用户名",
     displayNameLabel: "显示名（可选）",
     loggingIn: "登录中…",

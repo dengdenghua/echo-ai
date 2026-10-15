@@ -34,7 +34,7 @@ frontend/src/components/workspace/artifacts/artifact-file-detail.tsx	1330
 frontend/src/components/workspace/browser-preview-panel.tsx	2358
 frontend/src/components/workspace/channel-credential-dialog.tsx	1070
 frontend/src/components/workspace/chat-input-box.test.tsx	2319
-frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2221
+frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2210
 frontend/src/components/workspace/coder-engine-control.test.tsx	1262
 frontend/src/components/workspace/collab/collab-provider.tsx	1329
 frontend/src/components/workspace/evolution-control-panel/index.tsx	1444

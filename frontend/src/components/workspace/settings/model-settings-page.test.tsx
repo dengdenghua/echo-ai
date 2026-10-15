@@ -209,11 +209,11 @@ describe("ModelSettingsPage · everyday model selection", () => {
       ).toHaveTextContent("Shared B"),
     );
     await user.click(screen.getByRole("button", { name: "对话默认模型" }));
-    await user.click(screen.getByRole("button", { name: /^Auto/ }));
+    await user.click(screen.getByRole("button", { name: /^自动/ }));
     expect(getLocalSettings().context.model_name).toBe("auto");
     expect(
       screen.getByRole("button", { name: "对话默认模型" }),
-    ).toHaveTextContent("Auto");
+    ).toHaveTextContent("自动");
   });
 
   it("loads optional services on demand and opens Codex account setup from Add connection", async () => {

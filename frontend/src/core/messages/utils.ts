@@ -673,7 +673,7 @@ export function isLegacyInternalAgentError(content: unknown): boolean {
 
 export function sanitizeLegacyInternalAgentError(content: string): string {
   return isLegacyInternalAgentError(content)
-    ? "⚠️ 该成员当时未能生成有效回复。"
+    ? "该成员当时未能生成有效回复。"
     : content;
 }
 

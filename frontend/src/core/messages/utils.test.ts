@@ -67,7 +67,7 @@ describe("legacy internal agent diagnostics", () => {
 
     expect(isLegacyInternalAgentError(leaked)).toBe(true);
     expect(sanitizeLegacyInternalAgentError(leaked)).toBe(
-      "⚠️ 该成员当时未能生成有效回复。",
+      "该成员当时未能生成有效回复。",
     );
     expect(sanitizeLegacyInternalAgentError("正常回复")).toBe("正常回复");
   });

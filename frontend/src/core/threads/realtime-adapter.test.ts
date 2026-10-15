@@ -360,7 +360,7 @@ describe("conversationToAgentThreadState · agentMessage + reasoning", () => {
     const answer = state.messages.find(
       (message) => message.type === "ai" && message.content,
     ) as AIMessage;
-    expect(answer.content).toBe("⚠️ 该成员当时未能生成有效回复。");
+    expect(answer.content).toBe("该成员当时未能生成有效回复。");
     expect(
       state.messages.some(
         (message) =>

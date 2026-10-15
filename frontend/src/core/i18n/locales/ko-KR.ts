@@ -3744,7 +3744,7 @@ export const koKR: Translations = {
       gepaDryRunBadge: "미리 보기",
       gepaAutoApplyBadge: "자동 적용",
       gepaDryRunHint:
-        "💡 GEPA가 dry-run 상태입니다. ECHO_GEPA_AUTO_APPLY=1로 설정해야 실제로 recipe 가중치가 업데이트됩니다.",
+        "GEPA가 dry-run 상태입니다. ECHO_GEPA_AUTO_APPLY=1로 설정해야 실제로 recipe 가중치가 업데이트됩니다.",
       notGenerated: "생성되지 않음",
       camouflageTitle: "프롬프트 진화(모델 기반)",
       camouflageDescription:
@@ -6853,7 +6853,7 @@ export const koKR: Translations = {
     openCodeZenEmpty: "OpenCode Zen이 연결되지 않았습니다. 먼저 설정에서 OpenCode Zen을 연결하면(무료, API 키 필요) 여기서 모델을 고를 수 있습니다.",
     openCodeGoEmpty: "OpenCode Go 요금제가 연결되지 않았습니다. 연결하면 요금제 모델이 여기에 표시됩니다.",
     connectOpenCode: "OpenCode 연결",
-    autoModelLabel: "Auto",
+    autoModelLabel: "자동",
     autoModelDescription: "시스템이 작업별로 최적의 모델을 선택하게 합니다",
     autoModelBadge: "Smart",
     freeBadge: "무료",
@@ -8241,7 +8241,7 @@ export const koKR: Translations = {
   loginPage: {
     appSubtitle: "로그인하여 에이전트 사용",
     checkingProviders: "로그인 방법 확인 중…",
-    noProvidersTitle: "⚠️ 서버에 활성화된 로그인 방법이 없습니다",
+    noProvidersTitle: "서버에 활성화된 로그인 방법이 없습니다",
     noProvidersHint: "계정 로그인 또는 로컬 인증을 활성화하세요",
     tabPhone: "📱 전화번호",
     tabLocal: "💻 로컬",
@@ -8263,7 +8263,7 @@ export const koKR: Translations = {
     loginButton: "로그인",
     spinnerWait: "잠시만 기다려 주세요",
     localBanner:
-      "⚠️ 비밀번호 없음 · 사용자 이름을 입력하여 로그인 · 로컬/인트라넷 전용",
+      "비밀번호 없음 · 사용자 이름을 입력하여 로그인 · 로컬/인트라넷 전용",
     usernameLabel: "사용자 이름",
     displayNameLabel: "표시 이름 (선택 사항)",
     loggingIn: "로그인 중…",

@@ -72,7 +72,7 @@ export function CoderEngineControl({
   reasoningEffort?: ReasoningEffort;
   onReasoningEffortChange?: (effort: ReasoningEffort) => void;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const copy = coderEngineCopy(locale);
   const queryClient = useQueryClient();
   const { user, isLoading: authLoading } = useAuth();
@@ -172,8 +172,8 @@ export function CoderEngineControl({
     (!nativeKernel
       ? profile?.effective_model?.replace(/^official\//, "")
       : undefined) ||
-    value?.replace(/^official\//, "") ||
-    "auto";
+    (value && value !== "auto" ? value.replace(/^official\//, "") : "") ||
+    t.modelPicker.autoModelLabel;
   const visibleSystemSource = activeSystemModel?.source_display_name;
   const fullProfileLabel = nativeKernel
     ? nativeAccountSelected

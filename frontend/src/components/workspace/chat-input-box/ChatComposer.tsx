@@ -6,6 +6,7 @@ import {
   ExternalLinkIcon,
   FileIcon,
   FlagIcon,
+  TargetIcon,
   FolderKanbanIcon,
   ImageIcon,
   ListTodoIcon,
@@ -1521,9 +1522,7 @@ export function ChatComposer({
             {activeComposerMode === "project" ? (
               <FlagIcon className="size-4" />
             ) : activeComposerMode === "goal" ? (
-              <span className="text-[15px] leading-none" aria-hidden="true">
-                🎯
-              </span>
+              <TargetIcon className="size-4" aria-hidden="true" />
             ) : activeComposerMode === "plan" ? (
               <MapIcon className="size-4" />
             ) : (
@@ -1793,12 +1792,7 @@ export function ChatComposer({
                     onSelect={() => insertCommandModeMarker("goal")}
                     className="gap-2 rounded-lg text-sm"
                   >
-                    <span
-                      className="text-[15px] leading-none grayscale opacity-70"
-                      aria-hidden="true"
-                    >
-                      🎯
-                    </span>
+                    <TargetIcon className="size-4 opacity-70" aria-hidden="true" />
                     Goal
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -2039,12 +2033,7 @@ export function ChatComposer({
               }
             >
               {activeLongTaskMode === "goal" ? (
-                <span
-                  className="text-[15px] leading-none grayscale opacity-70"
-                  aria-hidden="true"
-                >
-                  🎯
-                </span>
+                <TargetIcon className="size-4" aria-hidden="true" />
               ) : (
                 <FlagIcon className="size-4" />
               )}
