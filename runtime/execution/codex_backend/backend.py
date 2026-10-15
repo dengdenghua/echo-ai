@@ -27,6 +27,7 @@ from runtime.safety.sandboxing.sandbox import (
 
 from .approvals import CodexApprovalBroker
 from .client import CodexAppServerClient
+from .models_cache import seed_models_cache, share_models_cache
 from .security import (
     CodexSandboxMode,
     CodexSecurityError,
@@ -348,6 +349,7 @@ class CodexExecutionSession:
                     source_codex_home=self.request.source_codex_home,
                     authority=_SERVER_AUTHORITY,
                 )
+            seed_models_cache(context, fallback_home=self.request.source_codex_home)
 
             broker = CodexApprovalBroker(
                 self._approval_provider,
@@ -395,6 +397,7 @@ class CodexExecutionSession:
             inner_thread_id = await self._restore_or_create_thread(context, binding)
             self._inner_thread_id = inner_thread_id
             thread_ready_at = time.perf_counter()
+            share_models_cache(context)
 
             turn_params = _turn_extra_params(context.turn_start_security_overrides())
             if self.request.tool_free or self.request.host_tools_only:

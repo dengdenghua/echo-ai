@@ -138,6 +138,10 @@ if FASTAPI_AVAILABLE:
     class ProvidersResponse(BaseModel):
         providers: list[ProviderCapabilitiesWire]
 
+    class OpenCodePrewarmResponse(BaseModel):
+        # True when the engine for the next reply is running or starting.
+        warm: bool
+
     class ConstitutionProfileResponse(BaseModel):
         profile: str  # "strict" | "normal" | "lax"
         available: list[str]
@@ -328,6 +332,7 @@ __all__ = [
     "FASTAPI_AVAILABLE",
     "IdentityLockPutBody",
     "IdentityLockResponse",
+    "OpenCodePrewarmResponse",
     "ProviderCapabilitiesWire",
     "ProvidersResponse",
 ]

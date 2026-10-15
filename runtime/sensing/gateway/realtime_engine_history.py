@@ -130,7 +130,13 @@ class EngineHistory:
             self.session.metadata.setdefault(_DELIVERED_KEY, set()).add(self.engine)
 
 
-def engine_history_for_turn(log: Any, turn: Any, engine: str) -> EngineHistory:
+def engine_history_for_turn(log: Any, turn: Any, engine: str, *, lane: str = "") -> EngineHistory:
+    """``lane`` names a separate inner session of the same engine.
+
+    Codex answers chat-only turns in a tool-free thread of its own, so a
+    completed Codex turn only marks the resume boundary for the thread
+    (lane) that actually received it; the other thread still needs it.
+    """
     replay = getattr(log, "replay", None)
     if not callable(replay):
         # Direct embedding/test adapters may have no durable conversation.
@@ -150,7 +156,7 @@ def engine_history_for_turn(log: Any, turn: Any, engine: str) -> EngineHistory:
             previous.append(entry)
     last_completed = -1
     acknowledged = {
-        event.turn_id
+        event.turn_id: str(event.payload.get("lane") or "")
         for event in log.iter_events()
         if event.event == "execution_handoff"
         and event.thread_id == turn.thread_id
@@ -163,7 +169,7 @@ def engine_history_for_turn(log: Any, turn: Any, engine: str) -> EngineHistory:
             entry.status == TurnStatus.COMPLETED
             and entry.execution
             and entry.execution.engine == engine
-            and entry.id in acknowledged
+            and acknowledged.get(entry.id) == lane
         ):
             last_completed = index
     session = current_session()
@@ -173,15 +179,20 @@ def engine_history_for_turn(log: Any, turn: Any, engine: str) -> EngineHistory:
     if last_completed < 0:
         # Upgrade existing engine sessions once: their own turns are already
         # cached, but earlier turns from other engines have never been relayed.
+        # Turns another lane received are not in this lane's session.
         missing = [
-            entry for entry in previous if not entry.execution or entry.execution.engine != engine
+            entry
+            for entry in previous
+            if not entry.execution
+            or entry.execution.engine != engine
+            or acknowledged.get(entry.id, lane) != lane
         ]
 
     def record_delivery() -> None:
-        log.execution_handoff(
-            turn.thread_id,
-            turn.id,
-            {"kind": "engine_history_received", "version": 1, "engine": engine},
-        )
+        payload = {"kind": "engine_history_received", "version": 1, "engine": engine}
+        if lane:
+            payload["lane"] = lane
+        log.execution_handoff(turn.thread_id, turn.id, payload)
 
-    return EngineHistory(_prefix(previous), _prefix(missing), engine, session, record_delivery)
+    session_key = f"{engine}:{lane}" if lane else engine
+    return EngineHistory(_prefix(previous), _prefix(missing), session_key, session, record_delivery)

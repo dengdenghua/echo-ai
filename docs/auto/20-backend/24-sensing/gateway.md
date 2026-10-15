@@ -1675,7 +1675,7 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | class | `class EngineHistory` |  |
-| func | `def engine_history_for_turn(log, turn, engine)` |  |
+| func | `def engine_history_for_turn(log, turn, engine, lane)` | ``lane`` names a separate inner session of the same engine. |
 
 ### `realtime_execution.py`
 

@@ -130,6 +130,98 @@ def test_text_only_server_reuses_one_warm_process(tmp_path, monkeypatch):
     assert validations == []
 
 
+def _fake_warm_pool(monkeypatch, *, start_gate=None):
+    from types import SimpleNamespace
+
+    from runtime.execution import opencode_backend as backend
+
+    starts, stops = [], []
+
+    class Client:
+        async def get(self, path, **kwargs):
+            assert path == "/global/health"
+            return SimpleNamespace(status_code=200, json=lambda: {"healthy": True})
+
+    async def start(command, root, key, model, **kwargs):
+        starts.append(model)
+        if start_gate is not None:
+            await start_gate.wait()
+        return SimpleNamespace(returncode=None, terminate=lambda: None), Client()
+
+    async def stop(*args):
+        stops.append(args)
+
+    monkeypatch.setattr(backend, "_start_server", start)
+    monkeypatch.setattr(backend, "_stop_server", stop)
+    backend._warm_servers.clear()
+    backend._warm_lock = None
+    backend._warm_lock_loop = None
+    return backend, starts, stops
+
+
+def _drain_warm_pool(backend):
+    for entry in backend._warm_servers.values():
+        if entry.idle_handle is not None:
+            entry.idle_handle.cancel()
+    backend._warm_servers.clear()
+
+
+def test_prewarm_leaves_an_idle_server_the_next_reply_reuses(tmp_path, monkeypatch):
+    backend, starts, _ = _fake_warm_pool(monkeypatch)
+
+    async def run():
+        assert await backend.prewarm_text_server("opencode", tmp_path, "k", "m") is True
+        entry = next(iter(backend._warm_servers.values()))
+        assert entry.in_use is False and entry.idle_handle is not None
+        # Warm already: only the idle timer is renewed.
+        assert await backend.prewarm_text_server("opencode", tmp_path, "k", "m") is True
+        async with backend.managed_server("opencode", tmp_path, "k", "m") as client:
+            assert client is entry.client
+        _drain_warm_pool(backend)
+
+    asyncio.run(run())
+    assert starts == ["m"]
+
+
+def test_a_reply_during_prewarm_waits_for_that_process(tmp_path, monkeypatch):
+    async def run():
+        gate = asyncio.Event()
+        backend, starts, _ = _fake_warm_pool(monkeypatch, start_gate=gate)
+        warming = asyncio.create_task(backend.prewarm_text_server("opencode", tmp_path, "k", "m"))
+        await asyncio.sleep(0)
+
+        async def reply():
+            async with backend.managed_server("opencode", tmp_path, "k", "m") as client:
+                return client
+
+        replying = asyncio.create_task(reply())
+        await asyncio.sleep(0)
+        gate.set()
+        assert await warming is True
+        assert await replying is next(iter(backend._warm_servers.values())).client
+        _drain_warm_pool(backend)
+        return starts
+
+    assert asyncio.run(run()) == ["m"]
+
+
+def test_prewarm_replaces_a_switched_model_but_never_evicts_others(tmp_path, monkeypatch):
+    backend, starts, stops = _fake_warm_pool(monkeypatch)
+
+    async def run():
+        await backend.prewarm_text_server("opencode", tmp_path / "me", "k", "old")
+        await backend.prewarm_text_server("opencode", tmp_path / "me", "k", "new")
+        assert len(stops) == 1 and len(backend._warm_servers) == 1
+        await backend.prewarm_text_server("opencode", tmp_path / "b", "k", "m")
+        await backend.prewarm_text_server("opencode", tmp_path / "c", "k", "m")
+        assert await backend.prewarm_text_server("opencode", tmp_path / "d", "k", "m") is False
+        assert len(backend._warm_servers) == 3 and len(stops) == 1
+        _drain_warm_pool(backend)
+
+    asyncio.run(run())
+    assert starts == ["old", "new", "m", "m"]
+
+
 def test_explicit_engine_and_continuations():
     route = select_execution_route(requested_engine=EngineId.OPENCODE, codex_partner=True)
     assert route.engine == EngineId.OPENCODE

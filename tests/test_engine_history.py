@@ -22,7 +22,9 @@ from runtime.sensing.gateway.realtime_engine_history import engine_history_for_t
 from runtime.sensing.gateway.realtime_turn_input import _build_intent
 
 
-def append_turn(log, engine, label, *, status=TurnStatus.COMPLETED, acknowledge=True, extra=()):
+def append_turn(
+    log, engine, label, *, status=TurnStatus.COMPLETED, acknowledge=True, extra=(), lane=""
+):
     turn = Turn(threadId="history-test", params=TurnParams(threadId="history-test"))
     log.turn_started(turn.thread_id, turn)
     log.turn_updated(
@@ -48,6 +50,7 @@ def append_turn(log, engine, label, *, status=TurnStatus.COMPLETED, acknowledge=
                 "kind": "engine_history_received",
                 "version": 1,
                 "engine": engine,
+                **({"lane": lane} if lane else {}),
             },
         )
     log.turn_completed(turn.thread_id, turn.id, status)
@@ -205,3 +208,44 @@ def test_native_history_uses_host_journal_over_browser_payload(history):
     )
     intent = _build_intent("next", params, conversation_messages=history)
     assert intent.user_context["conversation_messages"] == history
+
+
+def test_codex_chat_and_task_threads_each_get_what_the_other_received(journal):
+    # Codex answers chat-only turns in a tool-free thread of its own.
+    append_turn(journal, "codex", "task-one")
+    append_turn(journal, "codex", "chat-one", lane="tool-free")
+    append_turn(journal, "codex", "task-two")
+
+    turn = current(journal)
+    chat = engine_history_for_turn(journal, turn, "codex", lane="tool-free")
+    text = chat.prompt("hi again", resumed=True)
+    assert "question-task-two" in text and "question-chat-one" not in text
+
+    task = engine_history_for_turn(journal, turn, "codex")
+    assert task.prompt("go on", resumed=True) == "go on"
+
+
+def test_a_lane_records_its_own_delivery(journal):
+    turn = current(journal)
+    with session_scope(Session(thread_id=turn.thread_id, turn_id=turn.id)):
+        engine_history_for_turn(journal, turn, "codex", lane="tool-free").mark_delivered()
+    handoffs = [
+        event.payload
+        for event in journal.iter_events()
+        if event.event == "execution_handoff" and event.turn_id == turn.id
+    ]
+    assert handoffs == [
+        {"kind": "engine_history_received", "version": 1, "engine": "codex", "lane": "tool-free"}
+    ]
+
+
+def test_a_lane_never_seen_before_skips_only_its_own_turns(journal):
+    # The tool-free thread may predate lane records; turns the task thread
+    # received are still missing from it.
+    append_turn(journal, "codex", "chat-legacy", acknowledge=False)
+    append_turn(journal, "codex", "task", lane="")
+    turn = current(journal)
+    text = engine_history_for_turn(journal, turn, "codex", lane="tool-free").prompt(
+        "next", resumed=True
+    )
+    assert "question-task" in text and "question-chat-legacy" not in text

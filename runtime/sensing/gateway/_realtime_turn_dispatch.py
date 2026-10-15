@@ -355,12 +355,11 @@ async def _select_and_bind_turn_driver(ctx: _TurnContext) -> None:
             **(ctx.intent.user_context or {}),
             "model_name": ctx.requested_model_before_routing,
         }
-        # Preserve the host's existing no-tool classification for
-        # OpenCode.  Without this handoff, greetings and explicit
-        # discussion-only turns still built and connected the full
-        # per-turn MCP bridge before asking the model for text.
-        if route.engine == "opencode":
-            external_context["direct_conversation_reply"] = reflection
+        # Preserve the host's no-tool classification for both engines.
+        # Without this handoff, greetings and explicit discussion-only
+        # turns still built OpenCode's per-turn MCP bridge, and sent Codex
+        # all of its dynamic tools (93), before asking the model for text.
+        external_context["direct_conversation_reply"] = reflection
         ctx.intent = ctx.intent.model_copy(update={"user_context": external_context})
     # The explicit model still governs every member of an orchestrated
     # topology. Engine selection does not change model ownership.

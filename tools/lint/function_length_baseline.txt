@@ -129,7 +129,7 @@ runtime/core/cerebrum/react_final_answer_guards.py::_phase_6e_guards_and_step_em
 runtime/execution/subagents/bridge.py::call_subagent._augment	243
 runtime/execution/suckers/_browser_skills_handlers.py::register_browser_skills	243
 runtime/platform/ui/browser_router.py::create_browser_router.api_browser_action	243
-runtime/sensing/gateway/_config_endpoints_models.py::_register_models	241
+runtime/sensing/gateway/_config_endpoints_models.py::_register_models	219
 runtime/memory/cowork/runtime.py::_execute_subagent_task	239
 runtime/core/cerebrum/capability_router.py::activate_capabilities	238
 runtime/execution/agents/group_fanout.py::run_group_fanout._run_round	238

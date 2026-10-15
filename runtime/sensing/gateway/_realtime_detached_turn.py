@@ -35,6 +35,7 @@ transport; the process-local connection registry cannot provide it.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -59,6 +60,9 @@ class _DetachedTurnEmitter:
         self._gateway = gateway
         self._thread_id = thread_id
         self._owner = owner
+        # Turn id -> when it registered; dropped at its first answer text,
+        # which logs how long the person waited for the first word.
+        self._awaiting_first_text: dict[str, float] = {}
 
     @property
     def actor_id(self) -> str | None:
@@ -124,7 +128,23 @@ class _DetachedTurnEmitter:
 
     # ── EventEmitter surface ───────────────────────────────────
 
+    def _note_first_text(self, method: Any, params: dict[str, Any]) -> None:
+        method_str = method.value if isinstance(method, ServerMethod) else str(method)
+        if method_str != ServerMethod.ITEM_AGENT_MESSAGE_DELTA.value:
+            return
+        started = self._awaiting_first_text.pop(str(params.get("turnId") or ""), None)
+        if started is not None:
+            logging.getLogger(__name__).info(
+                "realtime first text timing thread_id=%s turn_id=%s "
+                "registered_to_first_text_ms=%.1f",
+                params.get("threadId"),
+                params.get("turnId"),
+                (time.perf_counter() - started) * 1000,
+            )
+
     async def notify(self, method: Any, params: dict[str, Any]) -> None:
+        self._note_first_text(method, params)
+
         # Best-effort per target: RpcConnection bounds every send, so one
         # wedged socket can delay this projection only until that deadline.
         # Targets in the same batch run concurrently; otherwise N black-holed
@@ -178,11 +198,13 @@ class _DetachedTurnEmitter:
         return None
 
     def register_turn(self, turn_id: str) -> None:
+        self._awaiting_first_text[turn_id] = time.perf_counter()
         shared = getattr(self._gateway, "_shared_interrupts", None)
         if shared is not None:
             shared.register(turn_id)
 
     def unregister_turn(self, turn_id: str) -> None:
+        self._awaiting_first_text.pop(turn_id, None)
         shared = getattr(self._gateway, "_shared_interrupts", None)
         if shared is not None:
             shared.unregister(turn_id)

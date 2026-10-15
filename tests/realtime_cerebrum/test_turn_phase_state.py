@@ -85,3 +85,35 @@ def test_binding_failure_keeps_the_external_model_intent_and_driver(
     assert result["response"].error is None
     assert proposals[-1]["intent"].user_context["model_name"] == "requested-external-model"
     assert proposals[-1]["failure_source"] == "codex_app_server_exception"
+
+
+@pytest.mark.parametrize("engine", ["codex", "opencode"])
+def test_chat_turns_reach_both_engines_as_tool_free(
+    gateway: Any, monkeypatch: pytest.MonkeyPatch, engine: str
+) -> None:
+    proposals: list[dict[str, Any]] = []
+
+    async def select_route(**kwargs: Any) -> tuple[bool, Any]:
+        return True, SimpleNamespace(engine=engine, driver=f"{engine}_driver")
+
+    def stop_at_binding(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("stop after the engine handoff")
+
+    def proposal(self: Any, turn: Any, **kwargs: Any) -> None:
+        proposals.append(kwargs)
+
+    monkeypatch.setattr(lifecycle, "_select_turn_route", select_route)
+    monkeypatch.setattr(lifecycle, "bind_turn_execution", stop_at_binding)
+    monkeypatch.setattr(CerebrumRuntime, "_record_failed_turn_proposal", proposal)
+    client, _ = gateway
+    with client.websocket_connect("/api/realtime") as ws:
+        _drive(
+            ws,
+            params={
+                "threadId": f"phase-tool-free-{engine}",
+                "input": [{"type": "text", "text": "hi"}],
+                "approvalPolicy": "never",
+            },
+        )
+
+    assert proposals[-1]["intent"].user_context["direct_conversation_reply"] is True

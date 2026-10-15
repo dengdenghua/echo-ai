@@ -43,9 +43,12 @@ class _FakeContext:
     codex_home: Path
     task_root: Path
     scratch_root: Path
+    state_root: Path
     sandbox_mode: str = "workspace-write"
     cleaned: bool = False
     config_validated: bool = False
+    realm_key: str = "realm"
+    tenant_key: str = "tenant"
 
     def launch_env(self) -> dict[str, str]:
         return {
@@ -303,6 +306,7 @@ def _make_session(
         codex_home=thread_root / "codex-home",
         task_root=task_root,
         scratch_root=scratch_root,
+        state_root=tmp_path / "state",
     )
     context.codex_home.mkdir(parents=True, exist_ok=True)
     security = _FakeSecurity(

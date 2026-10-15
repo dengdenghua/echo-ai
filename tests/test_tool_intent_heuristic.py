@@ -194,3 +194,40 @@ def test_empty_and_none_do_not_match() -> None:
 
 def test_whitespace_only_does_not_match() -> None:
     assert not looks_like_tool_intent("   \n\t  ")
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "今天星期几",
+        "今天是几月几日？",
+        "明天是周几呀",
+        "请问今天几号",
+        "今年是哪一年",
+        "what's today's date",
+        "What day is it today?",
+        "今日は何曜日ですか",
+        "오늘 무슨 요일이에요",
+    ],
+)
+def test_calendar_questions_need_no_tools(goal: str) -> None:
+    # Every engine has today's date in its context.
+    assert looks_like_plain_chat(goal)
+    assert not looks_like_tool_intent(goal)
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "现在几点",
+        "what time is it",
+        "今天星期几 帮我建个日历提醒",
+        "今天几号发工资",
+        "明天北京天气",
+    ],
+)
+def test_clock_and_calendar_tasks_are_not_calendar_questions(goal: str) -> None:
+    # No engine is given the time of day, and a task about a date is a task.
+    from runtime.sensing.gateway.realtime_turn_routing import _CALENDAR_QA_RE
+
+    assert not _CALENDAR_QA_RE.match(goal)

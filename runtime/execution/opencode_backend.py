@@ -632,6 +632,44 @@ async def _warm_text_server(
                     _schedule_warm_expiry(entry)
 
 
+async def prewarm_text_server(command: str, root: Path, key: str | None, model: str) -> bool:
+    """Have the text server a conversation's next reply will use running.
+
+    The first reply after the pool went idle paid ``opencode serve``'s cold
+    start, ~2.7s on this host (2026-10-15). The UI calls this when a
+    conversation opens on OpenCode. The process is registered idle while the
+    pool lock is held, so a turn that arrives during the start waits and
+    reuses it; an already-warm server only gets its idle timer renewed. A guess
+    never evicts a server someone else is keeping warm.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        return False
+    signature = _server_signature(command, root, key, model)
+    loop = asyncio.get_running_loop()
+    async with _loop_lock():
+        current = _warm_servers.get(signature)
+        if current is not None:
+            if current.in_use or current.loop is not loop or current.process.returncode is not None:
+                return current.in_use
+            _schedule_warm_expiry(current)
+            return True
+        # Same rule as _warm_text_server: an idle server for this root runs a
+        # model or key the user has since switched away from.
+        for old in tuple(_warm_servers.values()):
+            if old.root == root.resolve() and not old.in_use and old.loop is loop:
+                _warm_servers.pop(old.signature, None)
+                if old.idle_handle is not None:
+                    old.idle_handle.cancel()
+                await _stop_server(old.process, old.client)
+        if len(_warm_servers) >= _MAX_WARM_SERVERS:
+            return False
+        process, client = await _start_server(command, root, key, model)
+        entry = _WarmServer(signature, root.resolve(), process, client, loop, in_use=False)
+        _warm_servers[signature] = entry
+        _schedule_warm_expiry(entry)
+    return True
+
+
 async def _discard_idle_warm_server(root: Path) -> None:
     async with _loop_lock():
         for current in tuple(_warm_servers.values()):

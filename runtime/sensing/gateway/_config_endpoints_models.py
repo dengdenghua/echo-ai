@@ -4,7 +4,8 @@ Pure structural split of ``_config_endpoints.py`` — no logic changes.
 ``_register_models`` attaches the provider-catalog, custom-model listing,
 compat-diagnostics, compat-profile and merged ``/api/llm-models`` endpoints
 to the injected router, reading ``custom_models_state`` through the injected
-``_ConfigCtx``.
+``_ConfigCtx``. ``_register_opencode`` adds OpenCode's reasoning variants and
+engine prewarm.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from runtime.sensing.gateway._config_helpers import (
 )
 from runtime.sensing.gateway._config_models import (
     CustomModelsList,
+    OpenCodePrewarmResponse,
     ProvidersResponse,
 )
 
@@ -32,8 +34,9 @@ if TYPE_CHECKING:
     from ._config_endpoints import _ConfigCtx
 
 
-def _register_models(router: Any, ctx: _ConfigCtx) -> None:
-    custom_models_state = ctx.custom_models
+def _register_opencode(router: Any) -> None:
+    """The OpenCode engine's model questions, answered by the process the
+    conversations of that identity share (``server_directory``)."""
 
     @router.get("/api/opencode/reasoning-variants")
     async def api_opencode_reasoning_variants(request: Request, model: str) -> dict[str, Any]:
@@ -46,9 +49,11 @@ def _register_models(router: Any, ctx: _ConfigCtx) -> None:
             command = backend.executable()
             if not command:
                 raise backend.OpenCodeError("OpenCode 尚未安装")
+            # The conversations' own engine root: asking warms the process the
+            # next reply uses instead of keeping a second one alive.
             async with backend.managed_server(
                 command,
-                backend.state_directory(scope, "model-capabilities"),
+                backend.server_directory(scope),
                 backend.model_key(scope, resolved),
                 resolved,
             ) as client:
@@ -56,6 +61,44 @@ def _register_models(router: Any, ctx: _ConfigCtx) -> None:
             return {"reasoning_efforts": ["off" if v == "none" else v for v in variants]}
         except backend.OpenCodeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    @router.post("/api/opencode/prewarm", response_model=OpenCodePrewarmResponse)
+    async def api_opencode_prewarm(
+        request: Request, model: str | None = None
+    ) -> OpenCodePrewarmResponse:
+        """Start the engine a conversation's next OpenCode reply will use.
+
+        Best effort, so the first reply after idle skips ``opencode serve``'s
+        cold start. Shared (Echo-routed) models run a fresh process per turn
+        and are not warmed; any engine or model problem answers ``warm: false``
+        and is left for the turn itself to report.
+        """
+        from runtime.execution import opencode_backend as backend
+        from runtime.safety.auth.scope import scope_from_request
+
+        scope = scope_from_request(request)
+        try:
+            resolved = backend.resolve_zen_model(model, backend.zen_catalog())
+            command = backend.executable()
+            if (
+                not command
+                or backend.native_model(resolved)[0] == "echo-shared"
+                or not backend.inspect_readiness(scope)["available"]
+            ):
+                return OpenCodePrewarmResponse(warm=False)
+            warm = await backend.prewarm_text_server(
+                command,
+                backend.server_directory(scope),
+                backend.model_key(scope, resolved),
+                resolved,
+            )
+        except (backend.OpenCodeError, OSError):
+            return OpenCodePrewarmResponse(warm=False)
+        return OpenCodePrewarmResponse(warm=warm)
+
+
+def _register_models(router: Any, ctx: _ConfigCtx) -> None:
+    custom_models_state = ctx.custom_models
 
     @router.get("/api/providers", response_model=ProvidersResponse)
     def api_list_providers() -> dict[str, Any]:

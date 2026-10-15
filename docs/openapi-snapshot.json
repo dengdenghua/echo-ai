@@ -7122,6 +7122,19 @@
         "title": "NodeTaskRequest",
         "type": "object"
       },
+      "OpenCodePrewarmResponse": {
+        "properties": {
+          "warm": {
+            "title": "Warm",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "warm"
+        ],
+        "title": "OpenCodePrewarmResponse",
+        "type": "object"
+      },
       "OwnerDecisionBody": {
         "description": "An owner decision on exactly what was shown (``governance`` fingerprints).",
         "properties": {
@@ -44568,6 +44581,56 @@
         "summary": " Obs Health",
         "tags": [
           "stub"
+        ]
+      }
+    },
+    "/api/opencode/prewarm": {
+      "post": {
+        "description": "Start the engine a conversation's next OpenCode reply will use.\n\nBest effort, so the first reply after idle skips ``opencode serve``'s\ncold start. Shared (Echo-routed) models run a fresh process per turn\nand are not warmed; any engine or model problem answers ``warm: false``\nand is left for the turn itself to report.",
+        "operationId": "api_opencode_prewarm_api_opencode_prewarm_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenCodePrewarmResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Api Opencode Prewarm",
+        "tags": [
+          "config"
         ]
       }
     },

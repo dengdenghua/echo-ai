@@ -30,7 +30,7 @@ from runtime.sensing.gateway._config_endpoints_custom_models import (
 from runtime.sensing.gateway._config_endpoints_local_models import (
     _register_local_models,
 )
-from runtime.sensing.gateway._config_endpoints_models import _register_models
+from runtime.sensing.gateway._config_endpoints_models import _register_models, _register_opencode
 from runtime.sensing.gateway._config_endpoints_security import (
     _register_security,
 )
@@ -74,6 +74,7 @@ def _build_endpoints(ctx: _ConfigCtx) -> None:
 
     _register_security(router, ctx)
     _register_models(router, ctx)
+    _register_opencode(router)
     _register_custom_models(router, ctx)
     _register_local_models(router, ctx)
     _register_system(router, ctx)

@@ -567,11 +567,11 @@ async def _select_turn_route(
         coordinated=coordinated,
         requested_model=requested_model,
     )
-    if route.engine == "opencode" and not orchestrated and not reflection:
-        # The selected role may advertise Codex as its default backend
-        # even when the user explicitly chose OpenCode. Re-evaluate the
+    if route.engine in {"opencode", "codex"} and not orchestrated and not reflection:
+        # A role that runs on Codex by default skips the classification
+        # above, and so does one the user moved to OpenCode. Re-evaluate the
         # cheap host predicate after final engine selection so safe
-        # text-only turns still skip the per-turn tool bridge.
+        # text-only turns still skip the per-turn tools.
         reflection = _should_use_direct_text_path(
             text,
             validated,

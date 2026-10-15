@@ -39,6 +39,26 @@ _KNOWLEDGE_QA_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Today's date and weekday, relative days and the year. Every engine has the
+# date in its own context: OpenCode's environment block, Codex's
+# <current_date>, and the date line of Echo's own prompts. The time of day is
+# deliberately absent: no engine is given the clock.
+_CALENDAR_QA_RE = re.compile(
+    r"^\s*(?:请问|问一下)?\s*(?:"
+    r"(?:今天|明天|昨天|后天|前天|今日)(?:的)?(?:是|为)?\s*"
+    r"(?:(?:星期|周|礼拜)几|几号|几月几[号日]|哪一?天|(?:什么|啥)日子|几月|(?:日期|几日)(?:是)?(?:多少|什么)?)|"
+    r"今年(?:是)?(?:哪一?年|几几年|多少年)|"
+    r"现在(?:是)?(?:几月|哪一?年|几几年)|"
+    r"what(?:'s|\s+is)\s+(?:the\s+)?(?:date|day)(?:\s+of\s+the\s+week)?(?:\s+(?:is\s+it\s+)?today)?|"
+    r"what\s+day\s+is\s+(?:it|today)(?:\s+today)?|"
+    r"(?:what(?:'s|\s+is)\s+)?today'?s\s+date|"
+    r"what\s+year\s+is\s+it|"
+    r"(?:今日|明日|昨日)は(?:何曜日|何日|何月何日)(?:です)?か?|"
+    r"(?:오늘|내일|어제)(?:은|이)?\s*(?:무슨\s*요일|며칠)(?:이에요|이야|인가요)?"
+    r")\s*(?:呀|啊|呢|吗|嘛)?\s*[？?。.!！~]*\s*$",
+    re.IGNORECASE,
+)
+
 _NO_TOOL_DIRECTIVE_RE = re.compile(
     r"("
     r"(?:不要|不需要|无需|不用|别).{0,16}"
@@ -160,7 +180,7 @@ def looks_like_plain_chat(goal: str) -> bool:
         return True
     if _DIRECT_REPLY_RE.search(g) and not _FILE_SIGNAL_RE.search(g):
         return True
-    if _CHITCHAT_RE.match(g) or _is_short_chitchat(g):
+    if _CHITCHAT_RE.match(g) or _is_short_chitchat(g) or _CALENDAR_QA_RE.match(g):
         return True
     return bool(_KNOWLEDGE_QA_RE.match(g) and not _FILE_SIGNAL_RE.search(g))
 

@@ -11535,6 +11535,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/opencode/prewarm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Opencode Prewarm
+         * @description Start the engine a conversation's next OpenCode reply will use.
+         *
+         *     Best effort, so the first reply after idle skips ``opencode serve``'s
+         *     cold start. Shared (Echo-routed) models run a fresh process per turn
+         *     and are not warmed; any engine or model problem answers ``warm: false``
+         *     and is left for the turn itself to report.
+         */
+        post: operations["api_opencode_prewarm_api_opencode_prewarm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/opencode/reasoning-variants": {
         parameters: {
             query?: never;
@@ -20652,6 +20677,11 @@ export interface components {
             timeout_s: number;
             /** Workspace Id */
             workspace_id: string;
+        };
+        /** OpenCodePrewarmResponse */
+        OpenCodePrewarmResponse: {
+            /** Warm */
+            warm: boolean;
         };
         /**
          * OwnerDecisionBody
@@ -44575,6 +44605,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    api_opencode_prewarm_api_opencode_prewarm_post: {
+        parameters: {
+            query?: {
+                model?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenCodePrewarmResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

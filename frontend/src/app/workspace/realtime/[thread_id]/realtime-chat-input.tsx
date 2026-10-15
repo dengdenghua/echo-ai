@@ -11,6 +11,7 @@ import {
 } from "@/components/workspace/team-mode-picker";
 import type { AutomationTarget } from "@/core/computer/api";
 import type { DesignCanvasAgentContext } from "@/core/design/mode-bridge";
+import { useOpencodePrewarm } from "@/core/execution/opencode-prewarm";
 import type { useThreadWorkLocation } from "@/core/execution/work-location";
 import { useI18n } from "@/core/i18n/hooks";
 import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
@@ -143,6 +144,11 @@ export function RealtimeChatInput({
   ...forwarded
 }: RealtimeChatInputProps) {
   const composerCopy = composerActionsCopy(useI18n().locale);
+  useOpencodePrewarm(
+    selectedExecutionEngine,
+    settings.context.model_name,
+    canWriteConversation,
+  );
   return (
     <ChatInputBox
       {...forwarded}

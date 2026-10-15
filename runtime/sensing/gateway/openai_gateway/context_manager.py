@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from runtime.platform.models import ParsedIntent
@@ -31,6 +32,13 @@ def _build_messages_for_llm(
     from runtime.sensing.model_router.models import Message
 
     messages = _conversation_messages_for_model(intent)
+    # Calendar questions are answered here without tools
+    # (realtime_turn_routing._CALENDAR_QA_RE), as ReAct's prompt carries the
+    # same line. Inserted first, it ends up last of the system messages, so
+    # the stable ones keep their cached prefix.
+    messages.insert(
+        0, Message(role="system", content=f"当前日期: {datetime.now().strftime('%Y-%m-%d %A')}。")
+    )
     try:
         from runtime.core.cerebrum.llm_planner import _render_team_roster_section
 

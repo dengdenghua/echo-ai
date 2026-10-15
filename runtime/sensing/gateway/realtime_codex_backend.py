@@ -366,7 +366,9 @@ async def drive_codex_app_server(
         approval_provider=provider,
         is_interrupted=interrupted,
     )
-    history = engine_history_for_turn(log, turn, "codex")
+    history = engine_history_for_turn(
+        log, turn, "codex", lane="tool-free" if request.tool_free else ""
+    )
     # Select tools and permissions from the current task before adding history.
     request = replace(
         request,
