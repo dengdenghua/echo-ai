@@ -76,6 +76,8 @@ _WARM_IDLE_SECONDS = 600.0
 # ``echo_fetch_url``. Network access goes through the ``echo_*`` host tools.
 DENIED_NATIVE_TOOLS = ("bash", "edit", "write", "webfetch", "websearch", "codesearch")
 
+NO_MODEL_MESSAGE = "OpenCode 还没有可用的模型：请连接 OpenCode Zen 或 Go，或选择你添加的模型。"
+
 
 @dataclass
 class _WarmServer:
@@ -171,10 +173,12 @@ def resolve_zen_model(selection: str | None, catalog: dict[str, Any]) -> str:
         selection = None
     entry = catalog.get("opencode-zen")
     if entry is None:
-        # The official process offers this public model without a Zen account.
-        # It still verifies live availability and zero pricing before inference.
-        entry = {"managed_by_plugin": "opencode-zen", "models": ["big-pickle"]}
-        catalog = {**catalog, "opencode-zen": entry}
+        # There is no keyless default any more: Zen's free tier now refuses
+        # every client but OpenCode's own app, the official CLI included
+        # (checked 2026-10-15 with `opencode run -m opencode/big-pickle` from
+        # an empty home: "OpenCode's free tier can only be used from within
+        # OpenCode"). Without a Zen or Go connection the engine has no model.
+        raise OpenCodeError(NO_MODEL_MESSAGE)
     if not isinstance(entry, dict) or entry.get("managed_by_plugin") != "opencode-zen":
         raise OpenCodeError("请先安装并连接 OpenCode Zen 模型插件。")
     selected = resolve_custom_model_selection(catalog, selection or "")
@@ -185,8 +189,17 @@ def resolve_zen_model(selection: str | None, catalog: dict[str, Any]) -> str:
     else:
         model = (selection or "big-pickle").removeprefix("opencode/")
     if model not in entry.get("models", []):
-        raise OpenCodeError("OpenCode 引擎请选择 Zen 模型，例如 big-pickle。")
+        raise OpenCodeError("OpenCode 引擎请选择已连接的 Zen 模型。")
     return model
+
+
+def can_serve(selection: str | None) -> bool:
+    """Whether OpenCode has a model for this selection without asking upstream."""
+    try:
+        resolve_zen_model(selection, zen_catalog())
+    except OpenCodeError:
+        return False
+    return True
 
 
 def zen_key(scope: TenantScope | None) -> str | None:
@@ -226,7 +239,12 @@ def inspect_readiness(scope: TenantScope | None) -> dict[str, Any]:
     if not executable():
         return {"available": False, **missing_status("opencode")}
     try:
-        resolve_zen_model(None, zen_catalog())
+        # Model-agnostic: a turn can still bring its own model (a Zen/Go pick
+        # or a custom model through echo-shared); ``can_serve`` decides per turn.
+        if (entry := zen_catalog().get("opencode-zen")) is not None and (
+            not isinstance(entry, dict) or entry.get("managed_by_plugin") != "opencode-zen"
+        ):
+            raise OpenCodeError("请先安装并连接 OpenCode Zen 模型插件。")
         zen_key(scope)
     except OpenCodeError as exc:
         return {"available": False, "reason": str(exc)}

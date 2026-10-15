@@ -344,6 +344,7 @@ async def _select_and_bind_turn_driver(ctx: _TurnContext) -> None:
         thread_id=ctx.thread_id,
         turn=ctx.turn,
         intent=ctx.intent,
+        requested_model=ctx.requested_model_before_routing or "auto",
     )
     if route.engine in {"opencode", "codex"}:
         ctx.validated = ctx.validated.model_copy(

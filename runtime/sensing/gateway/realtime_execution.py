@@ -154,7 +154,10 @@ async def select_turn_execution(
     codex_partner: bool,
     reflection_fast_path: bool,
     coordinated: bool = False,
+    requested_model: str | None = None,
 ) -> ExecutionRoute:
+    """``requested_model`` is the caller's pick before smart routing rewrote
+    ``turn.params.model`` for the native path; external engines run that pick."""
     from runtime.sensing.gateway.realtime_preparation import require_role_connections
 
     await require_role_connections(turn, agent)
@@ -223,17 +226,23 @@ async def select_turn_execution(
     if route.engine is EngineId.ECHO:
         return route
     if route.engine is EngineId.OPENCODE:
-        from runtime.execution.opencode_backend import inspect_readiness
+        from runtime.execution.opencode_backend import can_serve, inspect_readiness
         from runtime.sensing.gateway.realtime_opencode_backend import scope_for_turn
 
         status = await asyncio.to_thread(inspect_readiness, scope_for_turn(turn))
+        reason_code = status.get("reason_code")
         if status["available"]:
-            return route
-        if requested == "auto" and status.get("reason_code") == "not_installed":
-            # The desktop installer no longer carries OpenCode. Like Codex
+            model = requested_model or getattr(turn.params, "model", None)
+            if requested != "auto" or await asyncio.to_thread(can_serve, model):
+                return route
+            reason_code = "no_model"
+        if requested == "auto" and reason_code in {"not_installed", "no_model"}:
+            # The desktop installer no longer carries OpenCode, and without a
+            # Zen/Go connection or a picked model it has nothing to run (Zen's
+            # free tier refuses every client but OpenCode's own). Like Codex
             # below, Auto settles on a path this computer has before any
-            # effect (keeping the host's project/team scheduler) until the
-            # store installs it; an explicit OpenCode choice still fails.
+            # effect (keeping the host's project/team scheduler); an explicit
+            # OpenCode choice still fails with the engine's own reason.
             fallback = select_execution_route(
                 project_command=project_command,
                 group_fanout=group_fanout,
@@ -242,7 +251,7 @@ async def select_turn_execution(
                 requested_engine=EngineId.ECHO,
                 required=required,
             )
-            return ExecutionRoute(fallback.engine, fallback.driver, "opencode_not_installed")
+            return ExecutionRoute(fallback.engine, fallback.driver, f"opencode_{reason_code}")
         raise EngineSelectionError(status["reason"], engine=EngineId.OPENCODE, reason="unavailable")
     readiness = await asyncio.to_thread(codex_readiness_for_turn, runtime, turn, agent)
     if readiness.available:

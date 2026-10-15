@@ -515,6 +515,7 @@ async def _select_turn_route(
     thread_id,
     turn,
     intent,
+    requested_model=None,
 ):
     """Classify fan-out / orchestration / fast paths and select the execution route."""
     group_presence = bool(_cowork_context.get("cowork_group")) and (
@@ -564,6 +565,7 @@ async def _select_turn_route(
         codex_partner=codex_partner,
         reflection_fast_path=reflection,
         coordinated=coordinated,
+        requested_model=requested_model,
     )
     if route.engine == "opencode" and not orchestrated and not reflection:
         # The selected role may advertise Codex as its default backend

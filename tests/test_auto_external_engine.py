@@ -96,3 +96,48 @@ def test_host_default_precedes_implicit_model_heuristics(signals):
     route = select_execution_route(default_engine=EngineId.OPENCODE, **signals)
     assert route.engine is EngineId.OPENCODE
     assert route.reason == "host_default"
+
+
+def test_api_auto_without_an_opencode_model_settles_on_echo(tmp_path, monkeypatch):
+    # Zen's free tier no longer serves Echo, so an installed OpenCode with no
+    # Zen/Go connection and no picked model must not take the turn: Auto runs
+    # the native path, which reports the missing model in the user's language.
+    runtime = CerebrumRuntime(
+        stack=SimpleNamespace(config=AgentConfig()),
+        agent=object(),
+        logs_root=str(tmp_path / "threads"),
+    )
+    native = AsyncMock(return_value=None)
+    monkeypatch.setattr(runtime, "_drive_react", native)
+    monkeypatch.setattr(
+        "runtime.execution.opencode_backend.inspect_readiness",
+        lambda scope: {"available": True, "reason": None},
+    )
+    monkeypatch.setattr("runtime.execution.opencode_backend.zen_catalog", lambda: {})
+    monkeypatch.setattr(
+        "runtime.core.cerebrum.turn_complexity.select_model_for_complexity",
+        lambda *args, **kwargs: ("native/routed-model", "fixture-route"),
+    )
+
+    async def stream(*args, **kwargs):
+        raise AssertionError("OpenCode must not run without a model")
+        yield {}
+
+    monkeypatch.setattr("runtime.sensing.gateway.realtime_opencode_backend.stream_role", stream)
+    app = FastAPI()
+    app.include_router(RealtimeGateway(runtime=runtime, approval_timeout=5.0).router)
+    with TestClient(app) as client, client.websocket_connect("/api/realtime") as ws:
+        _drive(
+            ws,
+            {
+                "threadId": "auto-no-model",
+                "model": "auto",
+                "executionEngine": "auto",
+                "input": [{"type": "text", "text": "你好"}],
+                "approvalPolicy": "never",
+            },
+        )
+    native.assert_called_once()
+    restored = EventLog(runtime._log_for("auto-no-model").path).replay()[-1]
+    assert restored.execution.engine == "echo"
+    assert restored.execution.reason == "opencode_no_model"

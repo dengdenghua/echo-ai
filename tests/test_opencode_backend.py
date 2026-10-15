@@ -191,7 +191,9 @@ def test_shared_models_use_only_turn_proxy_credentials(tmp_path):
     assert env["OPENCODE_API_KEY"] == "scoped-token"
 
 
-def test_public_default_does_not_require_a_plugin_or_account(tmp_path, monkeypatch):
+def test_without_a_connection_opencode_has_no_default_model(tmp_path, monkeypatch):
+    # Zen's free tier refuses every client but OpenCode's own app, so there
+    # is no keyless default: the engine is installed, yet it has no model.
     from runtime.execution import opencode_backend as backend
 
     monkeypatch.setattr(backend, "executable", lambda: "opencode")
@@ -199,13 +201,18 @@ def test_public_default_does_not_require_a_plugin_or_account(tmp_path, monkeypat
     monkeypatch.setattr(backend.CredentialStore, "get_secret", lambda *args: None)
     assert backend.inspect_readiness(None)["available"] is True
     assert backend.zen_key(None) is None
-    assert resolve_zen_model("auto", {}) == "big-pickle"
-    assert (
-        resolve_zen_model(custom_model_selection_id("opencode-zen", "big-pickle"), {})
-        == "big-pickle"
-    )
+    for selection in (None, "auto", custom_model_selection_id("opencode-zen", "big-pickle")):
+        with pytest.raises(OpenCodeError, match="还没有可用的模型"):
+            resolve_zen_model(selection, {})
+        assert backend.can_serve(selection) is False
     with pytest.raises(OpenCodeError):
         resolve_zen_model("paid-model", {})
+    # A model the user added still runs through the host's shared provider.
+    monkeypatch.setattr(
+        backend, "zen_catalog", lambda: {"stub": {"id": "stub", "models": ["stub-chat"]}}
+    )
+    assert backend.can_serve(custom_model_selection_id("stub", "stub-chat")) is True
+    assert backend.can_serve(None) is False
     monkeypatch.setenv("OPENCODE_API_KEY", "must-not-inherit")
     env = child_environment(tmp_path, None, "password", "big-pickle")
     assert "OPENCODE_API_KEY" not in env
