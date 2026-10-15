@@ -679,8 +679,8 @@ function AgentCoreVisual({
   }
 
   return (
-    <section className="relative min-h-[520px] overflow-hidden bg-[#242424] text-white [--muted-foreground:oklch(0.74_0_0)] md:min-h-0">
-      <div className="pointer-events-none absolute inset-0 opacity-[0.16] [background-image:radial-gradient(circle_at_48%_62%,hsl(var(--primary)/0.12),transparent_30%),linear-gradient(90deg,rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:100%_100%,34px_34px,34px_34px]" />
+    <section className="dark relative min-h-[520px] overflow-hidden bg-background text-foreground md:min-h-0">
+      <div className="pointer-events-none absolute inset-0 opacity-[0.16] [background-image:radial-gradient(circle_at_48%_62%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_30%),linear-gradient(90deg,rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:100%_100%,34px_34px,34px_34px]" />
       <div className="pointer-events-none absolute left-[11%] top-[28%] text-7xl font-black uppercase tracking-normal text-white/[0.035] 2xl:text-8xl">
         {t.agentConfig.visualWatermark}
       </div>
@@ -697,7 +697,7 @@ function AgentCoreVisual({
             className={cn(
               "group relative h-[74px] w-[62px] rounded-sm border bg-black/18 p-1 text-left transition xl:h-[92px] xl:w-[78px]",
               view === key
-                ? "border-[#f4e86f] shadow-[0_0_18px_rgba(244,232,111,0.16)]"
+                ? "border-core"
                 : "border-white/10 opacity-45 hover:opacity-85",
             )}
             type="button"
@@ -738,14 +738,14 @@ function AgentCoreVisual({
         </Button>
       </div>
       <div className="absolute left-4 top-4 z-20 hidden items-center gap-2 rounded-sm border border-white/10 bg-black/15 px-3 py-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.75)]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-core" />
         <span className="font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
           {t.agentConfig.visualTitle}
         </span>
       </div>
       <div className="relative z-10 h-full min-h-[520px] px-4 pb-8 pt-8 xl:min-h-[620px] xl:px-6 xl:pb-10 xl:pt-10">
         <div className="relative flex h-full min-h-0 items-end justify-center overflow-hidden pr-20 xl:pr-24">
-          <div className="absolute bottom-[60px] h-16 w-[62%] rounded-[50%] border border-[#f4e86f]/25 bg-[#f4e86f]/10 shadow-[0_0_34px_rgba(244,232,111,0.12)]" />
+          <div className="absolute bottom-[60px] h-16 w-[62%] rounded-[50%] border border-core/25 bg-core/10 shadow-[var(--echo-glow-core)]" />
           <div className="absolute bottom-[100px] left-[10%] right-[18%] h-px bg-white/10" />
           <div className="relative z-10 flex h-[500px] w-full max-w-[460px] items-end justify-center xl:h-[640px] xl:max-w-[580px]">
             {activeVisual ? (
@@ -784,12 +784,10 @@ function AgentCoreVisual({
                 </span>
               </div>
             )}
-            <div className="absolute bottom-[52px] left-[6%] right-[6%] h-9 border-y border-[#111]/30 bg-[#f4e86f] text-center font-mono text-xs font-semibold uppercase tracking-[0.55em] text-[#232323] shadow-[0_0_24px_rgba(244,232,111,0.18)]">
-              <div className="flex h-full items-center justify-center gap-4">
-                <span className="h-px w-10 bg-[#232323]/50" />
-                {t.agentConfig.visualSystemOnline}
-                <span className="h-px w-10 bg-[#232323]/50" />
-              </div>
+            <div className="absolute bottom-[52px] left-[6%] right-[6%] flex h-9 items-center justify-center gap-4 border-y border-core/30 bg-core/10 font-mono text-xs font-semibold uppercase tracking-[0.55em] text-core">
+              <span className="h-px w-10 bg-core/40" />
+              {t.agentConfig.visualSystemOnline}
+              <span className="h-px w-10 bg-core/40" />
             </div>
             <div className="absolute -bottom-2 left-1/2 z-30 flex max-w-[92%] -translate-x-1/2 scroll-px-3 items-center gap-2 overflow-x-auto rounded-sm border border-white/10 bg-black/35 px-2 py-2 shadow-[0_12px_34px_rgba(0,0,0,0.28)] backdrop-blur [scrollbar-width:none]">
               <span
@@ -817,7 +815,7 @@ function AgentCoreVisual({
                     className={cn(
                       "relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-sm border bg-white/[0.04] text-sm transition",
                       active
-                        ? "border-[#f4e86f] shadow-[0_0_18px_rgba(244,232,111,0.22)]"
+                        ? "border-core"
                         : "border-white/12 opacity-68 hover:border-white/28 hover:opacity-100",
                     )}
                     onClick={() => {
@@ -836,7 +834,7 @@ function AgentCoreVisual({
                       </span>
                     )}
                     {active ? (
-                      <span className="absolute inset-x-1 bottom-1 h-0.5 rounded-full bg-[#f4e86f]" />
+                      <span className="absolute inset-x-1 bottom-1 h-0.5 rounded-full bg-core" />
                     ) : null}
                   </button>
                 );
@@ -846,7 +844,7 @@ function AgentCoreVisual({
                   type="button"
                   aria-label={t.agentWorld.newAgent}
                   title={t.agentWorld.newAgent}
-                  className="group relative flex size-11 shrink-0 items-center justify-center rounded-sm border border-dashed border-[#f4e86f]/45 bg-[#f4e86f]/8 text-[#f4e86f] transition hover:border-[#f4e86f]/85 hover:bg-[#f4e86f]/14"
+                  className="group relative flex size-11 shrink-0 items-center justify-center rounded-sm border border-dashed border-white/28 bg-white/[0.04] text-muted-foreground transition hover:border-white/60 hover:bg-white/8 hover:text-foreground"
                   onClick={onCreateAgent}
                 >
                   <Plus className="size-4 transition-transform group-hover:scale-110" />
@@ -865,8 +863,8 @@ function AgentCoreVisual({
         </div>
       </div>
       <Dialog open={visualPromptOpen} onOpenChange={setVisualPromptOpen}>
-        <DialogContent className="max-h-[88vh] overflow-hidden rounded-sm border-white/10 bg-[#191919] p-0 text-white shadow-2xl sm:max-w-2xl">
-          <div className="relative overflow-hidden border-b border-white/10 bg-[#202020]/92 px-5 py-4">
+        <DialogContent className="dark max-h-[88vh] overflow-hidden rounded-sm border-white/10 bg-background p-0 text-foreground shadow-2xl sm:max-w-2xl">
+          <div className="relative overflow-hidden border-b border-white/10 bg-card/90 px-5 py-4">
             <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:28px_28px]" />
             <DialogTitle className="relative flex items-center gap-2 text-base">
               <ImagePlus className="size-4 text-primary" />
@@ -899,7 +897,7 @@ function AgentCoreVisual({
                           className={cn(
                             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-5 transition",
                             active
-                              ? "border-[#f4e86f]/45 bg-[#f4e86f]/12 text-white"
+                              ? "border-core/45 bg-core/12 text-white"
                               : "border-white/10 bg-white/[0.025] text-white/52 hover:border-white/22 hover:text-white/82",
                           )}
                           onClick={() => toggleVisualPromptOption(option.id)}
@@ -907,7 +905,7 @@ function AgentCoreVisual({
                           <span
                             className={cn(
                               "size-1.5 rounded-full",
-                              active ? "bg-[#f4e86f]" : "bg-white/18",
+                              active ? "bg-core" : "bg-white/18",
                             )}
                           />
                           {option.label}
@@ -954,7 +952,7 @@ function AgentCoreVisual({
                       setReferenceImageInput(event.target.value)
                     }
                   />
-                  <label className="inline-flex h-[58px] cursor-pointer items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/[0.04] px-3 text-xs text-white/72 transition hover:border-[#f4e86f]/45 hover:text-white">
+                  <label className="inline-flex h-[58px] cursor-pointer items-center justify-center gap-2 rounded-sm border border-white/12 bg-white/[0.04] px-3 text-xs text-white/72 transition hover:border-white/28 hover:text-white">
                     <Upload className="size-3.5" />
                     {t.agentRoleProfile.upload}
                     <input
@@ -1004,7 +1002,7 @@ function AgentCoreVisual({
                   Prompt Preview
                 </div>
                 {referenceImages.length > 0 ? (
-                  <div className="mb-2 text-xs text-[#f4e86f]/78">
+                  <div className="mb-2 text-xs text-signal">
                     {t.agentRoleProfile.referenceImagesGenerateHint(
                       referenceImages.length,
                     )}
@@ -1017,7 +1015,7 @@ function AgentCoreVisual({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-[#202020]/92 px-5 py-3">
+          <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-card/90 px-5 py-3">
             <Button
               className="h-8 rounded-sm border-white/12 bg-black/20 px-3 text-xs text-white/76 hover:bg-white/8 hover:text-white"
               type="button"
@@ -1041,7 +1039,7 @@ function AgentCoreVisual({
                 {t.agentRoleProfile.cancel}
               </Button>
               <Button
-                className="h-8 rounded-sm bg-[#f4e86f] px-4 text-xs text-[#232323] hover:bg-[#fff27c]"
+                className="h-8 rounded-sm px-4 text-xs"
                 disabled={generateVisuals.isPending}
                 type="button"
                 onClick={() => void handleGenerateVisuals()}

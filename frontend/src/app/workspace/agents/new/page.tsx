@@ -634,11 +634,11 @@ export default function NewAgentPage() {
 
   if (step === "name") {
     return (
-      <div className="relative flex size-full items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_18%,hsl(var(--primary)/0.08),transparent_34%),linear-gradient(to_bottom,hsl(var(--background)),hsl(var(--muted)/0.28))] p-6 text-foreground">
+      <div className="relative flex size-full items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_18%,color-mix(in_oklch,var(--primary)_8%,transparent),transparent_34%),linear-gradient(to_bottom,var(--background),color-mix(in_oklch,var(--muted)_28%,transparent))] p-6 text-foreground">
         <div className="pointer-events-none absolute inset-x-[20%] top-[8%] h-24 rounded-[50%] bg-primary/10 blur-3xl" />
-        <div className="relative max-h-[calc(100dvh-2rem)] w-full max-w-[1080px] overflow-y-auto rounded-lg border border-border bg-card shadow-[0_28px_90px_rgba(15,23,42,0.28)] ring-1 ring-black/20 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 opacity-[0.09] [background-image:radial-gradient(circle_at_76%_28%,rgba(244,232,111,0.1),transparent_30%),linear-gradient(to_right,rgba(255,255,255,0.032)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.024)_1px,transparent_1px)] [background-size:100%_100%,40px_40px,40px_40px]" />
-          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#f4e86f]/24 to-transparent" />
+        <div className="relative max-h-[calc(100dvh-2rem)] w-full max-w-[1080px] overflow-y-auto rounded-lg border border-border bg-card shadow-[var(--shadow-xl)] ring-1 ring-black/20 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 opacity-[0.09] [background-image:radial-gradient(circle_at_76%_28%,color-mix(in_oklch,var(--echo-core)_10%,transparent),transparent_30%),linear-gradient(to_right,rgba(255,255,255,0.032)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.024)_1px,transparent_1px)] [background-size:100%_100%,40px_40px,40px_40px]" />
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-core/24 to-transparent" />
           <div className="pointer-events-none absolute inset-x-14 bottom-0 h-px bg-gradient-to-r from-transparent via-white/8 to-transparent" />
           <div className="relative grid h-full grid-cols-1 lg:grid-cols-[minmax(0,0.64fr)_minmax(260px,0.36fr)]">
             <section className="relative flex min-h-0 flex-col px-8 py-6 lg:px-10 lg:py-7">
@@ -659,7 +659,7 @@ export default function NewAgentPage() {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.22)_transparent]">
+              <div className="min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]">
                 <div className="max-w-[560px] pb-6">
                   <div className="flex items-center gap-2 text-xs font-medium text-primary">
                     <span className="h-px w-6 bg-primary/70" />
@@ -770,7 +770,7 @@ export default function NewAgentPage() {
             </section>
 
             <section className="relative min-h-0 overflow-hidden border-l border-border">
-              <div className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:radial-gradient(circle_at_50%_44%,hsl(var(--primary)/0.16),transparent_30%),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:100%_100%,34px_34px,34px_34px]" />
+              <div className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:radial-gradient(circle_at_50%_44%,color-mix(in_oklch,var(--primary)_16%,transparent),transparent_30%),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:100%_100%,34px_34px,34px_34px]" />
               <div className="relative flex h-full min-h-0 flex-col px-5 py-7">
                 <div className="flex shrink-0 items-center justify-between gap-3">
                   <div>
@@ -788,7 +788,7 @@ export default function NewAgentPage() {
                   ) : null}
                 </div>
 
-                <div className="mt-5 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
+                <div className="mt-5 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]">
                   <div className="rounded-sm border border-border bg-muted/10 p-3">
                     <div className="mb-2 text-xs font-medium text-muted-foreground">
                       角色定位
