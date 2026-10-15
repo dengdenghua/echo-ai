@@ -392,6 +392,13 @@
   --color-resonance: var(--echo-resonance);
   --color-nano: var(--echo-nano);
   --color-breach: var(--echo-breach);
+  /* Categorical ramp: data categories only (see --cat-* below). */
+  --color-cat-1: var(--cat-1);
+  --color-cat-2: var(--cat-2);
+  --color-cat-3: var(--cat-3);
+  --color-cat-4: var(--cat-4);
+  --color-cat-5: var(--cat-5);
+  --color-cat-6: var(--cat-6);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -643,6 +650,32 @@
 /* Graphite: the colors come from the shared ECHO mapping block above. */
 .dark {
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* Categorical ramp (AI-45): the one palette for data that has no other
+   channel (knowledge-graph entity types, collaborator cursors, user-picked
+   group colours). Core, signal, resonance and nano at low chroma and equal
+   lightness, then graphite and a deep core, so no category shouts. Chrome
+   never uses it: modules and kinds are told apart by icon and label.
+   Literal hex so canvas/WebGL can read them with getPropertyValue
+   (lib/categorical-palette.ts). Snow on :root, Graphite on .dark. */
+:root,
+[data-echo-theme="snow"] {
+  --cat-1: #147684;
+  --cat-2: #4e699a;
+  --cat-3: #8f536b;
+  --cat-4: #686097;
+  --cat-5: #6d7279;
+  --cat-6: #1d4e60;
+}
+.dark,
+[data-echo-theme="graphite"] {
+  --cat-1: #82ccd5;
+  --cat-2: #a4beef;
+  --cat-3: #e5aac3;
+  --cat-4: #beb6eb;
+  --cat-5: #a6abb2;
+  --cat-6: #6394a8;
 }
 
 /* 浏览器首页「跟随配色」默认背景。
