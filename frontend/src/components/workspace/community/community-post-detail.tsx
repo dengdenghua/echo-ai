@@ -144,10 +144,9 @@ export function CommunityPostDetail({
         <div className="flex-1 overflow-y-auto">
           {/* 封面（多图轮播） */}
           <div
-            className="relative w-full overflow-hidden"
+            className="relative w-full overflow-hidden bg-muted"
             style={{
               height: Math.min(320, Math.max(200, post.coverHeight + 60)),
-              background: `linear-gradient(135deg, ${post.coverGradient.join(", ")})`,
             }}
           >
             {hasImageCover && (
@@ -183,10 +182,6 @@ export function CommunityPostDetail({
               </>
             )}
             <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-mini font-semibold text-white backdrop-blur-sm">
-              <span
-                className="size-1.5 rounded-full"
-                style={{ backgroundColor: post.tagColor }}
-              />
               {post.kind === "mini-app" ? "小程序" : post.tag}
             </span>
           </div>
@@ -203,13 +198,7 @@ export function CommunityPostDetail({
             )}
 
             <div className="mt-4 flex items-center gap-2">
-              <span
-                className="flex size-6 shrink-0 items-center justify-center rounded-full text-mini font-bold"
-                style={{
-                  backgroundColor: `${post.authorColor}1f`,
-                  color: post.authorColor,
-                }}
-              >
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-mini font-bold text-foreground/70">
                 {post.authorInitial}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -229,7 +218,7 @@ export function CommunityPostDetail({
                 className={cn(
                   "flex items-center gap-1 text-sm tabular-nums transition-colors",
                   liked
-                    ? "text-chart-3"
+                    ? "text-core"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -284,13 +273,7 @@ export function CommunityPostDetail({
               <div className="flex flex-col gap-3">
                 {comments.map((c) => (
                   <div key={c.id} className="flex items-start gap-2.5">
-                    <span
-                      className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-mini font-bold"
-                      style={{
-                        backgroundColor: `${c.authorColor}1f`,
-                        color: c.authorColor,
-                      }}
-                    >
+                    <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-mini font-bold text-foreground/70">
                       {c.authorInitial}
                     </span>
                     <div className="min-w-0 flex-1">

@@ -76,10 +76,7 @@ export function MarketDetail({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           <div className="flex items-center gap-1.5 text-mini text-muted-foreground">
-            <span
-              className="flex size-4 items-center justify-center rounded-full text-micro font-bold text-white"
-              style={{ backgroundColor: item.sellerColor }}
-            >
+            <span className="flex size-4 items-center justify-center rounded-full bg-muted text-micro font-bold text-foreground/70">
               {item.sellerInitial}
             </span>
             <span>{item.seller}</span>

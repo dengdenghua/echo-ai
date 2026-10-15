@@ -39,18 +39,11 @@ export function MarketCard({
         <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent" />
         {category && (
           <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/40 px-2 py-1 text-xs font-medium text-white shadow-sm backdrop-blur-md">
-            <span
-              className="size-1.5 rounded-full"
-              style={{ backgroundColor: category.color }}
-            />
             {category.label}
           </span>
         )}
         <span className="absolute bottom-2 left-2.5 inline-flex max-w-[calc(100%-1.25rem)] items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-xs text-white/90 backdrop-blur-sm sm:hidden">
-          <span
-            className="flex size-3.5 shrink-0 items-center justify-center rounded-full text-micro font-bold text-white"
-            style={{ backgroundColor: item.sellerColor }}
-          >
+          <span className="flex size-3.5 shrink-0 items-center justify-center rounded-full bg-white/20 text-micro font-bold text-white">
             {item.sellerInitial}
           </span>
           <span className="truncate">{item.seller}</span>
@@ -105,10 +98,7 @@ export function MarketCard({
           </button>
         </div>
         <div className="mt-3 hidden items-center gap-1.5 border-t border-border-subtle pt-2.5 text-xs text-muted-foreground sm:flex">
-          <span
-            className="flex size-3.5 items-center justify-center rounded-full text-micro font-bold text-white"
-            style={{ backgroundColor: item.sellerColor }}
-          >
+          <span className="flex size-3.5 items-center justify-center rounded-full bg-muted text-micro font-bold text-foreground/70">
             {item.sellerInitial}
           </span>
           <span className="min-w-0 flex-1 truncate">{item.seller}</span>

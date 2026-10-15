@@ -13,7 +13,6 @@ export interface CommunityComment {
   content: string;
   author: string;
   authorInitial: string;
-  authorColor: string;
   createdAt: number;
 }
 
@@ -23,17 +22,13 @@ export interface CommunityPost {
   content: string;
   author: string;
   authorInitial: string;
-  authorColor: string;
   likesCount: number;
   commentsCount: number;
   tag: string;
-  tagColor: string;
-  /** 封面图 URL（优先于 coverGradient 展示）。 */
+  /** 封面图 URL；为空时显示中性占位底。 */
   coverUrl: string;
   /** 多图（详情页轮播）。缺省时退化为 [coverUrl] 单图。 */
   images?: string[];
-  /** 渐变封面（coverUrl 为空时用），["#RRGGBB", ...]。 */
-  coverGradient: string[];
   /** 封面高度（px），瀑布流产生错落感。 */
   coverHeight: number;
   kind: CommunityPostKind;
@@ -50,21 +45,18 @@ export interface CommunityPost {
   comments?: CommunityComment[];
 }
 
-/** 服务端下发的帖子字段（颜色用 "#RRGGBB" 字符串，后台可随意编辑）。 */
+/** 服务端下发的帖子字段（旧版颜色字段 authorColor/tagColor/coverGradient 会被忽略）。 */
 interface CommunityPostDto {
   id?: string;
   title?: string;
   content?: string;
   author?: string;
   authorInitial?: string;
-  authorColor?: string;
   likesCount?: number;
   commentsCount?: number;
   tag?: string;
-  tagColor?: string;
   coverUrl?: string;
   images?: string[];
-  coverGradient?: string[];
   coverHeight?: number;
   kind?: string;
   appRef?: string;
@@ -81,32 +73,19 @@ interface CommunityFeedDto {
 
 const CACHE_KEY = "echo.community.feed.v1";
 
-const DEFAULT_GRADIENT = ["#667EEA", "#764BA2"];
-
-function parseColor(hex: string | undefined, fallback: string): string {
-  if (!hex) return fallback;
-  return /^#[0-9a-fA-F]{6}$/.test(hex.trim()) ? hex.trim() : fallback;
-}
-
 function toPost(dto: CommunityPostDto): CommunityPost {
   const title = dto.title ?? "";
-  const gradient = Array.isArray(dto.coverGradient)
-    ? dto.coverGradient.filter((c) => /^#[0-9a-fA-F]{6}$/.test(c))
-    : [];
   return {
     id: dto.id || title || `post-${Math.random().toString(36).slice(2, 8)}`,
     title,
     content: dto.content ?? "",
     author: dto.author ?? "",
     authorInitial: dto.authorInitial || (dto.author ?? "?").slice(0, 1),
-    authorColor: parseColor(dto.authorColor, "#7C6FF0"),
     likesCount: dto.likesCount ?? 0,
     commentsCount: dto.commentsCount ?? 0,
     tag: dto.tag ?? "",
-    tagColor: parseColor(dto.tagColor, "#7C6FF0"),
     coverUrl: dto.coverUrl ?? "",
     images: Array.isArray(dto.images) ? dto.images.filter(Boolean) : undefined,
-    coverGradient: gradient.length ? gradient : DEFAULT_GRADIENT,
     coverHeight: Math.min(260, Math.max(120, dto.coverHeight ?? 160)),
     kind: (dto.kind as CommunityPostKind) ?? "",
     appRef: dto.appRef ?? "",
@@ -140,49 +119,41 @@ const COMMENT_POOL: Array<Omit<CommunityComment, "id" | "createdAt">> = [
   {
     author: "橙子",
     authorInitial: "橙",
-    authorColor: "#FC466B",
     content: "太实用了，已经复刻到我的工作台！",
   },
   {
     author: "阿北",
     authorInitial: "阿",
-    authorColor: "#3F5EFB",
     content: "思路很清晰，按这个改也能用。",
   },
   {
     author: "Momo",
     authorInitial: "M",
-    authorColor: "#00C6FF",
     content: "正好需要，感谢分享！",
   },
   {
     author: "小满",
     authorInitial: "小",
-    authorColor: "#F2994A",
     content: "收藏了，明天试试看。",
   },
   {
     author: "阿哲",
     authorInitial: "哲",
-    authorColor: "#8E2DE2",
     content: "有没有更详细的参数配置教程？",
   },
   {
     author: "鲸鱼",
     authorInitial: "鲸",
-    authorColor: "#71B280",
     content: "效率提升明显，老板都夸了。",
   },
   {
     author: "Luna",
     authorInitial: "L",
-    authorColor: "#FF6A5B",
     content: "这个场景我也有痛点，学到了。",
   },
   {
     author: "石头",
     authorInitial: "石",
-    authorColor: "#11998E",
     content: "请问能接入我自己的数据源吗？",
   },
 ];
@@ -238,7 +209,6 @@ export function addUserComment(
   content: string,
   author: string,
   authorInitial: string,
-  authorColor = "#7C6FF0",
 ): number {
   const map = readUserComments();
   const list = map[postId] ?? [];
@@ -247,7 +217,6 @@ export function addUserComment(
     content,
     author,
     authorInitial,
-    authorColor,
     createdAt: Date.now(),
   });
   map[postId] = list;
@@ -376,7 +345,7 @@ function writePublished(posts: CommunityPost[]) {
   }
 }
 
-/** 发布一条新帖，返回生成的帖子（含默认头像/分类/渐变）。 */
+/** 发布一条新帖，返回生成的帖子（含默认头像与分类）。 */
 export function addPublishedPost(input: {
   title: string;
   content: string;
@@ -393,13 +362,10 @@ export function addPublishedPost(input: {
     content: input.content,
     author: "我",
     authorInitial: "我",
-    authorColor: "#FC466B",
     likesCount: 0,
     commentsCount: 0,
     tag: input.tag || "原创",
-    tagColor: "#7C6FF0",
     coverUrl: input.coverUrl ?? "",
-    coverGradient: ["#7C6FF0", "#4A00E0"],
     coverHeight: 180,
     kind: input.appRef ? "mini-app" : "post",
     appRef: input.appRef ?? "",
@@ -415,24 +381,23 @@ export function addPublishedPost(input: {
   return post;
 }
 
-/** 分类定义：key = 过滤值，label = tab 展示名，color = 分类主题色。 */
+/** 分类定义：key = 过滤值，label = tab 展示名（分类靠文字区分，不配色）。 */
 export interface CommunityCategory {
   key: string;
   label: string;
-  color: string;
 }
 
 /** 分类 tab（推荐 + 六大内容分类 + 关注流）。 */
 export const COMMUNITY_CATEGORIES: CommunityCategory[] = [
-  { key: "recommend", label: "推荐", color: "#FC466B" },
-  { key: "following", label: "关注", color: "#FF6A5B" },
-  { key: "work", label: "职场", color: "#3F5EFB" },
-  { key: "efficiency", label: "效率", color: "#00C6FF" },
-  { key: "life", label: "生活", color: "#FF6A5B" },
-  { key: "study", label: "学习", color: "#71B280" },
-  { key: "shopping", label: "购物", color: "#F2994A" },
-  { key: "tech", label: "科技", color: "#8E2DE2" },
-  { key: "game", label: "游戏", color: "#5B8C5A" },
+  { key: "recommend", label: "推荐" },
+  { key: "following", label: "关注" },
+  { key: "work", label: "职场" },
+  { key: "efficiency", label: "效率" },
+  { key: "life", label: "生活" },
+  { key: "study", label: "学习" },
+  { key: "shopping", label: "购物" },
+  { key: "tech", label: "科技" },
+  { key: "game", label: "游戏" },
 ];
 
 /** 顶栏 tab 的轻量视图（{key, label}），供页面渲染。 */

@@ -87,7 +87,6 @@ export function toggleSubscribedAuthor(author: string): string[] {
 export interface AuthorProfile {
   name: string;
   initial: string;
-  color: string;
   /** 该作者的帖子（按时间倒序）。 */
   posts: CommunityPost[];
   /** 笔记数。 */
@@ -102,15 +101,14 @@ export interface AuthorProfile {
   topicCoverage: string[];
 }
 
-/** 从帖子集合里找到作者的确定性头像素描（首字 + 颜色）。 */
+/** 从帖子集合里找到作者的确定性头像素描（首字）。 */
 export function authorLook(
   name: string,
   posts: CommunityPost[],
-): { initial: string; color: string } {
+): { initial: string } {
   const first = posts.find((p) => p.author === name);
   return {
     initial: first?.authorInitial || name.slice(0, 1) || "?",
-    color: first?.authorColor || "#7C6FF0",
   };
 }
 
@@ -119,7 +117,7 @@ export function buildAuthorProfile(
   name: string,
   authorPosts: CommunityPost[],
 ): AuthorProfile {
-  const { initial, color } = authorLook(name, authorPosts);
+  const { initial } = authorLook(name, authorPosts);
   const totalLikes = authorPosts.reduce((s, p) => s + p.likesCount, 0);
   const topics = Array.from(
     new Set(authorPosts.map((p) => p.topic).filter(Boolean)),
@@ -129,7 +127,6 @@ export function buildAuthorProfile(
   return {
     name,
     initial,
-    color,
     posts: [...authorPosts].sort((a, b) => b.createdAt - a.createdAt),
     postCount: authorPosts.length,
     totalLikes,

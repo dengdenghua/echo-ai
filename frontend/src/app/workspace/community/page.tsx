@@ -42,8 +42,8 @@ type ViewMode = "community" | "market";
 
 /** 顶栏 tab：推荐 + 订阅 + 关注 + 六大分类。 */
 const TABS = [
-  { key: "recommend", label: "推荐", color: "#FC466B" },
-  { key: "subscribe", label: "订阅", color: "#EC4899" },
+  { key: "recommend", label: "推荐" },
+  { key: "subscribe", label: "订阅" },
   ...COMMUNITY_CATEGORIES.filter((c) => c.key !== "recommend"),
 ];
 
@@ -348,10 +348,6 @@ export default function CommunityPage() {
                                 : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                             )}
                           >
-                            <span
-                              className="size-1.5 rounded-full"
-                              style={{ backgroundColor: tab.color }}
-                            />
                             {tab.label}
                           </button>
                         );
@@ -483,14 +479,10 @@ function SubscriptionPanel({
                 className={cn(
                   "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                   active
-                    ? "bg-chart-3/10 text-chart-3"
+                    ? "bg-core/10 text-core"
                     : "border border-border-default text-muted-foreground hover:bg-muted/60",
                 )}
               >
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{ backgroundColor: t.color }}
-                />
                 {t.label}
                 {active && <BellRingIcon className="size-3" />}
               </button>
@@ -524,13 +516,7 @@ function SubscriptionPanel({
                     onClick={() => onOpenProfile(name)}
                     className="flex min-w-0 items-center gap-2"
                   >
-                    <span
-                      className="flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                      style={{
-                        backgroundColor: `${look.color}1f`,
-                        color: look.color,
-                      }}
-                    >
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground/70">
                       {look.initial}
                     </span>
                     <span className="truncate text-sm font-medium">{name}</span>
@@ -543,7 +529,7 @@ function SubscriptionPanel({
                         "rounded px-2 py-0.5 text-mini font-semibold transition-colors",
                         isFollowing
                           ? "text-muted-foreground hover:text-foreground"
-                          : "text-chart-3 hover:text-chart-3/80",
+                          : "text-foreground hover:text-foreground/80",
                       )}
                     >
                       {isFollowing ? "已关注" : "关注"}
@@ -678,10 +664,6 @@ function PublishModal({
                         : "border border-border-default text-muted-foreground hover:bg-muted/60",
                     )}
                   >
-                    <span
-                      className="size-1.5 rounded-full"
-                      style={{ backgroundColor: c.color }}
-                    />
                     {c.label}
                   </button>
                 );

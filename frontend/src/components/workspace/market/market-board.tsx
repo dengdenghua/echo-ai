@@ -83,7 +83,7 @@ export function MarketBoard() {
         本地演示集市。内置商品为示例；上架、购买和积分记录保存在当前浏览器，尚未接入真实交易与交付服务。
       </p>
       {!bannerDismissed && (
-        <div className="mb-3 flex flex-col gap-2 rounded-lg border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2.5">
             <LayoutGridIcon className="mt-0.5 size-4 shrink-0 text-primary" />
             <div className="min-w-0">
@@ -140,10 +140,6 @@ export function MarketBoard() {
                     : "border-transparent bg-muted/35 text-muted-foreground hover:bg-muted/65 hover:text-foreground",
                 )}
               >
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{ backgroundColor: cat.color }}
-                />
                 {cat.label}
               </button>
             );

@@ -525,12 +525,9 @@ export function CommunityPostCard({
       {/* 封面保持紧凑比例，优先露出标题与摘要。 */}
       <div
         className={cn(
-          "relative w-full overflow-hidden",
+          "relative w-full overflow-hidden bg-muted",
           hasImageCover ? "aspect-[16/10] max-h-72" : "h-28",
         )}
-        style={{
-          background: `linear-gradient(135deg, ${post.coverGradient.join(", ")})`,
-        }}
       >
         {hasImageCover && (
           <ImageWithFallback
@@ -546,17 +543,13 @@ export function CommunityPostCard({
           />
         )}
         {imageBroken && (
-          <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-xs text-white/80">
+          <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-xs text-muted-foreground">
             封面暂时无法加载
           </div>
         )}
 
         {/* 分类标签（左上角） */}
         <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-mini font-semibold text-white backdrop-blur-sm">
-          <span
-            className="size-1.5 rounded-full"
-            style={{ backgroundColor: post.tagColor }}
-          />
           {isMiniApp ? "小程序" : post.tag}
         </span>
 
@@ -607,13 +600,7 @@ export function CommunityPostCard({
             aria-label={`查看作者 ${post.author}`}
             className="flex min-w-0 shrink-0 items-center gap-1.5"
           >
-            <span
-              className="flex size-5 shrink-0 items-center justify-center rounded-full text-micro font-bold"
-              style={{
-                backgroundColor: `${post.authorColor}1f`,
-                color: post.authorColor,
-              }}
-            >
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-micro font-bold text-foreground/70">
               {post.authorInitial}
             </span>
             <span className="max-w-[72px] truncate text-xs text-muted-foreground">
@@ -630,7 +617,7 @@ export function CommunityPostCard({
                 "shrink-0 rounded text-mini font-semibold transition-colors",
                 isFollowing
                   ? "text-muted-foreground hover:text-foreground"
-                  : "text-chart-3 hover:text-chart-3/80",
+                  : "text-foreground hover:text-foreground/80",
               )}
             >
               {isFollowing ? "已关注" : "关注"}
@@ -667,8 +654,8 @@ export function CommunityPostCard({
               className={cn(
                 "shrink-0 rounded p-0.5 transition-colors",
                 isLiked
-                  ? "text-chart-3"
-                  : "text-muted-foreground hover:text-chart-3",
+                  ? "text-core"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <HeartIcon

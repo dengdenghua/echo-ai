@@ -90,13 +90,7 @@ export function CommunityProfile({
 
       {/* 作者信息 */}
       <div className="mt-2 flex flex-col items-center gap-2 rounded-xl bg-card py-6 shadow-[var(--shadow-card)]">
-        <span
-          className="flex size-16 items-center justify-center rounded-full text-xl font-bold"
-          style={{
-            backgroundColor: `${profile.color}1f`,
-            color: profile.color,
-          }}
-        >
+        <span className="flex size-16 items-center justify-center rounded-full bg-muted text-xl font-bold text-foreground/70">
           {profile.initial}
         </span>
         <span className="text-lg font-bold">{profile.name}</span>
@@ -112,14 +106,14 @@ export function CommunityProfile({
                   className={cn(
                     "flex items-center gap-1 rounded-full px-2.5 py-0.5 text-mini font-medium transition-colors",
                     active
-                      ? "bg-chart-3/10 text-chart-3"
+                      ? "bg-core/10 text-core"
                       : "bg-muted/60 text-muted-foreground hover:text-foreground",
                   )}
                 >
                   <span
                     className={cn(
                       "size-1 rounded-full",
-                      active ? "bg-chart-3" : "bg-muted-foreground/50",
+                      active ? "bg-core" : "bg-muted-foreground/50",
                     )}
                   />
                   {t}
@@ -200,12 +194,7 @@ export function CommunityProfile({
                 onClick={() => onOpenPost(p)}
                 className="group overflow-hidden rounded-xl bg-card text-left shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-base hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]"
               >
-                <div
-                  className="relative aspect-square w-full overflow-hidden"
-                  style={{
-                    background: `linear-gradient(135deg, ${p.coverGradient.join(", ")})`,
-                  }}
-                >
+                <div className="relative aspect-square w-full overflow-hidden bg-muted">
                   <ImageWithFallback
                     src={p.coverUrl}
                     alt={p.title}

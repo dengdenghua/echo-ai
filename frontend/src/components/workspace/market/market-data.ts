@@ -22,7 +22,6 @@ export interface MarketItem {
   category: string;
   seller: string;
   sellerInitial: string;
-  sellerColor: string;
   /** 是否已售出。 */
   sold: boolean;
   createdAt: number;
@@ -33,18 +32,17 @@ export interface MarketItem {
 export interface MarketCategory {
   key: string;
   label: string;
-  color: string;
 }
 
-/** 集市分类 tab（一键筛选）。 */
+/** 集市分类 tab（一键筛选；分类靠文字区分，不配色）。 */
 export const MARKET_CATEGORIES: MarketCategory[] = [
-  { key: "all", label: "全部", color: "#FC466B" },
-  { key: "efficiency", label: "效率工具", color: "#00C6FF" },
-  { key: "work", label: "职场模板", color: "#3F5EFB" },
-  { key: "study", label: "学习资源", color: "#71B280" },
-  { key: "life", label: "生活好物", color: "#FF6A5B" },
-  { key: "game", label: "游戏好物", color: "#5B8C5A" },
-  { key: "shopping", label: "购物神器", color: "#F2994A" },
+  { key: "all", label: "全部" },
+  { key: "efficiency", label: "效率工具" },
+  { key: "work", label: "职场模板" },
+  { key: "study", label: "学习资源" },
+  { key: "life", label: "生活好物" },
+  { key: "game", label: "游戏好物" },
+  { key: "shopping", label: "购物神器" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -61,7 +59,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "shopping",
     seller: "省钱 Bot",
     sellerInitial: "省",
-    sellerColor: "#00C6FF",
     sold: false,
     createdAt: Date.now() - 3_600_000,
   },
@@ -74,7 +71,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "work",
     seller: "打工侠",
     sellerInitial: "打",
-    sellerColor: "#FC466B",
     sold: false,
     createdAt: Date.now() - 7_200_000,
   },
@@ -87,7 +83,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "work",
     seller: "入职顾问",
     sellerInitial: "入",
-    sellerColor: "#3F5EFB",
     sold: false,
     createdAt: Date.now() - 12_000_000,
   },
@@ -100,7 +95,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "study",
     seller: "语言教练",
     sellerInitial: "语",
-    sellerColor: "#71B280",
     sold: false,
     createdAt: Date.now() - 18_000_000,
   },
@@ -113,7 +107,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "study",
     seller: "学术喵",
     sellerInitial: "学",
-    sellerColor: "#134E5E",
     sold: false,
     createdAt: Date.now() - 24_000_000,
   },
@@ -126,7 +119,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "life",
     seller: "极客居",
     sellerInitial: "极",
-    sellerColor: "#8E2DE2",
     sold: false,
     createdAt: Date.now() - 36_000_000,
   },
@@ -139,7 +131,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "life",
     seller: "旅行灵感",
     sellerInitial: "旅",
-    sellerColor: "#FF6A5B",
     sold: false,
     createdAt: Date.now() - 48_000_000,
   },
@@ -152,7 +143,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "game",
     seller: "游戏管家",
     sellerInitial: "游",
-    sellerColor: "#5B8C5A",
     sold: false,
     createdAt: Date.now() - 60_000_000,
   },
@@ -165,7 +155,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "game",
     seller: "数据党玩家",
     sellerInitial: "数",
-    sellerColor: "#5B8C5A",
     sold: false,
     createdAt: Date.now() - 90_000_000,
   },
@@ -178,7 +167,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "work",
     seller: "会议小助手",
     sellerInitial: "会",
-    sellerColor: "#3F5EFB",
     sold: false,
     createdAt: Date.now() - 120_000_000,
   },
@@ -191,7 +179,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "life",
     seller: "清早计划",
     sellerInitial: "清",
-    sellerColor: "#FF6A5B",
     sold: false,
     createdAt: Date.now() - 150_000_000,
   },
@@ -204,7 +191,6 @@ const SEED_ITEMS: MarketItem[] = [
     category: "shopping",
     seller: "薅羊毛王",
     sellerInitial: "薅",
-    sellerColor: "#F2994A",
     sold: false,
     createdAt: Date.now() - 180_000_000,
   },
@@ -292,7 +278,6 @@ export function listMarketItem(input: {
     category: input.category,
     seller: "我",
     sellerInitial: "我",
-    sellerColor: "#FC466B",
     sold: false,
     createdAt: Date.now(),
     mine: true,
