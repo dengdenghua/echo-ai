@@ -208,6 +208,7 @@ Public model interfaces; provider implementations load on first access.
 | --- | --- | --- |
 | class | `class MockModelRouter(ModelRouter)` |  |
 | class | `class UnconfiguredModelRouter(ModelRouter)` | Last-resort dispatch fallback when no model is configured. |
+| func | `def router_has_model(router)` | False when ``router`` ends at :class:`UnconfiguredModelRouter`. |
 
 ### `multi_router.py`
 

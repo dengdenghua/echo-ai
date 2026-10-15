@@ -13,6 +13,7 @@ sites keep working unchanged.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from runtime import __version__
 from runtime.adapters.instrumentation import record_gen_ai_cost, trace_stage
@@ -61,6 +62,7 @@ __all__ = [
     "ToolSpec",
     "UnconfiguredModelRouter",
     "normalize_reasoning_effort",
+    "router_has_model",
     "thinking_budget_for_effort",
 ]
 
@@ -148,3 +150,22 @@ class UnconfiguredModelRouter(ModelRouter):
 
     def call(self, request: ModelRequest) -> ModelResponse:
         raise RuntimeError(self._MESSAGE)
+
+
+def router_has_model(router: Any) -> bool:
+    """False when ``router`` ends at :class:`UnconfiguredModelRouter`.
+
+    Delegating routers (the live custom-model fallback, the account-aware
+    fallback) expose ``current()``: the router a call would reach right now.
+    Read-only — no provider is contacted. Unknown routers count as answering.
+    """
+    for _ in range(8):
+        if isinstance(router, UnconfiguredModelRouter):
+            return False
+        # Look the method up on the type: ``__getattr__`` forwarding and test
+        # doubles must not invent a delegation chain.
+        current = getattr(type(router), "current", None)
+        if not callable(current):
+            return True
+        router = current(router)
+    return True

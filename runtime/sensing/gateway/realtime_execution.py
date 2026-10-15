@@ -142,6 +142,57 @@ def codex_readiness_for_turn(runtime: Any, turn: Turn, agent: Any) -> CodexReadi
         return CodexReadiness(False, "configuration_unavailable")
 
 
+def native_model_ready(runtime: Any, turn: Turn) -> bool:
+    """Whether Echo's own path has a model for this turn.
+
+    False only when the native dispatcher would hand the turn to the "no LLM
+    model configured" router — a new home with an empty catalog. Read-only: a
+    catalog stat at most, never a provider call. A stack without such a
+    dispatcher keeps the earlier assumption that Echo can answer.
+    """
+    router = getattr(getattr(getattr(runtime, "_stack", None), "planner", None), "router", None)
+    can_answer = getattr(router, "can_answer", None)
+    if not callable(can_answer):
+        return True
+    try:
+        return bool(can_answer(getattr(turn.params, "model", None)))
+    except Exception:  # noqa: BLE001 - a probe must not fail the turn; keep the Echo route
+        return True
+
+
+async def _auto_without_opencode(
+    runtime: Any,
+    turn: Turn,
+    agent: Any,
+    reason: str,
+    *,
+    required: CapabilityRequest,
+    scheduler: dict[str, Any],
+) -> ExecutionRoute:
+    """Where Auto settles when OpenCode cannot take the turn.
+
+    Echo's own models, as before — unless Echo has none (a new home) while
+    Codex is signed in: Echo could then only report the missing model, so
+    Codex answers. Still selection before any effect, keeping the host's
+    project/team scheduler. Both probes read configuration only; no App
+    Server starts.
+    """
+    native = select_execution_route(**scheduler, requested_engine=EngineId.ECHO, required=required)
+    echo = ExecutionRoute(native.engine, native.driver, reason)
+    if await asyncio.to_thread(native_model_ready, runtime, turn):
+        return echo
+    readiness = await asyncio.to_thread(codex_readiness_for_turn, runtime, turn, agent)
+    if not readiness.available:
+        return echo
+    try:
+        codex = select_execution_route(
+            **scheduler, requested_engine=EngineId.CODEX, required=required
+        )
+    except EngineSelectionError:
+        return echo
+    return ExecutionRoute(codex.engine, codex.driver, f"{reason}:native_no_model")
+
+
 async def select_turn_execution(
     runtime: Any,
     turn: Turn,
@@ -188,16 +239,20 @@ async def select_turn_execution(
     config = getattr(getattr(runtime, "_stack", None), "config", None)
     default_member = getattr(getattr(config, "execution", None), "member_engine", "echo")
     required = turn_capability_request(turn, intent)
+    # The host's project/team scheduler, kept whichever engine Auto settles on.
+    scheduler: dict[str, Any] = dict(
+        project_command=project_command,
+        group_fanout=group_fanout,
+        topology_id=topology_id,
+        coordinated=coordinated,
+    )
     try:
         route = select_execution_route(
-            project_command=project_command,
-            group_fanout=group_fanout,
-            topology_id=topology_id,
+            **scheduler,
             codex_partner=codex_partner,
             reflection_fast_path=reflection_fast_path,
             requested_engine=None if requested == "auto" else EngineId(requested),
             coding_task=is_coding_task(intent),
-            coordinated=coordinated,
             coordinator_engine=EngineId.OPENCODE if default_member == "opencode" else None,
             default_engine=EngineId.OPENCODE if default_member == "opencode" else None,
             required=required,
@@ -212,16 +267,13 @@ async def select_turn_execution(
         # why their pick cannot run instead of silently getting another one.
         # Change the model engine while retaining the host's project/team
         # scheduler. A vision fallback must not turn a group task into chat.
-        fallback = select_execution_route(
-            project_command=project_command,
-            group_fanout=group_fanout,
-            topology_id=topology_id,
-            coordinated=coordinated,
-            requested_engine=EngineId.ECHO,
+        return await _auto_without_opencode(
+            runtime,
+            turn,
+            agent,
+            f"capability_unmet:{','.join(exc.unmet)}",
             required=required,
-        )
-        route = ExecutionRoute(
-            fallback.engine, fallback.driver, f"capability_unmet:{','.join(exc.unmet)}"
+            scheduler=scheduler,
         )
     if route.engine is EngineId.ECHO:
         return route
@@ -243,15 +295,14 @@ async def select_turn_execution(
             # below, Auto settles on a path this computer has before any
             # effect (keeping the host's project/team scheduler); an explicit
             # OpenCode choice still fails with the engine's own reason.
-            fallback = select_execution_route(
-                project_command=project_command,
-                group_fanout=group_fanout,
-                topology_id=topology_id,
-                coordinated=coordinated,
-                requested_engine=EngineId.ECHO,
+            return await _auto_without_opencode(
+                runtime,
+                turn,
+                agent,
+                f"opencode_{reason_code}",
                 required=required,
+                scheduler=scheduler,
             )
-            return ExecutionRoute(fallback.engine, fallback.driver, f"opencode_{reason_code}")
         raise EngineSelectionError(status["reason"], engine=EngineId.OPENCODE, reason="unavailable")
     readiness = await asyncio.to_thread(codex_readiness_for_turn, runtime, turn, agent)
     if readiness.available:

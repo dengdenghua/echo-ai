@@ -4,7 +4,7 @@ import logging
 import threading
 from typing import Any
 
-from .models import ModelRequest, ModelResponse, ModelRouter
+from .models import ModelRequest, ModelResponse, ModelRouter, router_has_model
 from .rescue_policy import (
     is_retryable_model_error as _is_provider_unavailable_error,
 )
@@ -52,6 +52,16 @@ class ModelDispatchRouter(ModelRouter):
 
     def set_fallback(self, router: ModelRouter) -> None:
         self._fallback = router
+
+    def can_answer(self, model_id: str | None) -> bool:
+        """Whether a request for ``model_id`` reaches a configured model.
+
+        False only when it would fall through to a fallback with nothing to
+        call — a new home's empty catalog. Read-only: no provider is contacted.
+        """
+        if model_id and self._route_for(model_id) is not None:
+            return True
+        return router_has_model(self._fallback)
 
     # ─── ModelRouter interface ────────────────────────────────
 

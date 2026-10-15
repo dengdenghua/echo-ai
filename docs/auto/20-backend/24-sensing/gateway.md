@@ -1686,6 +1686,7 @@ tier: "standard"
 | func | `def turn_requires_vision(turn, intent)` | True when the turn carries an image the model is expected to look at. |
 | func | `def turn_capability_request(turn, intent)` | What this turn structurally needs from its engine. |
 | func | `def codex_readiness_for_turn(runtime, turn, agent)` |  |
+| func | `def native_model_ready(runtime, turn)` | Whether Echo's own path has a model for this turn. |
 | func | `async def select_turn_execution(runtime, turn, agent, intent, project_command, group_fanout, topology_id, codex_partner, reflection_fast_path, coordinated, requested_model)` | ``requested_model`` is the caller's pick before smart routing rewrote ``turn.params.model`` for the native path; external engines run that p |
 | class | `class TurnExecutionRequest` |  |
 | class | `class NativeExecutionAdapter` |  |

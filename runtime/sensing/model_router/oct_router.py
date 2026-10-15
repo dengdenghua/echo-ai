@@ -273,6 +273,10 @@ class OctFallbackRouter(ModelRouter):
                 return self._oct
         return self._self
 
+    def current(self) -> ModelRouter:
+        """The router a call would reach now (read by ``router_has_model``)."""
+        return self._pick()
+
     def call(self, request: ModelRequest) -> ModelResponse:
         return self._pick().call(request)
 
