@@ -26,6 +26,28 @@ describe("desktop launcher", () => {
   });
 });
 
+describe("desktop launcher install state", () => {
+  const remote = WORKBENCH_BUILTIN_APPS.filter(
+    (app) => app.delivery === "remote",
+  );
+  const ids = (apps: { id: string }[]) => apps.map((app) => app.id);
+
+  it("never shows an installable app before its install state is known", () => {
+    const apps = ids(buildDesktopApps(zhCN, { known: false, unavailable: [] }));
+    for (const app of remote) expect(apps).not.toContain(`workbench:${app.id}`);
+    expect(apps).toContain("workbench:mail");
+  });
+
+  it("shows installed apps and leaves uninstalled ones out", () => {
+    const [missing, ...installed] = remote;
+    const apps = ids(
+      buildDesktopApps(zhCN, { known: true, unavailable: [missing.moduleId] }),
+    );
+    expect(apps).not.toContain(`workbench:${missing.id}`);
+    for (const app of installed) expect(apps).toContain(`workbench:${app.id}`);
+  });
+});
+
 describe("desktop app catalog helpers", () => {
   it("keeps route query parameters inside the shell hash", () => {
     expect(

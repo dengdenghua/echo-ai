@@ -10,12 +10,18 @@ import {
   TerminalSquareIcon,
   type LucideIcon,
 } from "lucide-react";
+import { useMemo } from "react";
 
 import { WORKBENCH_APP_ICONS } from "@/components/workspace/module-icons";
+import {
+  useModuleAvailabilityKnown,
+  useUnavailableModuleIds,
+} from "@/core/modules/enabled-modules";
 import {
   WORKBENCH_BUILTIN_APPS,
   type WorkbenchBuiltinApp,
 } from "@/core/workbench/apps";
+import { useWorkbenchAvailabilitySync } from "@/core/workbench/availability";
 import type { Translations } from "@/core/i18n/locales";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
 
@@ -45,12 +51,31 @@ function workbenchDesktopApp(app: WorkbenchBuiltinApp): DesktopApp {
   };
 }
 
+/** What this computer knows about installable (remote) workbench apps. */
+export interface DesktopAppAvailability {
+  known: boolean;
+  unavailable: readonly string[];
+}
+
+function isLaunchable(
+  app: WorkbenchBuiltinApp,
+  availability: DesktopAppAvailability | undefined,
+): boolean {
+  if (!availability || app.delivery === "core") return true;
+  // An installable app is user-added: it appears once it is installed, never
+  // as a placeholder for something that is not on this computer.
+  return availability.known && !availability.unavailable.includes(app.moduleId);
+}
+
 /**
  * The single desktop-facing catalog. Pages keep their existing routes and
  * backend contracts; this layer only gives them a stable app identity and
- * launch metadata.
+ * launch metadata. Without ``availability`` it is the full catalog.
  */
-export function buildDesktopApps(t: Translations): DesktopApp[] {
+export function buildDesktopApps(
+  t: Translations,
+  availability?: DesktopAppAvailability,
+): DesktopApp[] {
   const apps: DesktopApp[] = [
     {
       id: "devices",
@@ -126,7 +151,23 @@ export function buildDesktopApps(t: Translations): DesktopApp[] {
     },
   ];
 
-  return [...apps, ...WORKBENCH_BUILTIN_APPS.map(workbenchDesktopApp)];
+  return [
+    ...apps,
+    ...WORKBENCH_BUILTIN_APPS.filter((app) =>
+      isLaunchable(app, availability),
+    ).map(workbenchDesktopApp),
+  ];
+}
+
+/** Desktop launchers for the apps installed on this computer. */
+export function useDesktopApps(t: Translations): DesktopApp[] {
+  useWorkbenchAvailabilitySync();
+  const known = useModuleAvailabilityKnown();
+  const unavailable = useUnavailableModuleIds();
+  return useMemo(
+    () => buildDesktopApps(t, { known, unavailable }),
+    [t, known, unavailable],
+  );
 }
 
 /** URL understood by the packaged Electron shell's auxiliary-window handler. */

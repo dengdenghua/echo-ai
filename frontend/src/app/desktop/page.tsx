@@ -40,7 +40,7 @@ import { useDebounce } from "@/hooks";
 import { useI18n } from "@/core/i18n/hooks";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
 import {
-  buildDesktopApps,
+  useDesktopApps,
   desktopWindowURL,
   shouldOpenDesktopWindow,
   type DesktopApp,
@@ -163,7 +163,7 @@ export default function DesktopShellPage() {
     [t.desktop.categories],
   );
 
-  const desktopApps = useMemo(() => buildDesktopApps(t), [t]);
+  const desktopApps = useDesktopApps(t);
   const dockApps = useMemo(
     () => desktopApps.filter((app) => app.placement === "primary"),
     [desktopApps],
