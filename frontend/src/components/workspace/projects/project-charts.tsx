@@ -268,7 +268,7 @@ export function EstimateStack({ rows }: { rows: readonly EstimateRow[] }) {
                 title={`已完成估时 ${row.doneEstimate}d`}
               />
               <div
-                className={`h-full ${flagged ? "bg-warning/70" : "bg-slate-400/70"}`}
+                className={`h-full ${flagged ? "bg-warning/70" : "bg-muted-foreground/40"}`}
                 style={{ width: scale(row.remainingEstimate) }}
                 title={`剩余估时 ${row.remainingEstimate}d`}
               />

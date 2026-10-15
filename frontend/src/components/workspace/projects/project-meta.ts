@@ -27,43 +27,43 @@ export const HEALTH_LABEL: Record<string, string> = {
 
 export const HEALTH_TONE: Record<ProjectHealth, string> = {
   on_track: "bg-core/15 text-core border-core/30",
-  at_risk: "bg-amber-500/15 text-amber-600 border-amber-500/30",
-  overdue: "bg-orange-500/15 text-orange-600 border-orange-500/30",
-  blocked: "bg-rose-500/15 text-rose-600 border-rose-500/30",
-  completed: "bg-sky-500/15 text-sky-600 border-sky-500/30",
+  at_risk: "bg-warning/15 text-warning border-warning/30",
+  overdue: "bg-breach/15 text-breach border-breach/30",
+  blocked: "bg-breach/15 text-breach border-breach/30",
+  completed: "bg-core/15 text-core border-core/30",
 };
 
 export const HEALTH_DOT: Record<ProjectHealth, string> = {
   on_track: "bg-core",
-  at_risk: "bg-amber-500",
-  overdue: "bg-orange-500",
-  blocked: "bg-rose-500",
-  completed: "bg-sky-500",
+  at_risk: "bg-warning",
+  overdue: "bg-breach/60",
+  blocked: "bg-breach",
+  completed: "bg-core/50",
 };
 
 export const HEALTH_FILL: Record<ProjectHealth, string> = {
   on_track: "var(--echo-core)",
-  at_risk: "#f59e0b",
-  overdue: "#f97316",
-  blocked: "#f43f5e",
-  completed: "#0ea5e9",
+  at_risk: "var(--echo-warning)",
+  overdue: "color-mix(in oklch, var(--echo-breach) 60%, transparent)",
+  blocked: "var(--echo-breach)",
+  completed: "color-mix(in oklch, var(--echo-core) 50%, transparent)",
 };
 
 /** 甘特条：底色（计划区间）与进度条（已完成部分）。 */
 export const HEALTH_BAR_TRACK: Record<ProjectHealth, string> = {
   on_track: "bg-core/25",
-  at_risk: "bg-amber-500/25",
-  overdue: "bg-orange-500/30",
-  blocked: "bg-rose-500/30",
-  completed: "bg-sky-500/25",
+  at_risk: "bg-warning/25",
+  overdue: "bg-breach/20",
+  blocked: "bg-breach/30",
+  completed: "bg-core/15",
 };
 
 export const HEALTH_BAR_FILL: Record<ProjectHealth, string> = {
   on_track: "bg-core",
-  at_risk: "bg-amber-500",
-  overdue: "bg-orange-500",
-  blocked: "bg-rose-500",
-  completed: "bg-sky-500",
+  at_risk: "bg-warning",
+  overdue: "bg-breach/60",
+  blocked: "bg-breach",
+  completed: "bg-core/50",
 };
 
 export const HEALTH_LABEL_EN: Record<ProjectHealth, string> = {
@@ -77,14 +77,14 @@ export const HEALTH_LABEL_EN: Record<ProjectHealth, string> = {
 export const STATUS_TONE: Record<string, string> = {
   planning: "bg-muted text-muted-foreground",
   running: "bg-core/15 text-core",
-  blocked: "bg-rose-500/15 text-rose-600",
-  done: "bg-sky-500/15 text-sky-600",
-  failed: "bg-rose-500/15 text-rose-600",
+  blocked: "bg-breach/15 text-breach",
+  done: "bg-core/15 text-core",
+  failed: "bg-breach/15 text-breach",
 };
 
 export const PRIORITY_TONE: Record<string, string> = {
-  P0: "bg-rose-500/15 text-rose-600",
-  P1: "bg-amber-500/15 text-amber-600",
+  P0: "bg-warning/15 text-warning",
+  P1: "bg-foreground/10 text-foreground",
   P2: "bg-muted text-muted-foreground",
   P3: "bg-muted text-muted-foreground",
 };

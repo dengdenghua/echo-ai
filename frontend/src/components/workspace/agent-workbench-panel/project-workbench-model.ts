@@ -24,15 +24,15 @@ export const STATUS_LABEL: Record<string, string> = {
 export const STATUS_TONE: Record<string, string> = {
   planning: "border-border-default bg-muted text-muted-foreground",
   pending: "border-border-default bg-muted text-muted-foreground",
-  ready: "border-sky-500/25 bg-sky-500/10 text-sky-600",
+  ready: "border-border bg-foreground/5 text-foreground",
   active: "border-core/25 bg-core/10 text-core",
   in_progress: "border-core/25 bg-core/10 text-core",
   running: "border-core/25 bg-core/10 text-core",
-  blocked: "border-rose-500/25 bg-rose-500/10 text-rose-600",
-  done: "border-sky-500/25 bg-sky-500/10 text-sky-600",
-  completed: "border-sky-500/25 bg-sky-500/10 text-sky-600",
-  failed: "border-rose-500/25 bg-rose-500/10 text-rose-600",
-  rejected: "border-orange-500/25 bg-orange-500/10 text-orange-600",
+  blocked: "border-breach/25 bg-breach/10 text-breach",
+  done: "border-core/25 bg-core/10 text-core",
+  completed: "border-core/25 bg-core/10 text-core",
+  failed: "border-breach/25 bg-breach/10 text-breach",
+  rejected: "border-breach/25 bg-breach/10 text-breach",
 };
 
 export const HEALTH_LABEL: Record<Health, string> = {
@@ -45,23 +45,23 @@ export const HEALTH_LABEL: Record<Health, string> = {
 
 export const HEALTH_TONE: Record<Health, string> = {
   on_track: "border-core/25 bg-core/10 text-core",
-  at_risk: "border-amber-500/25 bg-amber-500/10 text-amber-700",
-  overdue: "border-orange-500/25 bg-orange-500/10 text-orange-600",
-  blocked: "border-rose-500/25 bg-rose-500/10 text-rose-600",
-  completed: "border-sky-500/25 bg-sky-500/10 text-sky-600",
+  at_risk: "border-warning/25 bg-warning/10 text-warning",
+  overdue: "border-breach/25 bg-breach/10 text-breach",
+  blocked: "border-breach/25 bg-breach/10 text-breach",
+  completed: "border-core/25 bg-core/10 text-core",
 };
 
 export const HEALTH_DOT: Record<Health, string> = {
   on_track: "bg-core",
-  at_risk: "bg-amber-500",
-  overdue: "bg-orange-500",
-  blocked: "bg-rose-500",
-  completed: "bg-sky-500",
+  at_risk: "bg-warning",
+  overdue: "bg-breach/60",
+  blocked: "bg-breach",
+  completed: "bg-core/50",
 };
 
 export const PRIORITY_TONE: Record<string, string> = {
-  P0: "border-rose-500/25 bg-rose-500/10 text-rose-600",
-  P1: "border-amber-500/25 bg-amber-500/10 text-amber-700",
+  P0: "border-warning/25 bg-warning/10 text-warning",
+  P1: "border-border bg-foreground/5 text-foreground",
   P2: "border-border-default bg-muted/70 text-muted-foreground",
   P3: "border-border-default bg-muted/40 text-muted-foreground/80",
 };

@@ -536,16 +536,7 @@ export function MembersTab({
               {member.avatarUrl ? (
                 <AvatarImage src={member.avatarUrl} alt={member.name} />
               ) : null}
-              <AvatarFallback
-                className={cn(
-                  "rounded-xl text-xs font-semibold",
-                  member.kind === "agent"
-                    ? "bg-violet-500/10 text-violet-600"
-                    : member.kind === "role"
-                      ? "bg-amber-500/10 text-amber-700"
-                      : "bg-sky-500/10 text-sky-600",
-                )}
-              >
+              <AvatarFallback className="rounded-xl bg-muted text-xs font-semibold text-foreground/70">
                 {member.kind === "agent" ? (
                   <BotIcon className="size-4" />
                 ) : member.kind === "role" ? (
@@ -566,14 +557,7 @@ export function MembersTab({
                   </Badge>
                 ) : null}
                 {member.kind === "role" ? (
-                  <Badge
-                    className={cn(
-                      "h-4 px-1 text-micro",
-                      member.driver === "human"
-                        ? "bg-amber-500/15 text-amber-700"
-                        : "bg-violet-500/10 text-violet-600",
-                    )}
-                  >
+                  <Badge className="h-4 bg-muted px-1 text-micro text-muted-foreground">
                     {rosterSeatIdentityLabel(member)}
                   </Badge>
                 ) : null}
