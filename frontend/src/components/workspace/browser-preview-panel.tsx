@@ -146,12 +146,12 @@ async function renderAnnotatedScreenshot(
   points.forEach((point, index) => {
     context.beginPath();
     context.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    context.fillStyle = "rgba(124, 58, 237, 0.18)";
+    context.fillStyle = "rgba(8, 120, 138, 0.18)"; // ECHO Snow core: exported image, theme-independent
     context.fill();
     context.lineWidth = Math.max(3, Math.round(radius / 6));
-    context.strokeStyle = "#7c3aed";
+    context.strokeStyle = "#08788a";
     context.stroke();
-    context.fillStyle = "#5b21b6";
+    context.fillStyle = "#08788a";
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillText(String(index + 1), point.x, point.y);
@@ -166,13 +166,13 @@ async function renderAnnotatedScreenshot(
     );
     const boxHeight = Math.max(34, radius * 1.8);
     context.fillStyle = "rgba(255, 255, 255, 0.94)";
-    context.strokeStyle = "rgba(124, 58, 237, 0.45)";
+    context.strokeStyle = "rgba(8, 120, 138, 0.45)";
     context.lineWidth = 2;
     context.beginPath();
     context.roundRect(padding, padding, boxWidth, boxHeight, 8);
     context.fill();
     context.stroke();
-    context.fillStyle = "#3b0764";
+    context.fillStyle = "#111317"; // ECHO Snow ink
     context.textAlign = "left";
     context.textBaseline = "middle";
     context.fillText(

@@ -433,21 +433,9 @@ function ThemePreviewCard({
 }) {
   const previewMode =
     mode === "system" ? (systemTheme === "dark" ? "dark" : "light") : mode;
-  const previewIsDark = previewMode === "dark";
-  const previewFrameClass =
-    previewMode === "dark"
-      ? "border-neutral-800 bg-neutral-950 text-neutral-200"
-      : "border-neutral-200 bg-white text-neutral-800";
-  const previewTopbarClass =
-    previewMode === "dark"
-      ? "border-white/10 bg-neutral-900"
-      : "border-neutral-200 bg-neutral-100";
-  const previewSidebarClass =
-    previewMode === "dark"
-      ? "border-white/10 bg-[linear-gradient(180deg,#171717_0%,#101010_100%)]"
-      : "border-neutral-200 bg-neutral-100";
-  const previewCanvasClass =
-    previewMode === "dark" ? "bg-neutral-900" : "bg-white";
+  // The miniature renders in the ECHO theme it previews (Graphite or Snow),
+  // so it uses the same tokens as the real UI.
+  const previewTheme = previewMode === "dark" ? "graphite" : "snow";
   const activeDotClass = "bg-primary";
   return (
     <button
@@ -475,28 +463,16 @@ function ThemePreviewCard({
         </div>
       </div>
       <div
-        className={cn(
-          "relative aspect-[4/3] overflow-hidden rounded-md border text-ui-caption transition-colors sm:aspect-auto sm:rounded-lg",
-          previewFrameClass,
-        )}
+        data-echo-theme={previewTheme}
+        className="relative aspect-[4/3] overflow-hidden rounded-md border border-border bg-background text-ui-caption text-foreground transition-colors sm:aspect-auto sm:rounded-lg"
       >
-        <div
-          className={cn(
-            "flex items-center gap-1 border-b px-1.5 py-1.5 sm:gap-2 sm:px-3 sm:py-2",
-            previewTopbarClass,
-          )}
-        >
+        <div className="flex items-center gap-1 border-b border-border bg-sidebar px-1.5 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
           <div className={cn("h-2 w-2 rounded-full", activeDotClass)} />
           <div className="h-2 w-10 rounded-md bg-current/20" />
           <div className="h-2 w-6 rounded-md bg-current/15" />
         </div>
         <div className="grid h-full grid-cols-[18px_minmax(0,1fr)] sm:grid-cols-[32px_minmax(0,1fr)]">
-          <div
-            className={cn(
-              "flex min-h-12 flex-col gap-1 border-r px-1 py-1.5 sm:min-h-[72px] sm:gap-1.5 sm:px-2 sm:py-2",
-              previewSidebarClass,
-            )}
-          >
+          <div className="flex min-h-12 flex-col gap-1 border-r border-border bg-sidebar px-1 py-1.5 sm:min-h-[72px] sm:gap-1.5 sm:px-2 sm:py-2">
             <div
               className={cn("size-2 rounded-full sm:size-3", activeDotClass)}
             />
@@ -504,23 +480,11 @@ function ThemePreviewCard({
             <div className="h-2 w-4 rounded-full bg-current/14" />
             <div className="mt-auto h-2 w-4 rounded-full bg-current/12" />
           </div>
-          <div
-            className={cn(
-              "grid grid-cols-1 gap-1 p-1.5 sm:grid-cols-[1fr_76px] sm:gap-2 sm:px-2.5 sm:py-2.5",
-              previewCanvasClass,
-            )}
-          >
+          <div className="grid grid-cols-1 gap-1 bg-background p-1.5 sm:grid-cols-[1fr_76px] sm:gap-2 sm:px-2.5 sm:py-2.5">
             <div className="space-y-2">
               <div className="h-2.5 w-3/4 rounded-md bg-current/15" />
               <div className="h-2.5 w-1/2 rounded-md bg-current/10" />
-              <div
-                className={cn(
-                  "h-6 rounded-md border bg-current/5 sm:h-9 sm:rounded-lg",
-                  previewIsDark
-                    ? "border-white/10 bg-white/[0.03]"
-                    : "border-neutral-200 bg-white",
-                )}
-              />
+              <div className="h-6 rounded-md border border-border bg-card sm:h-9 sm:rounded-lg" />
             </div>
             <div className="hidden space-y-2 sm:block">
               <div className="flex items-center gap-2">
@@ -530,12 +494,7 @@ function ThemePreviewCard({
                   <div className="h-2 w-7 rounded-md bg-current/10" />
                 </div>
               </div>
-              <div
-                className={cn(
-                  "flex flex-col gap-1 rounded-lg border border-dashed p-2",
-                  previewIsDark ? "border-white/10" : "border-neutral-200",
-                )}
-              >
+              <div className="flex flex-col gap-1 rounded-lg border border-dashed border-border p-2">
                 <div className="h-2 w-3/5 rounded-md bg-current/15" />
                 <div className="h-2 w-2/5 rounded-md bg-current/10" />
               </div>

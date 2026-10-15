@@ -30,6 +30,11 @@ import type {
 } from "@/core/cowork/types";
 import { isCoworkRoomReplyReference } from "@/core/cowork/guards";
 import {
+  categoricalSlot,
+  categoricalVar,
+  resolveCategoricalRamp,
+} from "@/lib/categorical-palette";
+import {
   createCollabAnnotation,
   createCollabAnnotationReply,
   deleteCollabAnnotation,
@@ -835,7 +840,10 @@ export function CollabProvider({
   const author = useMemo<AnnotationAuthor | null>(
     () =>
       currentUser
-        ? { display_name: currentUser.name, avatar_color: currentUser.color }
+        ? {
+            display_name: currentUser.name,
+            avatar_color: avatarHex(currentUser.id),
+          }
         : null,
     [currentUser],
   );
@@ -1183,20 +1191,12 @@ function numberOr(value: unknown): number | undefined {
   return Number.isFinite(number) ? number : undefined;
 }
 
+/** Collaborator identity colour: a stable ECHO categorical slot. */
 function colorFor(id: string): string {
-  const palette = [
-    "#2563eb",
-    "#059669",
-    "#dc2626",
-    "#7c3aed",
-    "#ca8a04",
-    "#0891b2",
-    "#be185d",
-    "#4f46e5",
-  ];
-  let hash = 0;
-  for (const char of id) {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  }
-  return palette[hash % palette.length] ?? palette[0]!;
+  return categoricalVar(categoricalSlot(id));
+}
+
+/** The same slot as hex, for annotation authors (the server keeps only hex). */
+function avatarHex(id: string): string {
+  return resolveCategoricalRamp()[categoricalSlot(id) - 1] ?? "";
 }

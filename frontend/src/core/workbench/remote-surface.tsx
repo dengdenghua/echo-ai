@@ -252,7 +252,7 @@ function SurfaceState({
             <CloudDownloadIcon className="size-5" />
           </div>
         ) : (
-          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
+          <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-warning/10 text-warning">
             <AlertTriangleIcon className="size-5" />
           </div>
         )}

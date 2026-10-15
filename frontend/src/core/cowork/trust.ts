@@ -46,10 +46,13 @@ export function trustTooltip(score: TrustScore): string {
   return `${parts.join(" · ")}（事件源带防篡改封签）`;
 }
 
-/** 分数 → 徽标配色。中国习惯：红=好？不——这是风险语义，沿用警示色阶。 */
+/**
+ * 分数 → 徽标配色（ECHO 灯语）：稳定用 core，中段中性，偏低是风险，用
+ * warning 的两档强度。徽标里同时写着分数和档位文字，不只靠颜色区分。
+ */
 export function trustBadgeClass(score: number): string {
   if (score >= 85) return "bg-core/10 text-core";
-  if (score >= 70) return "bg-sky-500/10 text-sky-600";
-  if (score >= 50) return "bg-amber-500/15 text-amber-700";
-  return "bg-red-500/10 text-red-600";
+  if (score >= 70) return "bg-muted text-muted-foreground";
+  if (score >= 50) return "bg-warning/10 text-warning";
+  return "bg-warning/20 text-warning";
 }
