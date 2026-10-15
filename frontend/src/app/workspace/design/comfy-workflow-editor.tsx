@@ -524,7 +524,7 @@ export function ComfyWorkflowEditor({
                         <div key={key} className="flex items-center gap-1.5">
                           <span className="size-1.5 rounded-full bg-core" />
                           <span className="min-w-0 flex-1 truncate">{key}</span>
-                          <span className="max-w-24 truncate text-muted-foreground/75">
+                          <span className="max-w-24 truncate text-muted-foreground">
                             {isConnection(value)
                               ? `← #${value[0]}`
                               : String(value)}

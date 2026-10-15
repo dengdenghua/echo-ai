@@ -415,7 +415,7 @@ export default function ProgressiveSkillsAnimation() {
                         ? "text-foreground"
                         : item.highlight
                           ? "text-core"
-                          : "text-muted-foreground/60"
+                          : "text-muted-foreground"
                 }`}
                 style={{ paddingLeft: `${item.indent * 24}px` }}
                 animate={
