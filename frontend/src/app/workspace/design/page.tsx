@@ -56,6 +56,7 @@ import {
   SendIcon,
   Settings2Icon,
   SparklesIcon,
+  StarIcon,
   TagIcon,
   Trash2Icon,
   UngroupIcon,
@@ -103,6 +104,7 @@ import {
   type DesignCanvasAgentContext,
   type DesignResultMessage,
 } from "@/core/design/mode-bridge";
+import { categoricalSlot, categoricalVar } from "@/lib/categorical-palette";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -197,21 +199,23 @@ type CanvasBackgroundTone =
 
 // Each tone has a dark counterpart: an inline light color used to override the
 // dark theme, leaving a white canvas under dark toolbars and unreadable hints.
+// Snow and Graphite steps, two with a faint signal or core tint; the ids
+// predate the ECHO palette and are kept for saved canvas views.
 const CANVAS_BACKGROUND_TONES: Array<{
   id: CanvasBackgroundTone;
   label: string;
   color: string;
   darkColor: string;
 }> = [
-  { id: "default", label: "默认", color: "#fafafa", darkColor: "#0f0f10" },
-  { id: "paper", label: "纸白", color: "#f8f5ee", darkColor: "#15130f" },
-  { id: "cool-gray", label: "冷灰", color: "#f0f2f4", darkColor: "#101317" },
-  { id: "warm-gray", label: "暖灰", color: "#f4f0ec", darkColor: "#151210" },
-  { id: "mist-blue", label: "雾蓝", color: "#edf4f7", darkColor: "#0e1418" },
-  { id: "sage", label: "雾绿", color: "#eef3ec", darkColor: "#101510" },
-  { id: "lavender", label: "淡紫", color: "#f2eff8", darkColor: "#131119" },
-  { id: "blush", label: "浅粉", color: "#f8eff1", darkColor: "#171012" },
-  { id: "sand", label: "沙色", color: "#f5f0e6", darkColor: "#16130d" },
+  { id: "default", label: "默认", color: "#f8f9fa", darkColor: "#101216" },
+  { id: "paper", label: "纸白", color: "#ffffff", darkColor: "#0b0c0f" },
+  { id: "blush", label: "雾灰", color: "#f2f3f5", darkColor: "#14161b" },
+  { id: "cool-gray", label: "冷灰", color: "#eef0f3", darkColor: "#171a1f" },
+  { id: "warm-gray", label: "中灰", color: "#e6e9ed", darkColor: "#1c1f25" },
+  { id: "lavender", label: "银灰", color: "#dde1e6", darkColor: "#22262c" },
+  { id: "sand", label: "石墨", color: "#d3d8de", darkColor: "#292e35" },
+  { id: "mist-blue", label: "雾蓝", color: "#eef2f9", darkColor: "#0f1420" },
+  { id: "sage", label: "雾青", color: "#ebf4f6", darkColor: "#0c1719" },
 ];
 
 /** Light and dark tone colors as CSS variables; `dark:` picks between them. */
@@ -220,6 +224,11 @@ function canvasToneStyle(tone: { color: string; darkColor: string }) {
     "--canvas-tone": tone.color,
     "--canvas-tone-dark": tone.darkColor,
   } as CSSProperties;
+}
+
+/** A collaborator's colour on the categorical ramp, stable per participant. */
+function presenceColor(id: string): string {
+  return categoricalVar(categoricalSlot(id));
 }
 type CanvasSyncState =
   | "local"
@@ -274,31 +283,29 @@ const NODE_HEIGHT = 122;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 1.8;
 
-const KIND_STYLE: Record<
-  DesignNodeKind,
-  { label: string; tint: string; accent: string }
-> = {
-  brief: { label: "需求", tint: "bg-amber-50", accent: "bg-amber-400" },
-  agent: { label: "角色", tint: "bg-violet-50", accent: "bg-violet-500" },
-  skill: { label: "技能", tint: "bg-blue-50", accent: "bg-blue-500" },
-  plugin: { label: "插件", tint: "bg-emerald-50", accent: "bg-emerald-500" },
-  frame: { label: "画板", tint: "bg-blue-50", accent: "bg-blue-600" },
-  component: { label: "组件", tint: "bg-violet-50", accent: "bg-violet-600" },
-  token: { label: "规范", tint: "bg-fuchsia-50", accent: "bg-fuchsia-500" },
-  preview: { label: "预览", tint: "bg-cyan-50", accent: "bg-cyan-600" },
-  text: { label: "文本", tint: "bg-zinc-50", accent: "bg-zinc-500" },
-  table: { label: "表格", tint: "bg-cyan-50", accent: "bg-cyan-500" },
-  image: { label: "图片", tint: "bg-pink-50", accent: "bg-pink-500" },
-  video: { label: "视频", tint: "bg-indigo-50", accent: "bg-indigo-500" },
-  audio: { label: "音频", tint: "bg-orange-50", accent: "bg-orange-500" },
-  file: { label: "文件", tint: "bg-slate-50", accent: "bg-slate-500" },
-  placeholder: { label: "生成中", tint: "bg-zinc-50", accent: "bg-zinc-300" },
-  group: { label: "分组", tint: "bg-purple-50", accent: "bg-purple-400" },
-  sticker: { label: "贴纸", tint: "bg-yellow-50", accent: "bg-yellow-400" },
-  director: { label: "3D", tint: "bg-lime-50", accent: "bg-lime-500" },
-  editor: { label: "剪辑", tint: "bg-rose-50", accent: "bg-rose-500" },
-  comfyui: { label: "ComfyUI", tint: "bg-sky-50", accent: "bg-sky-500" },
-  output: { label: "交付", tint: "bg-purple-50", accent: "bg-purple-500" },
+// Kinds are told apart by label, not hue: every node shares one neutral chip.
+const KIND_STYLE: Record<DesignNodeKind, { label: string }> = {
+  brief: { label: "需求" },
+  agent: { label: "角色" },
+  skill: { label: "技能" },
+  plugin: { label: "插件" },
+  frame: { label: "画板" },
+  component: { label: "组件" },
+  token: { label: "规范" },
+  preview: { label: "预览" },
+  text: { label: "文本" },
+  table: { label: "表格" },
+  image: { label: "图片" },
+  video: { label: "视频" },
+  audio: { label: "音频" },
+  file: { label: "文件" },
+  placeholder: { label: "生成中" },
+  group: { label: "分组" },
+  sticker: { label: "贴纸" },
+  director: { label: "3D" },
+  editor: { label: "剪辑" },
+  comfyui: { label: "ComfyUI" },
+  output: { label: "交付" },
 };
 
 const STAGE_STATUS_STYLE: Record<
@@ -307,18 +314,18 @@ const STAGE_STATUS_STYLE: Record<
 > = {
   pending: {
     label: "待执行",
-    dot: "bg-zinc-300",
-    pill: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+    dot: "bg-muted-foreground/50",
+    pill: "bg-muted text-foreground/70",
   },
   running: {
     label: "执行中",
-    dot: "bg-blue-500 animate-pulse",
-    pill: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+    dot: "bg-core animate-pulse",
+    pill: "bg-core/10 text-core",
   },
   review: {
     label: "待审核",
-    dot: "bg-amber-500",
-    pill: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+    dot: "bg-warning",
+    pill: "bg-warning/10 text-warning",
   },
   approved: {
     label: "已通过",
@@ -327,51 +334,49 @@ const STAGE_STATUS_STYLE: Record<
   },
   failed: {
     label: "失败",
-    dot: "bg-red-500",
-    pill: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+    dot: "bg-breach",
+    pill: "bg-breach/10 text-breach",
   },
   skipped: {
     label: "已跳过",
-    dot: "bg-slate-400",
-    pill: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+    dot: "bg-muted-foreground/25",
+    pill: "bg-muted text-muted-foreground",
   },
 };
 
+// A group's colour is the user's own label, so it sits on the categorical
+// ramp (AI-45). The stored keys predate the ramp and are kept: purple, the
+// default, is graphite; orange shares red's slot and is no longer offered.
 const GROUP_TONES = {
-  red: {
-    frame: "border-red-300/80 bg-red-100/10 dark:border-red-400/45",
-    label: "text-red-700 dark:text-red-300",
-    swatch: "bg-red-400",
-  },
-  orange: {
-    frame: "border-orange-300/80 bg-orange-100/10 dark:border-orange-400/45",
-    label: "text-orange-700 dark:text-orange-300",
-    swatch: "bg-orange-400",
-  },
-  yellow: {
-    frame: "border-yellow-300/80 bg-yellow-100/10 dark:border-yellow-400/45",
-    label: "text-yellow-700 dark:text-yellow-300",
-    swatch: "bg-yellow-400",
-  },
-  green: {
-    frame: "border-green-300/80 bg-green-100/10 dark:border-green-400/45",
-    label: "text-green-700 dark:text-green-300",
-    swatch: "bg-green-400",
+  purple: {
+    name: "灰",
+    frame: "border-cat-5/50 bg-cat-5/5 text-cat-5",
+    swatch: "bg-cat-5",
   },
   cyan: {
-    frame: "border-cyan-300/80 bg-cyan-100/10 dark:border-cyan-400/45",
-    label: "text-cyan-700 dark:text-cyan-300",
-    swatch: "bg-cyan-400",
+    name: "青",
+    frame: "border-cat-1/50 bg-cat-1/5 text-cat-1",
+    swatch: "bg-cat-1",
   },
   blue: {
-    frame: "border-blue-300/80 bg-blue-100/10 dark:border-blue-400/45",
-    label: "text-blue-700 dark:text-blue-300",
-    swatch: "bg-blue-400",
+    name: "蓝",
+    frame: "border-cat-2/50 bg-cat-2/5 text-cat-2",
+    swatch: "bg-cat-2",
   },
-  purple: {
-    frame: "border-purple-300/80 bg-purple-100/10 dark:border-purple-400/45",
-    label: "text-purple-700 dark:text-purple-300",
-    swatch: "bg-purple-400",
+  red: {
+    name: "玫瑰",
+    frame: "border-cat-3/50 bg-cat-3/5 text-cat-3",
+    swatch: "bg-cat-3",
+  },
+  yellow: {
+    name: "紫",
+    frame: "border-cat-4/50 bg-cat-4/5 text-cat-4",
+    swatch: "bg-cat-4",
+  },
+  green: {
+    name: "深青",
+    frame: "border-cat-6/50 bg-cat-6/5 text-cat-6",
+    swatch: "bg-cat-6",
   },
 } as const;
 type GroupTone = keyof typeof GROUP_TONES;
@@ -419,7 +424,7 @@ function EdgeLayer({
             key={edge.id}
             d={`M ${sx} ${sy} C ${sx + bend} ${sy}, ${tx - bend} ${ty}, ${tx} ${ty}`}
             fill="none"
-            className="stroke-[#c4c4c4] dark:stroke-[#525252]"
+            className="stroke-foreground/25"
             strokeWidth="1.5"
           />
         );
@@ -525,8 +530,8 @@ function CanvasNode({
   }
 
   if (node.kind === "group") {
-    const tone =
-      GROUP_TONES[(node.color as GroupTone) ?? "purple"] ?? GROUP_TONES.purple;
+    const groupColor = node.color === "orange" ? "red" : node.color;
+    const tone = GROUP_TONES[groupColor as GroupTone] ?? GROUP_TONES.purple;
     return (
       <div
         data-testid={`design-node-${node.id}`}
@@ -544,12 +549,7 @@ function CanvasNode({
           transform: `translate(${node.x}px, ${node.y}px)`,
         }}
       >
-        <span
-          className={cn(
-            "absolute left-3 top-2 rounded-md bg-white/90 px-2 py-1 text-xs font-medium shadow-sm backdrop-blur dark:bg-[#1a1a1a]/90",
-            tone.label,
-          )}
-        >
+        <span className="absolute left-3 top-2 rounded-md bg-card/90 px-2 py-1 text-xs font-medium shadow-sm backdrop-blur">
           {node.title} · {node.childIds?.length ?? 0}
         </span>
       </div>
@@ -608,7 +608,7 @@ function CanvasNode({
         </div>
         <div
           className={cn(
-            "relative overflow-hidden rounded-[12px] border border-black/[0.07] bg-[#ededed] shadow-[0_2px_7px_rgba(0,0,0,.08)] transition dark:border-white/10 dark:bg-[#202020]",
+            "relative overflow-hidden rounded-[12px] border border-black/[0.07] bg-muted shadow-[0_2px_7px_rgba(0,0,0,.08)] transition dark:border-white/10",
             selected
               ? "ring-[3px] ring-foreground/12"
               : "group-hover/media:border-foreground/20",
@@ -643,13 +643,8 @@ function CanvasNode({
               className="size-full bg-black object-cover"
             />
           ) : (
-            <div className="flex size-full items-center gap-3 bg-gradient-to-br from-white/80 to-zinc-100/75 px-3 dark:from-white/[0.07] dark:to-black/10">
-              <span
-                className={cn(
-                  "grid size-8 shrink-0 place-items-center rounded-[9px]",
-                  style.tint,
-                )}
-              >
+            <div className="flex size-full items-center gap-3 bg-gradient-to-br from-white/80 to-muted/75 px-3 dark:from-white/[0.07] dark:to-black/10">
+              <span className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-muted">
                 <CirclePlayIcon className="size-4" />
               </span>
               <audio
@@ -670,7 +665,7 @@ function CanvasNode({
               event.stopPropagation();
               onDownload();
             }}
-            className="absolute right-2 top-2 grid size-7 place-items-center rounded-[8px] border border-black/[0.08] bg-white/90 text-zinc-700 opacity-0 shadow-sm backdrop-blur transition hover:bg-white group-hover/media:opacity-100 focus-visible:opacity-100 dark:border-white/10 dark:bg-black/70 dark:text-zinc-100"
+            className="absolute right-2 top-2 grid size-7 place-items-center rounded-[8px] border border-black/[0.08] bg-white/90 text-foreground/80 opacity-0 shadow-sm backdrop-blur transition hover:bg-white group-hover/media:opacity-100 focus-visible:opacity-100 dark:border-white/10 dark:bg-black/70"
           >
             <DownloadIcon className="size-3.5" />
           </button>
@@ -685,7 +680,7 @@ function CanvasNode({
               event.stopPropagation();
               onCompleteConnection();
             }}
-            className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]"
+            className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-card bg-foreground/35 hover:scale-125 hover:bg-core"
             style={{ top: height / 2 - 6 }}
           />
         ) : null}
@@ -699,7 +694,7 @@ function CanvasNode({
             }}
             onClick={(event) => event.stopPropagation()}
             className={cn(
-              "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]",
+              "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-card bg-foreground/55 hover:scale-125 hover:bg-core",
               connecting && "scale-125 bg-core ring-4 ring-core/15",
             )}
             style={{ top: height / 2 - 6 }}
@@ -715,7 +710,7 @@ function CanvasNode({
       onPointerDown={startDrag}
       onContextMenu={onContextMenu}
       className={cn(
-        "pointer-events-auto absolute rounded-[16px] border border-[#e3e3e3] bg-white shadow-[0_2px_5px_rgba(0,0,0,.08)] transition dark:border-[#4a4a4a] dark:bg-[#1a1a1a] dark:shadow-[0_2px_5px_rgba(0,0,0,.15)]",
+        "pointer-events-auto absolute rounded-[16px] border border-border bg-card shadow-[0_2px_5px_rgba(0,0,0,.08)] transition dark:shadow-[0_2px_5px_rgba(0,0,0,.15)]",
         mode === "select" && "cursor-grab active:cursor-grabbing",
         selected
           ? "border-foreground/45 ring-[3px] ring-foreground/8"
@@ -728,16 +723,11 @@ function CanvasNode({
         transform: `translate(${node.x}px, ${node.y}px)`,
       }}
     >
-      <div className={cn("h-1 rounded-t-[15px]", style.accent)} />
+      <div className="h-1 rounded-t-[15px] bg-foreground/10" />
       <div className="p-3.5">
         <div className="flex items-center gap-2.5">
-          <span
-            className={cn(
-              "grid size-8 place-items-center rounded-lg",
-              style.tint,
-            )}
-          >
-            <span className="text-xs font-semibold text-zinc-700">
+          <span className="grid size-8 place-items-center rounded-lg bg-muted">
+            <span className="text-xs font-semibold text-foreground/70">
               {style.label.slice(0, 2)}
             </span>
           </span>
@@ -783,7 +773,7 @@ function CanvasNode({
             event.stopPropagation();
             onCompleteConnection();
           }}
-          className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/35 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]"
+          className="absolute -left-1.5 z-10 size-3 rounded-full border-2 border-card bg-foreground/35 hover:scale-125 hover:bg-core"
           style={{ top: (node.height ?? NODE_HEIGHT) / 2 - 6 }}
         />
       ) : null}
@@ -797,7 +787,7 @@ function CanvasNode({
           }}
           onClick={(event) => event.stopPropagation()}
           className={cn(
-            "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-white bg-foreground/55 hover:scale-125 hover:bg-core dark:border-[#1a1a1a]",
+            "absolute -right-1.5 z-10 size-3 rounded-full border-2 border-card bg-foreground/55 hover:scale-125 hover:bg-core",
             connecting && "scale-125 bg-core ring-4 ring-core/15",
           )}
           style={{ top: (node.height ?? NODE_HEIGHT) / 2 - 6 }}
@@ -995,7 +985,7 @@ function AddNodePopover({
     <div
       data-add-node-menu
       className={cn(
-        "absolute z-40 w-[236px] overflow-hidden rounded-[14px] border border-[#e6e6e6] bg-white p-2 shadow-[0_8px_32px_rgba(0,0,0,.08),0_2px_8px_rgba(0,0,0,.04)] dark:border-[#454545] dark:bg-[#1a1a1a] dark:shadow-[0_8px_32px_rgba(0,0,0,.15),0_2px_8px_rgba(0,0,0,.1)]",
+        "absolute z-40 w-[236px] overflow-hidden rounded-[14px] border border-border/60 bg-popover p-2 shadow-[0_8px_32px_rgba(0,0,0,.08),0_2px_8px_rgba(0,0,0,.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,.15),0_2px_8px_rgba(0,0,0,.1)]",
         position ? "left-0 top-0" : "bottom-[72px] left-1/2 -translate-x-1/2",
       )}
       style={
@@ -1389,7 +1379,7 @@ function DesignHomeView({
       <div className="workspace-start-position mx-auto w-full max-w-[1120px] px-3 pb-8">
         <div className="workspace-start-heading mx-auto text-center">
           <div className="inline-flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-xl bg-[#111] text-white shadow-sm dark:bg-white dark:text-black">
+            <span className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
               <WandSparklesIcon className="size-5" />
             </span>
             <h1 className="text-[26px] leading-tight font-semibold tracking-[-0.035em] sm:text-[32px]">
@@ -1755,7 +1745,7 @@ function AssetsView({
     <>
       <div className="h-full overflow-y-auto bg-background px-11 py-9">
         <div className="mx-auto max-w-5xl">
-          <h1 className="text-2xl font-semibold tracking-tight">资产中心</h1>
+          <h1 className="text-2xl font-semibold">资产中心</h1>
           <p className="mt-1.5 text-xs text-muted-foreground">
             这里只展示当前角色主动添加、导入或从画布保存的资产，不会与其他角色自动共享
           </p>
@@ -1884,13 +1874,13 @@ function AssetsView({
                     <article
                       key={artifact.id}
                       className={cn(
-                        "group overflow-hidden rounded-[12px] border border-border-default bg-background transition hover:border-sky-300 hover:shadow-[0_14px_35px_-20px_rgba(0,0,0,.3)]",
+                        "group overflow-hidden rounded-[12px] border border-border-default bg-background transition hover:border-foreground/25 hover:shadow-[0_14px_35px_-20px_rgba(0,0,0,.3)]",
                         !grid && "flex items-center p-2.5",
                       )}
                     >
                       <div
                         className={cn(
-                          "relative grid shrink-0 place-items-center overflow-hidden bg-gradient-to-br from-sky-100 via-cyan-50 to-background",
+                          "relative grid shrink-0 place-items-center overflow-hidden bg-gradient-to-br from-muted to-background",
                           grid ? "h-32 w-full" : "size-12 rounded-lg",
                         )}
                       >
@@ -3140,9 +3130,7 @@ function ComfyUIView({
       <div className="mx-auto max-w-[1120px]">
         <div className="flex items-start">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              ComfyUI 工作流
-            </h1>
+            <h1 className="text-2xl font-semibold">ComfyUI 工作流</h1>
             <p className="mt-1.5 text-xs text-muted-foreground">
               支持本地部署，可手动运行，也可作为画布节点由智能体调用
             </p>
@@ -3225,7 +3213,7 @@ function ComfyUIView({
                   ? "bg-core"
                   : online === false
                     ? "bg-breach"
-                    : "bg-zinc-400",
+                    : "bg-muted-foreground/50",
               )}
             />
             <Settings2Icon className="mr-1.5 size-4" />
@@ -3292,7 +3280,7 @@ function ComfyUIView({
               {dependencies?.manager.job.running ? (
                 <Button
                   variant="ghost"
-                  className="rounded-xl text-amber-700"
+                  className="rounded-xl text-muted-foreground"
                   onClick={() => void controlManagedComfy("manager/cancel")}
                   disabled={checking}
                 >
@@ -3324,7 +3312,7 @@ function ComfyUIView({
           <div className="mt-4 grid grid-cols-[1.35fr_0.65fr_0.65fr] overflow-hidden rounded-2xl border bg-muted/20">
             <div className="min-w-0 px-4 py-3.5">
               <div className="flex items-center gap-2 text-xs font-medium">
-                <FolderIcon className="size-3.5 text-sky-600" />
+                <FolderIcon className="size-3.5 text-muted-foreground" />
                 本地创作环境
               </div>
               <p
@@ -3458,7 +3446,7 @@ function ComfyUIView({
                   key={model.id}
                   className="flex min-w-0 items-center gap-2 rounded-xl border border-border-subtle bg-muted/15 px-3 py-2.5"
                 >
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-sky-100 text-sky-700">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
                     <ArchiveIcon className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -3477,7 +3465,7 @@ function ComfyUIView({
                       })
                     }
                     disabled={modelLoading || online === true}
-                    className="rounded px-2 py-1 text-micro text-red-600 hover:bg-red-50 disabled:opacity-40"
+                    className="rounded px-2 py-1 text-micro text-breach hover:bg-breach/10 disabled:opacity-40"
                   >
                     移除
                   </button>
@@ -3576,7 +3564,10 @@ function ComfyUIView({
                   </p>
                   <div className="mt-2 flex items-center gap-1.5 text-micro text-muted-foreground">
                     <span>{node.downloads.toLocaleString()} 下载</span>
-                    <span>★ {node.stars.toLocaleString()}</span>
+                    <span className="inline-flex items-center gap-0.5">
+                      <StarIcon className="size-3" />
+                      {node.stars.toLocaleString()}
+                    </span>
                     <span className="flex-1" />
                     {node.installed ? (
                       <>
@@ -3609,7 +3600,7 @@ function ComfyUIView({
                             void controlCustomNode("uninstall", node.id)
                           }
                           disabled={nodeLoading || online === true}
-                          className="rounded px-1.5 py-1 text-red-600 hover:bg-red-50 disabled:opacity-40"
+                          className="rounded px-1.5 py-1 text-breach hover:bg-breach/10 disabled:opacity-40"
                         >
                           卸载
                         </button>
@@ -3866,8 +3857,8 @@ function ComfyUIView({
                               className={cn(
                                 "mt-1 size-1.5 shrink-0 rounded-full",
                                 issue.severity === "error"
-                                  ? "bg-red-500"
-                                  : "bg-amber-500",
+                                  ? "bg-breach"
+                                  : "bg-warning",
                               )}
                             />
                             <span className="min-w-0 flex-1">
@@ -3920,7 +3911,7 @@ function ComfyUIView({
                   "group overflow-hidden rounded-[12px] border border-border-subtle bg-background text-left transition",
                   workflow.availability !== "dependency"
                     ? "hover:-translate-y-0.5 hover:shadow-lg"
-                    : "opacity-75 hover:border-amber-300",
+                    : "opacity-75 hover:border-warning/40",
                 )}
               >
                 <button
@@ -3929,16 +3920,8 @@ function ComfyUIView({
                   className="block w-full text-left"
                 >
                   <div
-                    className={cn(
-                      "relative h-28 overflow-hidden",
-                      index % 4 === 0
-                        ? "bg-[radial-gradient(circle_at_68%_28%,rgba(255,255,255,.9),transparent_18%),radial-gradient(circle_at_35%_70%,#b7d7ff,transparent_36%),linear-gradient(135deg,#4d6687,#101827)]"
-                        : index % 4 === 1
-                          ? "bg-[radial-gradient(circle_at_28%_30%,#dfd5ff,transparent_28%),radial-gradient(circle_at_72%_75%,#8ca6ff,transparent_35%),linear-gradient(135deg,#1f2937,#63558d)]"
-                          : index % 4 === 2
-                            ? "bg-[radial-gradient(circle_at_65%_22%,#ffe7c2,transparent_24%),radial-gradient(circle_at_28%_80%,#9fd1bb,transparent_38%),linear-gradient(135deg,#263b39,#80714d)]"
-                            : "bg-[radial-gradient(circle_at_24%_35%,#ffc7df,transparent_25%),radial-gradient(circle_at_78%_75%,#bc9cff,transparent_35%),linear-gradient(135deg,#3b304f,#76647b)]",
-                    )}
+                    data-echo-theme="graphite"
+                    className="relative h-28 overflow-hidden bg-card"
                   >
                     <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_20%,rgba(255,255,255,.22)_21%,transparent_22%,transparent_48%,rgba(255,255,255,.12)_49%,transparent_50%)] opacity-70" />
                     <img
@@ -3968,8 +3951,8 @@ function ComfyUIView({
                         className={cn(
                           "rounded-lg px-3 py-1.5 text-micro font-medium",
                           workflow.availability === "dependency"
-                            ? "bg-white/85 text-zinc-500"
-                            : "bg-white text-zinc-950",
+                            ? "bg-white/85 text-black/55"
+                            : "bg-white text-black",
                         )}
                       >
                         {workflow.availability === "dependency"
@@ -4038,9 +4021,9 @@ function ComfyUIView({
           </div>
         )}
         {online === false ? (
-          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+          <div className="mt-6 rounded-xl border border-border/60 bg-muted/40 p-4 text-xs">
             <div className="font-semibold">没有发现 ComfyUI</div>
-            <p className="mt-1 leading-5 text-amber-800">
+            <p className="mt-1 leading-5 text-muted-foreground">
               启动本机 ComfyUI 并监听 127.0.0.1:8188 后再检测。ECHO AI
               只连接你的本地服务，不会自动下载数十 GB 的模型。
             </p>
@@ -6000,7 +5983,10 @@ export default function DesignPage({
       {workflowStages.length > 0 ? (
         <div
           data-testid="design-stage-plan"
-          className={cn(stagePlanOpen ? "w-[min(420px,calc(100%-24px))]" : "w-auto", "absolute left-3 top-14 z-20 rounded-[14px] border border-black/[0.08] bg-white/92 p-2.5 shadow-[0_8px_24px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/92")}
+          className={cn(
+            stagePlanOpen ? "w-[min(420px,calc(100%-24px))]" : "w-auto",
+            "absolute left-3 top-14 z-20 rounded-[14px] border border-black/[0.08] bg-popover/92 p-2.5 shadow-[0_8px_24px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10",
+          )}
         >
           <button type="button" onClick={() => setStagePlanOpen((open) => !open)} aria-expanded={stagePlanOpen} aria-controls="design-stage-list" className="flex w-full items-center gap-2 px-1">
             <span className="text-xs font-semibold">进度</span>
@@ -6181,15 +6167,15 @@ export default function DesignPage({
             >
               <path
                 d="M2 1.5 16 12l-7.1 1.2L5.4 20Z"
-                fill={member.color}
+                fill={presenceColor(member.id)}
                 stroke="white"
                 strokeWidth="1.5"
                 strokeLinejoin="round"
               />
             </svg>
             <span
-              className="absolute left-3 top-4 whitespace-nowrap rounded-md px-1.5 py-0.5 text-micro font-medium text-white shadow-sm"
-              style={{ backgroundColor: member.color }}
+              className="absolute left-3 top-4 whitespace-nowrap rounded-md px-1.5 py-0.5 text-micro font-medium text-background shadow-sm"
+              style={{ backgroundColor: presenceColor(member.id) }}
             >
               {member.display_name}
             </span>
@@ -6202,7 +6188,7 @@ export default function DesignPage({
           data-canvas-context-menu
           onPointerDown={(event) => event.stopPropagation()}
           className={cn(
-            "absolute z-50 border border-black/[0.08] bg-white/95 shadow-[0_16px_40px_-18px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95",
+            "absolute z-50 border border-black/[0.08] bg-popover/95 shadow-[0_16px_40px_-18px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10",
             nodeContextMenu.target === "pane"
               ? "flex w-[240px] flex-col gap-0.5 rounded-lg p-1"
               : "w-48 overflow-hidden rounded-lg p-0",
@@ -6532,7 +6518,7 @@ export default function DesignPage({
       ) : null}
       <div
         aria-label="画布缩放与视图工具"
-        className="absolute left-1/2 top-3 z-20 flex h-9 -translate-x-1/2 items-center gap-0.5 rounded-[12px] border border-[#0000000f] bg-white/90 px-1 shadow-[0_2px_5px_rgba(0,0,0,.08)] backdrop-blur dark:border-[#4a4a4a] dark:bg-[#1a1a1a]/90"
+        className="absolute left-1/2 top-3 z-20 flex h-9 -translate-x-1/2 items-center gap-0.5 rounded-[12px] border border-border/60 bg-popover/90 px-1 shadow-[0_2px_5px_rgba(0,0,0,.08)] backdrop-blur"
       >
         <button
           data-add-node-trigger
@@ -6608,7 +6594,7 @@ export default function DesignPage({
         </button>
       </div>
       {tidyOpen ? (
-        <div className="absolute left-1/2 top-14 z-40 w-36 -translate-x-[142px] rounded-[12px] border border-black/[0.08] bg-white/95 p-1.5 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
+        <div className="absolute left-1/2 top-14 z-40 w-36 -translate-x-[142px] rounded-[12px] border border-black/[0.08] bg-popover/95 p-1.5 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10">
           {(
             [
               ["category", "分类整理"],
@@ -6630,7 +6616,7 @@ export default function DesignPage({
             </button>
           ))}
           {tidyGroup ? (
-            <div className="absolute right-[calc(100%+6px)] top-0 w-52 rounded-[12px] border border-black/[0.08] bg-white/95 p-1.5 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
+            <div className="absolute right-[calc(100%+6px)] top-0 w-52 rounded-[12px] border border-black/[0.08] bg-popover/95 p-1.5 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10">
               {(tidyGroup === "category"
                 ? ([
                     ["connections", "按连线", "按上下游关系分层"],
@@ -6663,7 +6649,7 @@ export default function DesignPage({
         </div>
       ) : null}
       {tidySnapshot ? (
-        <div className="absolute bottom-16 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-[12px] border border-black/[0.08] bg-white/95 px-3 py-2 text-xs shadow-[0_12px_30px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
+        <div className="absolute bottom-16 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-[12px] border border-black/[0.08] bg-popover/95 px-3 py-2 text-xs shadow-[0_12px_30px_-18px_rgba(0,0,0,.45)] backdrop-blur dark:border-white/10">
           <span className="font-medium">已整理画布</span>
           <button
             type="button"
@@ -6685,7 +6671,7 @@ export default function DesignPage({
         </div>
       ) : null}
       {canvasSettingsOpen ? (
-        <div className="absolute right-3 top-14 z-40 w-64 max-w-[calc(100%-1.5rem)] max-h-[calc(100%-5rem)] overflow-y-auto rounded-[14px] border border-black/[0.08] bg-white/95 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10 dark:bg-[#181818]/95">
+        <div className="absolute right-3 top-14 z-40 w-64 max-w-[calc(100%-1.5rem)] max-h-[calc(100%-5rem)] overflow-y-auto rounded-[14px] border border-black/[0.08] bg-popover/95 p-3 shadow-[0_16px_40px_-20px_rgba(0,0,0,.38)] backdrop-blur dark:border-white/10">
           <div className="text-xs font-semibold">画布设置</div>
           <div className="mt-3 text-micro text-muted-foreground">画布模式</div>
           <div className="mt-1.5 grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1">
@@ -6753,7 +6739,7 @@ export default function DesignPage({
           拖到目标端口完成连接 · 落到空白处新建并连接 · Esc 取消
         </div>
       ) : null}
-      <div className="absolute bottom-4 left-1/2 z-30 flex h-11 -translate-x-1/2 items-center gap-1 rounded-[12px] border border-[#0000000f] bg-white/90 px-1.5 shadow-[0_2px_5px_rgba(0,0,0,.08)] backdrop-blur dark:border-[#4a4a4a] dark:bg-[#1a1a1a]/90">
+      <div className="absolute bottom-4 left-1/2 z-30 flex h-11 -translate-x-1/2 items-center gap-1 rounded-[12px] border border-border/60 bg-popover/90 px-1.5 shadow-[0_2px_5px_rgba(0,0,0,.08)] backdrop-blur">
         <button
           onClick={() => {
             setAddNodePosition(null);
@@ -6882,7 +6868,7 @@ export default function DesignPage({
         </div>
       </div>
       {stickerOpen ? (
-        <div className="absolute bottom-[72px] left-1/2 z-40 w-72 -translate-x-1/2 rounded-[16px] border border-[#e6e6e6] bg-white p-3 shadow-[0_8px_32px_rgba(0,0,0,.08)] dark:border-[#454545] dark:bg-[#1a1a1a]">
+        <div className="absolute bottom-[72px] left-1/2 z-40 w-72 -translate-x-1/2 rounded-[16px] border border-border/60 bg-popover p-3 shadow-[0_8px_32px_rgba(0,0,0,.08)]">
           <div className="flex items-center">
             <span className="text-[12px] font-semibold">添加贴纸</span>
             <span className="flex-1" />
@@ -7267,7 +7253,7 @@ export default function DesignPage({
         />
       ) : null}
       {selectedNode ? (
-        <div className="absolute bottom-4 right-4 z-30 max-h-[calc(100%-32px)] w-64 overflow-y-auto rounded-[12px] border border-[#e6e6e6] bg-white p-3 shadow-[0_8px_32px_rgba(0,0,0,.08),0_2px_8px_rgba(0,0,0,.04)] dark:border-[#454545] dark:bg-[#1a1a1a]">
+        <div className="absolute bottom-4 right-4 z-30 max-h-[calc(100%-32px)] w-64 overflow-y-auto rounded-[12px] border border-border/60 bg-popover p-3 shadow-[0_8px_32px_rgba(0,0,0,.08),0_2px_8px_rgba(0,0,0,.04)]">
           <div className="flex items-center">
             <span className="text-xs font-semibold">节点设置</span>
             <span className="flex-1" />
@@ -7323,13 +7309,13 @@ export default function DesignPage({
                 </span>
               </div>
               {selectedStageBlockers.length > 0 ? (
-                <p className="mt-2 text-micro leading-4 text-amber-700 dark:text-amber-300">
+                <p className="mt-2 text-micro leading-4 text-muted-foreground">
                   等待前置阶段：
                   {selectedStageBlockers.map((stage) => stage.title).join("、")}
                 </p>
               ) : null}
               {selectedNode.stage.lastError ? (
-                <p className="mt-2 line-clamp-3 text-micro leading-4 text-red-600">
+                <p className="mt-2 line-clamp-3 text-micro leading-4 text-breach">
                   {selectedNode.stage.lastError}
                 </p>
               ) : null}
@@ -7454,7 +7440,7 @@ export default function DesignPage({
                   <button
                     key={color}
                     type="button"
-                    aria-label={`分组颜色：${color}`}
+                    aria-label={`分组颜色：${GROUP_TONES[color].name}`}
                     onClick={() => patchNode(selectedNode.id, { color })}
                     className={cn(
                       "size-5 rounded-full border border-black/10",
@@ -7589,8 +7575,8 @@ export default function DesignPage({
             <span
               className={cn(
                 "hidden text-micro text-muted-foreground xl:inline",
-                canvasSyncState === "conflict" && "text-amber-600",
-                canvasSyncState === "error" && "text-red-600",
+                canvasSyncState === "conflict" && "text-warning",
+                canvasSyncState === "error" && "text-breach",
               )}
             >
               {canvasSyncState === "loading"
@@ -7617,8 +7603,8 @@ export default function DesignPage({
               {presenceMembers.slice(0, 3).map((member) => (
                 <span
                   key={member.id}
-                  className="grid size-6 place-items-center rounded-full border-2 border-background text-micro font-semibold text-white"
-                  style={{ backgroundColor: member.color }}
+                  className="grid size-6 place-items-center rounded-full border-2 border-background text-micro font-semibold text-background"
+                  style={{ backgroundColor: presenceColor(member.id) }}
                   title={`${member.display_name} · ${member.section === "canvas" ? "画布" : member.section}`}
                 >
                   {member.display_name.slice(0, 1).toUpperCase()}
@@ -7636,7 +7622,7 @@ export default function DesignPage({
               <button
                 type="button"
                 onClick={() => resolveCanvasConflict("merge")}
-                className="rounded-md bg-amber-100 px-2 py-1 text-micro font-medium text-amber-800 transition hover:bg-amber-200"
+                className="rounded-md bg-primary px-2 py-1 text-micro font-medium text-primary-foreground transition hover:bg-primary/90"
                 title={`本地优先合并 ${pendingCanvasConflict.conflicts.length} 处冲突`}
               >
                 合并保存

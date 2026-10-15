@@ -1307,7 +1307,7 @@ export function DirectorStage({
                 selected === "character" ? "bg-muted" : "hover:bg-muted",
               )}
             >
-              <UserRoundIcon className="size-3.5 text-blue-500" />
+              <UserRoundIcon className="size-3.5 text-muted-foreground" />
               角色A
             </button>
             {props.length ? (
@@ -1329,7 +1329,7 @@ export function DirectorStage({
                         : "hover:bg-muted",
                     )}
                   >
-                    <BoxIcon className="size-3.5 text-amber-600" />
+                    <BoxIcon className="size-3.5 text-muted-foreground" />
                     <span className="truncate">{prop.name}</span>
                     <span className="ml-auto text-micro text-muted-foreground">
                       {prop.assetId}
@@ -1372,7 +1372,7 @@ export function DirectorStage({
           <div className="relative min-h-0 flex-1 bg-[#fafafa]" ref={hostRef}>
             <div
               ref={roleLabelRef}
-              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md border border-blue-200 bg-background/95 px-2 py-1 text-micro font-medium text-blue-700 shadow-sm backdrop-blur-sm"
+              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md border border-border bg-background/95 px-2 py-1 text-micro font-medium text-foreground shadow-sm backdrop-blur-sm"
             >
               角色A
             </div>
@@ -1497,12 +1497,6 @@ export function DirectorStage({
                       (Math.max(0.05, Number(track.durationSec ?? 0)) /
                         Math.max(0.01, durationSec)) *
                       100;
-                    const color =
-                      track.type === "camera_path"
-                        ? "bg-violet-500"
-                        : track.type === "character_animation"
-                          ? "bg-blue-500"
-                          : "bg-emerald-500";
                     return (
                       <div
                         key={track.id}
@@ -1517,10 +1511,7 @@ export function DirectorStage({
                         </span>
                         <div className="relative h-8 flex-1 rounded-md bg-muted/70">
                           <div
-                            className={cn(
-                              "absolute inset-y-1 overflow-hidden rounded px-2 py-1 text-white",
-                              color,
-                            )}
+                            className="absolute inset-y-1 overflow-hidden rounded bg-card px-2 py-1 text-foreground shadow-sm ring-1 ring-border"
                             style={{
                               left: `${Math.min(100, left)}%`,
                               width: `${Math.max(0, Math.min(100 - left, width))}%`,

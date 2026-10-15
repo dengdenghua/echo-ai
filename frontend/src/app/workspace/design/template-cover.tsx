@@ -1,4 +1,8 @@
-/** Purpose-specific diagrams, explicitly presented as illustrations, not generated results. */
+/**
+ * Purpose-specific diagrams, explicitly presented as illustrations, not
+ * generated results. They are chrome, so they draw in monochrome ink: each
+ * category is told apart by its diagram and its steps, not by a hue.
+ */
 export function TemplateCover({
   category,
   title,
@@ -12,15 +16,6 @@ export function TemplateCover({
   const product = category === "产品广告";
   const ui = category === "UI 动效";
   const music = category === "音乐视频";
-  const accent = storyboard
-    ? "#8062b6"
-    : product
-      ? "#ac7b42"
-      : ui
-        ? "#4b7caa"
-        : music
-          ? "#a05c7f"
-          : "#4f8b80";
   const steps = storyboard
     ? ["角色设定", "连续分镜", "镜头制作"]
     : product
@@ -38,9 +33,8 @@ export function TemplateCover({
     >
       <svg
         viewBox="0 0 360 144"
-        className="h-full w-full"
+        className="h-full w-full text-muted-foreground"
         aria-hidden="true"
-        style={{ color: accent }}
       >
         <rect
           x="0"

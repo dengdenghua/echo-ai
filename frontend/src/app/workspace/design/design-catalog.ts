@@ -121,7 +121,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "动画",
     description: "从世界观和角色卖点生成镜头、音乐与节奏一致的 PV 方案。",
     icon: SparklesIcon,
-    tone: "from-violet-500/35 via-fuchsia-400/18 to-indigo-500/10",
     downloads: "3.4k",
   },
   {
@@ -130,7 +129,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "商业广告",
     description: "把品牌策略转为视觉锚点、镜头系统与多渠道成片。",
     icon: PanelsTopLeftIcon,
-    tone: "from-sky-500/35 via-cyan-400/18 to-blue-500/10",
     downloads: "5.6k",
   },
   {
@@ -139,7 +137,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "专业影视",
     description: "围绕叙事主题编排字体、转场、演职员表与视效节奏。",
     icon: ClapperboardIcon,
-    tone: "from-zinc-700/50 via-slate-500/20 to-orange-400/10",
     downloads: "2.5k",
   },
   {
@@ -148,7 +145,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "音频音乐",
     description: "从歌曲结构建立表演、空间、剪辑和动态字幕方案。",
     icon: AudioLinesIcon,
-    tone: "from-pink-500/35 via-rose-400/18 to-purple-500/10",
     downloads: "4.5k",
   },
   {
@@ -157,7 +153,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "教育",
     description: "把知识目标拆为讲解、图解、练习和理解验证。",
     icon: Table2Icon,
-    tone: "from-emerald-500/35 via-lime-400/16 to-teal-500/10",
     downloads: "2.8k",
   },
   {
@@ -166,7 +161,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "创意实验",
     description: "统一构图、材质、色彩、字体与动态语言。",
     icon: ImageIcon,
-    tone: "from-amber-500/35 via-orange-400/18 to-red-500/10",
     downloads: "4.2k",
   },
   {
@@ -175,7 +169,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "电商",
     description: "完成开场钩子、口播脚本、镜头清单与素材路由。",
     icon: VideoIcon,
-    tone: "from-orange-500/35 via-yellow-400/18 to-pink-500/10",
     downloads: "2.7k",
   },
   {
@@ -184,7 +177,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "商业广告",
     description: "将产品界面转成品牌一致的动效分镜与制作规范。",
     icon: PanelsTopLeftIcon,
-    tone: "from-blue-500/35 via-violet-400/18 to-fuchsia-500/10",
     downloads: "1.7k",
   },
   {
@@ -193,7 +185,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "从参考视频提取镜头、节奏、视觉技术与可复用提示结构。",
     icon: WorkflowIcon,
-    tone: "from-cyan-500/35 via-slate-400/18 to-indigo-500/10",
     downloads: "3.4k",
   },
   {
@@ -202,7 +193,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "动画",
     description: "完成角色场景设定、镜头规划、动作预演与视频合成。",
     icon: CuboidIcon,
-    tone: "from-blue-400/45 via-violet-400/22 to-pink-400/10",
     downloads: "7.5k",
   },
   {
@@ -211,7 +201,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "商业广告",
     description: "从产品素材提炼单一卖点，生成可信的极简广告短片。",
     icon: BoxIcon,
-    tone: "from-yellow-300/50 via-amber-200/25 to-zinc-100/20",
     downloads: "5.0k",
   },
   {
@@ -220,7 +209,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "教育",
     description: "把文案和知识节点转成分层纸艺、手作运动与触感声音。",
     icon: PanelsTopLeftIcon,
-    tone: "from-red-500/40 via-orange-300/18 to-amber-100/15",
     downloads: "4.1k",
   },
   {
@@ -229,7 +217,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "专业影视",
     description: "按角色动机设计视线、呼吸、微表情与肢体表演。",
     icon: VideoIcon,
-    tone: "from-stone-500/42 via-rose-300/18 to-sky-200/12",
     downloads: "3.2k",
   },
   {
@@ -238,7 +225,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "创意实验",
     description: "按空间拓扑规划连续路线、速度曲线与一镜到底穿越。",
     icon: VideoIcon,
-    tone: "from-sky-400/45 via-indigo-400/18 to-zinc-800/16",
     downloads: "2.9k",
   },
   {
@@ -247,7 +233,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "音频音乐",
     description: "保持角色音色、语气、时长、口型与字幕同步的本地化。",
     icon: AudioLinesIcon,
-    tone: "from-emerald-400/40 via-cyan-300/18 to-blue-400/12",
     downloads: "2.4k",
   },
   {
@@ -256,7 +241,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "把逐字稿拆成可审片的镜头、素材来源和覆盖关系。",
     icon: ClapperboardIcon,
-    tone: "from-slate-500/42 via-cyan-300/18 to-amber-300/12",
     downloads: "2.2k",
   },
   {
@@ -265,7 +249,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "商业广告",
     description: "保持文字和版式清晰，将静态海报扩展为可循环动态视觉。",
     icon: ImageIcon,
-    tone: "from-fuchsia-500/42 via-pink-300/20 to-orange-200/10",
     downloads: "1.5k",
   },
   {
@@ -274,7 +257,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "把零散需求和参考素材整理成可控、可执行的视频模型指令。",
     icon: WorkflowIcon,
-    tone: "from-violet-600/45 via-blue-400/20 to-zinc-900/12",
     downloads: "2.4k",
   },
   {
@@ -283,7 +265,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "教育",
     description: "把文章或报告转成旁白、字幕、图解与拼贴节奏统一的短片。",
     icon: PanelsTopLeftIcon,
-    tone: "from-amber-500/42 via-red-300/18 to-slate-700/12",
     downloads: "2.3k",
   },
   {
@@ -292,7 +273,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "商业广告",
     description: "设计自然可信的唇部特写、上妆动作和产品定帧。",
     icon: VideoIcon,
-    tone: "from-rose-600/48 via-pink-300/20 to-red-950/14",
     downloads: "2.2k",
   },
   {
@@ -301,7 +281,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "创意实验",
     description: "用有限色版、颗粒套印和同步声音构建装饰插画短片。",
     icon: ImageIcon,
-    tone: "from-indigo-700/45 via-orange-400/22 to-yellow-200/14",
     downloads: "2.1k",
   },
   {
@@ -310,7 +289,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "教育",
     description: "用线条角色、图标和关系图解释抽象知识与因果过程。",
     icon: Table2Icon,
-    tone: "from-zinc-800/46 via-sky-300/20 to-white/10",
     downloads: "1.9k",
   },
   {
@@ -319,7 +297,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "动画",
     description: "从角色参考生成四向动作、障碍反馈和短时反应挑战。",
     icon: VideoIcon,
-    tone: "from-emerald-600/45 via-lime-300/20 to-slate-900/14",
     downloads: "1.9k",
   },
   {
@@ -328,7 +305,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "UI 动效",
     description: "建立可读的点阵字形、品牌锁定和扫描聚合动效。",
     icon: SparklesIcon,
-    tone: "from-black/55 via-violet-500/30 to-cyan-300/16",
     downloads: "1.7k",
   },
   {
@@ -337,7 +313,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "商业广告",
     description: "把真实界面与交互路径转成准确、电影感的产品演示。",
     icon: PanelsTopLeftIcon,
-    tone: "from-slate-950/55 via-cyan-600/25 to-emerald-300/14",
     downloads: "1.7k",
   },
   {
@@ -346,7 +321,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "UI 动效",
     description: "从品牌标志提取流线、节点和收束规则，形成统一 MG 动效。",
     icon: WorkflowIcon,
-    tone: "from-blue-700/45 via-fuchsia-400/22 to-amber-200/12",
     downloads: "1.3k",
   },
   {
@@ -355,7 +329,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "创意实验",
     description: "跟踪真实运动，由笔尖将主体逐层显影为手绘视觉。",
     icon: ImageIcon,
-    tone: "from-stone-700/45 via-sky-300/18 to-orange-200/12",
     downloads: "1.3k",
   },
   {
@@ -364,7 +337,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "电商",
     description: "保持角色身份一致，制作六姿态潮玩格与竖版动态海报。",
     icon: CuboidIcon,
-    tone: "from-purple-600/45 via-pink-300/20 to-sky-300/14",
     downloads: "1.2k",
   },
   {
@@ -373,7 +345,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "编排角色、场景、相机、动作 DSL、运镜路径和可撤销时间线。",
     icon: CuboidIcon,
-    tone: "from-lime-400/40 via-emerald-300/18 to-slate-700/12",
     downloads: "内置",
   },
   {
@@ -382,7 +353,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "组织媒体、字幕、对白、音乐、转场和版本导出。",
     icon: ClapperboardIcon,
-    tone: "from-rose-500/42 via-purple-300/18 to-zinc-800/12",
     downloads: "内置",
   },
   {
@@ -391,7 +361,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "诊断本机节点和模型，安全编辑、排队并验收真实工作流结果。",
     icon: WorkflowIcon,
-    tone: "from-sky-500/42 via-cyan-300/18 to-indigo-700/14",
     downloads: "内置",
   },
   {
@@ -400,7 +369,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "商业广告",
     description: "把产品简介转成有事实证据、镜头节奏和渠道版本的宣传片。",
     icon: VideoIcon,
-    tone: "from-indigo-600/45 via-sky-300/20 to-white/10",
     downloads: "11.4k",
   },
   {
@@ -409,7 +377,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "电商",
     description: "从真实商品素材生成主图、卖点、场景、细节和规格图组。",
     icon: ImageIcon,
-    tone: "from-orange-400/45 via-amber-200/22 to-white/15",
     downloads: "22.2k",
   },
   {
@@ -418,7 +385,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "音频音乐",
     description: "完成书稿清理、多角色选角、表演、环境声和章节交付。",
     icon: AudioLinesIcon,
-    tone: "from-amber-800/45 via-orange-300/18 to-stone-100/12",
     downloads: "20.3k",
   },
   {
@@ -427,7 +393,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "专业影视",
     description: "把角色、场景、道具与镜头统一为可连续生产的设定板。",
     icon: ClapperboardIcon,
-    tone: "from-slate-700/45 via-cyan-300/18 to-amber-200/12",
     downloads: "10.9k",
   },
   {
@@ -436,7 +401,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "音频音乐",
     description: "设计低刺激的冥想旁白、环境层、循环点与响度曲线。",
     icon: AudioLinesIcon,
-    tone: "from-indigo-900/50 via-blue-400/22 to-violet-200/12",
     downloads: "2.4k",
   },
   {
@@ -445,7 +409,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "音频音乐",
     description: "按音乐结构、动作与语义变化设计卡点、变速和声音衔接。",
     icon: ClapperboardIcon,
-    tone: "from-fuchsia-600/45 via-rose-300/20 to-cyan-300/12",
     downloads: "3.7k",
   },
   {
@@ -454,7 +417,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "整理媒体、字幕、代理和兼容性，输出可迁移剪辑工程包。",
     icon: BoxIcon,
-    tone: "from-zinc-800/50 via-slate-400/20 to-blue-200/10",
     downloads: "21.4k",
   },
   {
@@ -463,7 +425,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "专业影视",
     description: "把研究、采访和素材组织成事实可追溯的纪录片结构。",
     icon: VideoIcon,
-    tone: "from-stone-700/48 via-amber-400/18 to-sky-200/12",
     downloads: "3.4k",
   },
   {
@@ -472,7 +433,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "音频音乐",
     description: "为角色与场景设计主题动机、配器、动态和音乐进出点。",
     icon: AudioLinesIcon,
-    tone: "from-violet-800/48 via-rose-400/20 to-amber-200/12",
     downloads: "3.9k",
   },
   {
@@ -481,7 +441,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "创意实验",
     description: "提取参考图的构图、光线和材质关系，形成原创视觉变体。",
     icon: ImageIcon,
-    tone: "from-emerald-700/44 via-cyan-300/20 to-fuchsia-300/14",
     downloads: "21.1k",
   },
   {
@@ -490,7 +449,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "创意实验",
     description: "将图像简化为可搭建网格、有限调色板与材料清单。",
     icon: CuboidIcon,
-    tone: "from-emerald-500/45 via-lime-300/22 to-amber-300/14",
     downloads: "2.7k",
   },
   {
@@ -499,7 +457,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "音频音乐",
     description: "以表演意图和声学参数建立合规的原创音色方向。",
     icon: AudioLinesIcon,
-    tone: "from-sky-700/45 via-violet-300/20 to-pink-200/12",
     downloads: "3.2k",
   },
   {
@@ -508,7 +465,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "动画",
     description: "统一角色和场景的线条、比例、上色、材质与运动规则。",
     icon: SparklesIcon,
-    tone: "from-rose-600/42 via-violet-300/22 to-sky-300/12",
     downloads: "2.8k",
   },
   {
@@ -517,7 +473,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "专业影视",
     description: "明确机位、焦段、调度、光线、表演和连续性约束。",
     icon: ClapperboardIcon,
-    tone: "from-zinc-900/52 via-blue-500/20 to-orange-300/12",
     downloads: "6.7k",
   },
   {
@@ -526,7 +481,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "按遮罩修改目标区域并保持透视、光线与外部内容稳定。",
     icon: ImageIcon,
-    tone: "from-cyan-600/42 via-sky-300/20 to-white/14",
     downloads: "3.1k",
   },
   {
@@ -535,7 +489,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "固定主体结构与身份锚点，生成多方位相机视角。",
     icon: CuboidIcon,
-    tone: "from-slate-600/44 via-teal-300/20 to-amber-200/12",
     downloads: "3.1k",
   },
   {
@@ -544,7 +497,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "专业影视",
     description: "将故事拆成顺序清晰、空间连续、角色一致的分镜整图。",
     icon: PanelsTopLeftIcon,
-    tone: "from-amber-600/44 via-orange-300/20 to-sky-300/12",
     downloads: "4.3k",
   },
   {
@@ -553,7 +505,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "专业影视",
     description: "设计有动机的光线方向、软硬、色温、光比和空间层次。",
     icon: SparklesIcon,
-    tone: "from-yellow-300/50 via-orange-200/24 to-zinc-900/18",
     downloads: "2.8k",
   },
   {
@@ -562,7 +513,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "短剧漫剧",
     description: "规划钩子、持续冲突、人物选择、集尾悬念与制作复用。",
     icon: FileTextIcon,
-    tone: "from-red-700/45 via-rose-300/20 to-slate-800/14",
     downloads: "4.6k",
   },
   {
@@ -571,7 +521,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "平台工具",
     description: "从播客生成章节、说明、短切片、长文和社媒内容包。",
     icon: AudioLinesIcon,
-    tone: "from-purple-700/45 via-orange-300/18 to-pink-200/12",
     downloads: "2.4k",
   },
   {
@@ -580,7 +529,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "动画",
     description: "从两位玩家角色参考生成身份稳定、菜单清楚的游戏开场动画。",
     icon: VideoIcon,
-    tone: "from-cyan-500/40 via-violet-400/20 to-slate-900/14",
     downloads: "2.7k",
   },
   {
@@ -589,7 +537,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "教育",
     description: "用纸偶、分层布景和逐帧动作讲清可验证的知识链路。",
     icon: ClapperboardIcon,
-    tone: "from-amber-500/42 via-rose-300/18 to-stone-500/12",
     downloads: "2.8k",
   },
   {
@@ -598,7 +545,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "教育",
     description: "把课程成果、模块和证据组织成可实现、可转化的详情页。",
     icon: PanelsTopLeftIcon,
-    tone: "from-blue-500/36 via-indigo-300/18 to-white/10",
     downloads: "2.2k",
   },
   {
@@ -607,7 +553,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "教育",
     description: "规划儿童英语故事、儿歌、重复句型和连续剧集资产。",
     icon: AudioLinesIcon,
-    tone: "from-red-500/36 via-yellow-300/22 to-emerald-400/12",
     downloads: "1.6k",
   },
   {
@@ -616,7 +561,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "创意实验",
     description: "建立自洽的异常空间规则、镜头漫游和环境声音氛围。",
     icon: CuboidIcon,
-    tone: "from-lime-300/35 via-cyan-200/18 to-violet-800/18",
     downloads: "1.6k",
   },
   {
@@ -625,7 +569,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "专业影视",
     description: "从参考影像提炼构图、镜头、光色和声音规则并原创迁移。",
     icon: ClapperboardIcon,
-    tone: "from-zinc-900/52 via-amber-300/18 to-cyan-300/10",
     downloads: "1.5k",
   },
   {
@@ -634,7 +577,6 @@ export const CREATIVE_SKILL_COLLECTION = [
     category: "创意实验",
     description: "用可控的低面数、笨拙绑定和生硬运镜建立一致失败感。",
     icon: BoxIcon,
-    tone: "from-fuchsia-500/34 via-blue-400/20 to-lime-300/12",
     downloads: "1.3k",
   },
 ] as const;

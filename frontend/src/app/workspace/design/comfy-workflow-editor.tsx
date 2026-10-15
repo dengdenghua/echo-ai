@@ -115,15 +115,6 @@ function initialPositions(
   );
 }
 
-function nodeAccent(classType: string): string {
-  const accents = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ec4899"];
-  const hash = [...classType].reduce(
-    (total, char) => total + char.charCodeAt(0),
-    0,
-  );
-  return accents[hash % accents.length] ?? accents[0]!;
-}
-
 export function ComfyWorkflowEditor({
   workflowId,
   onClose,
@@ -365,18 +356,22 @@ export function ComfyWorkflowEditor({
     setState("ready");
   };
 
+  // A dark editor in every theme: the Graphite scope keeps it on ECHO tokens.
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#111318] text-zinc-100">
-      <header className="flex h-11 shrink-0 items-center border-b border-white/10 bg-[#17191f] px-2.5">
+    <div
+      data-echo-theme="graphite"
+      className="flex h-full min-h-0 flex-col bg-background text-foreground"
+    >
+      <header className="flex h-11 shrink-0 items-center border-b border-white/10 bg-card px-2.5">
         <Input
           value={name}
           onChange={(event) => {
             setName(event.target.value);
             setState("ready");
           }}
-          className="h-7 w-56 border-white/10 bg-white/5 text-xs text-white"
+          className="h-7 w-56 border-white/10 bg-white/5 text-xs text-foreground"
         />
-        <span className="ml-2 rounded bg-white/5 px-2 py-1 text-micro text-zinc-400">
+        <span className="ml-2 rounded bg-white/5 px-2 py-1 text-micro text-muted-foreground">
           {Object.keys(workflow).length} 节点 · {edges.length} 连线 · r
           {revision}
         </span>
@@ -385,8 +380,8 @@ export function ComfyWorkflowEditor({
           className={cn(
             "mr-2 text-micro",
             state === "conflict" || state === "error"
-              ? "text-red-400"
-              : "text-zinc-500",
+              ? "text-breach"
+              : "text-muted-foreground",
           )}
         >
           {state === "loading"
@@ -402,9 +397,11 @@ export function ComfyWorkflowEditor({
                     : "有未保存修改"}
         </span>
         {runState ? (
-          <span className="mr-2 text-micro text-zinc-400">{runState}</span>
+          <span className="mr-2 text-micro text-muted-foreground">
+            {runState}
+          </span>
         ) : null}
-        <label className="mr-1 flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-zinc-300 hover:bg-white/5">
+        <label className="mr-1 flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-foreground/80 hover:bg-white/5">
           <PlusIcon className="size-3.5" />
           <select
             aria-label="添加 ComfyUI 节点"
@@ -425,7 +422,7 @@ export function ComfyWorkflowEditor({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1.5 text-xs text-zinc-300"
+          className="h-8 gap-1.5 text-xs text-foreground/80"
           onClick={() => void save()}
           disabled={state === "loading" || state === "saving"}
         >
@@ -447,7 +444,7 @@ export function ComfyWorkflowEditor({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1.5 text-xs text-zinc-300"
+          className="h-8 gap-1.5 text-xs text-foreground/80"
           onClick={onOpenNative}
         >
           <ExternalLinkIcon className="size-3.5" /> 原生界面
@@ -455,14 +452,14 @@ export function ComfyWorkflowEditor({
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 text-zinc-300"
+          className="size-8 text-foreground/80"
           onClick={onClose}
         >
           <XIcon className="size-4" />
         </Button>
       </header>
       <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1 overflow-auto bg-[radial-gradient(circle,#343842_1px,transparent_1px)] [background-size:20px_20px]">
+        <div className="min-w-0 flex-1 overflow-auto bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:20px_20px]">
           <div className="relative h-[1100px] w-[1800px]">
             <svg className="pointer-events-none absolute inset-0 size-full overflow-visible">
               {edges.map((edge) => {
@@ -479,7 +476,7 @@ export function ComfyWorkflowEditor({
                     key={`${edge.source}-${edge.target}-${edge.input}`}
                     d={`M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`}
                     fill="none"
-                    stroke="#8b5cf6"
+                    className="stroke-muted-foreground"
                     strokeOpacity="0.78"
                     strokeWidth="2"
                   />
@@ -493,7 +490,7 @@ export function ComfyWorkflowEditor({
                 <div
                   key={id}
                   className={cn(
-                    "absolute overflow-hidden rounded-[10px] border bg-[#20232b] shadow-[0_14px_30px_rgba(0,0,0,.32)]",
+                    "absolute overflow-hidden rounded-[10px] border bg-card shadow-[0_14px_30px_rgba(0,0,0,.32)]",
                     selectedId === id
                       ? "border-core ring-1 ring-core/50"
                       : "border-white/10",
@@ -506,10 +503,7 @@ export function ComfyWorkflowEditor({
                   onClick={() => setSelectedId(id)}
                 >
                   <div
-                    className="flex h-8 cursor-grab items-center px-2.5 text-xs font-semibold active:cursor-grabbing"
-                    style={{
-                      backgroundColor: `${nodeAccent(node.class_type)}cc`,
-                    }}
+                    className="flex h-8 cursor-grab items-center border-b border-white/10 bg-white/[0.06] px-2.5 text-xs font-semibold active:cursor-grabbing"
                     onPointerDown={(event) => {
                       dragRef.current = {
                         id,
@@ -524,13 +518,13 @@ export function ComfyWorkflowEditor({
                     </span>
                     <span className="ml-2 text-micro opacity-70">#{id}</span>
                   </div>
-                  <div className="space-y-1 px-2.5 py-2 text-micro text-zinc-400">
+                  <div className="space-y-1 px-2.5 py-2 text-micro text-muted-foreground">
                     {inputs.length ? (
                       inputs.slice(0, 5).map(([key, value]) => (
                         <div key={key} className="flex items-center gap-1.5">
                           <span className="size-1.5 rounded-full bg-core" />
                           <span className="min-w-0 flex-1 truncate">{key}</span>
-                          <span className="max-w-24 truncate text-zinc-500">
+                          <span className="max-w-24 truncate text-muted-foreground/75">
                             {isConnection(value)
                               ? `← #${value[0]}`
                               : String(value)}
@@ -547,7 +541,7 @@ export function ComfyWorkflowEditor({
             })}
           </div>
         </div>
-        <aside className="w-[310px] shrink-0 overflow-y-auto border-l border-white/10 bg-[#17191f] p-3">
+        <aside className="w-[310px] shrink-0 overflow-y-auto border-l border-white/10 bg-card p-3">
           {selected && selectedId ? (
             <>
               <div className="flex items-start gap-2">
@@ -555,14 +549,14 @@ export function ComfyWorkflowEditor({
                   <div className="truncate text-[12px] font-semibold">
                     {selected._meta?.title || selected.class_type}
                   </div>
-                  <div className="mt-0.5 text-micro text-zinc-500">
+                  <div className="mt-0.5 text-micro text-muted-foreground">
                     {selected.class_type} · #{selectedId}
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7 text-zinc-400 hover:text-red-400"
+                  className="size-7 text-muted-foreground hover:text-breach"
                   onClick={removeNode}
                 >
                   <Trash2Icon className="size-3.5" />
@@ -571,7 +565,7 @@ export function ComfyWorkflowEditor({
               <div className="mt-4 space-y-3">
                 {Object.entries(selected.inputs ?? {}).map(([key, value]) => (
                   <div key={key}>
-                    <label className="mb-1.5 flex items-center gap-1.5 text-micro text-zinc-400">
+                    <label className="mb-1.5 flex items-center gap-1.5 text-micro text-muted-foreground">
                       {isConnection(value) ? (
                         <Link2Icon className="size-3" />
                       ) : null}
@@ -600,7 +594,7 @@ export function ComfyWorkflowEditor({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-8 text-zinc-400"
+                          className="size-8 text-muted-foreground"
                           onClick={() => patchInput(key, "")}
                         >
                           <UnlinkIcon className="size-3.5" />
@@ -622,7 +616,7 @@ export function ComfyWorkflowEditor({
                                 : event.target.value,
                             )
                           }
-                          className="h-8 border-white/10 bg-white/5 text-xs text-white"
+                          className="h-8 border-white/10 bg-white/5 text-xs text-foreground"
                         />
                         {Object.keys(workflow).length > 1 ? (
                           <select
@@ -649,14 +643,14 @@ export function ComfyWorkflowEditor({
                   </div>
                 ))}
               </div>
-              <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-micro leading-4 text-zinc-500">
+              <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-micro leading-4 text-muted-foreground">
                 <ArrowRightIcon className="mb-1 size-3" />
                 参数与连线会写回 Comfy API prompt；节点坐标只保存在 ECHO AI UI
                 元数据中。
               </div>
             </>
           ) : (
-            <div className="grid h-40 place-items-center text-center text-xs text-zinc-500">
+            <div className="grid h-40 place-items-center text-center text-xs text-muted-foreground">
               选择节点查看和编辑参数
             </div>
           )}
