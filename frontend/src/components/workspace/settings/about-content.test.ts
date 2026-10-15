@@ -14,6 +14,11 @@ describe("localized About content", () => {
       expect(content).not.toContain("Next.js");
       // Section headings are chrome: ECHO never uses emoji as icons.
       expect(content).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
+      // The page title is a plain heading, not an underlined link; the
+      // repository stays under the project links section.
+      const title = content.split("\n")[0] ?? "";
+      expect(title).toMatch(/^# [^[\]()]+$/);
+      expect(content).toContain("(https://github.com/dengdenghua/echo-ai)");
     },
   );
 });

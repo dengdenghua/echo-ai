@@ -4,7 +4,7 @@
  * because the surrounding UI uses another supported locale.
  */
 const ABOUT_MARKDOWN = {
-  en: `# [About ECHO AI](https://github.com/dengdenghua/echo-ai)
+  en: `# About ECHO AI
 
 > **From Open Source, Back to Open Source**
 
@@ -40,7 +40,7 @@ Thank you to the open-source projects and contributors who make ECHO AI possible
 
 Special thanks to [Daniel Walnut](https://github.com/hetaoBackend/) and [Henry Li](https://github.com/magiccube/) for their vision and dedication.
 `,
-  zh: `# [关于 ECHO AI](https://github.com/dengdenghua/echo-ai)
+  zh: `# 关于 ECHO AI
 
 > **源于开源，回馈开源**
 
@@ -76,7 +76,7 @@ ECHO AI 采用 **Apache License 2.0** 开源发布。
 
 特别感谢 [Daniel Walnut](https://github.com/hetaoBackend/) 与 [Henry Li](https://github.com/magiccube/) 的愿景、热情和长期投入。
 `,
-  ja: `# [ECHO AI について](https://github.com/dengdenghua/echo-ai)
+  ja: `# ECHO AI について
 
 > **オープンソースから生まれ、オープンソースへ還元する**
 
@@ -112,7 +112,7 @@ ECHO AI を支えるすべてのオープンソースプロジェクトと貢献
 
 ビジョンと継続的な貢献を寄せてくださった [Daniel Walnut](https://github.com/hetaoBackend/) と [Henry Li](https://github.com/magiccube/) に、心より感謝します。
 `,
-  ko: `# [ECHO AI 소개](https://github.com/dengdenghua/echo-ai)
+  ko: `# ECHO AI 소개
 
 > **오픈 소스에서 시작해 오픈 소스로 돌려드립니다**
 
