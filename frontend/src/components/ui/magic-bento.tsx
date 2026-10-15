@@ -28,7 +28,8 @@ export interface BentoProps {
 
 const DEFAULT_PARTICLE_COUNT = 12;
 const DEFAULT_SPOTLIGHT_RADIUS = 300;
-const DEFAULT_GLOW_COLOR = "132, 0, 255";
+// The Graphite core (#6fe3f0): ECHO has one accent, never a violet glow.
+const DEFAULT_GLOW_COLOR = "111, 227, 240";
 const MOBILE_BREAKPOINT = 768;
 
 const createParticleElement = (
