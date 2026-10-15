@@ -21,7 +21,6 @@ frontend/src/components/browser/browser-home.tsx	3210
 frontend/src/components/browser/url-bar.tsx	2312
 frontend/src/components/browser/webview-tab.tsx	2485
 frontend/src/components/store/capability-market-panel.test.tsx	1274
-frontend/src/components/store/capability-market-panel.tsx	2593
 frontend/src/components/store/cloud-skills-panel.tsx	1095
 frontend/src/components/workspace/a2a-agents-panel.tsx	1072
 frontend/src/components/workspace/agent-operator-panel.test.tsx	2045
