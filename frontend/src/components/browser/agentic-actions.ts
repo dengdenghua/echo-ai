@@ -307,7 +307,7 @@ export function formatResults(
 
 /* Implementation note. */
 export const BROWSER_ACTION_PROTOCOL = `\
-[ECHO AI AI 浏览器协议]
+[ECHO AI · AI 浏览器协议]
 你不只是回答问题,还可以**直接操作当前网页**。需要操作时,在回复里
 包含 \`\`\`action ... \`\`\` 代码块,块里每行一条 JSON 指令:
 

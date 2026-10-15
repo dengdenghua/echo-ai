@@ -1,3 +1,16 @@
+import {
+  CloudDrizzleIcon,
+  CloudFogIcon,
+  CloudIcon,
+  CloudLightningIcon,
+  CloudRainIcon,
+  CloudSnowIcon,
+  CloudSunIcon,
+  MoonIcon,
+  SunIcon,
+  ThermometerIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
@@ -34,32 +47,38 @@ export function writeWeatherCity(city: string): void {
   window.dispatchEvent(new Event(WEATHER_CITY_EVENT));
 }
 
-/** WMO weather code → emoji and a short label. */
+/**
+ * WMO weather code → a lucide glyph and a short label. ECHO draws no emoji:
+ * the glyph is a line icon in ink, never a coloured picture.
+ */
 export function describeWeather(
   code: number,
   zh = true,
   isDay = true,
-): { emoji: string; text: string } {
+): { icon: LucideIcon; text: string } {
   if (!isDay && (code === 0 || code === 1)) {
-    return { emoji: "🌙", text: zh ? (code === 0 ? "晴" : "少云") : "Clear" };
+    return {
+      icon: MoonIcon,
+      text: zh ? (code === 0 ? "晴" : "少云") : "Clear",
+    };
   }
-  const table: [number[], string, string, string][] = [
-    [[0], "☀️", "晴", "Clear"],
-    [[1], "🌤️", "少云", "Mostly clear"],
-    [[2], "⛅", "多云", "Partly cloudy"],
-    [[3], "☁️", "阴", "Overcast"],
-    [[45, 48], "🌫️", "雾", "Fog"],
-    [[51, 53, 55, 56, 57], "🌦️", "毛毛雨", "Drizzle"],
-    [[61, 63, 65, 66, 67], "🌧️", "雨", "Rain"],
-    [[71, 73, 75, 77], "🌨️", "雪", "Snow"],
-    [[80, 81, 82], "🌦️", "阵雨", "Showers"],
-    [[85, 86], "🌨️", "阵雪", "Snow showers"],
-    [[95, 96, 99], "⛈️", "雷雨", "Thunderstorm"],
+  const table: [number[], LucideIcon, string, string][] = [
+    [[0], SunIcon, "晴", "Clear"],
+    [[1], CloudSunIcon, "少云", "Mostly clear"],
+    [[2], CloudSunIcon, "多云", "Partly cloudy"],
+    [[3], CloudIcon, "阴", "Overcast"],
+    [[45, 48], CloudFogIcon, "雾", "Fog"],
+    [[51, 53, 55, 56, 57], CloudDrizzleIcon, "毛毛雨", "Drizzle"],
+    [[61, 63, 65, 66, 67], CloudRainIcon, "雨", "Rain"],
+    [[71, 73, 75, 77], CloudSnowIcon, "雪", "Snow"],
+    [[80, 81, 82], CloudRainIcon, "阵雨", "Showers"],
+    [[85, 86], CloudSnowIcon, "阵雪", "Snow showers"],
+    [[95, 96, 99], CloudLightningIcon, "雷雨", "Thunderstorm"],
   ];
   const hit = table.find(([codes]) => codes.includes(code));
   return hit
-    ? { emoji: hit[1], text: zh ? hit[2] : hit[3] }
-    : { emoji: "🌡️", text: zh ? "未知" : "Unknown" };
+    ? { icon: hit[1], text: zh ? hit[2] : hit[3] }
+    : { icon: ThermometerIcon, text: zh ? "未知" : "Unknown" };
 }
 
 export async function fetchWeather(

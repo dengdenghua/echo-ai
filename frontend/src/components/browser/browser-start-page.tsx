@@ -382,7 +382,11 @@ export function BrowserStartPage({
           >
             {weather && weatherLook ? (
               <>
-                <span aria-hidden="true">{weatherLook.emoji}</span>
+                <weatherLook.icon
+                  size={20}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
                 <span>
                   {Math.round(weather.temperature)}° {weather.city}
                 </span>
@@ -646,9 +650,11 @@ export function BrowserStartPage({
               <div className="grid gap-4">
                 {weather && weatherLook ? (
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl" aria-hidden="true">
-                      {weatherLook.emoji}
-                    </span>
+                    <weatherLook.icon
+                      className="size-8 text-foreground"
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                    />
                     <div>
                       <p className="text-2xl font-semibold">
                         {Math.round(weather.temperature)}°C

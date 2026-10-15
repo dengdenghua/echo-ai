@@ -404,7 +404,7 @@ export function TabBar() {
         <GroupDot color={group.color} />
       )}
       {group.collapsed ? (
-        <span className="rounded bg-current/15 px-1 text-[10px] leading-4">
+        <span className="rounded bg-current/15 px-1 text-micro leading-4">
           {count}
         </span>
       ) : null}

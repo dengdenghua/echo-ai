@@ -1,3 +1,4 @@
+import { MoonIcon, SunIcon } from "lucide-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { describeWeather, fetchWeather } from "./weather";
@@ -6,8 +7,11 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("weather", () => {
   it("maps WMO codes, with a moon for clear nights", () => {
-    expect(describeWeather(0)).toEqual({ emoji: "☀️", text: "晴" });
-    expect(describeWeather(0, true, false)).toEqual({ emoji: "🌙", text: "晴" });
+    expect(describeWeather(0)).toEqual({ icon: SunIcon, text: "晴" });
+    expect(describeWeather(0, true, false)).toEqual({
+      icon: MoonIcon,
+      text: "晴",
+    });
     expect(describeWeather(63).text).toBe("雨");
     expect(describeWeather(1234).text).toBe("未知");
   });

@@ -4842,7 +4842,7 @@ export const zhCN: Translations = {
       searchOrUrl: "搜索或输入网址",
       siteInfo: "站点信息",
       siteInfoDesc:
-        "登录态、Cookie 和本地数据会保留在 ECHO AI 浏览器中，并在标签页之间共享。",
+        "登录态、Cookie 和本地数据会保留在 AI 浏览器中，并在标签页之间共享。",
       clearData: "清除数据",
       openExternally: "外部打开",
       confirmClearSiteData:

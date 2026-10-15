@@ -19,9 +19,7 @@ export function WeatherWidgetBody() {
         className="flex items-center gap-2"
         title={`${weather.city} · ${look.text}`}
       >
-        <span className="text-xl" aria-hidden="true">
-          {look.emoji}
-        </span>
+        <look.icon aria-hidden className="size-5 text-foreground" />
         <span className="text-lg text-muted-foreground">
           {Math.round(weather.temperature)}°C
         </span>

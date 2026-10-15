@@ -5154,7 +5154,7 @@ Strategy:
       searchOrUrl: "Search or enter URL",
       siteInfo: "Site Info",
       siteInfoDesc:
-        "Login state, cookies, and local data are retained in the ECHO AI browser and shared across tabs.",
+        "Login state, cookies, and local data are retained in the AI browser and shared across tabs.",
       clearData: "Clear Data",
       openExternally: "Open Externally",
       confirmClearSiteData:

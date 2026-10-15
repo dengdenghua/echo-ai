@@ -524,7 +524,7 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
     const confirmed = await confirm({
       title: "清除浏览数据",
       description:
-        "将清除 ECHO AI 浏览器中的 Cookie、缓存、网站存储、浏览历史和下载记录。所有网站会退出登录，但不会删除已下载的文件。",
+        "将清除 AI 浏览器中的 Cookie、缓存、网站存储、浏览历史和下载记录。所有网站会退出登录，但不会删除已下载的文件。",
       confirmLabel: "确认清除",
     });
     if (!confirmed) return;
@@ -853,13 +853,13 @@ export function UrlBar({ webviewHandle, onOpenExtensions }: Props) {
                 className={cn(
                   "grid size-7 place-items-center rounded-full transition-colors",
                   bookmarked
-                    ? "text-warning hover:bg-warning/10"
+                    ? "text-core hover:bg-core/10"
                     : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
                 )}
                 title={bookmarked ? ub.removeBookmark : ub.addBookmark}
               >
                 <StarIcon
-                  className={cn("size-3.5", bookmarked && "fill-chart-4")}
+                  className={cn("size-3.5", bookmarked && "fill-current")}
                 />
               </button>
             )}
@@ -1283,7 +1283,7 @@ function BrowserDataCenterDialog({
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold">Cookie 与站点数据</div>
               <div className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                登录状态保存在独立的 ECHO AI 浏览器配置中，不与系统浏览器混用。
+                登录状态保存在独立的 AI 浏览器配置中，不与系统浏览器混用。
               </div>
             </div>
             <Button

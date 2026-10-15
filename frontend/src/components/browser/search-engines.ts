@@ -1,31 +1,36 @@
+// An engine whose favicon cannot load falls back to its letters in ink on a
+// neutral tile, as on the phone: engines are told apart by name, not brand
+// colour (ECHO colour only carries state).
+const NEUTRAL_GLYPH = "bg-foreground/10 text-foreground";
+
 export const SEARCH_ENGINES = [
   {
     name: "Baidu",
     url: "https://www.baidu.com/s?wd=",
     icon: "Bai",
     logoUrl: "https://www.baidu.com/favicon.ico",
-    accent: "bg-[#2f6bff] text-white",
+    accent: NEUTRAL_GLYPH,
   },
   {
     name: "Google",
     url: "https://www.google.com/search?q=",
     icon: "G",
     logoUrl: "https://www.google.com/favicon.ico",
-    accent: "bg-white text-[#4285f4]",
+    accent: NEUTRAL_GLYPH,
   },
   {
     name: "Bing",
     url: "https://www.bing.com/search?q=",
     icon: "B",
     logoUrl: "https://www.bing.com/favicon.ico",
-    accent: "bg-[#008373] text-white",
+    accent: NEUTRAL_GLYPH,
   },
   {
     name: "GitHub",
     url: "https://github.com/search?q=",
     icon: "GH",
     logoUrl: "https://github.githubassets.com/favicons/favicon.svg",
-    accent: "bg-[#24292f] text-white",
+    accent: NEUTRAL_GLYPH,
   },
 ];
 

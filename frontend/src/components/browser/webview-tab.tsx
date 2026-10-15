@@ -40,6 +40,7 @@ import {
   VideoIcon,
   type LucideIcon,
 } from "lucide-react";
+import { CrashGlyph } from "./tab-crash-glyph";
 
 import { swallow } from "@/core/utils/log";
 import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
@@ -2361,11 +2362,8 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
 
     if (crash && shown) {
       return (
-        <div
-          style={{ width: "100%", height: "100%" }}
-          className="flex flex-col items-center justify-center gap-3 bg-muted/30 px-6 text-center"
-        >
-          <div className="text-4xl">{crash.autoRecovering ? "🔄" : "😵"}</div>
+        <div className="flex size-full flex-col items-center justify-center gap-3 bg-muted/30 px-6 text-center">
+          <CrashGlyph recovering={crash.autoRecovering} />
           <div className="text-base font-semibold">
             {crash.autoRecovering ? "正在恢复标签页" : wt.crashTitle}
           </div>

@@ -5134,7 +5134,7 @@ export const jaJP: Translations = {
       searchOrUrl: "検索または URL を入力",
       siteInfo: "サイト情報",
       siteInfoDesc:
-        "ログイン状態、Cookie、ローカルデータは ECHO AI ブラウザーに保持され、タブ間で共有されます。",
+        "ログイン状態、Cookie、ローカルデータは AI ブラウザーに保持され、タブ間で共有されます。",
       clearData: "データをクリア",
       openExternally: "外部で開く",
       confirmClearSiteData:

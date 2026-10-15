@@ -5055,7 +5055,7 @@ export const koKR: Translations = {
       searchOrUrl: "검색 또는 URL 입력",
       siteInfo: "사이트 정보",
       siteInfoDesc:
-        "로그인 상태, 쿠키, 로컬 데이터는 ECHO AI 브라우저에 유지되며 탭 간에 공유됩니다.",
+        "로그인 상태, 쿠키, 로컬 데이터는 AI 브라우저에 유지되며 탭 간에 공유됩니다.",
       clearData: "데이터 지우기",
       openExternally: "외부에서 열기",
       confirmClearSiteData:
