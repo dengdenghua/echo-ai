@@ -200,12 +200,12 @@ export function DeviceTaskPanel() {
         </button>
       </form>
       {error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
       {loadError && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-destructive">
           {loadError}
         </p>
       )}
@@ -304,10 +304,10 @@ export function DeviceTaskPanel() {
               </details>
             )}
             {task.error && (
-              <p className="text-xs text-amber-800">{task.error}</p>
+              <p className="text-xs text-destructive">{task.error}</p>
             )}
             {uncertain && (
-              <p className="text-xs text-amber-800">
+              <p className="text-xs text-warning">
                 第 {task.in_flight_step! + 1}{" "}
                 步结果不明。请到目标设备核对；若未完成，可取消任务后重新规划。
               </p>

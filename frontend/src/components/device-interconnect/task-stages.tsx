@@ -27,7 +27,7 @@ export function TaskStageEditor({
     );
   return (
     <div className="space-y-3">
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted-foreground">
         按顺序填写每台设备的目标。核对当前阶段后，再为下一阶段生成计划。
       </p>
       {stages.map((stage, index) => (

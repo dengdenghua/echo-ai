@@ -23,7 +23,7 @@ function RecoverTransfer({ job }: { job: PhoneTransfer }) {
   return (
     <div className="mt-2 space-y-1">
       {job.upload ? (
-        <label className="inline-flex cursor-pointer text-blue-700">
+        <label className="inline-flex cursor-pointer text-core">
           选择原文件继续传输
           <input
             type="file"

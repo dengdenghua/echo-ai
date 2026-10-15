@@ -116,7 +116,7 @@ export function DesktopCast({
   return (
     <section
       aria-label="电脑投到手机"
-      className="border-t border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+      className="border-t border-border bg-card px-3 py-2 text-xs text-muted-foreground"
     >
       <div className="flex items-center justify-between gap-2">
         <span>
@@ -149,7 +149,7 @@ export function DesktopCast({
         </p>
       )}
       {error && (
-        <p role="alert" className="mt-1 text-red-600">
+        <p role="alert" className="mt-1 text-destructive">
           {error}
         </p>
       )}

@@ -31,7 +31,7 @@ type Props = {
   onClose?: () => void;
 };
 const button =
-  "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40";
 const navigationButton = `${button.replace("gap-2", "gap-1").replace("px-3", "px-2")} whitespace-nowrap`;
 const sizeLabel = (size: number) =>
   size < 1024
@@ -274,7 +274,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
     <div
       data-testid="phone-mirror-container"
       style={{ containerType: "size" }}
-      className="flex h-full min-h-0 flex-col bg-[#f5f7fb] text-slate-800"
+      className="flex h-full min-h-0 flex-col bg-background text-foreground"
       onDragOver={(event) => {
         if (event.dataTransfer.types.includes("Files")) {
           event.preventDefault();
@@ -292,8 +292,8 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
         for (const file of dropped) startTransfer(file, true);
       }}
     >
-      <header className="flex flex-wrap items-center gap-2 border-b border-slate-200/80 bg-white/90 px-3 py-2">
-        <span className="rounded-2xl bg-blue-600 p-2.5 text-white">
+      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
+        <span className="rounded-2xl bg-muted p-2.5 text-foreground">
           <MonitorSmartphone size={20} />
         </span>
         <div className="min-w-[120px] flex-1">
@@ -301,7 +301,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
             手机协同
             {selected && (
               <span
-                className="ml-2 font-mono text-[10px] font-normal text-slate-400"
+                className="ml-2 font-mono text-xs font-normal text-muted-foreground"
                 title={selected}
               >
                 {selected.slice(-6)}
@@ -309,7 +309,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
             )}
           </h1>
           <p
-            className="mt-0.5 max-w-48 truncate text-xs text-slate-500"
+            className="mt-0.5 max-w-48 truncate text-xs text-muted-foreground"
             title={selected}
           >
             {device
@@ -324,7 +324,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
             value={selected}
             disabled={running || !!deviceId}
             onChange={(event) => setSelected(event.target.value)}
-            className="order-last w-full rounded-xl border border-slate-200 bg-white p-2 text-xs"
+            className="order-last w-full rounded-xl border border-border bg-card p-2 text-xs"
           >
             {!devices.length && (
               <option value={selected}>
@@ -368,19 +368,19 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
       {deviceError && (
         <p
           role="alert"
-          className="bg-amber-50 px-5 py-2 text-xs text-amber-800"
+          className="bg-destructive/10 px-5 py-2 text-xs text-destructive"
         >
           {deviceError}
         </p>
       )}
       {dragging && (
-        <div className="bg-blue-50 px-4 py-2 text-center text-xs text-blue-700">
+        <div className="bg-accent px-4 py-2 text-center text-xs text-foreground">
           松开发送到此手机的 Echo 文件收发目录
         </div>
       )}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <section className="flex min-w-0 flex-1 flex-col items-center gap-2 overflow-auto p-3">
-          <div className="flex w-full items-center justify-between text-xs text-slate-500">
+          <div className="flex w-full items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-2">
               <i
                 className={`size-2 rounded-full ${online ? "bg-core" : "bg-muted-foreground/40"}`}
@@ -398,7 +398,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
                 style={{
                   maxHeight: "max(180px, calc(100cqh - 200px))",
                 }}
-                className="max-w-full touch-none select-none rounded-2xl border-[6px] border-slate-900 bg-slate-950 shadow-xl"
+                className="max-w-full touch-none select-none rounded-2xl border-[6px] border-black bg-black shadow-xl"
                 onPointerDown={(event) => {
                   if (event.button !== 0 || controlling) return;
                   event.preventDefault();
@@ -461,8 +461,11 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
                 }}
               />
             ) : (
-              <div className="max-w-sm rounded-3xl border border-dashed border-slate-300 bg-white/60 px-8 py-14 text-center">
-                <Smartphone className="mx-auto mb-4 text-slate-400" size={36} />
+              <div className="max-w-sm rounded-3xl border border-dashed border-border bg-card px-8 py-14 text-center">
+                <Smartphone
+                  className="mx-auto mb-4 text-muted-foreground"
+                  size={36}
+                />
                 <p className="text-sm font-medium">
                   {frameError
                     ? "暂时无法显示画面"
@@ -476,7 +479,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
                             ? "暂时无法显示画面"
                             : "正在获取手机画面…"}
                 </p>
-                <p className="mt-3 text-xs leading-6 text-slate-500">
+                <p className="mt-3 text-xs leading-6 text-muted-foreground">
                   {frameError ||
                     "真机、Android 模拟器和云手机使用同一入口。连接后，在手机授权屏幕采集与无障碍操作。"}
                 </p>
@@ -530,11 +533,11 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
             }
           />
           {error && (
-            <p role="alert" className="text-xs text-red-600">
+            <p role="alert" className="text-xs text-destructive">
               {error}
             </p>
           )}
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground">
             点击操作 · 拖动画面滑动 · 画面随手机方向变化
           </p>
         </section>
@@ -542,7 +545,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
           <aside
             id="phone-files"
             aria-label="文件收发"
-            className="absolute inset-y-0 right-0 z-10 w-80 max-w-full overflow-auto border-l border-slate-200 bg-white p-4 shadow-xl"
+            className="absolute inset-y-0 right-0 z-10 w-80 max-w-full overflow-auto border-l border-border bg-card p-4 shadow-xl"
           >
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Files size={17} />
@@ -555,16 +558,16 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
                 <X size={14} />
               </button>
             </div>
-            <p className="mt-2 text-xs leading-6 text-slate-500">
+            <p className="mt-2 text-xs leading-6 text-muted-foreground">
               拖入文件发送到手机的 Echo 收发目录。手机上选择文件 → 分享 → Echo
               文件收发，电脑会自动更新列表。
             </p>
             <label
-              className={`mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-blue-200 bg-blue-50/60 p-5 text-xs text-blue-700 ${!online ? "opacity-40" : "hover:bg-blue-50"}`}
+              className={`mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-muted/50 p-5 text-xs text-foreground ${!online ? "opacity-40" : "hover:bg-muted"}`}
             >
               <FileUp size={24} />
               <span>选择文件或拖到这里</span>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-muted-foreground">
                 单文件最大 100 MiB · 校验后完成
               </span>
               <input
@@ -595,25 +598,25 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
               </button>
             </div>
             {fileError && (
-              <p role="alert" className="mb-3 text-xs text-red-600">
+              <p role="alert" className="mb-3 text-xs text-destructive">
                 {fileError}
               </p>
             )}
             {!files.length && (
-              <p className="py-6 text-center text-xs text-slate-400">
+              <p className="py-6 text-center text-xs text-muted-foreground">
                 {online ? "目录暂无文件" : "设备连接后显示文件"}
               </p>
             )}
             {files.map((file) => (
               <div
                 key={file.name}
-                className="flex items-center gap-2 border-b border-slate-100 py-3"
+                className="flex items-center gap-2 border-b border-border/60 py-3"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs" title={file.name}>
                     {file.name}
                   </p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {sizeLabel(file.size)}
                   </p>
                 </div>
