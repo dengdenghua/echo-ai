@@ -259,6 +259,12 @@ export class EchoClient {
     get: (threadId: string): Promise<Thread> =>
       this.get<Thread>(`/threads/${threadId}`),
 
+    /** Whether this account can open the thread; a missing one is not a 404. */
+    exists: (
+      threadId: string,
+    ): Promise<{ thread_id: string; exists: boolean }> =>
+      this.get(`/threads/${encodeURIComponent(threadId)}/exists`),
+
     search: <T = Record<string, unknown>>(
       params?: Record<string, unknown>,
     ): Promise<Thread<T>[]> =>

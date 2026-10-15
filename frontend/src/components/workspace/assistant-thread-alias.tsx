@@ -4,7 +4,6 @@ import { Navigate, useLocation, useParams } from "react-router-dom";
 
 import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 import { getAPIClient } from "@/core/api";
-import { isApiErrorStatus } from "@/core/api/request";
 import { markThreadBorn, markThreadUnborn } from "@/core/api/unborn-threads";
 import { eventBus } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
@@ -40,12 +39,11 @@ export function AssistantThreadAlias({ children }: { children: ReactNode }) {
     retry: false,
     queryFn: async () => {
       try {
-        await getAPIClient().threads.get(ASSISTANT_ALIAS_ID);
-        return true;
-      } catch (error) {
         // Missing, or another account's: use this account's own thread.
-        // Anything else (offline, 5xx) keeps the original behaviour.
-        return !isApiErrorStatus(error, 403, 404);
+        return (await getAPIClient().threads.exists(ASSISTANT_ALIAS_ID)).exists;
+      } catch {
+        // Offline or 5xx: keep the original behaviour.
+        return true;
       }
     },
   });
@@ -63,13 +61,14 @@ export function AssistantThreadAlias({ children }: { children: ReactNode }) {
       if (!id) return true;
       markThreadBorn(id);
       try {
-        await getAPIClient().threads.get(id);
+        // Asked without a 404: before the first message, "not yet" is the
+        // expected answer, not an error for the console.
+        if ((await getAPIClient().threads.exists(id)).exists) return true;
+      } catch {
         return true;
-      } catch (error) {
-        if (!isApiErrorStatus(error, 404)) return true;
-        markThreadUnborn(id);
-        return false;
       }
+      markThreadUnborn(id);
+      return false;
     },
   });
   useEffect(() => {

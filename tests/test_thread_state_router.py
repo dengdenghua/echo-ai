@@ -629,3 +629,45 @@ def test_session_title_refresh_respects_pin() -> None:
     assert response.status_code == 200
     assert response.json()["title"] == "pinned"
     assert response.json()["source"] == "user"
+
+
+def test_thread_exists_answers_without_a_404(tmp_path) -> None:
+    # The 助手 alias asks before its conversation's first message; "not yet"
+    # is the expected answer there, so it must not arrive as an HTTP error.
+    from runtime.safety.auth import Identity, IdentityStore
+
+    identity_store = IdentityStore()
+    identity_store.add(Identity(actor_id="alice"), api_key_plaintext="sk-alice")
+    identity_store.add(Identity(actor_id="bob"), api_key_plaintext="sk-bob")
+    store = ThreadStateStore()
+    store.ensure_thread("owned", metadata={"owner_actor_id": "alice"}, values={})
+    app = FastAPI()
+    app.include_router(
+        create_thread_state_router(store=store, identity_store=identity_store, require_auth=True)
+    )
+    client = TestClient(app)
+
+    def exists(client: TestClient, thread_id: str, key: str | None = None) -> object:
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
+        response = client.get(f"/api/threads/{thread_id}/exists", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["thread_id"] == thread_id
+        return response.json()["exists"]
+
+    assert exists(client, "owned", "sk-alice") is True
+    # Someone else's thread reads as missing, as GET answers it.
+    assert exists(client, "owned", "sk-bob") is False
+    assert exists(client, "never-written", "sk-alice") is False
+    assert client.get("/api/threads/owned/exists").status_code == 401
+
+    # An archived thread is gone, as GET answers it.
+    logs_root = tmp_path / "threads"
+    EventLog(logs_root / "th-gone.jsonl").thread_started("th-gone")
+    store = ThreadStateStore()
+    store.ensure_thread("th-gone", values={"title": "Gone"})
+    app = FastAPI()
+    app.include_router(create_thread_state_router(store=store, logs_root=logs_root))
+    open_client = TestClient(app)
+    assert exists(open_client, "th-gone") is True
+    assert open_client.delete("/api/threads/th-gone").status_code == 204
+    assert exists(open_client, "th-gone") is False

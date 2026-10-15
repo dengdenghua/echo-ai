@@ -24,9 +24,17 @@ except ImportError:  # pragma: no cover
     Request = None  # type: ignore[assignment, misc]
     Response = None  # type: ignore[assignment, misc]
 
+from pydantic import BaseModel
+
 from ._thread_state_deps import ThreadStateDeps
 from ._thread_state_search_projection import project_visible_search_page, search_select_fields
 from .thread_workspace import strip_client_workspace_metadata
+
+
+class ThreadExistsResponse(BaseModel):
+    thread_id: str
+    exists: bool
+
 
 # Keep the original logger name so log routing and filters are unchanged.
 _logger = logging.getLogger("runtime.sensing.gateway.thread_state_router")
@@ -406,6 +414,25 @@ def _register_thread_reads(router: APIRouter, d: ThreadStateDeps) -> None:
             _require_thread_id,
             _get_accessible_thread,
         )
+
+    @router.get("/api/threads/{thread_id}/exists", response_model=ThreadExistsResponse)
+    def thread_exists(request: Request, thread_id: str) -> ThreadExistsResponse:
+        """Whether the caller can open this thread, answered without a 404.
+
+        The 助手 alias asks before its conversation's first message, when a
+        missing thread is the expected answer rather than an error. Archived
+        threads and threads the caller may not read are missing, exactly as
+        ``GET /api/threads/{thread_id}`` would answer.
+        """
+        actor_id = _auth(request)
+        tenant_id = _tenant(request)
+        _require_store()
+        thread_id = _require_thread_id(thread_id)
+        exists = (
+            not _is_archived(thread_id)
+            and _get_accessible_thread(thread_id, actor_id, tenant_id) is not None
+        )
+        return ThreadExistsResponse(thread_id=thread_id, exists=exists)
 
     @router.get("/api/threads/{thread_id}")
     def get_thread(request: Request, thread_id: str) -> dict[str, Any]:

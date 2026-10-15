@@ -927,6 +927,12 @@ tier: "standard"
 | class | `class ThreadStateDeps` | Per-router stores, flags, and closures shared by the endpoint groups. |
 | func | `def build_thread_state_deps(store, logs_root, session_titles, identity_store, require_auth, managed_workspace_required, jwt_secret, jwt_issuer, jwt_audience, workspace_root, group_store, project_store, access_resolver, share_store, share_relay)` | Build the closures exactly as the factory used to define them. |
 
+### `_thread_state_endpoints.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class ThreadExistsResponse(BaseModel)` |  |
+
 ### `_thread_state_search_projection.py`
 
 | Kind | Symbol | Doc |

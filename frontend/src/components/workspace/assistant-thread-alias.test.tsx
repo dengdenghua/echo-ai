@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
     authStatus: { enabled: boolean };
     user: { user_id: string; actor_id?: string };
   },
-  getThread: vi.fn(),
+  exists: vi.fn(),
 }));
 
 vi.mock("@/providers/AuthProvider", () => ({
@@ -28,7 +28,9 @@ vi.mock("@/providers/AuthProvider", () => ({
 }));
 
 vi.mock("@/core/api", () => ({
-  getAPIClient: () => ({ threads: { get: mocks.getThread } }),
+  // Only the 404-free existence check: a thread read would put a 404 in the
+  // console on every first visit.
+  getAPIClient: () => ({ threads: { exists: mocks.exists } }),
 }));
 
 import { AssistantThreadAlias } from "./assistant-thread-alias";
@@ -66,23 +68,31 @@ describe("AssistantThreadAlias", () => {
       authStatus: { enabled: true },
       user: { user_id: "local:reader", actor_id: "local:reader" },
     };
-    mocks.getThread.mockReset();
+    mocks.exists.mockReset();
   });
 
   it("gives an account without the original thread its own assistant", async () => {
     // Another account wrote to echo-assistant first; this one cannot read it.
-    mocks.getThread.mockRejectedValue(
-      new EchoAPIError("not found", 404, "thread not found"),
-    );
+    mocks.exists.mockResolvedValue({ exists: false });
     renderAlias();
     const own = personalAssistantThreadId("local:reader");
     expect(
       await screen.findByText(`chat ${own}?agent=echo`),
     ).toBeInTheDocument();
+    expect(mocks.exists).toHaveBeenCalledWith("echo-assistant");
+    expect(mocks.exists).toHaveBeenCalledWith(own);
+  });
+
+  it("keeps the original route when the server cannot answer", async () => {
+    mocks.exists.mockRejectedValue(new EchoAPIError("down", 503, "down"));
+    renderAlias();
+    expect(
+      await screen.findByText("chat echo-assistant?agent=echo"),
+    ).toBeInTheDocument();
   });
 
   it("keeps the original thread for the account that already has it", async () => {
-    mocks.getThread.mockResolvedValue({ thread_id: "echo-assistant" });
+    mocks.exists.mockResolvedValue({ exists: true });
     renderAlias();
     expect(
       await screen.findByText("chat echo-assistant?agent=echo"),
@@ -94,22 +104,20 @@ describe("AssistantThreadAlias", () => {
       authStatus: { enabled: false },
       user: { user_id: "anonymous" },
     };
-    mocks.getThread.mockResolvedValue({ thread_id: "echo-assistant" });
+    mocks.exists.mockResolvedValue({ exists: true });
     renderAlias();
     expect(
       await screen.findByText("chat echo-assistant?agent=echo"),
     ).toBeInTheDocument();
 
-    mocks.getThread.mockReset();
+    mocks.exists.mockReset();
     renderAlias("/workspace/realtime/t-abc");
     expect(screen.getByText("chat t-abc")).toBeInTheDocument();
-    expect(mocks.getThread).not.toHaveBeenCalled();
+    expect(mocks.exists).not.toHaveBeenCalled();
   });
 
   it("answers reads of an assistant thread locally until its first run", async () => {
-    mocks.getThread.mockRejectedValue(
-      new EchoAPIError("not found", 404, "thread not found"),
-    );
+    mocks.exists.mockResolvedValue({ exists: false });
     renderAlias();
     const own = personalAssistantThreadId("local:reader");
     await screen.findByText(`chat ${own}?agent=echo`);
