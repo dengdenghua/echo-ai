@@ -124,9 +124,12 @@ def test_gateway_configuration_precedes_first_router_call(monkeypatch, materiali
         assert configured == []
     assert stack.native_router.call("request") == "configured answer"
     factory.assert_called_once()
-    fallback_factory.assert_called_once_with("native-model")
     assert configured[0]._link_store is store
-    assert configured[0]._self is fallback
+    # The self-configured fallback is built on first use and again whenever
+    # custom_models.json changes, so a deleted model stops answering.
+    fallback_factory.assert_not_called()
+    assert configured[0]._self.current() is fallback
+    fallback_factory.assert_called_once_with("native-model")
     assert configured[0]._oct.default_model == "gateway-model"
 
 

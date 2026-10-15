@@ -38,16 +38,11 @@ def _configure_oct_fallback_router(*, planner: Any, oct_config: Any, link_store:
     if dispatcher is None or not hasattr(dispatcher, "set_fallback"):
         return
     try:
-        from runtime.sensing.model_router.models import UnconfiguredModelRouter
+        from runtime.sensing.model_router.live_fallback import LiveCustomModelFallback
         from runtime.sensing.model_router.oct_router import OctFallbackRouter, OctModelRouter
-        from runtime.sensing.model_router.openai_router import (
-            build_fallback_router_from_custom_models,
-        )
 
-        planner_model = getattr(planner, "planner_model", None)
-        self_fallback = (
-            build_fallback_router_from_custom_models(planner_model) or UnconfiguredModelRouter()
-        )
+        # Follows Settings → 模型: a deleted model stops answering at once.
+        self_fallback = LiveCustomModelFallback(getattr(planner, "planner_model", None))
         oct_router = OctModelRouter(
             link_store=link_store,
             base_url=getattr(oct_config, "base_url", None) or "https://api.echo-age.com",

@@ -365,23 +365,17 @@ def _build_planner(
             and not os.environ.get("ANTHROPIC_AUTH_TOKEN")
         ):
             from runtime.sensing.model_router.dispatch_router import ModelDispatchRouter
-            from runtime.sensing.model_router.models import UnconfiguredModelRouter
-            from runtime.sensing.model_router.openai_router import (
-                build_fallback_router_from_custom_models,
-            )
+            from runtime.sensing.model_router.live_fallback import LiveCustomModelFallback
 
             # Self-configured model (custom_models.json) is the fallback so
             # unresolved / guest requests run a real model. When none is
             # configured, a clear "no model configured" error beats the old
-            # account fallback's confusing login gate.
-            self_fallback = build_fallback_router_from_custom_models(p.model)
-            router = ModelDispatchRouter(fallback=self_fallback or UnconfiguredModelRouter())
+            # account fallback's confusing login gate. It follows the file,
+            # so a model deleted in Settings stops answering at once.
+            router = ModelDispatchRouter(fallback=LiveCustomModelFallback(p.model))
         else:
             from runtime.sensing.model_router.dispatch_router import ModelDispatchRouter
-            from runtime.sensing.model_router.models import UnconfiguredModelRouter
-            from runtime.sensing.model_router.openai_router import (
-                build_fallback_router_from_custom_models,
-            )
+            from runtime.sensing.model_router.live_fallback import LiveCustomModelFallback
 
             # The packaged desktop app ships a keyless config on purpose. If no
             # anthropic key is configured, fall back to a self-configured model
@@ -393,8 +387,7 @@ def _build_planner(
                 or os.environ.get("ANTHROPIC_AUTH_TOKEN")
             )
             if not _has_anthropic_key:
-                self_fallback = build_fallback_router_from_custom_models(p.model)
-                router = ModelDispatchRouter(fallback=self_fallback or UnconfiguredModelRouter())
+                router = ModelDispatchRouter(fallback=LiveCustomModelFallback(p.model))
             else:
                 from runtime.sensing.model_router.anthropic_router import AnthropicModelRouter
 

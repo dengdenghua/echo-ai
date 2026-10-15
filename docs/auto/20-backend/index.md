@@ -32,7 +32,7 @@ graph LR
   sensing[sensing]
   adapters[adapters]
   platform[platform]
-  sensing -- 225 --> platform
+  sensing -- 227 --> platform
   sensing -- 180 --> safety
   execution -- 172 --> platform
   sensing -- 138 --> execution

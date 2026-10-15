@@ -72,6 +72,7 @@ Public model interfaces; provider implementations load on first access.
 | `gemini_router.py` | — |
 | `hf_catalog.py` | Live local-model catalog from the HuggingFace Hub (GGUF), with offline fallback. |
 | `hwfit.py` | Local-model cookbook: recommend which model to run on THIS machine. |
+| `live_fallback.py` | The self-configured dispatch fallback, kept in step with Settings → 模型. |
 | `models.py` | Model router types and the mock implementation. |
 | `multi_router.py` | — |
 | `oct_router.py` | — |
@@ -194,6 +195,12 @@ Public model interfaces; provider implementations load on first access.
 | func | `def start_pull(tag)` | Kick an ollama pull in the background and return immediately. Poll ``cookbook_snapshot()['pulls']`` (or ``installed`` flags) for progress. |
 | func | `def pull_states()` |  |
 | func | `def cookbook_snapshot()` | Everything the UI needs in one call: hardware + ranked recommendations, with installed flags, ollama availability, in-flight pulls, and the  |
+
+### `live_fallback.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class LiveCustomModelFallback(ModelRouter)` | ``build_fallback_router_from_custom_models`` that follows the catalog. |
 
 ### `models.py`
 
