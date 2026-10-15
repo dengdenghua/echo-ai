@@ -599,8 +599,13 @@ def test_project_canvas_presence_heartbeats_lists_leaves_and_expires(monkeypatch
         },
     )
     assert first.status_code == 200
-    assert first.json()["items"][0]["display_name"] == "Alice"
-    assert first.json()["items"][0]["color"].startswith("#")
+    alice = first.json()["items"][0]
+    assert alice["display_name"] == "Alice"
+    # A slot on the UI's categorical ramp, never a hex colour of the server's own.
+    assert "color" not in alice
+    assert alice["color_index"] in range(6)
+    again = client.post(base, json={"client_id": "client-alpha", "display_name": "Alice"})
+    assert again.json()["items"][0]["color_index"] == alice["color_index"]
 
     second = client.post(
         base,

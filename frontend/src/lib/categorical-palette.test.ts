@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   CATEGORICAL_SLOTS,
   categoricalSlot,
+  categoricalSlotAt,
   categoricalSnowHex,
   categoricalVar,
   resolveCategoricalRamp,
@@ -41,6 +42,17 @@ describe("categorical palette", () => {
       Array.from({ length: 60 }, (_, i) => categoricalSlot(`type-${i}`)),
     );
     expect(slots.size).toBe(CATEGORICAL_SLOTS);
+  });
+
+  it("takes a slot assigned as a 0-based index, else the key's own", () => {
+    expect(categoricalSlotAt(0, "a")).toBe(1);
+    expect(categoricalSlotAt(5, "a")).toBe(6);
+    expect(categoricalSlotAt(6, "a")).toBe(1);
+    expect(categoricalSlotAt(-1, "a")).toBe(6);
+    expect(categoricalSlotAt(undefined, "person")).toBe(
+      categoricalSlot("person"),
+    );
+    expect(categoricalSlotAt(1.5, "person")).toBe(categoricalSlot("person"));
   });
 
   it("declares six literal hex values for Snow and Graphite", () => {

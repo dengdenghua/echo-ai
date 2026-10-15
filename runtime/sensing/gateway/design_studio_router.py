@@ -276,9 +276,9 @@ def _presence_now() -> float:
     return time.monotonic()
 
 
-def _presence_color(identity: str) -> str:
-    palette = ("#7c3aed", "#2563eb", "#0891b2", "#059669", "#db2777", "#ea580c")
-    return palette[sum(identity.encode("utf-8")) % len(palette)]
+def _presence_color_index(identity: str) -> int:
+    """Slot on the UI's categorical ramp (``--cat-1``..``--cat-6``, sent 0-based); never a hex."""
+    return int(hashlib.sha256(identity.encode("utf-8")).hexdigest()[:8], 16) % 6
 
 
 def _active_presence(project_id: str, *, now: float) -> list[dict[str, Any]]:
@@ -524,7 +524,7 @@ def _register_canvas_routes(
                 "x": body.x,
                 "y": body.y,
                 "section": body.section,
-                "color": _presence_color(identity),
+                "color_index": _presence_color_index(identity),
                 "updated_at": datetime.now(UTC).isoformat(),
                 "seen_at_monotonic": now,
             }

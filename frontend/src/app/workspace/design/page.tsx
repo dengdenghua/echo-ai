@@ -104,7 +104,7 @@ import {
   type DesignCanvasAgentContext,
   type DesignResultMessage,
 } from "@/core/design/mode-bridge";
-import { categoricalSlot, categoricalVar } from "@/lib/categorical-palette";
+import { categoricalSlotAt, categoricalVar } from "@/lib/categorical-palette";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -226,9 +226,9 @@ function canvasToneStyle(tone: { color: string; darkColor: string }) {
   } as CSSProperties;
 }
 
-/** A collaborator's colour on the categorical ramp, stable per participant. */
-function presenceColor(id: string): string {
-  return categoricalVar(categoricalSlot(id));
+/** A collaborator's colour: the slot the server gave them on the ramp. */
+function presenceColor(member: CanvasPresenceMember): string {
+  return categoricalVar(categoricalSlotAt(member.color_index, member.id));
 }
 type CanvasSyncState =
   | "local"
@@ -255,7 +255,7 @@ type CanvasPresenceMember = {
   x: number | null;
   y: number | null;
   section: DesignSection;
-  color: string;
+  color_index?: number;
   updated_at: string;
 };
 type ProjectArtifact = {
@@ -6167,7 +6167,7 @@ export default function DesignPage({
             >
               <path
                 d="M2 1.5 16 12l-7.1 1.2L5.4 20Z"
-                fill={presenceColor(member.id)}
+                fill={presenceColor(member)}
                 stroke="white"
                 strokeWidth="1.5"
                 strokeLinejoin="round"
@@ -6175,7 +6175,7 @@ export default function DesignPage({
             </svg>
             <span
               className="absolute left-3 top-4 whitespace-nowrap rounded-md px-1.5 py-0.5 text-micro font-medium text-background shadow-sm"
-              style={{ backgroundColor: presenceColor(member.id) }}
+              style={{ backgroundColor: presenceColor(member) }}
             >
               {member.display_name}
             </span>
@@ -7604,7 +7604,7 @@ export default function DesignPage({
                 <span
                   key={member.id}
                   className="grid size-6 place-items-center rounded-full border-2 border-background text-micro font-semibold text-background"
-                  style={{ backgroundColor: presenceColor(member.id) }}
+                  style={{ backgroundColor: presenceColor(member) }}
                   title={`${member.display_name} · ${member.section === "canvas" ? "画布" : member.section}`}
                 >
                   {member.display_name.slice(0, 1).toUpperCase()}

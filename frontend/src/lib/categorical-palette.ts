@@ -36,6 +36,22 @@ export function categoricalSlot(key: string): CategoricalSlot {
 }
 
 /**
+ * A slot another party chose as a 0-based ramp index (the Design presence
+ * endpoint sends `color_index`, so every viewer draws a collaborator alike),
+ * or the stable slot for `key` when that index is missing.
+ */
+export function categoricalSlotAt(
+  index: number | null | undefined,
+  key: string,
+): CategoricalSlot {
+  if (typeof index !== "number" || !Number.isInteger(index)) {
+    return categoricalSlot(key);
+  }
+  const n = SLOTS.length;
+  return SLOTS[((index % n) + n) % n] ?? 1;
+}
+
+/**
  * A slot's Snow value: dark enough for white text in either theme. Use it
  * where a colour leaves this client (e.g. stored with an annotation author),
  * so every viewer draws the same readable swatch.
