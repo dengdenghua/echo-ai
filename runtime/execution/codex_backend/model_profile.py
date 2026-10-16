@@ -58,6 +58,9 @@ class CodexModelPreference:
         object.__setattr__(self, "app_ids", normalized_apps)
 
 
+_ModelSource = Literal["turn", "role", "system", "codex_default"]
+
+
 @dataclass(frozen=True, slots=True)
 class ResolvedCodexExecutionProfile:
     """Effective model decision after all server-owned precedence rules."""
@@ -66,7 +69,7 @@ class ResolvedCodexExecutionProfile:
     effective_model: str | None
     system_model: str | None
     reasoning_effort: str | None
-    model_source: Literal["turn", "role", "system", "codex_default"]
+    model_source: _ModelSource
     provider: str
     provider_profile: CodexProviderProfile | None
     compatible: bool
@@ -126,7 +129,7 @@ class CodexModelPreferenceStore:
             if mode == "follow_system" and is_disallowed_coder_system_model(model):
                 model = None
             return CodexModelPreference(
-                mode=mode,  # type: ignore[arg-type]
+                mode=mode,
                 model=model,
                 reasoning_effort=_optional_string(payload.get("reasoning_effort")),
                 app_ids=tuple(payload.get("app_ids") or ()),
@@ -182,8 +185,17 @@ def resolve_codex_execution_profile(
     custom_models: Mapping[str, Mapping[str, Any]] | None = None,
     proxy_available: bool = False,
     proxy_route_available: Callable[[str], bool] | None = None,
+    account_signed_in: Callable[[], bool] | None = None,
 ) -> ResolvedCodexExecutionProfile:
-    """Resolve ``turn > role > system > Codex default`` without client secrets."""
+    """Resolve ``turn > role > system > Codex default`` without client secrets.
+
+    ``account_signed_in``: whether this principal's Codex account can answer.
+    When only Echo's own default stands behind the follow-system choice and
+    that default cannot run (a fresh install's placeholder with no model
+    behind it), a signed-in account lets Codex choose, as it does when Echo
+    has no default at all. A model picked for the role or turn never falls
+    back.
+    """
 
     selected_preference = preference or CodexModelPreference()
     explicit_role_model = _normalize_model(role_model)
@@ -213,7 +225,7 @@ def resolve_codex_execution_profile(
             _normalize_effort(role_effort) or selected_preference.reasoning_effort,
             _normalize_effort(system_effort),
         )
-    source: Literal["turn", "role", "system", "codex_default"] = "codex_default"
+    source: _ModelSource = "codex_default"
     selected_model: str | None = None
     for candidate_source, candidate in candidates:
         if candidate is not None:
@@ -240,16 +252,52 @@ def resolve_codex_execution_profile(
     # A missing Echo default deliberately means "let Codex choose".  It
     # stays in Codex's own account/default domain and needs no host proxy.
     if selected_model is None:
-        return ResolvedCodexExecutionProfile(
-            mode="follow_system",
-            effective_model=None,
-            system_model=normalized_system,
-            reasoning_effort=selected_effort,
-            model_source=source,
-            provider="openai",
-            provider_profile=None,
-            compatible=True,
-        )
+        return _codex_default(normalized_system, selected_effort, source)
+    resolved_profile = _follow_system_profile(
+        selected_model,
+        source=source,
+        normalized_system=normalized_system,
+        selected_effort=selected_effort,
+        custom_models=custom_models,
+        proxy_available=proxy_available,
+        proxy_route_available=proxy_route_available,
+    )
+    if (
+        not resolved_profile.compatible
+        and source == "system"
+        and account_signed_in is not None
+        and account_signed_in()
+    ):
+        return _codex_default(normalized_system, selected_effort, "codex_default")
+    return resolved_profile
+
+
+def _codex_default(
+    normalized_system: str | None, selected_effort: str | None, source: _ModelSource
+) -> ResolvedCodexExecutionProfile:
+    return ResolvedCodexExecutionProfile(
+        mode="follow_system",
+        effective_model=None,
+        system_model=normalized_system,
+        reasoning_effort=selected_effort,
+        model_source=source,
+        provider="openai",
+        provider_profile=None,
+        compatible=True,
+    )
+
+
+def _follow_system_profile(
+    selected_model: str,
+    *,
+    source: _ModelSource,
+    normalized_system: str | None,
+    selected_effort: str | None,
+    custom_models: Mapping[str, Mapping[str, Any]] | None,
+    proxy_available: bool,
+    proxy_route_available: Callable[[str], bool] | None,
+) -> ResolvedCodexExecutionProfile:
+    """An Echo model through the scoped Responses proxy, if it can run."""
 
     catalog = {str(key): dict(value) for key, value in (custom_models or {}).items()}
     # Host orchestration aliases are not executable model ids. Do not send
@@ -394,7 +442,7 @@ def _validate_preference_payload(payload: Any) -> None:
     if not isinstance(payload.get("app_ids", []), (list, tuple)):
         raise ConfigurationError("Codex connector selection must be an array")
     CodexModelPreference(
-        mode=str(payload.get("mode") or "follow_system"),  # type: ignore[arg-type]
+        mode=str(payload.get("mode") or "follow_system"),
         model=_optional_string(payload.get("model")),
         reasoning_effort=_optional_string(payload.get("reasoning_effort")),
         app_ids=tuple(payload.get("app_ids") or ()),

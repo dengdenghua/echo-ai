@@ -361,21 +361,27 @@ def _register_coder_codex(router: Any, ctx: _ConfigCtx) -> None:
 
 
 def _resolved_profile(ctx: _ConfigCtx, preference: CodexModelPreference, scope: Any = None):
+    from runtime.execution.codex_backend.role_runner import signed_in
     from runtime.execution.engine_observations import engine_observations
 
     router = getattr(getattr(ctx.stack, "planner", None), "router", None)
+    resolve_auth = getattr(ctx.codex_accounts, "resolve_execution_auth_home", None)
+
+    def auth_source() -> Any:
+        return resolve_auth(scope) if callable(resolve_auth) else None
+
     profile = resolve_codex_execution_profile(
         preference=preference,
         system_model=_system_model(ctx.stack),
         custom_models=ctx.custom_models_snapshot(),
         proxy_available=router is not None and callable(getattr(router, "call", None)),
         proxy_route_available=lambda model: codex_proxy_route_available(router, model),
+        account_signed_in=signed_in(auth_source),
     )
-    auth_source = getattr(ctx.codex_accounts, "resolve_execution_auth_home", None)
     readiness = inspect_codex_readiness(
         profile,
         tools_available=getattr(getattr(ctx.stack, "executor", None), "registry", None) is not None,
-        auth_source=lambda: auth_source(scope) if callable(auth_source) else None,
+        auth_source=auth_source,
     )
     return {
         **profile.to_wire(),

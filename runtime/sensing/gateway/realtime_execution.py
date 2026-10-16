@@ -103,6 +103,7 @@ def codex_readiness_for_turn(runtime: Any, turn: Turn, agent: Any) -> CodexReadi
     from runtime.execution.codex_backend.role_runner import (
         _execution_profile,
         deployment_mode,
+        signed_in,
         source_codex_home,
         state_root_for_workspace,
     )
@@ -123,18 +124,28 @@ def codex_readiness_for_turn(runtime: Any, turn: Turn, agent: Any) -> CodexReadi
             return CodexReadiness(False, "principal_unavailable")
         scope = TenantScope(tenant_id=tenant, actor_id=actor) if actor and tenant else None
         preference = CodexModelPreferenceStore(state_root / "model_profile.json").read(scope)
-        profile = _execution_profile(runtime._stack, agent, {}, preference=preference)
-        return inspect_codex_readiness(
-            profile,
-            tools_available=getattr(getattr(runtime._stack, "executor", None), "registry", None)
-            is not None,
-            auth_source=lambda: resolve_codex_execution_auth_home(
+
+        def auth_source() -> Path | None:
+            return resolve_codex_execution_auth_home(
                 state_root=state_root,
                 scope=scope,
                 deployment_mode=deployment_mode(),
                 legacy_source_home=source_codex_home(),
                 allow_local_principal_inheritance=deployment_mode() == "local",
-            ),
+            )
+
+        profile = _execution_profile(
+            runtime._stack,
+            agent,
+            {},
+            preference=preference,
+            account_signed_in=signed_in(auth_source),
+        )
+        return inspect_codex_readiness(
+            profile,
+            tools_available=getattr(getattr(runtime._stack, "executor", None), "registry", None)
+            is not None,
+            auth_source=auth_source,
         )
     except ConfigurationError:
         return CodexReadiness(False, "model_incompatible")

@@ -300,6 +300,7 @@ def _execution_profile(
     context: Mapping[str, Any],
     *,
     preference: CodexModelPreference,
+    account_signed_in: Callable[[], bool] | None = None,
 ) -> ResolvedCodexExecutionProfile:
     if preference.mode == "chatgpt":
         turn_model, turn_effort = _server_model_override(agent, context)
@@ -337,7 +338,34 @@ def _execution_profile(
         proxy_route_available=lambda model: codex_proxy_route_available(
             getattr(planner, "router", None), model
         ),
+        account_signed_in=account_signed_in,
     ).require_compatible()
+
+
+def _auth_home_finder(
+    state_root: Path, scope: TenantScope | None, mode: str
+) -> Callable[[], Path | None]:
+    """The principal's execution auth home lookup, run only when needed."""
+
+    return lambda: resolve_codex_execution_auth_home(
+        state_root=state_root,
+        scope=scope,
+        deployment_mode=mode,
+        legacy_source_home=source_codex_home(),
+        allow_local_principal_inheritance=mode == "local",
+    )
+
+
+def signed_in(auth_home: Callable[[], Path | None]) -> Callable[[], bool]:
+    """``account_signed_in`` for a principal's execution auth home lookup."""
+
+    def check() -> bool:
+        try:
+            return auth_home() is not None
+        except (CodexSecurityError, ConfigurationError, OSError, ValueError):
+            return False
+
+    return check
 
 
 def _server_model_override(
@@ -487,16 +515,12 @@ def build_codex_role_request(
         preference.mode != "chatgpt" or requested_app_id not in preference.app_ids
     ):
         raise CodexSecurityError("requested ChatGPT connector is not enabled for this principal")
-    profile = _execution_profile(stack, agent, ctx, preference=preference)
-    auth_home = None
-    if not profile.proxy_required:
-        auth_home = resolve_codex_execution_auth_home(
-            state_root=state_root,
-            scope=scope,
-            deployment_mode=mode,
-            legacy_source_home=source_codex_home(),
-            allow_local_principal_inheritance=mode == "local",
-        )
+
+    find_auth_home = _auth_home_finder(state_root, scope, mode)
+    profile = _execution_profile(
+        stack, agent, ctx, preference=preference, account_signed_in=signed_in(find_auth_home)
+    )
+    auth_home = None if profile.proxy_required else find_auth_home()
     connector_instructions = ""
     if requested_app_id:
         connector_instructions = (

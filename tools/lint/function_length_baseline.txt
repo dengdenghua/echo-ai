@@ -161,7 +161,7 @@ runtime/execution/subagents/bridge.py::call_subagent._do_call	213
 runtime/core/cerebrum/_react_parsing_tools.py::_extract_tool_actions_from_loose_output	211
 runtime/execution/codex_backend/events.py::_translate_notification	211
 runtime/execution/suckers/_ephemeral_events.py::_emit_subagent_lifecycle_event	211
-runtime/execution/codex_backend/role_runner.py::build_codex_role_request	210
+runtime/execution/codex_backend/role_runner.py::build_codex_role_request	206
 runtime/sensing/gateway/computer_router.py::create_computer_router.execute_action	210
 runtime/sensing/gateway/_openai_gateway_router_run.py::_run_chat	209
 runtime/cli_run.py::run_goal	208
