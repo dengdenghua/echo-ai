@@ -29,6 +29,10 @@ _REPO = Path(__file__).resolve().parent.parent
 _REQUIRED_RUNTIME_WHEEL_FILES = {
     "runtime/core/cerebrum/react_execution_receipts.py",
     "runtime/execution/codex_backend/__init__.py",
+    "runtime/execution/codex_backend/_account_auth.py",
+    "runtime/execution/codex_backend/_account_catalog.py",
+    "runtime/execution/codex_backend/_account_plugins.py",
+    "runtime/execution/codex_backend/_account_wire.py",
     "runtime/execution/codex_backend/_config_validation.py",
     "runtime/execution/codex_backend/_security_support.py",
     "runtime/execution/codex_backend/_transport.py",
