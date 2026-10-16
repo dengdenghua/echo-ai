@@ -83,7 +83,7 @@
     "src/components/workspace/automation/automation-create-dialog.tsx": 1,
     "src/components/workspace/automation/automation-history-tab.tsx": 1,
     "src/components/workspace/backend-bootstrap-overlay.tsx": 1,
-    "src/components/workspace/browser-preview-panel.tsx": 12,
+    "src/components/workspace/browser-preview-panel.tsx": 8,
     "src/components/workspace/channel-credential-dialog.tsx": 4,
     "src/components/workspace/channel-pairings-sheet.tsx": 1,
     "src/components/workspace/chat-input-box/ChatComposer.tsx": 12,

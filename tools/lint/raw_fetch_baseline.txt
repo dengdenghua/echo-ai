@@ -7,7 +7,7 @@ frontend/src/components/workspace/settings/model-settings/edit-model-form.tsx	3
 frontend/src/components/workspace/settings/model-settings/add-model-form.tsx	2
 frontend/src/components/workspace/settings/model-settings/local-models-section.tsx	2
 frontend/src/components/workspace/settings/model-settings/use-custom-model-agent-capabilities.ts	2
-frontend/src/components/workspace/browser-preview-panel.tsx	13
+frontend/src/components/workspace/browser-preview-api.ts	13
 frontend/src/components/workspace/settings/privacy-settings-page.tsx	12
 frontend/src/components/workspace/a2a-agents-panel.tsx	8
 frontend/src/components/workspace/collaboration-collector-panel.tsx	8
