@@ -137,12 +137,13 @@ Agent runtime hooks · lifecycle events for the agent loop.
 
 ## Who imports this
 
-**12** file(s) reference this package:
+**13** file(s) reference this package:
 
 - **`runtime/core/`** · 1 file(s)
   - `runtime/core/cerebrum/_react_execution_phase6d.py`
-- **`runtime/execution/`** · 4 file(s)
-  - `runtime/execution/subagents/bridge.py`
+- **`runtime/execution/`** · 5 file(s)
+  - `runtime/execution/subagents/_bridge_result.py`
+  - `runtime/execution/subagents/_bridge_run.py`
   - `runtime/execution/suckers/plan_mode.py`
   - `runtime/execution/tool_engine/_executor_helpers.py`
   - `runtime/execution/tool_engine/executor.py`

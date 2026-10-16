@@ -1,4 +1,4 @@
-"""Sub-agent identity helpers: codename, avatar, and cheap-model resolution.
+"""Sub-agent identity helpers: codename, avatar, tile identity, cheap-model resolution.
 
 Extracted from ``bridge.py`` as part of a structural refactor. These are
 pure functions / constants with no dependency on bridge module-level state,
@@ -7,9 +7,13 @@ so they are safe to import eagerly.
 
 from __future__ import annotations
 
+import logging
 import os
 import random
 import uuid
+
+# The bridge's logger: identity lookups moved here from ``bridge.py``.
+_log = logging.getLogger("runtime.execution.subagents")
 
 # Cheap-subagent model resolution: operators override via the
 # ``ECHO_SUBAGENT_CHEAP_MODEL`` env var or the ``subagent_cheap_model``
@@ -237,3 +241,55 @@ def _resolve_cheap_subagent_model() -> str | None:
     # ephemeral runner uses its default (the planner/main model). Better
     # than inventing a model id the operator may not have — that 404s.
     return None
+
+
+def _resolve_display_identity(
+    _role_label: str,
+    _requested_agent_id: str,
+) -> tuple[str, str, str, str, str, str]:
+    """Codename, avatar and catalog / installed-HUB identity for a sub-agent tile.
+
+    Returns ``(codename, avatar, role_display_name, role_description,
+    market_avatar_url, identity_source)``.
+    """
+    _codename = _codename_for_role(_role_label)
+    _avatar = _avatar_for_role(_role_label)
+    # Authoritative role identity from the built-in catalog (co-located with
+    # the role's tool allowlist). Free-form labels that don't resolve to a
+    # BUILTIN_ROLES entry leave these empty; the frontend falls back to its own
+    # role-name / description mapping. Lazy import mirrors `_dispatch` so the
+    # module load graph stays acyclic.
+    _role_display_name = ""
+    _role_description = ""
+    try:
+        from runtime.execution.suckers.ephemeral_agents import get_role_display
+
+        _role_display = get_role_display(_role_label)
+        if _role_display is not None:
+            _role_display_name, _role_description = _role_display
+    except Exception:  # noqa: BLE001 — identity enrichment is best-effort
+        pass
+    # Installed HUB identity supplies the visible name and avatar. Unknown
+    # names must never create a new market installation as a dispatch side effect.
+    _market_avatar_url = ""
+    _identity_source = ""
+    try:
+        from runtime.execution.subagents.market_bridge import resolve_market_identity
+
+        _market = resolve_market_identity(_requested_agent_id or _role_label)
+        if _market is not None:
+            _role_display_name = _market.display_name
+            _role_description = _market.description
+            _market_avatar_url = _market.avatar_url
+            _avatar = _market.icon
+            _identity_source = "agent-market"
+    except (OSError, ValueError):
+        _log.debug("could not resolve installed role identity", exc_info=True)
+    return (
+        _codename,
+        _avatar,
+        _role_display_name,
+        _role_description,
+        _market_avatar_url,
+        _identity_source,
+    )

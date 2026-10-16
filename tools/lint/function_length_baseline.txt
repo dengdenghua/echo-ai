@@ -2,7 +2,8 @@
 # Shortening or splitting one? Remove (or lower) its line so the win is locked in.
 
 runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1568
-runtime/execution/subagents/bridge.py::call_subagent	1537
+runtime/execution/subagents/bridge.py::call_subagent	391
+runtime/execution/subagents/_bridge_run.py::_SubagentRunMixin.run	392
 runtime/platform/ui/browser_router.py::create_browser_router	1179
 runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	972
 runtime/tentacle/dashboard.py::create_tentacle_router	978
@@ -126,7 +127,7 @@ runtime/execution/parallel_agents/stack_runner.py::make_stack_subagent_runner	24
 runtime/sensing/gateway/_evolution_ops_insights.py::evolution_story_payload	244
 runtime/sensing/gateway/deep_research_router.py::create_deep_research_router	244
 runtime/core/cerebrum/react_final_answer_guards.py::_phase_6e_guards_and_step_emit	243
-runtime/execution/subagents/bridge.py::call_subagent._augment	243
+runtime/execution/subagents/_bridge_result.py::_SubagentResultMixin._augment	243
 runtime/execution/suckers/_browser_skills_handlers.py::register_browser_skills	243
 runtime/platform/ui/browser_router.py::create_browser_router.api_browser_action	243
 runtime/sensing/gateway/_config_endpoints_models.py::_register_models	219
@@ -157,7 +158,7 @@ runtime/cli_code.py::run_code_command	216
 runtime/sensing/gateway/plugin_hub_router.py::create_plugin_hub_router	216
 runtime/adapters/integrations/social_auth.py::create_social_auth_router	215
 runtime/sensing/gateway/_meta_mentions.py::_build_mentions_autocomplete	215
-runtime/execution/subagents/bridge.py::call_subagent._do_call	213
+runtime/execution/subagents/_bridge_call.py::_SubagentCall._do_call	213
 runtime/core/cerebrum/_react_parsing_tools.py::_extract_tool_actions_from_loose_output	211
 runtime/execution/codex_backend/events.py::_translate_notification	211
 runtime/execution/suckers/_ephemeral_events.py::_emit_subagent_lifecycle_event	211
