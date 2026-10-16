@@ -227,7 +227,6 @@ _REQUIRED_TRACKED_RELEASE_FILES = (
         "frontend/src/components/workspace/collab/group-human-invite-button.test.tsx",
         "frontend/src/components/workspace/collab/group-human-invite-button.tsx",
         "frontend/src/components/workspace/collab/invite-dialog.test.tsx",
-        "frontend/src/components/workspace/community/community-assets.ts",
         "frontend/src/components/workspace/group-task-strategy.ts",
         "frontend/src/components/workspace/automation-control-dock.test.tsx",
         "frontend/src/components/workspace/automation-control-dock.tsx",
