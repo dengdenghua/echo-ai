@@ -24,7 +24,6 @@ frontend/src/components/store/cloud-skills-panel.tsx	1095
 frontend/src/components/workspace/a2a-agents-panel.tsx	1072
 frontend/src/components/workspace/agent-operator-panel.test.tsx	2045
 frontend/src/components/workspace/agent-operator/index.tsx	1103
-frontend/src/components/workspace/agent-workbench-pages.tsx	2084
 frontend/src/components/workspace/agent-workbench-panel.test.tsx	3404
 frontend/src/components/workspace/agents/agent-role-profile-dialog.tsx	1944
 frontend/src/components/workspace/agents/agent-world-unified.tsx	1042
