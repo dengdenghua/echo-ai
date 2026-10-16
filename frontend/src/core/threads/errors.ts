@@ -75,6 +75,13 @@ export function publicExecutionErrorMessage(
   if (message.includes("Responses tool catalog is too large")) {
     return copy.toolCatalogTooLarge;
   }
+  if (
+    /Codex account credentials (?:are unavailable|could not be refreshed)/.test(
+      message,
+    )
+  ) {
+    return copy.codexSignIn;
+  }
   return message;
 }
 

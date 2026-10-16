@@ -254,6 +254,15 @@ describe("message-list: Subtask creation from tool_call", () => {
 });
 
 describe("message-list: failureKind classification", () => {
+  test("an expired Codex sign-in is a sign-in problem with a settings action", () => {
+    expect(failureKind("Codex account credentials are unavailable")).toBe(
+      "auth",
+    );
+    expect(
+      failureKind("Codex account credentials could not be refreshed"),
+    ).toBe("auth");
+  });
+
   test("blocked_on_user disposition is always blocked, never a network loss", () => {
     expect(
       failureKind(

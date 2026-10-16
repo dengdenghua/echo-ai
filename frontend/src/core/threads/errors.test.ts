@@ -109,3 +109,11 @@ it("tells a computer without any model how to get one", () => {
   );
   expect(message).not.toContain("custom_models.json");
 });
+
+it.each([
+  "Codex account credentials are unavailable",
+  "Codex account credentials could not be refreshed",
+])("tells the user to sign in to Codex again: %s", (raw) => {
+  expect(publicExecutionErrorMessage(raw)).toContain("重新登录");
+  expect(publicExecutionErrorMessage(raw, "en-US")).toContain("Sign in again");
+});

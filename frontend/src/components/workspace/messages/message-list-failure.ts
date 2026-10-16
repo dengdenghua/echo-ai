@@ -128,7 +128,7 @@ export function failureKind(
     return "capability";
   }
   if (
-    /http_401|http_403|unauthorized|invalid api.?key|invalid credential|credential refresh|credentials?.*(?:expired|invalid)|(?:not|未).*logged in.*chatgpt|尚未登录\s*chatgpt|登录.*chatgpt/i.test(
+    /http_401|http_403|unauthorized|invalid api.?key|invalid credential|credential refresh|codex account credentials|credentials?.*(?:expired|invalid)|(?:not|未).*logged in.*chatgpt|尚未登录\s*chatgpt|登录.*chatgpt/i.test(
       signal,
     )
   ) {
