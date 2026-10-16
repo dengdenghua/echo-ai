@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 
 from runtime.platform.plugins import cloud_catalog
+from runtime.platform.plugins._cloud_catalog_entries import _WORKBENCH_APPS
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
+
+
+def _catalog_version(entry_id: str) -> str:
+    """The version the built-in catalog advertises, so fixtures follow releases."""
+    return next(str(item["version"]) for item in _WORKBENCH_APPS if item["id"] == entry_id)
 
 
 def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCatalog, Path]:
@@ -23,7 +29,7 @@ def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCata
                 "description": "remote full-stack workbench",
                 "route": "/workspace/paper-trading",
                 "module_id": "paper.trading",
-                "version": "1.0.0",
+                "version": _catalog_version("workbench_paper-trading"),
                 "entry": "dist/index.html",
                 "runtime_plugin": "paper_trading",
                 "isolation": "iframe",

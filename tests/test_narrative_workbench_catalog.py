@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 
 from runtime.platform.plugins import cloud_catalog
+from runtime.platform.plugins._cloud_catalog_entries import _WORKBENCH_APPS
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
+
+
+def _catalog_version(entry_id: str) -> str:
+    """The version the built-in catalog advertises, so fixtures follow releases."""
+    return next(str(item["version"]) for item in _WORKBENCH_APPS if item["id"] == entry_id)
 
 
 def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCatalog, Path]:
@@ -23,8 +29,8 @@ def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCata
                 "description": "remote full-stack workbench",
                 "route": "/workspace/narrative",
                 "module_id": "narrative",
-                "version": "0.2.0",
-                "release_summary": "0.2.0：支持角色、世界观与剧情分支协作。",
+                "version": _catalog_version("workbench_narrative"),
+                "release_summary": f"{_catalog_version('workbench_narrative')}：支持角色、世界观与剧情分支协作。",
                 "host_api": ">=0.2,<0.3",
                 "dependencies": [],
                 "entry": "dist/index.html",
@@ -40,7 +46,8 @@ def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCata
     backend.mkdir(parents=True)
     (backend / "__init__.py").write_text("BACKEND = True\n", "utf-8")
     (backend / "plugin.yaml").write_text(
-        "name: narrative_studio\nversion: 0.2.0\ndelivery: remote\n", "utf-8"
+        f"name: narrative_studio\nversion: {_catalog_version('workbench_narrative')}\ndelivery: remote\n",
+        "utf-8",
     )
 
     plugin_root = tmp_path / "data" / "plugins"
@@ -74,7 +81,7 @@ def _add_design_dependency(tmp_path: Path, *, dependencies: list[str] | None = N
                 "description": "shared design dependency",
                 "route": "/workspace/design",
                 "module_id": "design",
-                "version": "1.0.0",
+                "version": _catalog_version("workbench_design"),
                 "host_api": ">=0.2,<0.3",
                 "dependencies": dependencies or [],
                 "entry": "dist/index.html",
@@ -100,7 +107,7 @@ def test_project_management_ui_uninstall_preserves_host_project_records(tmp_path
                 "name": "Projects",
                 "route": "/workspace/projects",
                 "module_id": "projects",
-                "version": "1.0.0",
+                "version": _catalog_version("workbench_projects"),
                 "entry": "dist/index.html",
                 "isolation": "iframe",
                 "data_paths": [],
@@ -155,7 +162,7 @@ def test_cloud_catalog_exposes_narrative_as_removable_remote_workbench(
         "status": "not_checked",
         "host_api": None,
     }
-    assert status["release_summary"].startswith("0.2.0：")
+    assert status["release_summary"].startswith(f"{_catalog_version('workbench_narrative')}：")
 
 
 def test_official_narrative_descriptor_overrides_catalog_collision(
@@ -209,7 +216,9 @@ def test_remote_install_materializes_frontend_and_backend_and_uninstall_keeps_wo
         "status": "compatible",
         "host_api": ">=0.2,<0.3",
     }
-    assert status["release_summary"] == "0.2.0：支持角色、世界观与剧情分支协作。"
+    assert status["release_summary"] == (
+        f"{_catalog_version('workbench_narrative')}：支持角色、世界观与剧情分支协作。"
+    )
 
     removed = catalog.uninstall_plugin("narrative_studio", plugin_kind="workbench")
 
@@ -231,7 +240,7 @@ def test_remote_alias_without_runtime_identity_cannot_shadow_official_workbench(
                 "plugin": "narrative_studio",
                 "source": "echo",
                 "kind": "workbench",
-                "version": "0.2.0",
+                "version": _catalog_version("workbench_narrative"),
             }
         ]
     }
@@ -312,7 +321,7 @@ def test_reinstall_replaces_legacy_broken_workbench_without_offering_bad_rollbac
                 "description": "legacy package without a web entry",
                 "route": "/workspace/narrative",
                 "module_id": "narrative",
-                "version": "0.2.0",
+                "version": _catalog_version("workbench_narrative"),
             }
         ),
         encoding="utf-8",
