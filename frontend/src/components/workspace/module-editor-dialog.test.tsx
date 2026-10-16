@@ -88,7 +88,8 @@ describe("ModuleEditorDialog", () => {
 
     expect(screen.getByText("工作台核心")).toBeInTheDocument();
     expect(screen.getByText("知识与存储")).toBeInTheDocument();
-    expect(screen.getByText("社区与发现")).toBeInTheDocument();
+    // 发现社区 became 广场 (e7f82deb); a module card shares the name.
+    expect(screen.getByRole("heading", { name: "广场" })).toBeInTheDocument();
   });
 
   it("shows pinned modules as non-interactive with an always-on label", () => {

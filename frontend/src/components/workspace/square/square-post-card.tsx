@@ -78,7 +78,7 @@ export function SquarePostCard({
               <PlaceholderIcon
                 aria-hidden="true"
                 strokeWidth={1.5}
-                className="size-5 text-muted-foreground/70"
+                className="size-5 text-muted-foreground/80"
               />
             </div>
           )}
