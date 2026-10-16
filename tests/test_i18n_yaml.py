@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from pathlib import Path
 
 from runtime.platform.i18n import (
     L,
@@ -199,24 +200,29 @@ class TestReload(unittest.TestCase):
         self.assertIn("zh-CN", locales)
 
     def test_hot_reload_picks_up_yaml_changes(self) -> None:
+        import shutil
+        import tempfile
+        from unittest import mock
+
         from runtime.platform import i18n as i18n_mod
 
+        # A copy of the catalogue: rewriting the tracked en.yaml left it with
+        # CRLF endings on Windows and exposed the marker to concurrent readers.
         saved = get_lang()
-        try:
-            set_lang("en")
-            en_path = i18n_mod._LOCALE_DIR / "en.yaml"
-            original = en_path.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            locale_dir = Path(tmp) / "locales"
+            shutil.copytree(i18n_mod._LOCALE_DIR, locale_dir)
             try:
-                with en_path.open("w", encoding="utf-8") as f:
-                    f.write('"cli.version": "TEST_HOT_RELOAD_MARKER_12345"\n')
-                reload_locales()
-                after = _("cli.version")
-                self.assertIn("TEST_HOT_RELOAD_MARKER_12345", after)
+                with mock.patch.object(i18n_mod, "_LOCALE_DIR", locale_dir):
+                    set_lang("en")
+                    (locale_dir / "en.yaml").write_text(
+                        '"cli.version": "TEST_HOT_RELOAD_MARKER_12345"\n', encoding="utf-8"
+                    )
+                    reload_locales()
+                    self.assertIn("TEST_HOT_RELOAD_MARKER_12345", _("cli.version"))
             finally:
-                en_path.write_text(original, encoding="utf-8")
                 reload_locales()
-        finally:
-            set_lang(saved)
+                set_lang(saved)
 
 
 class TestDetectLang(unittest.TestCase):
