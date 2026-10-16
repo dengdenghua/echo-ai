@@ -22,7 +22,6 @@ frontend/src/core/utils/datetime.ts	4
 frontend/src/components/browser/weather.ts	3
 frontend/src/components/workspace/settings/personal-space-settings-page.tsx	3
 frontend/src/components/workspace/model-picker.tsx	1
-frontend/src/components/workspace/settings/model-settings-page.tsx	2
 frontend/src/components/workspace/settings/privacy-settings-page.tsx	2
 frontend/src/components/workspace/settings/settings-resilience.ts	2
 frontend/src/components/browser/assistant-panel.tsx	1
