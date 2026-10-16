@@ -53,7 +53,6 @@ frontend/src/components/workspace/settings/settings-dialog.tsx	1238
 frontend/src/components/workspace/swarm-run-overview.tsx	1136
 frontend/src/components/workspace/workdir-selector.tsx	1298
 frontend/src/components/workspace/workspace-sidebar.tsx	2792
-frontend/src/core/agent-trace/api.ts	2063
 frontend/src/core/agents/agent-world-api.ts	1391
 frontend/src/core/messages/utils.test.ts	1335
 frontend/src/core/messages/utils.ts	1125
