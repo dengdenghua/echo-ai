@@ -72,7 +72,8 @@ BEHAVIOR_CHECKS: dict[str, tuple[GapBehaviorCheck, ...]] = {
         GapBehaviorCheck(
             id="model_provider_marketplace_ui",
             title="Marketplace UI installs and connects model adapters explicitly",
-            path="frontend/src/components/store/capability-market-panel.tsx",
+            # The connect flow moved here when the market panel was split (7000ce25).
+            path="frontend/src/components/store/capability-connect-dialog.tsx",
             required_terms=(
                 "isModelProvider",
                 "modelProvider",

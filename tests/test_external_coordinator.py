@@ -136,6 +136,14 @@ def _stack() -> SimpleNamespace:
     return SimpleNamespace(_stack=Stack())
 
 
+@pytest.fixture(autouse=True)
+def _opencode_has_a_model(monkeypatch):
+    # Auto settles on Echo when OpenCode has no model (b29b2846). These routes
+    # are about an OpenCode that can answer; the real check reads this
+    # machine's custom_models.json, so a fresh checkout failed them.
+    monkeypatch.setattr("runtime.execution.opencode_backend.can_serve", lambda _selection: True)
+
+
 def _select(turn: Turn) -> ExecutionRoute:
     intent = ParsedIntent(raw="看下这张图", normalized_goal="看下这张图", intent_type="task")
     return asyncio.run(
