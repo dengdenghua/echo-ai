@@ -25,7 +25,6 @@ frontend/src/components/workspace/a2a-agents-panel.tsx	1072
 frontend/src/components/workspace/agent-operator-panel.test.tsx	2045
 frontend/src/components/workspace/agent-operator/index.tsx	1103
 frontend/src/components/workspace/agent-workbench-panel.test.tsx	3404
-frontend/src/components/workspace/agents/agent-role-profile-dialog.tsx	1944
 frontend/src/components/workspace/agents/agent-world-unified.tsx	1042
 frontend/src/components/workspace/agents/arms-editor.tsx	1028
 frontend/src/components/workspace/artifacts/artifact-file-detail.tsx	1330
