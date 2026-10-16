@@ -10,11 +10,11 @@ from typing import Any
 
 import httpx
 
+from runtime.execution import opencode_backend
 from runtime.execution.opencode_backend import (
     OpenCodeError,
     model_selection_id,
     resolve_zen_model,
-    zen_catalog,
 )
 from runtime.execution.opencode_roles import stream_role
 from runtime.execution.request import current_execution_request
@@ -58,7 +58,9 @@ async def drive_opencode(
         raise OpenCodeError("OpenCode 回合与宿主任务不一致。")
     if provider is not None and provider is not request.task.approval_provider:
         request = replace(request, task=replace(request.task, approval_provider=provider))
-    model = resolve_zen_model(turn.params.model, zen_catalog())
+    # Read through the module so a test's (or a reload's) catalog is the one
+    # used, whichever module imported this one first.
+    model = resolve_zen_model(turn.params.model, opencode_backend.zen_catalog())
     turn.params = turn.params.model_copy(update={"model": model_selection_id(model)})
     if turn.execution is not None:
         log.turn_updated(
