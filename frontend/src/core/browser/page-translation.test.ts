@@ -146,18 +146,22 @@ describe("page translation sessions", () => {
   });
 
   test("stops on a failure and says why", async () => {
+    // As the client raises it: the message carries method, path and body.
     mocks.apiPost.mockRejectedValue(
       new EchoAPIError(
-        "还没有可用的翻译模型：请在设置里添加一个模型。",
+        'POST /api/browser/translate failed: 503 - {"detail":"还没有可用的翻译模型：请在设置里添加一个模型。"}',
         503,
-        null,
+        "还没有可用的翻译模型：请在设置里添加一个模型。",
       ),
     );
 
     pageTranslation.translate(tabId, 7, "translated", "zh-CN");
     await settle();
 
-    expect(pageTranslation.state(tabId).error).toContain("添加一个模型");
+    expect(pageTranslation.state(tabId).error).toBe(
+      "还没有可用的翻译模型：请在设置里添加一个模型。",
+    );
+    expect(pageTranslation.state(tabId).needsModel).toBe(true);
     expect(document.getElementById("one")!.textContent).toMatch(/^The first/);
     const calls = mocks.apiPost.mock.calls.length;
     await settle(10_000);
@@ -167,6 +171,7 @@ describe("page translation sessions", () => {
     pageTranslation.retry(tabId);
     await settle();
     expect(pageTranslation.state(tabId).error).toBeNull();
+    expect(pageTranslation.state(tabId).needsModel).toBe(false);
     expect(document.getElementById("one")!.textContent).toMatch(/^«The first/);
   });
 });

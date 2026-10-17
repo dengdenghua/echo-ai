@@ -9,7 +9,14 @@ const mocks = vi.hoisted(() => ({
   setTranslationModel: vi.fn(),
   translate: vi.fn(),
   showOriginal: vi.fn(),
+  retry: vi.fn(),
+  openCustomModelSetup: vi.fn(),
   model: "",
+  failure: null as { error: string; needsModel: boolean } | null,
+}));
+
+vi.mock("@/core/models/setup", () => ({
+  openCustomModelSetup: mocks.openCustomModelSetup,
 }));
 
 vi.mock("@/core/browser/page-translation", () => ({
@@ -18,7 +25,7 @@ vi.mock("@/core/browser/page-translation", () => ({
     pageLoaded: vi.fn(),
     translate: mocks.translate,
     showOriginal: mocks.showOriginal,
-    retry: vi.fn(),
+    retry: mocks.retry,
   },
   pageTranslationSupported: () => true,
   setAlwaysTranslated: vi.fn(),
@@ -33,6 +40,7 @@ vi.mock("@/core/browser/page-translation", () => ({
     busy: false,
     error: null,
     model: "big-pickle",
+    ...mocks.failure,
   }),
 }));
 
@@ -76,6 +84,36 @@ describe("PageTranslateButton", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.model = "";
+    mocks.failure = null;
+  });
+
+  it("offers 添加模型, not a red error, when no model can translate", () => {
+    mocks.failure = {
+      error: "还没有可用的翻译模型：请在设置里添加一个模型。",
+      needsModel: true,
+    };
+    const panel = openPanel();
+
+    const reason = within(panel).getByText(/还没有可用的翻译模型/);
+    expect(reason.parentElement!.className).not.toMatch(/destructive/);
+    expect(panel.textContent).not.toMatch(/failed: 503/);
+    fireEvent.click(within(panel).getByRole("button", { name: "Add a model" }));
+    expect(mocks.openCustomModelSetup).toHaveBeenCalledTimes(1);
+    expect(mocks.retry).not.toHaveBeenCalled();
+  });
+
+  it("keeps 重试 for a real failure", () => {
+    mocks.failure = {
+      error: "翻译服务暂时不可用，请稍后重试。",
+      needsModel: false,
+    };
+    const panel = openPanel();
+
+    expect(
+      within(panel).getByText(/翻译服务暂时不可用/).parentElement!.className,
+    ).toMatch(/text-destructive/);
+    fireEvent.click(within(panel).getByRole("button", { name: "Retry" }));
+    expect(mocks.retry).toHaveBeenCalledWith("tab-1");
   });
 
   it("offers callable models and names the automatic one in use", () => {

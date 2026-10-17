@@ -1,5 +1,6 @@
 import { LanguagesIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
@@ -15,6 +16,8 @@ import {
 } from "@/core/browser/page-translation";
 import type { PageLanguageGuess } from "@/core/browser/page-translator";
 import { useI18n } from "@/core/i18n/hooks";
+import { turnFailureCopy } from "@/core/i18n/locales/turn-failure";
+import { openCustomModelSetup } from "@/core/models/setup";
 import { useModels } from "@/core/models/hooks";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +41,7 @@ export function PageTranslateButton({
   webContentsId,
 }: Props) {
   const { t, locale } = useI18n();
+  const navigate = useNavigate();
   const tr = t.browser.pageTranslate;
   const state = usePageTranslation(tabId);
   const [open, setOpen] = useState(false);
@@ -151,14 +155,30 @@ export function PageTranslateButton({
           />
           <div className="mt-2 min-h-5 text-xs" aria-live="polite">
             {state.error ? (
-              <span className="flex items-center justify-between gap-2 text-destructive">
+              // No model yet is setup, not a failure: neutral, with 添加模型.
+              <span
+                className={cn(
+                  "flex items-center justify-between gap-2",
+                  state.needsModel
+                    ? "text-muted-foreground"
+                    : "text-destructive",
+                )}
+              >
                 <span>{state.error}</span>
                 <button
                   type="button"
-                  onClick={() => pageTranslation.retry(tabId)}
+                  onClick={() => {
+                    if (!state.needsModel) return pageTranslation.retry(tabId);
+                    setOpen(false);
+                    // Settings live in the workspace, not the browser surface.
+                    openCustomModelSetup();
+                    void navigate("/settings?section=models");
+                  }}
                   className="shrink-0 rounded-md border border-border-default px-2 py-0.5 text-foreground hover:bg-muted"
                 >
-                  {tr.retry}
+                  {state.needsModel
+                    ? turnFailureCopy(locale).setup.addModel
+                    : tr.retry}
                 </button>
               </span>
             ) : state.busy ? (

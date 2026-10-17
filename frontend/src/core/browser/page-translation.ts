@@ -39,6 +39,8 @@ export interface PageTranslationState {
   /** A request is out. */
   busy: boolean;
   error: string | null;
+  /** The error is that no model can translate yet: offer 添加模型, not 重试. */
+  needsModel?: boolean;
   /** The model that translated the last batch, as the server reports it. */
   model: string | null;
 }
@@ -224,10 +226,22 @@ async function translateSelection(
 }
 
 function errorMessage(error: unknown): string {
-  if (error instanceof EchoAPIError || error instanceof Error) {
-    return error.message;
+  // The server words its failures for people (PageTranslateError); the
+  // client's own message is "POST /api/browser/translate failed: 503 - {…}".
+  if (error instanceof EchoAPIError && typeof error.detail === "string") {
+    if (error.detail.trim()) return error.detail.trim();
   }
+  if (error instanceof Error) return error.message;
   return String(error);
+}
+
+/** A failed request, for the state: the reason, and whether a model is missing. */
+function failure(error: unknown): Partial<PageTranslationState> {
+  return {
+    error: errorMessage(error),
+    // 503 is the server's "no model can translate yet" (page_translate_router).
+    needsModel: error instanceof EchoAPIError && error.status === 503,
+  };
 }
 
 class TabTranslation {
@@ -273,7 +287,7 @@ class TabTranslation {
       );
       this.update({ language });
       if (!this.state.active && language?.foreign && isAlwaysTranslated(url)) {
-        this.update({ active: true, error: null });
+        this.update({ active: true, error: null, needsModel: false });
       }
       if (this.state.active) this.schedule(0);
     } catch {
@@ -288,7 +302,7 @@ class TabTranslation {
   ) {
     this.webContentsId = webContentsId;
     this.target = target;
-    this.update({ active: true, mode, error: null });
+    this.update({ active: true, mode, error: null, needsModel: false });
     try {
       const progress = await this.call(
         `start(${JSON.stringify(mode)}, ${JSON.stringify(target)})`,
@@ -296,14 +310,14 @@ class TabTranslation {
       );
       this.update({ progress });
     } catch (error) {
-      this.update({ error: errorMessage(error) });
+      this.update(failure(error));
     }
     this.schedule(0);
   }
 
   async showOriginal() {
     this.stop();
-    this.update({ active: false, error: null });
+    this.update({ active: false, error: null, needsModel: false });
     try {
       const progress = await this.call('setMode("original")', isStatus);
       if (progress) this.update({ progress });
@@ -413,13 +427,13 @@ class TabTranslation {
       // Stop on a failure instead of hammering the service; the user
       // retries from the translate menu.
       this.stop();
-      this.update({ error: errorMessage(error) });
+      this.update(failure(error));
     }
   }
 
   retry() {
     if (!this.state.active) return;
-    this.update({ error: null });
+    this.update({ error: null, needsModel: false });
     this.schedule(0);
   }
 }
