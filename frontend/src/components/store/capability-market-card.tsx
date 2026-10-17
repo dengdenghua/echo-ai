@@ -339,7 +339,9 @@ export function CapabilityMarketCard({
             {statusLabel}
           </Badge>
         )}
-        {cap.permission_review_required ? (
+        {/* The status badge may already say 待确认权限; never show it twice. */}
+        {cap.permission_review_required &&
+        !(cap.installed && statusTone === "approval") ? (
           <Badge className="border-transparent bg-warning/15 text-xs text-warning">
             待确认权限
           </Badge>

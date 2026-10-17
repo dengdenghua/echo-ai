@@ -39,18 +39,6 @@ export function CapabilityMarketToolbar({
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
       <div className="flex flex-wrap items-center gap-1.5">
-        <Button
-          type="button"
-          size="sm"
-          variant={typeFilter === "all" ? "secondary" : "ghost"}
-          onClick={() => onTypeFilterChange("all")}
-          className="h-8 px-2.5 text-xs"
-        >
-          全部
-          <span className="ml-1 text-xs text-muted-foreground">
-            {counts.all}
-          </span>
-        </Button>
         {(["all", "mcp", "cli", "skill-only", "plugin"] as const).map((tp) => (
           <Button
             key={tp}
@@ -61,7 +49,7 @@ export function CapabilityMarketToolbar({
             className="h-8 px-2.5 text-xs"
           >
             {tp === "all"
-              ? "全部类型"
+              ? "全部"
               : tp === "mcp"
                 ? "MCP"
                 : tp === "cli"

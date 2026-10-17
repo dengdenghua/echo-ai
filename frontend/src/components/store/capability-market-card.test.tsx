@@ -71,11 +71,20 @@ describe("CapabilityMarketCard status badge", () => {
       { ...connector, id: "needs-review", permission_review_required: true },
       { connected: true },
     );
-    for (const badge of screen.getAllByText("待确认权限")) {
-      expect(badge).toHaveClass("text-warning");
-    }
+    // One badge, not the status badge plus a second copy of it.
+    expect(screen.getByText("待确认权限")).toHaveClass("text-warning");
 
     renderCard({ ...connector, id: "linked" }, { connected: true });
     expect(screen.getByText("已连接")).toHaveClass("bg-core/15", "text-core");
+  });
+
+  it("flags a plugin not installed yet that will ask for permissions", () => {
+    renderCard({
+      ...connector,
+      id: "preview",
+      installed: false,
+      permission_review_required: true,
+    });
+    expect(screen.getByText("待确认权限")).toHaveClass("text-warning");
   });
 });
