@@ -48,7 +48,6 @@ frontend/src/core/messages/utils.test.ts	1335
 frontend/src/core/messages/utils.ts	1125
 frontend/src/core/realtime/client.test.ts	1149
 frontend/src/core/realtime/reducer.test.ts	2042
-frontend/src/core/realtime/reducer.ts	1478
 frontend/src/core/realtime/use-realtime-thread.test.tsx	3127
 frontend/src/core/realtime/use-realtime-thread.ts	2142
 frontend/src/core/threads/realtime-adapter.test.ts	1948
