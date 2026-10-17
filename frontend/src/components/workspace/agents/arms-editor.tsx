@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  CoinsIcon,
-  Loader2Icon,
-  SaveIcon,
-  SearchIcon,
-  UndoIcon,
-} from "lucide-react";
+import { Loader2Icon, SaveIcon, SearchIcon, UndoIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +21,8 @@ import { useSkills } from "@/core/skills/hooks";
 import type { SkillInfo } from "@/core/skills/types";
 import { cn } from "@/lib/utils";
 import { BrandLoadingPanel } from "@/components/brand/brand-progress";
+import { ArmsEditorPermissionsTab } from "./arms-editor-permissions-tab";
+import { ArmsEditorRoutingTab } from "./arms-editor-routing-tab";
 
 interface Props {
   agentId: string;
@@ -717,278 +713,26 @@ export function ArmsEditor({ agentId, initialTab = "arms" }: Props) {
         </TabsContent>
 
         <TabsContent value="permissions" className="mt-2 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium">
-                {t.armsEditor.permissionsLabel}
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {t.armsEditor.permissionsHint}
-              </div>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              {t.armsEditor.permissionEffectiveCount(
-                permissionSummary.effective,
-                permissionSummary.total,
-              )}
-            </Badge>
-          </div>
-
-          <div className="grid gap-2 md:grid-cols-3">
-            <div className="rounded-sm border border-border bg-card/60 px-3 py-2">
-              <div className="font-mono text-xs uppercase tracking-caps text-muted-foreground">
-                {t.armsEditor.permissionGlobalGate}
-              </div>
-              <div className="mt-1 text-sm font-semibold">
-                {permissionSummary.globalEnabled}/{permissionSummary.total}
-              </div>
-            </div>
-            <div className="rounded-sm border border-border bg-card/60 px-3 py-2">
-              <div className="font-mono text-xs uppercase tracking-caps text-muted-foreground">
-                {t.armsEditor.permissionAgentGrant}
-              </div>
-              <div className="mt-1 text-sm font-semibold">
-                {permissionSummary.agentGranted}/{permissionSummary.total}
-              </div>
-            </div>
-            <div className="rounded-sm border border-border bg-card/60 px-3 py-2">
-              <div className="font-mono text-xs uppercase tracking-caps text-muted-foreground">
-                {t.armsEditor.permissionEffective}
-              </div>
-              <div className="mt-1 text-sm font-semibold">
-                {permissionSummary.effective}/{permissionSummary.total}
-              </div>
-            </div>
-          </div>
-
-          {permissionsQuery.isLoading ? (
-            <div className="flex items-center justify-center rounded-sm border border-border bg-card/50 p-8 text-sm text-muted-foreground">
-              <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-              {t.armsEditor.loading}
-            </div>
-          ) : permissionsQuery.error ? (
-            <div className="rounded-sm border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-              {t.armsEditor.loadFailed(
-                permissionsQuery.error instanceof Error
-                  ? permissionsQuery.error.message
-                  : String(permissionsQuery.error),
-              )}
-            </div>
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {permissionRows.map((permission) => {
-                const shownAgentSkills = permission.agentSkills.slice(0, 8);
-                const shownPermissionSkills = permission.skill_names.slice(
-                  0,
-                  10,
-                );
-                return (
-                  <div
-                    key={permission.id}
-                    className={cn(
-                      "relative overflow-hidden rounded-sm border p-3 transition-colors",
-                      "before:pointer-events-none before:absolute before:left-0 before:top-0 before:h-2 before:w-2 before:border-l before:border-t",
-                      permission.effective
-                        ? "border-primary/45 bg-primary/5 before:border-primary/70"
-                        : "border-border bg-card/55 before:border-border",
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Switch
-                        checked={permission.enabled}
-                        aria-label={`全局授权 ${permission.id}`}
-                        disabled={updatePermission.isPending}
-                        onCheckedChange={(enabled) =>
-                          void togglePermission(permission.id, enabled)
-                        }
-                        className="mt-1 shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="font-mono text-xs font-semibold uppercase tracking-caps">
-                            {permission.id}
-                          </div>
-                          <Badge
-                            variant={
-                              permission.available ? "outline" : "secondary"
-                            }
-                            className="rounded-sm text-xs"
-                          >
-                            {permission.effective
-                              ? "当前角色可用"
-                              : !permission.enabled
-                                ? "全局未授权"
-                                : !permission.available
-                                  ? "运行依赖未就绪"
-                                  : "当前角色未授权"}
-                          </Badge>
-                          <Badge
-                            variant={
-                              permission.enabled ? "outline" : "secondary"
-                            }
-                            className={cn(
-                              "rounded-sm text-xs",
-                              !permission.enabled &&
-                                "border-destructive/30 text-destructive",
-                            )}
-                          >
-                            {t.armsEditor.permissionGlobalGate}:{" "}
-                            {permission.enabled
-                              ? t.armsEditor.permissionEnabled
-                              : t.armsEditor.permissionDisabled}
-                          </Badge>
-                          <Badge
-                            variant={
-                              permission.agentGranted ? "outline" : "secondary"
-                            }
-                            className={cn(
-                              "rounded-sm text-xs",
-                              !permission.agentGranted &&
-                                "border-warning/30 text-warning",
-                            )}
-                          >
-                            {permission.defaultGranted
-                              ? t.armsEditor.permissionAgentDefault
-                              : permission.agentGranted
-                                ? t.armsEditor.permissionAgentGranted
-                                : t.armsEditor.permissionAgentDenied}
-                          </Badge>
-                        </div>
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          {permission.effective
-                            ? t.armsEditor.permissionEffectiveHint
-                            : !permission.enabled
-                              ? t.armsEditor.permissionBlockedByGlobal
-                              : t.armsEditor.permissionBlockedByAgent}
-                        </div>
-                        {shownAgentSkills.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {shownAgentSkills.map((skill) => (
-                              <Badge
-                                key={skill}
-                                variant="outline"
-                                className="rounded-sm bg-background/70 text-xs font-mono"
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                            {permission.agentSkills.length >
-                            shownAgentSkills.length ? (
-                              <Badge
-                                variant="secondary"
-                                className="rounded-sm text-xs"
-                              >
-                                +
-                                {permission.agentSkills.length -
-                                  shownAgentSkills.length}
-                              </Badge>
-                            ) : null}
-                          </div>
-                        ) : permission.defaultGranted ? (
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            {t.armsEditor.permissionDefaultGrantHint}
-                          </div>
-                        ) : null}
-                        {permission.skill_names.length > 0 ? (
-                          <div className="mt-2 flex max-h-16 flex-wrap gap-1 overflow-hidden border-t border-border-default pt-2">
-                            {shownPermissionSkills.map((skill) => (
-                              <Badge
-                                key={skill}
-                                variant="outline"
-                                className="rounded-sm bg-background/40 text-xs font-mono text-muted-foreground"
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                            {permission.skill_names.length >
-                            shownPermissionSkills.length ? (
-                              <Badge
-                                variant="secondary"
-                                className="rounded-sm text-xs"
-                              >
-                                +
-                                {permission.skill_names.length -
-                                  shownPermissionSkills.length}
-                              </Badge>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <ArmsEditorPermissionsTab
+            t={t}
+            permissionsQuery={permissionsQuery}
+            permissionRows={permissionRows}
+            permissionSummary={permissionSummary}
+            updatePermission={updatePermission}
+            togglePermission={togglePermission}
+          />
         </TabsContent>
 
         <TabsContent value="routing" className="mt-2 space-y-4">
-          <div>
-            <label className="text-sm font-medium">
-              {t.armsEditor.extraAffinityLabel}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {t.armsEditor.extraAffinityHint}
-              </span>
-            </label>
-            <input
-              type="text"
-              value={affinity}
-              onChange={(e) => {
-                setAffinity(e.target.value);
-                setDirty(true);
-              }}
-              placeholder={t.armsEditor.extraAffinityPlaceholder}
-              className="mt-1 w-full rounded-sm border border-border bg-card/70 px-3 py-2 text-sm shadow-[var(--shadow-xs)] focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </div>
-
-          <div className="rounded-sm border border-border bg-card/70 p-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <CoinsIcon className="h-4 w-4 text-muted-foreground" />
-              {t.armsEditor.budgetLabel}
-              {hasBudgetOverride ? (
-                <Badge variant="outline" className="text-xs">
-                  {t.armsEditor.budgetOverride}
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="text-xs text-muted-foreground"
-                >
-                  {t.armsEditor.budgetDefault}
-                </Badge>
-              )}
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-3 text-xs">
-              <div>
-                <div className="text-muted-foreground">max_iterations</div>
-                <div className="mt-0.5 font-mono">
-                  {budget.max_iterations ?? "-"}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">max_tokens</div>
-                <div className="mt-0.5 font-mono">
-                  {budget.max_tokens != null
-                    ? `${(budget.max_tokens / 1000).toFixed(0)}k`
-                    : "-"}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">max_usd</div>
-                <div className="mt-0.5 font-mono">
-                  {budget.max_usd != null
-                    ? `$${budget.max_usd.toFixed(2)}`
-                    : "-"}
-                </div>
-              </div>
-            </div>
-            {!hasBudgetOverride && (
-              <div className="mt-2 text-xs text-muted-foreground">
-                {t.armsEditor.budgetEditHint(agentId)}
-              </div>
-            )}
-          </div>
+          <ArmsEditorRoutingTab
+            t={t}
+            agentId={agentId}
+            affinity={affinity}
+            setAffinity={setAffinity}
+            setDirty={setDirty}
+            budget={budget}
+            hasBudgetOverride={hasBudgetOverride}
+          />
         </TabsContent>
       </Tabs>
 
