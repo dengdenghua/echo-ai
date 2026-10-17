@@ -107,7 +107,6 @@
     "src/components/workspace/intelligence-panel.tsx": 1,
     "src/components/workspace/knowledge-graph-view.tsx": 4,
     "src/components/workspace/live-preview-panel.tsx": 1,
-    "src/components/workspace/live-tool-timeline.tsx": 4,
     "src/components/workspace/local-slash-dispatch.ts": 2,
     "src/components/workspace/memory-assets-panel.tsx": 3,
     "src/components/workspace/messages/action-display.ts": 2,
