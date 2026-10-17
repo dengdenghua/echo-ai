@@ -47,7 +47,6 @@ frontend/src/components/workspace/settings/memory-settings-page.tsx	1334
 frontend/src/components/workspace/settings/model-settings-page.test.tsx	1297
 frontend/src/components/workspace/settings/privacy-settings-page.tsx	1170
 frontend/src/components/workspace/settings/settings-dialog.tsx	1238
-frontend/src/components/workspace/swarm-run-overview.tsx	1136
 frontend/src/components/workspace/workdir-selector.tsx	1298
 frontend/src/components/workspace/workspace-sidebar.tsx	2792
 frontend/src/core/agents/agent-world-api.ts	1391
