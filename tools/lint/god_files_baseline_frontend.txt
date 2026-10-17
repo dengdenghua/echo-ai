@@ -51,6 +51,5 @@ frontend/src/core/realtime/reducer.test.ts	2042
 frontend/src/core/realtime/use-realtime-thread.test.tsx	3127
 frontend/src/core/realtime/use-realtime-thread.ts	2142
 frontend/src/core/threads/realtime-adapter.test.ts	1948
-frontend/src/core/threads/realtime-adapter.ts	1588
 frontend/src/core/threads/use-thread-stream-realtime.test.ts	2729
 frontend/src/core/threads/use-thread-stream-realtime.ts	2130

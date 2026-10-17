@@ -13,13 +13,11 @@
 import {
   isAIMessage,
   type AIMessage,
-  type HumanMessage,
   type Message,
   type ToolCall,
 } from "@/core/api/types";
-import { isObjectLike, isUnknownArray } from "@/core/utils/guards";
+import { isObjectLike } from "@/core/utils/guards";
 import type { Todo } from "@/core/todos";
-import { isPrivateAgentGroundingSource } from "@/core/realtime/items";
 import { itemStreamText } from "@/core/realtime/reducer";
 import {
   isLegacyInternalAgentError,
@@ -29,35 +27,47 @@ import {
 
 import type {
   Conversation,
-  ErrorItem,
   GroundingSource,
   Item,
-  TodoListItem,
   Turn,
-  UserMessageItem,
 } from "@/core/realtime/items";
 
 import type { AgentThreadState } from "./types";
 import {
-  mentionsCompletion,
-  mentionsDelivered,
-  segmentLLMTrace,
-  hasLLMTraceMarkers,
-} from "@/core/i18n/llmMarkers";
-import {
   commandExecutionInput,
   commandExecutionToolName,
 } from "./realtime-tool-compat";
+import {
+  appendCancelledTurnReceipt,
+  appendFailedTurnReceipt,
+  appendInterruptedTurnReceipt,
+  appendPausedTurnReceipt,
+  attachGroundingToNarrativeAnchor,
+  errorToAi,
+  toolCallTimelineCoordinates,
+  userMessageToHuman,
+} from "./realtime-adapter-message-builders";
+import {
+  buildAiAdditionalKwargs,
+  findDuplicateAiMessageIndex,
+  isPostFinalStatusOnlyMessage,
+  mergeDuplicateAiMessages,
+  mergePendingIntoLastAiAnswer,
+} from "./realtime-adapter-message-merge";
+import { splitReactTrace } from "./realtime-adapter-react-trace";
+import {
+  failedVerificationMessage,
+  isNoOutputPlannerFailure,
+  safeGroundingSources,
+  safeTurnItems,
+  stableDeepEqual,
+  supersededPreToolAnswerIds,
+  turnArtifactsFrom,
+  turnTodosFrom,
+} from "./realtime-adapter-turn-items";
 
-const ROLE_NO_OUTPUT_PLACEHOLDER_RE =
-  /^\s*\[[^\]\n]{1,80}\]\s*\((?:no output|no visible output|empty output)\)\s*$/i;
-const TEAM_ROLE_START_RE =
-  /^\s*\[(?:planner|researcher|critic|arbiter|synthesizer|writer|reviewer|analyst|coder|designer|executor|tester)\]\s*starting\s*(?:[·•-]|\u00b7)\s*agent=[^\n]*\n*/i;
-const TEAM_ROLE_PREFIX_RE =
-  /^\s*\[(?:planner|researcher|critic|arbiter|synthesizer|writer|reviewer|analyst|coder|designer|executor|tester)\]\s*/i;
-const NULLISH_PLACEHOLDER_RE = /^\s*(?:null|undefined|none|n\/a)\s*$/i;
-const REPEATED_NULL_PLACEHOLDER_RE = /^\s*(?:null\s*)+$/i;
-const STATUS_ONLY_MESSAGE_MAX_LENGTH = 320;
+export { splitReactTrace } from "./realtime-adapter-react-trace";
+
 const LEGACY_GROUP_SUMMARY_RE = /^\s*协作汇总[:：]/;
 const LEGACY_PRIMARY_VIEWPOINT_RE =
   /[；;]\s*(?:主要观点来自|优先采纳)\s*[^。.!！\n]+[。.!！]?\s*$/;
@@ -185,38 +195,6 @@ export function conversationToAgentThreadState(
 // Per-turn helpers
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function turnArtifactsFrom(turn: Turn): string[] {
-  const out: string[] = [];
-  for (const item of safeTurnItems(turn)) {
-    if (item.type === "fileChange") {
-      const fc = item;
-      for (const change of fc.changes) {
-        out.push(change.path);
-      }
-    } else if (item.type === "artifact") {
-      out.push(item.path);
-    }
-  }
-  return out;
-}
-
-/**
- * Returns the latest todo-list snapshot in the turn, or ``null`` if
- * none. (A turn can emit multiple todo-list updates; the last one
- * wins, matching how the live panel re-renders on each update.)
- */
-function turnTodosFrom(turn: Turn): Todo[] | null {
-  let latest: TodoListItem | null = null;
-  for (const item of safeTurnItems(turn)) {
-    if (item.type === "todo-list") latest = item;
-  }
-  if (latest === null) return null;
-  return latest.plan.map((entry) => ({
-    content: entry.title,
-    status: entry.status,
-  }));
-}
-
 // Identity caches. The realtime reducer keeps object identity stable for
 // turns/items a delta didn't touch (replaceAt/replaceTurnItem rebuild only
 // the changed one), so an unchanged ``Turn`` reference can reuse its whole
@@ -225,62 +203,6 @@ function turnTodosFrom(turn: Turn): Todo[] | null {
 // the reducer state that owns the keys.
 const turnMessagesCache = new WeakMap<Turn, Message[]>();
 const itemMessageCache = new WeakMap<Item, Message>();
-
-function safeTurnItems(turn: Turn): Item[] {
-  return Array.isArray(turn.items) ? turn.items : [];
-}
-
-/**
- * Recover old turns produced before pre-tool prose had an explicit commentary
- * lane. A same-author answer with real execution between it and a later
- * same-author answer is a draft checkpoint, not another settled chat reply.
- * Track an execution generation in one reverse pass so replay stays O(items).
- */
-function supersededPreToolAnswerIds(items: Item[]): Set<string> {
-  const superseded = new Set<string>();
-  const laterAnswerGenerationByAuthor = new Map<string, number>();
-  let executionGeneration = 0;
-
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const item = items[index]!;
-    if (
-      item.type === "commandExecution" ||
-      item.type === "mcpToolCall" ||
-      item.type === "fileChange"
-    ) {
-      executionGeneration += 1;
-      continue;
-    }
-    if (item.type !== "agentMessage") continue;
-
-    const message = item;
-    if (message.messageKind === "commentary") continue;
-    const text = itemStreamText(message).trim();
-    // A short "Todo/任务已完成" item is a terminal receipt, not a newer
-    // answer that should demote the report it follows. The existing adapter
-    // performs the richer suppression after reasoning metadata is attached.
-    if (
-      text.length <= STATUS_ONLY_MESSAGE_MAX_LENGTH &&
-      mentionsCompletion(text)
-    ) {
-      continue;
-    }
-    const author = String(message.agentDisplayName ?? "")
-      .trim()
-      .toLowerCase();
-    const authorKey = author || "__turn_agent__";
-    const laterGeneration = laterAnswerGenerationByAuthor.get(authorKey);
-    if (
-      laterGeneration !== undefined &&
-      executionGeneration > laterGeneration
-    ) {
-      superseded.add(message.id);
-    }
-    laterAnswerGenerationByAuthor.set(authorKey, executionGeneration);
-  }
-
-  return superseded;
-}
 
 // Conversation-level view cache, keyed on the ``conv.turns`` array reference.
 // Reuses the fully-materialized top-level mapping (messages/artifacts/todos)
@@ -295,18 +217,6 @@ const topLevelViewCache = new WeakMap<
     latestGrounding: GroundingSource[] | undefined;
   }
 >();
-
-function safeGroundingSources(
-  grounding: GroundingSource[] | undefined,
-): GroundingSource[] {
-  return (grounding ?? []).filter(
-    (source) =>
-      source &&
-      typeof source.path === "string" &&
-      source.path.trim() !== "" &&
-      !isPrivateAgentGroundingSource(source),
-  );
-}
 
 function turnToMessagesStable(turn: Turn): Message[] {
   const cached = turnMessagesCache.get(turn);
@@ -337,41 +247,6 @@ function turnToMessagesStable(turn: Turn): Message[] {
 
   turnMessagesCache.set(turn, fresh);
   return fresh;
-}
-
-// Structural equality with a reference fast path. Messages rebuilt from
-// unchanged items carry reference-equal leaves (strings/arrays lifted off
-// the item), so the walk touches object shells without re-comparing large
-// payloads byte by byte.
-function stableDeepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (
-    typeof a !== "object" ||
-    typeof b !== "object" ||
-    a === null ||
-    b === null
-  ) {
-    return false;
-  }
-  if (Array.isArray(a) !== Array.isArray(b)) return false;
-  if (isUnknownArray(a) && isUnknownArray(b)) {
-    if (a.length !== b.length) return false;
-    for (let index = 0; index < a.length; index += 1) {
-      if (!stableDeepEqual(a[index], b[index])) return false;
-    }
-    return true;
-  }
-  // Always true past the checks above; it narrows both to records.
-  if (!isObjectLike(a) || !isObjectLike(b)) return false;
-  const left = a;
-  const right = b;
-  const keys = Object.keys(left);
-  if (keys.length !== Object.keys(right).length) return false;
-  for (const key of keys) {
-    if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
-    if (!stableDeepEqual(left[key], right[key])) return false;
-  }
-  return true;
 }
 
 function turnToMessages(turn: Turn): Message[] {
@@ -922,482 +797,6 @@ function turnToMessages(turn: Turn): Message[] {
   return out;
 }
 
-function appendPausedTurnReceipt(out: Message[], turn: Turn): void {
-  if (turn.status !== "paused") return;
-  if (
-    out.some(
-      (message) =>
-        message.type === "ai" &&
-        message.additional_kwargs?.response_state === "paused",
-    )
-  ) {
-    return;
-  }
-  out.push({
-    id: `${turn.id}-paused-receipt`,
-    type: "ai",
-    content: "",
-    additional_kwargs: {
-      response_state: "paused",
-      message_kind: "answer",
-      interrupt_reason: turn.interruptReason,
-      outcome_reason: turn.outcomeReason,
-      objective_id: turn.objectiveId,
-      task_id: turn.taskId,
-      checkpoint_id: turn.checkpointId,
-    },
-  });
-}
-
-function appendCancelledTurnReceipt(out: Message[], turn: Turn): void {
-  if (turn.status !== "cancelled") return;
-  if (
-    out.some(
-      (message) =>
-        message.type === "ai" &&
-        message.additional_kwargs?.response_state === "cancelled",
-    )
-  ) {
-    return;
-  }
-  out.push({
-    id: `${turn.id}-cancelled-receipt`,
-    type: "ai",
-    content: "",
-    additional_kwargs: {
-      response_state: "cancelled",
-      message_kind: "answer",
-      interrupt_reason: turn.interruptReason,
-    },
-  });
-}
-
-/**
- * Preserve an assistant-owned terminal frame even when a turn is cancelled
- * before the provider emits its first reasoning or answer item. Without this
- * synthetic receipt, the transcript ends at the user's prompt: there is no
- * avatar, no interruption explanation, and no visible recovery affordance.
- */
-function appendInterruptedTurnReceipt(out: Message[], turn: Turn): void {
-  if (turn.status !== "interrupted") return;
-  if (
-    out.some(
-      (message) =>
-        message.type === "ai" &&
-        message.additional_kwargs?.response_state === "interrupted",
-    )
-  ) {
-    return;
-  }
-
-  pushSyntheticInterruptedReceipt(out, turn);
-}
-
-function pushSyntheticInterruptedReceipt(out: Message[], turn: Turn): void {
-  const additionalKwargs: Record<string, unknown> = {
-    response_state: "interrupted",
-    message_kind: "answer",
-  };
-  if (turn.interruptReason) {
-    additionalKwargs.interrupt_reason = turn.interruptReason;
-  }
-  out.push({
-    id: `${turn.id}-interrupted-receipt`,
-    type: "ai",
-    content: "",
-    additional_kwargs: additionalKwargs,
-  });
-}
-
-function appendFailedTurnReceipt(out: Message[], turn: Turn): void {
-  if (turn.status !== "failed") return;
-  if (
-    out.some(
-      (message) =>
-        message.type === "ai" &&
-        typeof message.additional_kwargs?.error === "object" &&
-        message.additional_kwargs.error !== null,
-    )
-  ) {
-    return;
-  }
-
-  const verificationMessage = failedVerificationMessage(turn);
-  const turnError =
-    turn.error && typeof turn.error === "object" ? turn.error : null;
-  const turnErrorMessage =
-    typeof turnError?.message === "string" ? turnError.message.trim() : "";
-  const turnErrorCode =
-    typeof turnError?.code === "string" ? turnError.code.trim() : "";
-  const disposition =
-    typeof turnError?.disposition === "string" ? turnError.disposition : "";
-  const failureKind =
-    typeof turnError?.failure_kind === "string" ? turnError.failure_kind : "";
-  const blockedOnUser = disposition === "blocked_on_user";
-  const message = sanitizeLegacyGuardDiagnostic(
-    verificationMessage || turnErrorMessage || "turn failed",
-  );
-  const verificationRequired = safeTurnItems(turn).some(
-    (item) =>
-      item.type === "verification" &&
-      item.status === "failed" &&
-      /verification required/i.test(item.command),
-  );
-  const code = verificationMessage
-    ? verificationRequired
-      ? "verification_required"
-      : "verification_failed"
-    : turnErrorCode || "turn_failed";
-
-  out.push({
-    id: `${turn.id}:failure-receipt`,
-    type: "ai",
-    content: "",
-    additional_kwargs: {
-      response_state: blockedOnUser ? "blocked" : "failed",
-      error: {
-        message,
-        will_retry: false,
-        info: {
-          code,
-          ...(disposition ? { disposition } : {}),
-          ...(failureKind ? { failure_kind: failureKind } : {}),
-        },
-      },
-    },
-  });
-}
-
-function toolCallTimelineCoordinates(
-  item: Item,
-): Pick<ToolCall, "timelineSequence" | "parentItemId" | "phaseId"> {
-  return {
-    timelineSequence: item.timelineSequence ?? null,
-    parentItemId: item.parentItemId ?? null,
-    phaseId: item.phaseId ?? null,
-  };
-}
-
-// Fold the turn's codebase grounding (project docs/chunks it was grounded on)
-// onto the first public checkpoint, which is the earliest conversational beat
-// that can truthfully acknowledge those sources. This is structural: it does
-// not classify prose into a hard-coded orient/investigate/synthesize ladder.
-// Turns without public progress keep the legacy final-answer fallback.
-function attachGroundingToNarrativeAnchor(
-  messages: Message[],
-  grounding: GroundingSource[] | undefined,
-): void {
-  const safeGrounding = grounding?.filter(
-    (source) => !isPrivateAgentGroundingSource(source),
-  );
-  if (!safeGrounding || safeGrounding.length === 0) return;
-  let fallbackIndex = -1;
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index];
-    if (!message || message.type !== "ai") continue;
-    fallbackIndex = index;
-    if (message.additional_kwargs?.public_progress === true) {
-      fallbackIndex = index;
-      break;
-    }
-  }
-  if (fallbackIndex < 0) return;
-  const anchor = messages[fallbackIndex];
-  if (!anchor || anchor.type !== "ai") return;
-  // Copy-on-write: the message object may be an identity-cached one shared
-  // with a previous mapping; mutating it would hide the change from React.memo.
-  messages[fallbackIndex] = {
-    ...anchor,
-    additional_kwargs: {
-      ...(anchor.additional_kwargs ?? {}),
-      grounding: safeGrounding,
-    },
-  };
-}
-
-function mergePendingIntoLastAiAnswer(
-  messages: Message[],
-  pending: {
-    reasoning: string[];
-    plan: string | null;
-  },
-): boolean {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (!message || message.type === "human") break;
-    if (!isAIMessage(message)) continue;
-    // Commentary is a process checkpoint, never the delivered answer. A
-    // completed turn can still have trailing private reasoning (providers
-    // sometimes finish the reasoning item after the answer item); attaching
-    // that tail to commentary makes the adapter treat the checkpoint as if it
-    // were the terminal response and can hide the real answer downstream.
-    if (message.additional_kwargs?.public_progress === true) continue;
-    if (!normalizeMessageTextForDedupe(message.content)) continue;
-    // Tool items are never merged here — they are already emitted as their
-    // own AI messages at their real timeline position.
-    const existing = message;
-    const incoming: AIMessage = {
-      type: "ai",
-      content: "",
-      additional_kwargs: buildAiAdditionalKwargs(pending),
-    };
-    messages[index] = mergeAiTraceMetadata(existing, incoming);
-    return true;
-  }
-  return false;
-}
-
-function isPostFinalStatusOnlyMessage(
-  content: string,
-  pending: { reasoning: string[] },
-  out: Message[],
-): boolean {
-  if (
-    !out.some(
-      (message) =>
-        message.type === "ai" &&
-        message.additional_kwargs?.public_progress !== true &&
-        normalizeMessageTextForDedupe(message.content).length >= 24,
-    )
-  ) {
-    return false;
-  }
-  // A real report often opens with wording such as "analysis complete" or
-  // "the report is delivered". Those phrases alone do not make a multi-
-  // paragraph answer bookkeeping noise. Only compact terminal acknowledgments
-  // are eligible for suppression; substantive answers must remain visible.
-  const publicContent = normalizeStatusOnlyText(content);
-  if (publicContent.length > STATUS_ONLY_MESSAGE_MAX_LENGTH) return false;
-  // Tool items are emitted as independent messages before this check runs,
-  // so only the prose lanes (answer text + trailing reasoning) decide
-  // whether this message is post-final bookkeeping noise.
-  const text = normalizeStatusOnlyText(
-    [content, ...pending.reasoning].join("\n"),
-  );
-  if (!text) return false;
-  return mentionsDelivered(text) && mentionsCompletion(text);
-}
-
-function normalizeStatusOnlyText(value: string): string {
-  return (
-    value
-      // URLs are machine identifiers, not narrative status words. In
-      // particular, generated-media URLs commonly contain `/task_<id>`;
-      // letting that token participate in the completion heuristic made a
-      // perfectly valid image answer look like post-final todo bookkeeping
-      // whenever the accompanying reasoning mentioned "final answer".
-      .replace(/https?:\/\/[^\s)>\]]+/gi, " ")
-      .replace(/[`*_~>#-]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase()
-  );
-}
-
-function normalizeMessageTextForDedupe(value: unknown): string {
-  if (typeof value !== "string") return "";
-  const split = splitReactTrace(value);
-  const text = split.finalAnswer || value;
-  const stripped = text
-    .replace(TEAM_ROLE_START_RE, "")
-    .replace(TEAM_ROLE_PREFIX_RE, "")
-    .trim();
-  if (
-    NULLISH_PLACEHOLDER_RE.test(stripped) ||
-    REPEATED_NULL_PLACEHOLDER_RE.test(stripped)
-  ) {
-    return "";
-  }
-  return stripped
-    .replace(/<details\b[\s\S]*?<\/details>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/[`*_~>#-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function findDuplicateAiMessageIndex(
-  messages: Message[],
-  candidate: AIMessage,
-): number {
-  const candidateText = normalizeMessageTextForDedupe(candidate.content);
-  if (candidateText.length < 24) return -1;
-  const candidateIsProgress =
-    candidate.additional_kwargs?.public_progress === true;
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (!message || message.type === "human") break;
-    if (message.type !== "ai") continue;
-    if (
-      (message.additional_kwargs?.public_progress === true) !==
-      candidateIsProgress
-    ) {
-      continue;
-    }
-    const existingText = normalizeMessageTextForDedupe(message.content);
-    if (!existingText) continue;
-    if (existingText === candidateText) return index;
-  }
-  return -1;
-}
-
-function mergeDuplicateAiMessages(
-  existing: AIMessage,
-  duplicate: AIMessage,
-): AIMessage {
-  return mergeAiTraceMetadata(existing, duplicate);
-}
-
-function mergeAiTraceMetadata(
-  existing: AIMessage,
-  duplicate: AIMessage,
-): AIMessage {
-  const additional = mergeAdditionalKwargs(
-    existing.additional_kwargs,
-    duplicate.additional_kwargs,
-  );
-  const toolCalls = [
-    ...(existing.tool_calls ?? []),
-    ...(duplicate.tool_calls ?? []),
-  ];
-  return {
-    ...existing,
-    id: existing.id ?? duplicate.id,
-    additional_kwargs: additional,
-    ...(toolCalls.length > 0 ? { tool_calls: dedupeToolCalls(toolCalls) } : {}),
-  };
-}
-
-function mergeAdditionalKwargs(
-  existing?: Record<string, unknown>,
-  incoming?: Record<string, unknown>,
-): Record<string, unknown> | undefined {
-  if (!existing && !incoming) return undefined;
-  const merged: Record<string, unknown> = {
-    ...(existing ?? {}),
-    ...(incoming ?? {}),
-  };
-  const reasoning = mergeTextBlocks(
-    existing?.reasoning_content,
-    incoming?.reasoning_content,
-  );
-  if (reasoning) merged.reasoning_content = reasoning;
-  // Sum thinking durations when trailing reasoning is merged into an
-  // already-emitted AI message (e.g. reasoning finishes after the answer).
-  const mergedDuration = mergeReasoningDurationMs(
-    existing?.reasoning_duration_ms,
-    incoming?.reasoning_duration_ms,
-  );
-  if (mergedDuration !== null) {
-    merged.reasoning_duration_ms = mergedDuration;
-  } else {
-    delete merged.reasoning_duration_ms;
-  }
-  return merged;
-}
-
-function mergeReasoningDurationMs(a: unknown, b: unknown): number | null {
-  const aNum = typeof a === "number" && Number.isFinite(a) ? a : null;
-  const bNum = typeof b === "number" && Number.isFinite(b) ? b : null;
-  if (aNum === null && bNum === null) return null;
-  return (aNum ?? 0) + (bNum ?? 0);
-}
-
-function mergeTextBlocks(a: unknown, b: unknown): string | undefined {
-  const blocks = [a, b]
-    .filter(
-      (value): value is string =>
-        typeof value === "string" && value.trim().length > 0,
-    )
-    .map((value) => value.trim());
-  if (blocks.length === 0) return undefined;
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const block of blocks) {
-    const normalized = normalizeMessageTextForDedupe(block);
-    if (seen.has(normalized)) continue;
-    seen.add(normalized);
-    unique.push(block);
-  }
-  return unique.join("\n\n");
-}
-
-function dedupeToolCalls(toolCalls: ToolCall[]): ToolCall[] {
-  const seen = new Set<string>();
-  const unique: ToolCall[] = [];
-  for (const toolCall of toolCalls) {
-    const key = toolCall.id
-      ? `id:${toolCall.id}`
-      : `${toolCall.name}:${JSON.stringify(toolCall.args)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(toolCall);
-  }
-  return unique;
-}
-
-function userMessageToHuman(item: UserMessageItem): HumanMessage {
-  return {
-    type: "human",
-    id: item.id,
-    content: item.text,
-    additional_kwargs: {
-      ...(item.attachments && item.attachments.length > 0
-        ? { attachments: item.attachments }
-        : {}),
-      created_at: item.createdAt,
-    },
-  };
-}
-
-function errorToAi(item: ErrorItem): AIMessage {
-  const message = sanitizeLegacyGuardDiagnostic(item.message || "turn failed");
-  return {
-    type: "ai",
-    id: item.id,
-    // Error details belong to the terminal receipt rendered after the turn's
-    // chronological work lane. Keeping this synthetic message body empty
-    // prevents a failure sentence from appearing before tool events merely
-    // because an agentMessage item was opened earlier in the stream.
-    content: "",
-    additional_kwargs: {
-      error: {
-        message,
-        will_retry: item.willRetry,
-        info: item.errorInfo,
-      },
-    },
-  };
-}
-
-function buildAiAdditionalKwargs(pending: {
-  reasoning: string[];
-  plan: string | null;
-  reasoningDurationMs?: number | null;
-  reasoningStartedAt?: string | null;
-  createdAt?: string | null;
-}): Record<string, unknown> {
-  const kwargs: Record<string, unknown> = {};
-  if (pending.reasoning.length > 0) {
-    kwargs.reasoning_content = pending.reasoning.join("\n\n");
-  }
-  if (pending.plan !== null) {
-    kwargs.thinking_plan = pending.plan;
-  }
-  if (typeof pending.reasoningDurationMs === "number") {
-    kwargs.reasoning_duration_ms = pending.reasoningDurationMs;
-  }
-  if (pending.reasoningStartedAt) {
-    kwargs.reasoning_started_at = pending.reasoningStartedAt;
-  }
-  if (pending.createdAt) {
-    kwargs.created_at = pending.createdAt;
-  }
-  return kwargs;
-}
-
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Convenience: derive ``isLoading`` / ``error`` from Conversation
 // for callers that need just those flags without full state mapping.
@@ -1464,105 +863,4 @@ export function conversationLastError(conv: Conversation): Error | undefined {
   if (verificationMessage) return new Error(verificationMessage);
   if (isNoOutputPlannerFailure(last)) return undefined;
   return new Error("turn failed");
-}
-
-function failedVerificationMessage(turn: Turn): string | undefined {
-  const items = safeTurnItems(turn);
-  for (let i = items.length - 1; i >= 0; i--) {
-    const item = items[i];
-    if (item?.type !== "verification" || item.status !== "failed") continue;
-    const verification = item;
-    return (
-      verification.summary?.trim() ||
-      verification.stderrTail?.trim() ||
-      verification.stdoutTail?.trim() ||
-      "verification failed"
-    );
-  }
-  return undefined;
-}
-
-function isNoOutputPlannerFailure(turn: Turn): boolean {
-  let sawNoOutputAgentMessage = false;
-  for (const item of safeTurnItems(turn)) {
-    if (item.type === "userMessage") continue;
-    if (
-      item.type === "agentMessage" &&
-      ROLE_NO_OUTPUT_PLACEHOLDER_RE.test(itemStreamText(item))
-    ) {
-      sawNoOutputAgentMessage = true;
-      continue;
-    }
-    return false;
-  }
-  return sawNoOutputAgentMessage;
-}
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// ReAct trace splitter
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-/**
- * Split a ReAct-formatted LLM trajectory into the three semantic
- * pieces the UI needs separately:
- *
- *   - ``thought``:      everything inside ``Thought:`` blocks. Shown
- *                       as collapsible reasoning, not main content.
- *   - ``finalAnswer``:  body after the LAST ``Final Answer:`` marker.
- *                       Rendered as the agent's visible message.
- *
- * ``Action: tool(...)`` and ``Observation: ...`` lines are dropped:
- * the action is already represented by a separate
- * ``commandExecution`` / ``mcpToolCall`` item, and the observation is
- * that tool's ``aggregatedOutput`` / ``result``. Rendering them again
- * inside the message bubble is noise.
- *
- * If no ReAct markers are present at all, the whole text is returned
- * as ``finalAnswer`` unchanged, so non-ReAct agents (e.g. a plain
- * chat reply) stay pristine.
- *
- * Exported for direct unit tests.
- */
-export function splitReactTrace(text: string): {
-  thought: string;
-  publicUpdate: string;
-  finalAnswer: string;
-} {
-  if (!text) return { thought: "", publicUpdate: "", finalAnswer: "" };
-  // Markers are recognised across all supported locales (en / zh /
-  // ja / ko). The union regex lives in `@/core/i18n/llmMarkers` so
-  // the spelling stays in one place — keep this function free of
-  // hardcoded bilingual alternations.
-  if (!hasLLMTraceMarkers(text)) {
-    return { thought: "", publicUpdate: "", finalAnswer: text };
-  }
-  const segs = segmentLLMTrace(text);
-
-  const thoughts: string[] = [];
-  const updates: string[] = [];
-  let finalAnswer = "";
-  for (const seg of segs) {
-    const clean = seg.text.trim();
-    if (!clean) continue;
-    if (seg.kind === "thought") thoughts.push(clean);
-    else if (seg.kind === "update") updates.push(clean);
-    else if (seg.kind === "finalAnswer") finalAnswer = clean; // last one wins
-    // action + observation + prelude are intentionally dropped
-  }
-  // If the LLM never emitted a Final Answer (e.g. turn interrupted,
-  // or still streaming an intermediate step) show the most recent
-  // thought as the placeholder bubble text so the message isn't
-  // empty. Otherwise the Final Answer wins outright.
-  if (!finalAnswer && thoughts.length > 0) {
-    return {
-      thought: thoughts.slice(0, -1).join("\n\n"),
-      publicUpdate: updates.at(-1) ?? "",
-      finalAnswer: "",
-    };
-  }
-  return {
-    thought: thoughts.join("\n\n"),
-    publicUpdate: updates.at(-1) ?? "",
-    finalAnswer,
-  };
 }
