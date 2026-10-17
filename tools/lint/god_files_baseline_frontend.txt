@@ -4,7 +4,6 @@
 
 frontend/src/app/browser/page.tsx	1429
 frontend/src/app/desktop/page.tsx	1254
-frontend/src/app/workspace/agents/new/page.tsx	1021
 frontend/src/app/workspace/channels/page.tsx	1156
 frontend/src/app/workspace/design/director-stage.tsx	1946
 frontend/src/app/workspace/design/page.tsx	7827

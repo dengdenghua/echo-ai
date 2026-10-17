@@ -32,7 +32,7 @@ import { MessageList } from "@/components/workspace/messages";
 import { ThreadProviders } from "@/components/workspace/messages/context";
 import { swallow } from "@/core/utils/log";
 import type { Agent } from "@/core/agents";
-import { checkAgentName, getAgent } from "@/core/agents/api";
+import { checkAgentName } from "@/core/agents/api";
 import { useActiveAgentId } from "@/core/agents/active";
 import { primaryPersonaAgentIdOrDefault } from "@/core/agents/persona-policy";
 import {
@@ -45,45 +45,25 @@ import { uuid } from "@/core/utils/uuid";
 import { isIMEComposing } from "@/lib/ime";
 import { cn } from "@/lib/utils";
 
+import { NewAgentConfigPanel } from "./new-agent-config-panel";
+import {
+  AGENT_GENERATOR_SKILL_ID,
+  NAME_RE,
+  SAVE_HINT_STORAGE_KEY,
+  TEMPLATE_PROMPTS,
+  buildGuidedConfigPrompt,
+  buildTemplatePrompt,
+  getAgentWithRetry,
+  suggestAgentName,
+  uniqueValues,
+  type AgentCapabilityPack,
+  type AgentRolePreset,
+  type AgentScenePreset,
+  type AgentTemplate,
+} from "./new-agent-model";
+
 type Step = "name" | "chat";
 type SetupAgentStatus = "idle" | "requested" | "completed";
-type AgentTemplate = {
-  id: string;
-  icon: React.ReactNode;
-  name: string;
-  nameSuggestion: string;
-  description: string;
-  prompt: string;
-  integrations: string[];
-  capabilities: string[];
-};
-
-type AgentRolePreset = {
-  id: string;
-  label: string;
-  nameSuggestion: string;
-  brief: string;
-};
-
-type AgentScenePreset = {
-  id: string;
-  label: string;
-  brief: string;
-  permissions: string[];
-};
-
-type AgentCapabilityPack = {
-  id: string;
-  label: string;
-  arms: string[];
-  skills: string[];
-  brief: string;
-};
-
-const NAME_RE = /^[A-Za-z0-9-]+$/;
-const SAVE_HINT_STORAGE_KEY = "echo.agent-create.save-hint-seen";
-const AGENT_READ_RETRY_DELAYS_MS = [200, 500, 1_000, 2_000];
-const AGENT_GENERATOR_SKILL_ID = "agent-generator";
 
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   "team-qa": <BotIcon className="size-4" />,
@@ -93,124 +73,6 @@ const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   "exec-assistant": <BriefcaseBusinessIcon className="size-4" />,
   "knowledge-search": <FileSearchIcon className="size-4" />,
 };
-
-const TEMPLATE_PROMPTS: Record<string, string> = {
-  "team-qa":
-    "创建一个团队知识问答智能体。它需要读取团队提供的文档、历史讨论和项目资料，在团队消息中用简洁可靠的方式回答问题；遇到不确定内容要说明来源和置信度。",
-  "morning-planner":
-    "创建一个晨间计划智能体。每天根据我的日历、待办事项、未结束会话和优先级，生成当天可执行计划；需要识别冲突、建议时间块，并在任务变化时更新计划。",
-  "defect-triage":
-    "创建一个缺陷分诊智能体。它需要阅读新提交的缺陷描述、日志和截图，判断影响范围与优先级，补全复现步骤，并把结论同步到团队缺陷跟踪器。",
-  "data-analyst":
-    "创建一个数据分析智能体。它需要把模糊的数据需求转成分析计划，检查数据集结构和异常，编写或修复 SQL，选择合适的图表或表格，并在分享前做质量检查。",
-  "exec-assistant":
-    "创建一个执行助理智能体。它需要帮助我汇总日程、收件箱、会议纪要和项目进展，提炼需要我决策的事项，草拟回复，并持续跟进后续动作。",
-  "knowledge-search":
-    "创建一个知识搜索智能体。它需要跨本地知识库、网页资料和历史会话检索信息，归纳成可执行答案；对于时效性内容要主动搜索并给出来源。",
-};
-
-function wait(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function suggestAgentName(text: string) {
-  const words = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 4);
-  if (words.length === 0) return "custom-agent";
-  return words.join("-").slice(0, 36).replace(/-+$/g, "") || "custom-agent";
-}
-
-async function getAgentWithRetry(agentName: string) {
-  for (const delay of [0, ...AGENT_READ_RETRY_DELAYS_MS]) {
-    if (delay > 0) {
-      await wait(delay);
-    }
-
-    try {
-      return await getAgent(agentName);
-    } catch (e) {
-      swallow(e);
-    }
-  }
-
-  return null;
-}
-
-function buildTemplatePrompt(
-  template: AgentTemplate,
-  roleName?: string | null,
-  roleFocus?: string | null,
-  roleCapability?: string | null,
-) {
-  if (!roleName) return template.prompt;
-  const context = [
-    "",
-    `目标岗位：${roleName}`,
-    roleCapability ? `复合能力：${roleCapability}` : null,
-    roleFocus ? `主要辅助：${roleFocus}` : null,
-    "",
-  ];
-  return [
-    template.prompt,
-    ...context,
-    "请基于这个岗位上下文生成专属 Agent：明确职责边界、默认工具、输出格式、需要沉淀的知识、不能自动承诺的风险事项和首次可执行任务。",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function uniqueValues(values: string[]): string[] {
-  return Array.from(new Set(values.filter(Boolean)));
-}
-
-function buildGuidedConfigPrompt({
-  role,
-  scenes,
-  packs,
-  template,
-}: {
-  role: AgentRolePreset;
-  scenes: AgentScenePreset[];
-  packs: AgentCapabilityPack[];
-  template?: AgentTemplate;
-}) {
-  const arms = uniqueValues(packs.flatMap((pack) => pack.arms));
-  const skills = uniqueValues([
-    AGENT_GENERATOR_SKILL_ID,
-    ...packs.flatMap((pack) => pack.skills),
-  ]);
-  const permissions = uniqueValues(
-    scenes.flatMap((scene) => scene.permissions),
-  );
-  return [
-    `我想创建一个「${role.label}」Agent。`,
-    "",
-    "一句话目标：",
-    role.brief,
-    "",
-    "主要场景：",
-    ...scenes.map((scene) => `- ${scene.label}：${scene.brief}`),
-    "",
-    "请默认调用 agent-generator，把上面的简短描述扩写成可保存的 Agent 配置。",
-    "",
-    "配置偏好：",
-    `- ARM：${arms.join(", ")}`,
-    `- Skill 白名单：${skills.join(", ")}`,
-    `- 权限边界：${permissions.join("；")}`,
-    ...packs.map((pack) => `- 技能包：${pack.label} - ${pack.brief}`),
-    "",
-    template ? `启动模板：${template.name}。${template.description}` : null,
-    "",
-    "请生成 SOUL、工具边界、默认输出格式、首次可执行任务和需要用户确认的高风险动作。",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
 
 export default function NewAgentPage() {
   const { t } = useI18n();
@@ -769,174 +631,29 @@ export default function NewAgentPage() {
               </div>
             </section>
 
-            <section className="relative min-h-0 overflow-hidden border-l border-border">
-              <div className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:radial-gradient(circle_at_50%_44%,color-mix(in_oklab,var(--primary)_16%,transparent),transparent_30%),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:100%_100%,34px_34px,34px_34px]" />
-              <div className="relative flex h-full min-h-0 flex-col px-5 py-7">
-                <div className="flex shrink-0 items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-medium text-primary/82">
-                      能力配置
-                    </div>
-                    <h2 className="mt-2 text-lg font-semibold text-foreground">
-                      {agentNew.buttons.autoConfig}
-                    </h2>
-                  </div>
-                  {selectedTemplate ? (
-                    <span className="flex size-9 items-center justify-center rounded-sm border border-primary/18 bg-primary/8 text-primary">
-                      {selectedTemplate.icon}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-5 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]">
-                  <div className="rounded-sm border border-border bg-muted/10 p-3">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">
-                      角色定位
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ROLE_PRESETS.map((preset) => {
-                        const active = preset.id === selectedRolePresetId;
-                        return (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            className={cn(
-                              "rounded-full border px-2.5 py-1 text-xs leading-4 transition",
-                              active
-                                ? "border-primary/50 bg-primary/10 text-foreground"
-                                : "border-border bg-muted/[0.025] text-muted-foreground hover:border-border hover:text-foreground",
-                            )}
-                            onClick={() => setSelectedRolePresetId(preset.id)}
-                          >
-                            {preset.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="rounded-sm border border-border bg-muted/10 p-3">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">
-                      使用场景
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {SCENE_PRESETS.map((preset) => {
-                        const active = selectedScenePresetIds.includes(
-                          preset.id,
-                        );
-                        return (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            className={cn(
-                              "rounded-full border px-2.5 py-1 text-xs leading-4 transition",
-                              active
-                                ? "border-primary/50 bg-primary/10 text-foreground"
-                                : "border-border bg-muted/[0.025] text-muted-foreground hover:border-border hover:text-foreground",
-                            )}
-                            onClick={() => toggleSelectedScenePreset(preset.id)}
-                          >
-                            {preset.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="rounded-sm border border-border bg-muted/10 p-3">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">
-                      能力组合
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {CAPABILITY_PACKS.map((pack) => {
-                        const active = selectedCapabilityPackIds.includes(
-                          pack.id,
-                        );
-                        return (
-                          <button
-                            key={pack.id}
-                            type="button"
-                            className={cn(
-                              "rounded-full border px-2.5 py-1 text-xs leading-4 transition",
-                              active
-                                ? "border-primary/45 bg-primary/10 text-foreground"
-                                : "border-border bg-muted/[0.025] text-muted-foreground hover:border-border hover:text-foreground",
-                            )}
-                            onClick={() =>
-                              toggleSelectedCapabilityPack(pack.id)
-                            }
-                          >
-                            {pack.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {selectedScenePresets.length > 0 &&
-                  selectedCapabilityPacks.length > 0 ? (
-                    <div className="grid gap-1.5 rounded-sm border border-border bg-muted/10 p-3 text-xs leading-5 text-muted-foreground">
-                      <div>
-                        ARM:{" "}
-                        <span className="text-foreground">
-                          {selectedArms.join(", ")}
-                        </span>
-                      </div>
-                      <div>
-                        Skill:{" "}
-                        <span className="text-foreground">
-                          {selectedSkills.join(", ")}
-                        </span>
-                      </div>
-                      <div>
-                        {agentNew.labels.permissions}:{" "}
-                        <span className="text-foreground">
-                          {selectedPermissions.join(" / ")}
-                        </span>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <Button
-                    className="h-9 w-full rounded-sm bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={handleApplyGuidedConfig}
-                  >
-                    {agentNew.buttons.generateConfig}
-                  </Button>
-
-                  <div className="mt-1 rounded-sm border border-border bg-muted/[0.018] p-3">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">
-                      参考模板
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {AGENT_TEMPLATES.map((template) => {
-                        const active = template.id === selectedTemplateId;
-                        return (
-                          <button
-                            key={template.id}
-                            type="button"
-                            className={cn(
-                              "rounded-full border px-2 py-0.5 text-xs leading-4 transition",
-                              active
-                                ? "border-primary/50 bg-primary/8 text-foreground"
-                                : "border-border bg-muted/12 text-muted-foreground hover:border-border hover:text-foreground",
-                            )}
-                            onClick={() => handleSelectTemplate(template)}
-                          >
-                            {template.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {selectedTemplate ? (
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                        {selectedTemplate.description}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </section>
+            <NewAgentConfigPanel
+              templates={AGENT_TEMPLATES}
+              selectedTemplate={selectedTemplate}
+              selectedTemplateId={selectedTemplateId}
+              onSelectTemplate={handleSelectTemplate}
+              rolePresets={ROLE_PRESETS}
+              selectedRolePresetId={selectedRolePresetId}
+              onSelectRolePreset={setSelectedRolePresetId}
+              scenePresets={SCENE_PRESETS}
+              selectedScenePresetIds={selectedScenePresetIds}
+              onToggleScenePreset={toggleSelectedScenePreset}
+              capabilityPacks={CAPABILITY_PACKS}
+              selectedCapabilityPackIds={selectedCapabilityPackIds}
+              onToggleCapabilityPack={toggleSelectedCapabilityPack}
+              showConfigSummary={
+                selectedScenePresets.length > 0 &&
+                selectedCapabilityPacks.length > 0
+              }
+              selectedArms={selectedArms}
+              selectedSkills={selectedSkills}
+              selectedPermissions={selectedPermissions}
+              onApplyGuidedConfig={handleApplyGuidedConfig}
+            />
           </div>
         </div>
       </div>
