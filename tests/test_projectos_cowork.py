@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier, Lock
+from threading import Barrier, Condition, Lock
 
 import pytest
 
@@ -223,7 +223,14 @@ def test_concurrent_group_runs_execute_only_the_cas_winners_task(
         ProjectStore(base_dir=tmp_path / "projectos"),
     ]
     bind_barrier = Barrier(2)
-    claim_barrier = Barrier(2)
+    # Both contenders meet before claim_task when both reach it. One of them
+    # can instead lose the milestone decomposition claim and read the frontier
+    # before the winner commits its tasks; it then finishes the tick without
+    # claiming, which is a valid outcome. A plain Barrier(2) waited out its
+    # timeout in that case (CI 2026-10-16: BrokenBarrierError).
+    claim_gate = Condition()
+    claim_arrivals = 0
+    finished_runs = 0
     for store in stores:
         original_bind = store.bind_thread_if_absent_versioned
         original_claim = store.claim_task
@@ -235,7 +242,11 @@ def test_concurrent_group_runs_execute_only_the_cas_winners_task(
             return _bind(*args, **kwargs)
 
         def synchronized_claim(*args, _claim=original_claim, **kwargs):
-            claim_barrier.wait(timeout=30)
+            nonlocal claim_arrivals
+            with claim_gate:
+                claim_arrivals += 1
+                claim_gate.notify_all()
+                assert claim_gate.wait_for(lambda: claim_arrivals + finished_runs >= 2, timeout=30)
             return _claim(*args, **kwargs)
 
         monkeypatch.setattr(store, "bind_thread_if_absent_versioned", synchronized_bind)
@@ -264,21 +275,27 @@ def test_concurrent_group_runs_execute_only_the_cas_winners_task(
         ]
 
     def run(store: ProjectStore) -> dict:
-        return run_project_from_group(
-            store,
-            group_store,
-            "thread-race",
-            name="Concurrent project",
-            goal="execute once",
-            hooks={
-                "generate_milestones": milestones,
-                "decompose_tasks": tasks,
-                "execute_task": execute,
-            },
-            run=True,
-            max_ticks=1,
-            reuse_active=True,
-        )
+        nonlocal finished_runs
+        try:
+            return run_project_from_group(
+                store,
+                group_store,
+                "thread-race",
+                name="Concurrent project",
+                goal="execute once",
+                hooks={
+                    "generate_milestones": milestones,
+                    "decompose_tasks": tasks,
+                    "execute_task": execute,
+                },
+                run=True,
+                max_ticks=1,
+                reuse_active=True,
+            )
+        finally:
+            with claim_gate:
+                finished_runs += 1
+                claim_gate.notify_all()
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(run, stores))
