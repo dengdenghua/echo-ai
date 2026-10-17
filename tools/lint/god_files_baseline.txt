@@ -16,7 +16,6 @@ runtime/execution/subagents/sessions.py	1419
 runtime/execution/suckers/ephemeral_agents.py	1187
 runtime/execution/suckers/ephemeral_runner.py	1279
 runtime/execution/suckers/kimi_compat_skills.py	1218
-runtime/execution/suckers/lsp_skills.py	1148
 runtime/execution/suckers/web_skills.py	1278
 runtime/execution/tool_engine/executor.py	1257
 runtime/memory/cowork/collaboration_collectors.py	1245

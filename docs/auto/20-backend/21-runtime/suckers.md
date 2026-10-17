@@ -60,6 +60,7 @@ Suckers = skill pool.
 | `_ephemeral_verification.py` | Verification gate for ephemeral sub-agents. |
 | `_html_text.py` | Dependency-free HTML text extraction for web fetch fallback. |
 | `_lsp_candidates.py` | Seed a language server with the files a reference search must cover. |
+| `_lsp_client.py` | Minimal JSON-RPC-over-stdio LSP client, its errors, and file-URI helpers for lsp_skills. |
 | `_memory_skills_handlers.py` | Registrar for memory_skills · extracted from memory_skills.py. |
 | `_write_skills_background.py` | Background-process machinery for write_skills · extracted from write_skills.py. |
 | `_write_skills_common.py` | Shared helpers & constants for write_skills · extracted from write_skills.py. |
