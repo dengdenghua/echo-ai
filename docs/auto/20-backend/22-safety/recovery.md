@@ -112,6 +112,8 @@ Self-evolution subsystem — biomimetic alias: *Regeneration*.
 | --- | --- |
 | `_gepa_failures.py` | Failure-sample collectors extracted from ``gepa_bridge.py``. |
 | `_gepa_helpers.py` | Private helpers extracted from ``gepa_bridge.py``. |
+| `_gepa_winner_proposal.py` | GEPA winner proposal recording: gates, typed candidate, ledger and canary. |
+| `_gepa_winner_sidecar.py` | Applied GEPA winner sidecar, proposal apply marking and canary outcomes. |
 | `evolution_constraints.py` | — |
 | `evolution_dataset.py` | Unified dataset builder for regeneration and prompt evolution. |
 | `evolution_router.py` | EvolutionRouter · route evolution candidates to the right forge. |
@@ -153,6 +155,21 @@ Self-evolution subsystem — biomimetic alias: *Regeneration*.
 | --- | --- | --- |
 | func | `def collect_failures_from_journal(journal, recipe_id, limit, scope)` | Pull failed trajectories · optionally filter by recipe. |
 | func | `def collect_failures_from_ledger(ledger_path, recipe_id, limit, scope)` | Pull realtime failed-turn records from ProposalLedger. |
+
+### `_gepa_winner_proposal.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def record_winner_proposal_and_canary(result, recipe_id, trigger, ledger_path, canary_config, run_ts, require_improvement, min_score_delta, baseline_prompt, failures, positive_dataset, replay_report, sandbox_replay_report, turn_replay_report, llm_replay_report, min_replay_score, min_sandbox_replay_score, min_turn_replay_score, min_llm_replay_score, tenant_scope)` | Materialize the optimizer winner as an auditable proposal. |
+
+### `_gepa_winner_sidecar.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def write_applied_winner_sidecar(recipe_id, candidate_id, proposal_id, canary_key, avg_score, variant_id, metadata_root)` |  |
+| func | `def resolve_applied_winner_sidecar(recipe_hash, metadata_root)` |  |
+| func | `def mark_winner_proposal_applied(recipe_id, candidate_id, variant_id, proposal_id, canary_key, ledger_path, metadata_root, fitness_after)` |  |
+| func | `def record_winner_canary_outcome(recipe_hash, success, metadata_root, canary_config)` |  |
 
 ### `evolution_constraints.py`
 
@@ -225,11 +242,6 @@ Self-evolution subsystem — biomimetic alias: *Regeneration*.
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| func | `def write_applied_winner_sidecar(recipe_id, candidate_id, proposal_id, canary_key, avg_score, variant_id, metadata_root)` |  |
-| func | `def resolve_applied_winner_sidecar(recipe_hash, metadata_root)` |  |
-| func | `def mark_winner_proposal_applied(recipe_id, candidate_id, variant_id, proposal_id, canary_key, ledger_path, metadata_root, fitness_after)` |  |
-| func | `def record_winner_canary_outcome(recipe_hash, success, metadata_root, canary_config)` |  |
-| func | `def record_winner_proposal_and_canary(result, recipe_id, trigger, ledger_path, canary_config, run_ts, require_improvement, min_score_delta, baseline_prompt, failures, positive_dataset, replay_report, sandbox_replay_report, turn_replay_report, llm_replay_report, min_replay_score, min_sandbox_replay_score, min_turn_replay_score, min_llm_replay_score, tenant_scope)` | Materialize the optimizer winner as an auditable proposal. |
 | func | `def optimize_for_recipe(seed_prompt, journal, router, recipe_id, judge_model, mutator_model, n_iter, eval_tasks, ledger_path, trigger, record_winner, scope)` | End-to-end · pulls failures, builds eval_fn, runs gepa. |
 | func | `def persist_winner(result, section_path)` | Write the best candidate's prompt to ``section_path`` · LLMPlanner picks it up via ``load_section`` on next instance. |
 | func | `def propose_for_losing_recipes(journal, router, seed_prompt, judge_model, mutator_model, n_iter, eval_tasks, max_recipes, ledger_path, scope)` |  |

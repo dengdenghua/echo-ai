@@ -255,7 +255,7 @@ tier: "core"
 
 ## Who imports this
 
-**221** file(s) reference this package:
+**222** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -305,13 +305,13 @@ tier: "core"
   - `runtime/projectos/_store_thread_bindings.py`
   - `runtime/projectos/engine.py`
   - _… and 2 more_
-- **`runtime/safety/`** · 22 file(s)
+- **`runtime/safety/`** · 23 file(s)
   - `runtime/safety/evolution/auto_trigger.py`
   - `runtime/safety/evolution/candidate_registry.py`
   - `runtime/safety/evolution/drift_monitor.py`
   - `runtime/safety/evolution/fitness.py`
   - `runtime/safety/evolution/proposal_ledger.py`
-  - _… and 17 more_
+  - _… and 18 more_
 - **`runtime/sensing/`** · 102 file(s)
   - `runtime/sensing/gateway/_agent_trace_router_stores.py`
   - `runtime/sensing/gateway/_agents_endpoints.py`
