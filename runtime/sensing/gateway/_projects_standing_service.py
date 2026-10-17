@@ -19,6 +19,7 @@ from runtime.projectos.owner_decisions import select_phase
 from runtime.projectos.standing_authorization import GRANTED_KIND, REVOKED_KIND
 from runtime.projectos.standing_execution import run_reviewed_project
 from runtime.projectos.standing_review import standing_authorization_state
+from runtime.safety.approval.cancellation import OperationCancelled
 from runtime.safety.auth.principal import CurrentPrincipal
 
 from ._projects_router_deps import ProjectsDeps
@@ -145,7 +146,11 @@ class StandingProjectService:
                 def execute(project=project, grant_id=grant["grant_id"]):
                     current = self._request(app, project)
                     if current is None:
-                        raise RuntimeError("standing owner identity is no longer available")
+                        # A sweep can pass its identity check just before the
+                        # owner is removed. Losing the owner mid-run cancels the
+                        # run (still_permitted), so losing it before the first
+                        # step must too, not report a failure that replaces it.
+                        raise OperationCancelled("standing owner identity is no longer available")
                     d.project_or_404(current, project.id, allow_operator=False)
                     d.require_execution_context(current, project.id)
 
