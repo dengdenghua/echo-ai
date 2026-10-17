@@ -14,7 +14,7 @@ import { eventBus } from "@/core/events/event-bus";
 import { useI18n } from "@/core/i18n/hooks";
 import { projectCollabCopy } from "@/core/i18n/locales/project-collab";
 import { cn } from "@/lib/utils";
-import type { InlineSubagentInfo } from "./inline-subagent-cards";
+import type { InlineSubagentInfo } from "./inline-subagent-helpers";
 import {
   BROADCAST_DELIVERY_PREFIX,
   BROADCAST_DELIVERY_SUFFIX,

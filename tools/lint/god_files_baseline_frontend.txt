@@ -27,7 +27,6 @@ frontend/src/components/workspace/coder-engine-control.test.tsx	1262
 frontend/src/components/workspace/collab/collab-provider.tsx	1329
 frontend/src/components/workspace/intelligence-panel.tsx	1565
 frontend/src/components/workspace/knowledge-graph-view.tsx	1547
-frontend/src/components/workspace/messages/inline-subagent-cards.tsx	1596
 frontend/src/components/workspace/messages/message-group.test.tsx	3304
 frontend/src/components/workspace/messages/message-group.tsx	3303
 frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3251
