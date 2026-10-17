@@ -31,6 +31,8 @@ export interface RegisterRequest {
 export interface User {
   user_id: string;
   username: string;
+  /** The name the account chose, shown in place of the username. */
+  display_name?: string;
   email?: string;
   roles?: string[];
   permissions?: string[];

@@ -229,6 +229,28 @@ def test_auth_me_reports_durable_scopes_as_permissions(isolated_cwd: Path) -> No
     assert response.json()["permissions"] == ["x", "global:admin", "tenant:cross_tenant"]
 
 
+def test_auth_me_reports_the_display_name_the_account_chose(isolated_cwd: Path) -> None:
+    """A reload names the desktop owner as the sign-in did, not by the handle."""
+    store = IdentityStore()
+    store.add(
+        Identity(
+            actor_id="local:owner",
+            roles=("user", "admin"),
+            metadata={"provider": "local", "username": "owner", "display_name": "Administrator"},
+        ),
+        api_key_plaintext="sk-owner",
+    )
+    app = FastAPI()
+    app.include_router(
+        create_meta_router(registry=SkillRegistry(), identity_store=store, require_auth=True)
+    )
+    with TestClient(app) as client:
+        body = client.get("/api/auth/me", headers={"Authorization": "Bearer sk-owner"}).json()
+
+    assert body["username"] == "owner"
+    assert body["display_name"] == "Administrator"
+
+
 def test_auth_me_accepts_session_cookie_and_logout_expires_it(secured_meta_client) -> None:
     client, _, _registry = secured_meta_client
 

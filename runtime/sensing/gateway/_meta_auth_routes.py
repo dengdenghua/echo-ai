@@ -135,7 +135,8 @@ def _register_auth_routes(router: APIRouter, d: MetaRouterDeps) -> None:
             "permissions": permissions,
             "is_active": True,
         }
-        for key in ("email", "mobile", "provider"):
+        # display_name: a reload names the desktop owner as the sign-in did.
+        for key in ("email", "mobile", "provider", "display_name"):
             value = metadata.get(key)
             if isinstance(value, str) and value.strip():
                 response[key] = value.strip()

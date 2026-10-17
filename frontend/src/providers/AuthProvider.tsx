@@ -113,14 +113,17 @@ function normalizeUserIdentity(
     fallback?.username && !isPlaceholderUsername(fallback.username)
       ? fallback.username
       : undefined;
+  const displayName = incoming.display_name?.trim();
   const username =
-    incoming.username && !isPlaceholderUsername(incoming.username)
-      ? incoming.username
-      : mobile ||
-        incoming.email ||
-        fallbackUsername ||
-        incoming.username ||
-        userId;
+    displayName && !isPlaceholderUsername(displayName)
+      ? displayName
+      : incoming.username && !isPlaceholderUsername(incoming.username)
+        ? incoming.username
+        : mobile ||
+          incoming.email ||
+          fallbackUsername ||
+          incoming.username ||
+          userId;
 
   return {
     ...fallback,
@@ -260,7 +263,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           swallow(error);
           return null;
         });
-        if (owner) setUser(normalizeUserIdentity(owner));
+        if (owner) {
+          // The login response names the owner but not their roles. Read
+          // them, or the owner (an admin) is told to ask an administrator
+          // to install workbenches until the next sign-in.
+          const me = await getMe().catch((error: unknown) => {
+            swallow(error);
+            return null;
+          });
+          setUser(normalizeUserIdentity(owner, me));
+        }
       }
     } catch (e) {
       swallow(e);

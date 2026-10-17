@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getToken: vi.fn(),
   getStoredUser: vi.fn(),
   clearTokens: vi.fn(),
+  desktopOwnerLogin: vi.fn(),
 }));
 
 vi.mock("@/core/auth/api", () => ({
@@ -25,6 +26,7 @@ vi.mock("@/core/auth/api", () => ({
   register: vi.fn(),
   _writeToken: vi.fn(),
   _clearTokens: mocks.clearTokens,
+  desktopOwnerLogin: mocks.desktopOwnerLogin,
 }));
 
 vi.mock("@/core/oct/api", () => ({
@@ -48,6 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getToken.mockReturnValue(null);
   mocks.getStoredUser.mockReturnValue(null);
+  mocks.desktopOwnerLogin.mockResolvedValue(null);
   mocks.getAuthStatus.mockResolvedValue({
     enabled: true,
     jwt_available: true,
@@ -241,4 +244,70 @@ it("reads the account's roles right after an interactive sign-in", async () => {
 
   expect(await screen.findByText("user,local,admin")).toBeInTheDocument();
   expect(mocks.getMe).toHaveBeenCalledTimes(1);
+});
+
+it("reads the desktop owner's roles after the shell signs them in", async () => {
+  // Regression: the owner is an admin, but the shell's login response has no
+  // roles, so 广场 and every workbench card said 请联系管理员.
+  mocks.getAuthStatus.mockResolvedValue({
+    enabled: true,
+    jwt_available: true,
+    allow_registration: false,
+    exempt_paths: [],
+    credential_present: false,
+  });
+  mocks.desktopOwnerLogin.mockResolvedValue({
+    user_id: "local:owner",
+    actor_id: "local:owner",
+    username: "Administrator",
+    provider: "local",
+  });
+  mocks.getMe.mockResolvedValue({
+    user_id: "local:owner",
+    actor_id: "local:owner",
+    username: "owner",
+    roles: ["user", "local", "admin"],
+    permissions: [],
+    is_active: true,
+  });
+  function Roles() {
+    const { isLoading, user } = useAuth();
+    return <div>{isLoading ? "loading" : (user?.roles ?? []).join(",")}</div>;
+  }
+
+  renderWithProviders(
+    <AuthProvider>
+      <Roles />
+    </AuthProvider>,
+  );
+
+  expect(await screen.findByText("user,local,admin")).toBeInTheDocument();
+  expect(mocks.desktopOwnerLogin).toHaveBeenCalledTimes(1);
+});
+
+it("names the account by its display name after a reload", async () => {
+  // Regression: a reload put the desktop owner's handle ("owner") in the
+  // sidebar where the sign-in had shown the OS account name.
+  mocks.getToken.mockReturnValue("tab-token");
+  mocks.getMe.mockResolvedValue({
+    user_id: "local:owner",
+    actor_id: "local:owner",
+    username: "owner",
+    display_name: "Administrator",
+    roles: ["user", "local", "admin"],
+    permissions: [],
+    is_active: true,
+  });
+  function Name() {
+    const { isLoading, user } = useAuth();
+    return <div>{isLoading ? "loading" : `name:${user?.username}`}</div>;
+  }
+
+  renderWithProviders(
+    <AuthProvider>
+      <Name />
+    </AuthProvider>,
+  );
+
+  expect(await screen.findByText("name:Administrator")).toBeInTheDocument();
 });

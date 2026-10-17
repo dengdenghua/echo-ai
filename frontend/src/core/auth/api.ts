@@ -280,6 +280,9 @@ export async function desktopOwnerLogin(): Promise<User | null> {
     user_id: actorId || "local:owner",
     ...(actorId ? { actor_id: actorId } : {}),
     username: result.user?.display_name || result.user?.username || "owner",
+    ...(result.user?.display_name
+      ? { display_name: result.user.display_name }
+      : {}),
     provider: result.user?.provider ?? "local",
   };
   _writeToken(result.access_token, user);
