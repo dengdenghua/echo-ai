@@ -26,7 +26,6 @@ frontend/src/components/workspace/agent-operator/index.tsx	1103
 frontend/src/components/workspace/agent-workbench-panel.test.tsx	3404
 frontend/src/components/workspace/agents/agent-world-unified.tsx	1042
 frontend/src/components/workspace/agents/arms-editor.tsx	1028
-frontend/src/components/workspace/artifacts/artifact-file-detail.tsx	1330
 frontend/src/components/workspace/chat-input-box.test.tsx	2319
 frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2210
 frontend/src/components/workspace/coder-engine-control.test.tsx	1262
