@@ -17,19 +17,33 @@ The runner is intentionally **transport-agnostic**: it doesn't know
 about WebSocket gateways or SSE. It just orchestrates calls into the
 single-agent dispatcher provided by the caller (defaults to the
 sub-agent bridge).
+
+Result records and outcome helpers live in ``_team_runner_results``;
+role prompt builders and critic heuristics in ``_team_runner_prompts``.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
 from typing import Any
 
+from ._team_runner_prompts import (
+    _critic_has_issues,
+    _render_replica_addendum,
+    _TeamRunnerPromptsMixin,
+)
+from ._team_runner_results import (
+    RoleOutput,
+    TeamRunResult,
+    _collect_degraded_roles,
+    _first_role_error,
+    _has_fatal_role_error,
+    _parse_evaluator_score,
+)
 from .topology import CoordinationProtocol, Role, TeamTopology
 
 _logger = logging.getLogger("echo.organization.team_runner")
@@ -45,48 +59,6 @@ _SEQUENTIAL_ORDER: tuple[Role, ...] = (
     Role.SYNTHESIZER,
     Role.EVALUATOR,
 )
-
-
-@dataclass
-class RoleOutput:
-    role: Role
-    agent_id: str
-    output: str
-    score: float | None = None
-    duration_ms: float = 0.0
-    error: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class TeamRunResult:
-    topology_name: str
-    topology_fingerprint: str
-    task_bucket: str
-    success: bool
-    final_output: str
-    role_outputs: list[RoleOutput] = field(default_factory=list)
-    iterations: int = 1
-    total_duration_ms: float = 0.0
-    error: str | None = None
-    # ① 失败隔离：记录本轮哪些角色失败但其部分产出被保留继续，便于上游
-    # 在最终交付上标注"降级"而非整体失败。
-    degraded_roles: list[str] = field(default_factory=list)
-    # ③ critic 反驳 → generator 重写：本轮实际发生的修订轮数。
-    revision_rounds: int = 0
-
-    @property
-    def quality_score(self) -> float | None:
-        """The last evaluator score, if any.
-
-        For evaluator_optimizer this is the threshold metric. For
-        sequential this is whatever the evaluator role (if present)
-        emitted last; ``None`` when no evaluator ran.
-        """
-        for out in reversed(self.role_outputs):
-            if out.role == Role.EVALUATOR and out.score is not None:
-                return out.score
-        return None
 
 
 # A "role caller" is the unit of agent invocation a TeamRunner uses.
@@ -163,141 +135,10 @@ def _context_risk_level(context: dict[str, Any]) -> str:
     return "low"
 
 
-# ── Score parser ──────────────────────────────────────────────
-
-
-_SCORE_PATTERN = re.compile(
-    r"(?:score|quality|rating)[:\s]+([0-9]*\.?[0-9]+)",
-    re.IGNORECASE,
-)
-
-
-def _parse_evaluator_score(text: str) -> float | None:
-    """Extract a 0..1 quality score from evaluator output.
-
-    Looks for ``score: 0.78`` / ``quality 0.4`` / ``rating: 1.0``.
-    Returns ``None`` when no score is found so the caller can decide
-    whether to treat that as pass (no signal) or fail (regression).
-    """
-    if not text:
-        return None
-    match = _SCORE_PATTERN.search(text)
-    if not match:
-        return None
-    try:
-        raw = float(match.group(1))
-    except (TypeError, ValueError):
-        return None
-    # Tolerate evaluators that emit 0-100 instead of 0-1.
-    # We only treat values 10-100 as percent (a "score: 5" likely
-    # means 5 out of 10 in some rubric — clamp instead of divide).
-    if raw > 10.0 and raw <= 100.0:
-        raw = raw / 100.0
-    return max(0.0, min(1.0, raw))
-
-
-def _first_role_error(outputs: list[RoleOutput]) -> str | None:
-    for output in outputs:
-        if output.error:
-            return f"{output.role}({output.agent_id}): {output.error}"
-    return None
-
-
-def _has_fatal_role_error(outputs: list[RoleOutput]) -> bool:
-    """Whether an error prevented a valid terminal team deliverable.
-
-    ① 失败隔离：单个角色失败不再视为整体致命。只要终态交付（synthesizer，
-    否则 evaluator，否则最后一个有产出的角色）存在且成功，就认为团队仍
-    交付了可用结果——先前的角色失败会被记录在 ``degraded_roles``，上游可
-    以标注"降级交付"。只有终态交付本身缺失/失败才算 fatal。
-    """
-    terminal = next(
-        (
-            output
-            for output in reversed(outputs)
-            if output.role in (Role.SYNTHESIZER, Role.EVALUATOR)
-            and output.output
-            and not output.error
-        ),
-        None,
-    )
-    if terminal is not None:
-        return False
-    # 没有终态角色成功：若任一角色有非空产出（部分交付）也不算致命，
-    # 只有完全没有任何可交付内容才是致命。
-    return not any(output.output and not output.error for output in outputs)
-
-
-def _collect_degraded_roles(outputs: list[RoleOutput]) -> list[str]:
-    """① 失败隔离：列出所有失败角色的 role 名（去重、按顺序）。"""
-    seen: list[str] = []
-    for output in outputs:
-        if output.error and str(output.role) not in seen:
-            seen.append(str(output.role))
-    return seen
-
-
-# ── Critic 问题判定 + 重写 prompt ───────────────────────────
-
-# 3 critic rebut -> generator rewrite: these words mean the critic flagged substantive issues.
-# Pure 'no issues / all fine' verdicts do NOT trigger a rewrite.
-_CRITIC_ISSUE_HINTS = (
-    "问题",
-    "缺失",
-    "缺",
-    "错误",
-    "不准确",
-    "需修正",
-    "需补充",
-    "需要修正",
-    "需要补充",
-    "建议",
-    "风险",
-    "漏洞",
-    "矛盾",
-    "冲突",
-    "遗漏",
-    "不足",
-    "含糊",
-    "无法",
-    "issue",
-    "flaw",
-    "error",
-    "concern",
-    "contradiction",
-    "missing",
-    "gap",
-)
-_CRITIC_CLEAN_HINTS = (
-    "未发现",
-    "没有问题",
-    "一切正常",
-    "没问题",
-    "全部正确",
-    "无需",
-    "no issues",
-    "all good",
-    "no problems",
-    "looks good",
-    "looks correct",
-    "all correct",
-)
-
-
-def _critic_has_issues(text: str) -> bool:
-    # 3 Heuristic: did the critic flag substantive issues worth a rewrite?
-    if not text or not text.strip():
-        return False
-    low = text.lower()
-    if any(hint in low for hint in _CRITIC_CLEAN_HINTS):
-        return False
-    return any(hint in low for hint in _CRITIC_ISSUE_HINTS)
-
-
 # ── Runner ────────────────────────────────────────────────────
 
 
-class TeamRunner:
+class TeamRunner(_TeamRunnerPromptsMixin):
     """Drive one TeamTopology against one task."""
 
     def __init__(
@@ -883,130 +724,6 @@ class TeamRunner:
                 "confidence": 0.0,
                 "evidence_item_ids": [],
             }
-
-    def _compose_prompt(
-        self,
-        role: Role,
-        task: str,
-        prior: list[RoleOutput],
-    ) -> str:
-        if not prior:
-            return f"[role: {role}]\n\nTask:\n{task}"
-        bits = [f"[role: {role}]", f"Task:\n{task}", ""]
-        for p in prior:
-            bits.append(f"--- {p.role} output ---")
-            bits.append(p.output)
-            bits.append("")
-        return "\n".join(bits)
-
-    def _compose_generator_prompt(
-        self,
-        task: str,
-        last_gen: RoleOutput | None,
-        last_eval: RoleOutput | None,
-    ) -> str:
-        if last_gen is None or last_eval is None:
-            return f"[role: generator]\n\nTask:\n{task}"
-        return (
-            f"[role: generator · retry]\n\n"
-            f"Task:\n{task}\n\n"
-            f"--- previous attempt ---\n{last_gen.output}\n\n"
-            f"--- evaluator feedback (score: "
-            f"{last_eval.score if last_eval.score is not None else 'n/a'}) ---\n"
-            f"{last_eval.output}\n\n"
-            f"Address the feedback and produce a revised answer."
-        )
-
-    def _compose_cross_check_prompt(
-        self,
-        task: str,
-        replica_outputs: list[RoleOutput],
-        topology: TeamTopology,
-    ) -> str:
-        """② 并行副本交叉验证 prompt：让 critic 对研究员池的全部产出做交叉核查。
-
-        Critic 看到所有副本的结果后，指出重复/冲突/覆盖缺口，供 synthesizer
-        去重与收敛——副本之间通过 critic 这一"裁判"互相可见，而不是各查各的。
-        """
-        bits = ["[role: critic · cross-validation]", f"Task:\n{task}", ""]
-        for i, out in enumerate(replica_outputs, start=1):
-            bits.append(f"--- researcher replica {i} ({out.agent_id}) ---")
-            bits.append(out.output if out.output else "(no output)")
-            bits.append("")
-        bits.append(
-            "以上是同一角色并行副本各自独立调研的全部结果。请做交叉核查：\n"
-            "1) 找出重复/重叠的结论；\n"
-            "2) 找出相互矛盾的地方；\n"
-            "3) 指出还没覆盖到的关键缺口。\n"
-            "只输出核查结论，逐条列出（重复/冲突/缺口），不要复述各副本内容。"
-        )
-        return "\n".join(bits)
-
-    def _compose_critic_revision_prompt(
-        self,
-        task: str,
-        prior: list[RoleOutput],
-        critic: RoleOutput,
-        *,
-        round_no: int = 1,
-    ) -> str:
-        """3 Let the generator rewrite against the critic's specific feedback.
-
-        Hands the previous generator draft plus the critic's concrete criticism
-        back to the generator and asks it to address each point — a real
-        "critic rebuttal -> generator rewrite" loop instead of passing the
-        critic notes as plain text to the synthesizer.
-        """
-        gen_out = next(
-            (o for o in reversed(prior) if o.role == Role.GENERATOR),
-            None,
-        )
-        prev = gen_out.output if gen_out else "(no previous draft)"
-        bits = [
-            "[role: generator · critic-revision]",
-            f"Task:\n{task}",
-            "",
-            f"--- previous generator output (v{max(0, round_no - 1)}) ---",
-            prev,
-            "",
-            f"--- critic's feedback (round {round_no}) ---",
-            critic.output,
-            "",
-            "Please address each point: what you accept, what you keep and why. "
-            "Then produce the revised answer only — do not restate the feedback.",
-        ]
-        return "\n".join(bits)
-
-    def _compose_evaluator_prompt(self, task: str, generator_output: str) -> str:
-        return (
-            "[role: evaluator]\n\n"
-            "Score the candidate answer on a 0-1 scale and explain why.\n"
-            "Begin your reply with: score: <number between 0 and 1>\n\n"
-            f"Task:\n{task}\n\n"
-            f"Candidate answer:\n{generator_output}"
-        )
-
-
-def _render_replica_addendum(
-    addendum: str,
-    *,
-    replica_index: int | None,
-    replica_count: int | None,
-) -> str:
-    """Fill ``{replica_index}`` / ``{replica_count}`` placeholders in a
-    role's system addendum.
-
-    Used by the ``parallel`` protocol so a multi-replica role's prompt can
-    tell each concurrent copy which slice of the work it owns (e.g. a
-    researcher pool of 3, where replica 2 researches the 2nd sub-problem).
-    Only the named placeholders are substituted — any other braces in the
-    addendum are left untouched (``.format`` would reject them).
-    """
-    if replica_index is None:
-        return addendum
-    return addendum.replace("{replica_index}", str(replica_index)).replace(
-        "{replica_count}", str(replica_count or 1)
-    )
 
 
 __all__ = [
