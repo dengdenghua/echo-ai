@@ -93,6 +93,7 @@ CHECKS: tuple[AgentLoopCheck, ...] = (
             "tests/realtime_cerebrum/test_item_mapping.py",
             "frontend/src/components/workspace/agent-operator-panel.tsx",
             "frontend/src/components/workspace/agent-operator/index.tsx",
+            "frontend/src/components/workspace/agent-operator/use-operator-reports.ts",
             "frontend/src/components/workspace/agent-workbench-panel.tsx",
             "frontend/src/components/workspace/agent-workbench-snapshot.ts",
         ),

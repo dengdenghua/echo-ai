@@ -19,7 +19,6 @@ frontend/src/components/browser/webview-tab.tsx	2485
 frontend/src/components/store/capability-market-panel.test.tsx	1274
 frontend/src/components/store/cloud-skills-panel.tsx	1095
 frontend/src/components/workspace/agent-operator-panel.test.tsx	2045
-frontend/src/components/workspace/agent-operator/index.tsx	1103
 frontend/src/components/workspace/agent-workbench-panel.test.tsx	3404
 frontend/src/components/workspace/agents/agent-world-unified.tsx	1042
 frontend/src/components/workspace/chat-input-box.test.tsx	2319

@@ -3,81 +3,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  E2E_SURPASS_TARGET_SCORE,
   applyAgentTraceReviewQueuePromotions,
   decideAgentTraceReviewQueueItem,
   decideSubagentPolicy,
-  fetchAgentCompetitorScorecard,
-  fetchAgentTraceExperienceQualitySummary,
-  fetchAgentTracePolicyReviewRuleDrafts,
   fetchAgentTraceProcessTimeline,
-  fetchAgentTracePromotionAuditSummary,
-  fetchAgentTraceReplayGate,
-  fetchAgentTraceReviewQueue,
-  fetchAgentTraceReviewQueueSummary,
   fetchAgentTraceTaskRuns,
-  fetchAgentTraceTrustDenialSummary,
-  fetchAutoVerifierMetrics,
-  fetchAutomationPolicyRuleDrafts,
-  fetchAutomationRadar,
-  fetchBrowserDesktopQuality,
-  fetchBrowserDesktopRepairRecipeVerifications,
-  fetchBrowserDesktopRepairRecipes,
-  fetchE2ESurpassCertification,
-  fetchOrganizationTopologies,
-  fetchOrganizationTopologyLift,
-  fetchOrganizationTopologyProposals,
-  fetchRepairRouteQuality,
-  fetchSubagentFitness,
-  fetchTaskRecoveryQueue,
-  installAgentTracePolicyReviewRuleDraft,
-  installAutomationPolicyRuleDraft,
-  queueAgentScorecardGaps,
   queueAgentTraceTaskRunReview,
-  queueBrowserDesktopRepairRecipes,
-  queueComputerActivityReplayCase,
-  queueLatestBrowserSessionReplayCase,
-  queueRepairRoutePromotionCandidates,
-  queueReplayEvidenceHint,
-  rejectStaleBrowserDesktopReplayArtifacts,
-  rerunBrowserDesktopRepairRecipeEvidenceBatch,
 } from "@/core/agent-trace/api";
 import type {
-  AgentCompetitorScorecard,
-  AgentTraceExperienceQualitySummary,
-  AgentTracePolicyReviewRuleDrafts,
   AgentTraceProcessTimeline,
-  AgentTracePromotionAuditSummary,
-  AgentTraceReplayGate,
   AgentTraceReviewQueueItem,
-  AgentTraceReviewQueueSummary,
-  AgentTraceTaskRecoveryQueue,
   AgentTraceTaskRun,
-  AgentTraceTrustDenialSummary,
-  AutoVerifierMetricsReport,
-  AutomationPolicyRuleDraftsReport,
-  AutomationRadarReport,
-  BrowserDesktopQualityReport,
-  BrowserDesktopRepairRecipeVerificationsReport,
-  BrowserDesktopRepairRecipesReport,
-  E2ESurpassCertification,
-  OrganizationTopology,
-  OrganizationTopologyLiftReport,
-  OrganizationTopologyProposalsReport,
-  RepairRouteQualityReport,
   ReplayEvidenceHint,
-  SubagentFitnessReport,
 } from "@/core/agent-trace/api";
-import {
-  fetchPluginLifecycleHistory,
-  fetchPluginPublisherTrust,
-  fetchPluginSmokeSummary,
-} from "@/core/plugins/api";
-import type {
-  PluginLifecycleHistory,
-  PluginPublisherTrustReport,
-  PluginSmokeSummary,
-} from "@/core/plugins/types";
 import { swallow } from "@/core/utils/log";
 import { cn } from "@/lib/utils";
 import {
@@ -113,37 +51,13 @@ import { ReplayGateOverrideDialog } from "./dialogs/ReplayGateOverrideDialog";
 import { EmptyPanel, Metric, PanelTitle } from "./operator-primitives";
 import {
   formatApplyResult,
-  formatOperatorCopy,
-  readRequestErrorMessage,
-  replayEvidenceFromError,
   replayGateBlockFromError,
   shortId,
 } from "./operator-utils";
-import {
-  EMPTY_AGENT_SCORECARD,
-  EMPTY_AUDIT_SUMMARY,
-  EMPTY_AUTOMATION_POLICY_RULE_DRAFTS,
-  EMPTY_AUTOMATION_RADAR,
-  EMPTY_AUTO_VERIFIER_METRICS,
-  EMPTY_BROWSER_DESKTOP_QUALITY,
-  EMPTY_BROWSER_DESKTOP_REPAIR_RECIPES,
-  EMPTY_BROWSER_DESKTOP_REPAIR_VERIFICATIONS,
-  EMPTY_E2E_SURPASS_CERTIFICATION,
-  EMPTY_EXPERIENCE_QUALITY,
-  EMPTY_PLUGIN_LIFECYCLE_HISTORY,
-  EMPTY_PLUGIN_PUBLISHER_TRUST,
-  EMPTY_PLUGIN_SMOKE_SUMMARY,
-  EMPTY_POLICY_REVIEW_RULE_DRAFTS,
-  EMPTY_REPAIR_ROUTE_QUALITY,
-  EMPTY_SUBAGENT_FITNESS,
-  EMPTY_SUMMARY,
-  EMPTY_TASK_RECOVERY_QUEUE,
-  EMPTY_TOPOLOGY_LIFT,
-  EMPTY_TOPOLOGY_PROPOSALS,
-  EMPTY_TRUST_DENIAL_SUMMARY,
-} from "./shared";
 import type { ReplayGateOverridePrompt } from "./shared";
 import { useOperatorCopy } from "./use-operator-copy";
+import { useOperatorQueueActions } from "./use-operator-queue-actions";
+import { useOperatorReports } from "./use-operator-reports";
 
 export function AgentOperatorPanel() {
   const to = useOperatorCopy();
@@ -152,73 +66,39 @@ export function AgentOperatorPanel() {
   const [timeline, setTimeline] = useState<AgentTraceProcessTimeline | null>(
     null,
   );
-  const [queueItems, setQueueItems] = useState<AgentTraceReviewQueueItem[]>([]);
-  const [browserDesktopQueueItems, setBrowserDesktopQueueItems] = useState<
-    AgentTraceReviewQueueItem[]
-  >([]);
-  const [scorecardGapQueueItems, setScorecardGapQueueItems] = useState<
-    AgentTraceReviewQueueItem[]
-  >([]);
-  const [queueSummary, setQueueSummary] =
-    useState<AgentTraceReviewQueueSummary>(EMPTY_SUMMARY);
-  const [taskRecoveryQueue, setTaskRecoveryQueue] =
-    useState<AgentTraceTaskRecoveryQueue>(EMPTY_TASK_RECOVERY_QUEUE);
-  const [auditSummary, setAuditSummary] =
-    useState<AgentTracePromotionAuditSummary>(EMPTY_AUDIT_SUMMARY);
-  const [experienceQuality, setExperienceQuality] =
-    useState<AgentTraceExperienceQualitySummary>(EMPTY_EXPERIENCE_QUALITY);
-  const [subagentFitness, setSubagentFitness] = useState<SubagentFitnessReport>(
-    EMPTY_SUBAGENT_FITNESS,
-  );
-  const [topologies, setTopologies] = useState<OrganizationTopology[]>([]);
-  const [topologyProposals, setTopologyProposals] =
-    useState<OrganizationTopologyProposalsReport>(EMPTY_TOPOLOGY_PROPOSALS);
-  const [topologyLift, setTopologyLift] =
-    useState<OrganizationTopologyLiftReport>(EMPTY_TOPOLOGY_LIFT);
-  const [autoVerifierMetrics, setAutoVerifierMetrics] =
-    useState<AutoVerifierMetricsReport>(EMPTY_AUTO_VERIFIER_METRICS);
-  const [browserDesktopQuality, setBrowserDesktopQuality] =
-    useState<BrowserDesktopQualityReport>(EMPTY_BROWSER_DESKTOP_QUALITY);
-  const [automationRadar, setAutomationRadar] = useState<AutomationRadarReport>(
-    EMPTY_AUTOMATION_RADAR,
-  );
-  const [automationPolicyRuleDrafts, setAutomationPolicyRuleDrafts] =
-    useState<AutomationPolicyRuleDraftsReport>(
-      EMPTY_AUTOMATION_POLICY_RULE_DRAFTS,
-    );
-  const [browserDesktopRepairRecipes, setBrowserDesktopRepairRecipes] =
-    useState<BrowserDesktopRepairRecipesReport>(
-      EMPTY_BROWSER_DESKTOP_REPAIR_RECIPES,
-    );
-  const [
+  const {
+    queueItems,
+    browserDesktopQueueItems,
+    scorecardGapQueueItems,
+    queueSummary,
+    taskRecoveryQueue,
+    auditSummary,
+    experienceQuality,
+    subagentFitness,
+    topologies,
+    topologyProposals,
+    topologyLift,
+    autoVerifierMetrics,
+    browserDesktopQuality,
+    automationRadar,
+    automationPolicyRuleDrafts,
+    browserDesktopRepairRecipes,
     browserDesktopRepairVerifications,
-    setBrowserDesktopRepairVerifications,
-  ] = useState<BrowserDesktopRepairRecipeVerificationsReport>(
-    EMPTY_BROWSER_DESKTOP_REPAIR_VERIFICATIONS,
-  );
-  const [repairRouteQuality, setRepairRouteQuality] =
-    useState<RepairRouteQualityReport>(EMPTY_REPAIR_ROUTE_QUALITY);
-  const [pluginSmokeSummary, setPluginSmokeSummary] =
-    useState<PluginSmokeSummary>(EMPTY_PLUGIN_SMOKE_SUMMARY);
-  const [pluginPublisherTrust, setPluginPublisherTrust] =
-    useState<PluginPublisherTrustReport>(EMPTY_PLUGIN_PUBLISHER_TRUST);
-  const [pluginLifecycleHistory, setPluginLifecycleHistory] =
-    useState<PluginLifecycleHistory>(EMPTY_PLUGIN_LIFECYCLE_HISTORY);
-  const [trustDenialSummary, setTrustDenialSummary] =
-    useState<AgentTraceTrustDenialSummary>(EMPTY_TRUST_DENIAL_SUMMARY);
-  const [policyRuleDrafts, setPolicyRuleDrafts] =
-    useState<AgentTracePolicyReviewRuleDrafts>(EMPTY_POLICY_REVIEW_RULE_DRAFTS);
-  const [agentScorecard, setAgentScorecard] =
-    useState<AgentCompetitorScorecard>(EMPTY_AGENT_SCORECARD);
-  const [scorecardError, setScorecardError] = useState<string | null>(null);
-  const [e2eCertification, setE2eCertification] =
-    useState<E2ESurpassCertification>(EMPTY_E2E_SURPASS_CERTIFICATION);
-  const [e2eCertificationError, setE2eCertificationError] = useState<
-    string | null
-  >(null);
-  const [replayGate, setReplayGate] = useState<AgentTraceReplayGate | null>(
-    null,
-  );
+    repairRouteQuality,
+    pluginSmokeSummary,
+    pluginPublisherTrust,
+    setPluginPublisherTrust,
+    pluginLifecycleHistory,
+    trustDenialSummary,
+    setTrustDenialSummary,
+    policyRuleDrafts,
+    agentScorecard,
+    scorecardError,
+    e2eCertification,
+    e2eCertificationError,
+    replayGate,
+    refreshQueue,
+  } = useOperatorReports();
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [lastApplyResult, setLastApplyResult] = useState<string | null>(null);
@@ -229,119 +109,6 @@ export function AgentOperatorPanel() {
   const [error, setError] = useState<string | null>(null);
   const [errorReplayEvidence, setErrorReplayEvidence] =
     useState<ReplayEvidenceHint | null>(null);
-
-  const refreshQueue = useCallback(async () => {
-    const [
-      items,
-      browserDesktopItems,
-      scorecardGapItems,
-      summary,
-      recoveryQueue,
-      gate,
-      audit,
-      memoryQuality,
-      fitness,
-      organizationTopologies,
-      proposals,
-      lift,
-      autoVerifier,
-      browserDesktopHealth,
-      automationRadarReport,
-      automationPolicyDrafts,
-      browserRepairRecipes,
-      browserRepairVerifications,
-      repairRoutes,
-      pluginSmoke,
-      pluginLifecycle,
-      publisherTrust,
-      trustDenials,
-      ruleDrafts,
-      scorecardResult,
-      e2eCertificationResult,
-    ] = await Promise.all([
-      fetchAgentTraceReviewQueue(12, 0, { status: "pending" }),
-      fetchAgentTraceReviewQueue(6, 0, {
-        status: "pending",
-        targetBucket: "browser_desktop_replay",
-      }),
-      fetchAgentTraceReviewQueue(10, 0, {
-        status: "pending",
-        targetBucket: "scorecard_gap_backlog",
-      }),
-      fetchAgentTraceReviewQueueSummary(),
-      fetchTaskRecoveryQueue({ limit: 8 }),
-      fetchAgentTraceReplayGate({ status: "completed" }),
-      fetchAgentTracePromotionAuditSummary(),
-      fetchAgentTraceExperienceQualitySummary(),
-      fetchSubagentFitness(),
-      fetchOrganizationTopologies(),
-      fetchOrganizationTopologyProposals(),
-      fetchOrganizationTopologyLift(),
-      fetchAutoVerifierMetrics(),
-      fetchBrowserDesktopQuality(),
-      fetchAutomationRadar(E2E_SURPASS_TARGET_SCORE),
-      fetchAutomationPolicyRuleDrafts(),
-      fetchBrowserDesktopRepairRecipes(),
-      fetchBrowserDesktopRepairRecipeVerifications(),
-      fetchRepairRouteQuality(),
-      fetchPluginSmokeSummary(),
-      fetchPluginLifecycleHistory(),
-      fetchPluginPublisherTrust(),
-      fetchAgentTraceTrustDenialSummary(),
-      fetchAgentTracePolicyReviewRuleDrafts(),
-      fetchAgentCompetitorScorecard(E2E_SURPASS_TARGET_SCORE)
-        .then((scorecard) => ({ scorecard, error: null }))
-        .catch((err: unknown) => {
-          swallow(err);
-          return {
-            scorecard: null,
-            error: err instanceof Error ? err.message : String(err),
-          };
-        }),
-      fetchE2ESurpassCertification(E2E_SURPASS_TARGET_SCORE)
-        .then((certification) => ({
-          certification,
-          error: null,
-        }))
-        .catch((err: unknown) => {
-          swallow(err);
-          return {
-            certification: null,
-            error: err instanceof Error ? err.message : String(err),
-          };
-        }),
-    ]);
-    setQueueItems(items);
-    setBrowserDesktopQueueItems(browserDesktopItems);
-    setScorecardGapQueueItems(scorecardGapItems);
-    setQueueSummary(summary);
-    setTaskRecoveryQueue(recoveryQueue);
-    setReplayGate(gate);
-    setAuditSummary(audit);
-    setExperienceQuality(memoryQuality);
-    setSubagentFitness(fitness);
-    setTopologies(organizationTopologies);
-    setTopologyProposals(proposals);
-    setTopologyLift(lift);
-    setAutoVerifierMetrics(autoVerifier);
-    setBrowserDesktopQuality(browserDesktopHealth);
-    setAutomationRadar(automationRadarReport);
-    setAutomationPolicyRuleDrafts(automationPolicyDrafts);
-    setBrowserDesktopRepairRecipes(browserRepairRecipes);
-    setBrowserDesktopRepairVerifications(browserRepairVerifications);
-    setRepairRouteQuality(repairRoutes);
-    setPluginSmokeSummary(pluginSmoke);
-    setPluginLifecycleHistory(pluginLifecycle);
-    setPluginPublisherTrust(publisherTrust);
-    setTrustDenialSummary(trustDenials);
-    setPolicyRuleDrafts(ruleDrafts);
-    if (scorecardResult.scorecard) setAgentScorecard(scorecardResult.scorecard);
-    setScorecardError(scorecardResult.error);
-    if (e2eCertificationResult.certification) {
-      setE2eCertification(e2eCertificationResult.certification);
-    }
-    setE2eCertificationError(e2eCertificationResult.error);
-  }, []);
 
   const refreshTaskRuns = useCallback(async () => {
     const rows = await fetchAgentTraceTaskRuns(8);
@@ -507,266 +274,29 @@ export function AgentOperatorPanel() {
     }
   };
 
-  const onQueueTrustDenials = async () => {
-    setBusyId("queue-trust-denials");
-    try {
-      const next = await fetchAgentTraceTrustDenialSummary(1000, {
-        queueRepeated: true,
-        minOccurrences: 2,
-      });
-      setTrustDenialSummary(next);
-      await refreshQueue();
-      setError(null);
-    } catch (err) {
-      swallow(err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onQueueBrowserDesktopReplay = async (kind: "browser" | "desktop") => {
-    setBusyId(`queue-${kind}-desktop-replay`);
-    try {
-      const result =
-        kind === "browser"
-          ? await queueLatestBrowserSessionReplayCase()
-          : await queueComputerActivityReplayCase();
-      setLastApplyResult(
-        formatOperatorCopy(to, "Queued {count} {kind} replay review item(s).", {
-          count: result.queue.created + result.queue.updated,
-          kind: to(kind),
-        }),
-      );
-      await refreshQueue();
-      setError(null);
-      setErrorReplayEvidence(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-      setErrorReplayEvidence(replayEvidenceFromError(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onQueueBrowserDesktopRepairRecipes = async () => {
-    setBusyId("queue-browser-desktop-repair-recipes");
-    try {
-      const result = await queueBrowserDesktopRepairRecipes();
-      setLastApplyResult(
-        formatOperatorCopy(
-          to,
-          "Queued {count} browser/desktop repair recipe item(s).",
-          { count: result.created + result.updated },
-        ),
-      );
-      await refreshQueue();
-      setError(null);
-      setErrorReplayEvidence(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onRejectStaleBrowserDesktopReplayArtifacts = async () => {
-    setBusyId("reject-stale-browser-desktop-replay-artifacts");
-    try {
-      const result = await rejectStaleBrowserDesktopReplayArtifacts();
-      setLastApplyResult(
-        formatOperatorCopy(
-          to,
-          "Rejected {rejected} stale replay item(s); archived {archived} repair recipe item(s).",
-          {
-            rejected: result.rejected_count,
-            archived: result.archived_recipe_count ?? 0,
-          },
-        ),
-      );
-      await refreshQueue();
-      setError(null);
-      setErrorReplayEvidence(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onRerunBlockedBrowserDesktopRepairRecipes = async () => {
-    setBusyId("rerun-browser-desktop-repair-recipes");
-    try {
-      const result = await rerunBrowserDesktopRepairRecipeEvidenceBatch({
-        promoteSourceCases: false,
-        actor: "operator_panel",
-      });
-      setLastApplyResult(
-        formatOperatorCopy(
-          to,
-          "Reran {attempted} browser/desktop repair recipe(s): {passed} passed, {failed} failed. Source cases remain operator-gated.",
-          {
-            attempted: result.attempted,
-            passed: result.passed,
-            failed: result.failed,
-          },
-        ),
-      );
-      await refreshQueue();
-      setError(null);
-      setErrorReplayEvidence(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onQueueRepairRoutePromotions = async () => {
-    setBusyId("queue-repair-route-promotions");
-    try {
-      const result = await queueRepairRoutePromotionCandidates();
-      setLastApplyResult(
-        formatOperatorCopy(
-          to,
-          "Queued {count} repair-route promotion review item(s).",
-          { count: result.created + result.updated },
-        ),
-      );
-      await refreshQueue();
-      setError(null);
-    } catch (err) {
-      swallow(err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onQueueErrorReplayEvidence = async () => {
-    if (!errorReplayEvidence) return;
-    setBusyId("queue-error-replay-evidence");
-    try {
-      const result = await queueReplayEvidenceHint(errorReplayEvidence);
-      setLastApplyResult(
-        formatOperatorCopy(to, "Queued {count} replay evidence item(s).", {
-          count: result.queue.created + result.queue.updated,
-        }),
-      );
-      await refreshQueue();
-      setError(null);
-      setErrorReplayEvidence(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onQueueRealScorecardGaps = async () => {
-    setBusyId("queue-scorecard-gaps");
-    try {
-      const result = await queueAgentScorecardGaps({
-        targetScore: agentScorecard.target_score,
-        limit: 10,
-      });
-      setLastApplyResult(
-        formatOperatorCopy(
-          to,
-          "Queued {count} real scorecard gap review item(s).",
-          { count: result.total },
-        ),
-      );
-      await refreshQueue();
-      setError(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onQueueScorecardGap = async (dimensionId: string) => {
-    setBusyId(`queue-scorecard-gap:${dimensionId}`);
-    try {
-      const result = await queueAgentScorecardGaps({
-        targetScore: agentScorecard.target_score,
-        limit: 1,
-        dimensionId,
-        reason: "operator scorecard drill-down remediation",
-      });
-      setLastApplyResult(
-        formatOperatorCopy(
-          to,
-          "Queued {count} {dimension} scorecard remediation item(s).",
-          { count: result.total, dimension: dimensionId },
-        ),
-      );
-      await refreshQueue();
-      setError(null);
-    } catch (err) {
-      swallow(err);
-      setError(readRequestErrorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onInstallPolicyRuleDraft = async (draftId: string) => {
-    setBusyId(`install-policy-rule:${draftId}`);
-    try {
-      const result = await installAgentTracePolicyReviewRuleDraft(draftId);
-      setLastApplyResult(
-        formatOperatorCopy(
-          to,
-          "Installed {effect} rule for {tool} · {count} policy rules",
-          {
-            effect: result.rule.effect,
-            tool: result.rule.tool,
-            count: result.policy_rule_count,
-          },
-        ),
-      );
-      await refreshQueue();
-      setError(null);
-    } catch (err) {
-      swallow(err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onInstallAutomationPolicyRuleDraft = async (draftId: string) => {
-    setBusyId(`install-automation-policy-rule:${draftId}`);
-    try {
-      const result = await installAutomationPolicyRuleDraft(draftId);
-      setLastApplyResult(
-        formatOperatorCopy(
-          to,
-          "Installed {effect} automation rule for {tool} · {count} policy rules",
-          {
-            effect: result.rule.effect,
-            tool: result.rule.tool,
-            count: result.policy_rule_count,
-          },
-        ),
-      );
-      await refreshQueue();
-      setError(null);
-    } catch (err) {
-      swallow(err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyId(null);
-    }
-  };
+  const {
+    onQueueTrustDenials,
+    onQueueBrowserDesktopReplay,
+    onQueueBrowserDesktopRepairRecipes,
+    onRejectStaleBrowserDesktopReplayArtifacts,
+    onRerunBlockedBrowserDesktopRepairRecipes,
+    onQueueRepairRoutePromotions,
+    onQueueErrorReplayEvidence,
+    onQueueRealScorecardGaps,
+    onQueueScorecardGap,
+    onInstallPolicyRuleDraft,
+    onInstallAutomationPolicyRuleDraft,
+  } = useOperatorQueueActions({
+    to,
+    agentScorecard,
+    errorReplayEvidence,
+    setBusyId,
+    setError,
+    setErrorReplayEvidence,
+    setLastApplyResult,
+    setTrustDenialSummary,
+    refreshQueue,
+  });
 
   const { onTakeoverTaskRun, onResumeTaskRun } = useTaskRecoveryActions({
     setBusyId,

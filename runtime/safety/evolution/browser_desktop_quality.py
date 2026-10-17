@@ -266,6 +266,7 @@ CHECKS: tuple[BrowserDesktopCheck, ...] = (
             "frontend/src/components/workspace/replay-panel.tsx",
             "frontend/src/components/workspace/agent-operator-panel.tsx",
             "frontend/src/components/workspace/agent-operator/index.tsx",
+            "frontend/src/components/workspace/agent-operator/use-operator-queue-actions.ts",
         ),
         required_terms=(
             "echo.browser_session_recovery_proof.v1",
