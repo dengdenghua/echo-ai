@@ -16,13 +16,10 @@ import { getToken } from "@/core/auth/api";
 import { openAuthenticatedWebSocket } from "@/core/auth/websocket";
 import { getBackendWebSocketBaseURL } from "@/core/config";
 import { readOrCreateTeamParticipantId } from "@/core/teams";
-import type { SpeakerPolicy } from "@/core/teams";
 import { eventBus } from "@/core/events";
 import { teamTaskQueryKeys } from "@/core/team-tasks/hooks";
-import { isTeamTask } from "@/core/team-tasks/guards";
 import type { TeamTask } from "@/core/team-tasks/types";
 import { looseBody } from "@/core/api/response";
-import { isObjectLike, isOneOf } from "@/core/utils/guards";
 import type {
   CoworkMessageReaction,
   CoworkPinnedMessage,
@@ -30,20 +27,9 @@ import type {
 } from "@/core/cowork/types";
 import { isCoworkRoomReplyReference } from "@/core/cowork/guards";
 import {
-  categoricalSlot,
-  categoricalSnowHex,
-  categoricalVar,
-} from "@/lib/categorical-palette";
-import {
-  createCollabAnnotation,
-  createCollabAnnotationReply,
-  deleteCollabAnnotation,
   getCollabAnnotations,
   getCollabMessageReactions,
   getCollabPinnedMessages,
-  setCollabAnnotationResolved,
-  toggleCollabMessageReaction,
-  toggleCollabPinnedMessage,
 } from "@/core/cowork/api";
 
 import {
@@ -64,101 +50,35 @@ export {
 export type { RoomMessage, RoomMessageReceipt } from "./room-message-state";
 
 import { useRoomTranscript } from "./use-room-transcript";
-
-export interface User {
-  id: string;
-  name: string;
-  avatar?: string;
-  color: string;
-}
-
-export interface AnnotationAuthor {
-  display_name: string;
-  avatar_color: string;
-}
-
-export interface AnnotationReply {
-  reply_id: string;
-  author: AnnotationAuthor | null;
-  body: string;
-  created_at: number;
-}
-
-export interface Annotation {
-  annotation_id: string;
-  message_id: string;
-  author: AnnotationAuthor | null;
-  body: string;
-  created_at: number;
-  resolved: boolean;
-  replies: AnnotationReply[];
-}
-
-export interface TeamTaskProgressEvent {
-  id: string;
-  team_id: string;
-  room_id: string;
-  task_id: string;
-  task: TeamTask | null;
-  event: string;
-  role?: string | null;
-  role_status?: string | null;
-  completed_roles?: number;
-  total_roles?: number;
-  progress?: number;
-  server_time: string;
-  error?: string | null;
-  runner_event?: Record<string, unknown> | null;
-}
-
-export interface FloorState {
-  speakerPolicy: SpeakerPolicy;
-  currentSpeakerId: string | null;
-  moderatorId: string | null;
-  floorRequests: string[];
-}
-
-const DEFAULT_FLOOR: FloorState = {
-  speakerPolicy: "free",
-  currentSpeakerId: null,
-  moderatorId: null,
-  floorRequests: [],
-};
-
-interface CollabContextType {
-  canWrite: boolean;
-  users: User[];
-  currentUser: User | null;
-  isConnected: boolean;
-  roomMessages: RoomMessage[];
-  messageReceipts: RoomMessageReceipt[];
-  taskEvents: TeamTaskProgressEvent[];
-  floor: FloorState;
-  join: (user: User) => void;
-  leave: () => void;
-  updateCursor: (position: { x: number; y: number }) => void;
-  sendRoomMessage: (
-    text: string,
-    onBehalfOf?: string,
-    replyTo?: CoworkRoomReplyReference | null,
-  ) => string | null;
-  retryRoomMessage: (messageId: string) => boolean;
-  markRoomMessageRead: (messageId: string, seq?: number) => boolean;
-  raiseHand: () => void;
-  yieldFloor: () => void;
-  grantFloor: (targetId: string | null) => void;
-  notifyThreadUpdate: (reason?: string) => void;
-  annotations: Annotation[];
-  messageReactions: CoworkMessageReaction[];
-  pinnedMessages: CoworkPinnedMessage[];
-  toggleMessageReaction: (messageId: string, emoji: string) => Promise<void>;
-  togglePinnedMessage: (messageId: string) => Promise<void>;
-  addAnnotation: (messageId: string, body: string) => Promise<void>;
-  resolveAnnotation: (annotationId: string) => Promise<void>;
-  unresolveAnnotation: (annotationId: string) => Promise<void>;
-  deleteAnnotation: (annotationId: string) => Promise<void>;
-  replyToAnnotation: (annotationId: string, body: string) => Promise<void>;
-}
+import {
+  DEFAULT_FLOOR,
+  appendTaskProgressEvent,
+  colorFor,
+  floorFrom,
+  isRecord,
+  mergeTaskIntoList,
+  parseMessage,
+  parseTaskProgressEvent,
+  participantToUser,
+  removeTaskFromList,
+  teamHasRemovedParticipant,
+} from "./collab-protocol";
+import type {
+  Annotation,
+  CollabContextType,
+  FloorState,
+  TeamTaskProgressEvent,
+  User,
+} from "./collab-types";
+export type {
+  Annotation,
+  AnnotationAuthor,
+  AnnotationReply,
+  FloorState,
+  TeamTaskProgressEvent,
+  User,
+} from "./collab-types";
+import { useCollabAnnotationActions } from "./use-collab-annotation-actions";
 
 interface CollabProviderProps {
   canWrite?: boolean;
@@ -837,165 +757,23 @@ export function CollabProvider({
     [normalizedThreadId, sendJson],
   );
 
-  const author = useMemo<AnnotationAuthor | null>(
-    () =>
-      currentUser
-        ? {
-            display_name: currentUser.name,
-            avatar_color: avatarHex(currentUser.id),
-          }
-        : null,
-    [currentUser],
-  );
-
-  const addAnnotation = useCallback(
-    async (messageId: string, body: string) => {
-      if (!normalizedThreadId) throw new Error("请先创建协作会话");
-      const annotation = await createCollabAnnotation(normalizedThreadId, {
-        message_id: messageId,
-        body,
-        display_name: author?.display_name,
-        avatar_color: author?.avatar_color,
-      });
-      setAnnotations((prev) =>
-        prev.some((item) => item.annotation_id === annotation.annotation_id)
-          ? prev
-          : [...prev, annotation],
-      );
-      void queryClient.invalidateQueries({
-        queryKey: ["cowork", "session", normalizedThreadId],
-      });
-      notifyThreadUpdate("annotation");
-    },
-    [author, normalizedThreadId, notifyThreadUpdate, queryClient],
-  );
-
-  const toggleMessageReaction = useCallback(
-    async (messageId: string, emoji: string) => {
-      if (!normalizedThreadId) throw new Error("请先创建协作会话");
-      const reaction = await toggleCollabMessageReaction(normalizedThreadId, {
-        message_id: messageId,
-        emoji,
-      });
-      setMessageReactions((previous) => {
-        const withoutCurrent = previous.filter(
-          (item) =>
-            !(
-              item.message_id === reaction.message_id &&
-              item.emoji === reaction.emoji
-            ),
-        );
-        return reaction.count > 0
-          ? [...withoutCurrent, reaction]
-          : withoutCurrent;
-      });
-      notifyThreadUpdate("reaction");
-    },
-    [normalizedThreadId, notifyThreadUpdate],
-  );
-
-  const togglePinnedMessage = useCallback(
-    async (messageId: string) => {
-      if (!normalizedThreadId) throw new Error("请先创建协作会话");
-      const pin = await toggleCollabPinnedMessage(
-        normalizedThreadId,
-        messageId,
-      );
-      setPinnedMessages((previous) =>
-        pin.pinned
-          ? [
-              ...previous.filter((item) => item.message_id !== pin.message_id),
-              {
-                message_id: pin.message_id,
-                pinned_by: currentUser?.id ?? "",
-                created_at: Date.now() / 1000,
-              },
-            ]
-          : previous.filter((item) => item.message_id !== pin.message_id),
-      );
-      notifyThreadUpdate("pin");
-    },
-    [currentUser?.id, normalizedThreadId, notifyThreadUpdate],
-  );
-
-  const resolveAnnotation = useCallback(
-    async (annotationId: string) => {
-      if (!normalizedThreadId) throw new Error("请先创建协作会话");
-      const annotation = await setCollabAnnotationResolved(
-        normalizedThreadId,
-        annotationId,
-        true,
-      );
-      setAnnotations((prev) =>
-        prev.map((item) =>
-          item.annotation_id === annotationId ? annotation : item,
-        ),
-      );
-      notifyThreadUpdate("annotation");
-    },
-    [normalizedThreadId, notifyThreadUpdate],
-  );
-
-  const unresolveAnnotation = useCallback(
-    async (annotationId: string) => {
-      if (!normalizedThreadId) throw new Error("请先创建协作会话");
-      const annotation = await setCollabAnnotationResolved(
-        normalizedThreadId,
-        annotationId,
-        false,
-      );
-      setAnnotations((prev) =>
-        prev.map((item) =>
-          item.annotation_id === annotationId ? annotation : item,
-        ),
-      );
-      notifyThreadUpdate("annotation");
-    },
-    [normalizedThreadId, notifyThreadUpdate],
-  );
-
-  const deleteAnnotation = useCallback(
-    async (annotationId: string) => {
-      if (!normalizedThreadId) throw new Error("请先创建协作会话");
-      await deleteCollabAnnotation(normalizedThreadId, annotationId);
-      setAnnotations((prev) =>
-        prev.filter((item) => item.annotation_id !== annotationId),
-      );
-      notifyThreadUpdate("annotation");
-    },
-    [normalizedThreadId, notifyThreadUpdate],
-  );
-
-  const replyToAnnotation = useCallback(
-    async (annotationId: string, body: string) => {
-      if (!normalizedThreadId) throw new Error("请先创建协作会话");
-      const { reply } = await createCollabAnnotationReply(
-        normalizedThreadId,
-        annotationId,
-        {
-          body,
-          display_name: author?.display_name,
-          avatar_color: author?.avatar_color,
-        },
-      );
-      setAnnotations((prev) =>
-        prev.map((item) =>
-          item.annotation_id === annotationId
-            ? {
-                ...item,
-                replies: item.replies.some(
-                  (existing) => existing.reply_id === reply.reply_id,
-                )
-                  ? item.replies
-                  : [...item.replies, reply],
-              }
-            : item,
-        ),
-      );
-      notifyThreadUpdate("annotation");
-    },
-    [author, normalizedThreadId, notifyThreadUpdate],
-  );
+  const {
+    addAnnotation,
+    toggleMessageReaction,
+    togglePinnedMessage,
+    resolveAnnotation,
+    unresolveAnnotation,
+    deleteAnnotation,
+    replyToAnnotation,
+  } = useCollabAnnotationActions({
+    normalizedThreadId,
+    currentUser,
+    queryClient,
+    notifyThreadUpdate,
+    setAnnotations,
+    setMessageReactions,
+    setPinnedMessages,
+  });
 
   return (
     <CollabContext.Provider
@@ -1045,158 +823,4 @@ export function useCollab() {
 
 export function useOptionalCollab() {
   return useContext(CollabContext);
-}
-
-function parseMessage(data: unknown): Record<string, unknown> | null {
-  if (typeof data !== "string") return null;
-  try {
-    const parsed: unknown = JSON.parse(data);
-    return isObjectLike(parsed) ? parsed : null;
-  } catch (e) {
-    swallow(e);
-    return null;
-  }
-}
-
-function participantToUser(participant: unknown, avatar?: string | null): User {
-  const item = isObjectLike(participant) ? participant : {};
-  const id = String(item.id ?? `guest-${Date.now()}`);
-  const name = String(item.display_name ?? "Guest");
-  return {
-    id,
-    name,
-    avatar: avatar ?? undefined,
-    color: colorFor(id),
-  };
-}
-
-function teamHasRemovedParticipant(
-  team: unknown,
-  participantId: string,
-): boolean {
-  const item = isObjectLike(team) ? team : {};
-  const participants = Array.isArray(item.participants)
-    ? item.participants
-    : [];
-  return participants.some((participant) => {
-    if (!isObjectLike(participant)) return false;
-    return participant.id === participantId && participant.status === "removed";
-  });
-}
-
-function parseTaskProgressEvent(
-  msg: Record<string, unknown>,
-  expectedTeamId?: string | null,
-): TeamTaskProgressEvent | null {
-  const task = isRecord(msg.task) ? looseBody(msg.task, isTeamTask) : null;
-  const taskId = stringOr(msg.task_id) || task?.id || "";
-  const roomId =
-    stringOr(msg.room_id) || stringOr(msg.team_id) || task?.room_id || "";
-  if (!taskId || !roomId) return null;
-  // Require an explicit expectedTeamId and force a strict match. A
-  // permissive fallback (when expectedTeamId is falsy) used to let
-  // global subscribers swallow task:progress for arbitrary rooms,
-  // which corrupted React Query cache and could clear UI for tasks
-  // the user owns. WS messages MUST be scoped to the current team.
-  if (!expectedTeamId || roomId !== expectedTeamId) return null;
-  const event = stringOr(msg.event) || "progress";
-  const serverTime = stringOr(msg.server_time) || new Date().toISOString();
-  return {
-    id: [
-      taskId,
-      event,
-      serverTime,
-      stringOr(msg.role),
-      stringOr(msg.completed_roles),
-    ].join(":"),
-    team_id: stringOr(msg.team_id) || roomId,
-    room_id: roomId,
-    task_id: taskId,
-    task,
-    event,
-    role: stringOr(msg.role) || null,
-    role_status: stringOr(msg.role_status) || null,
-    completed_roles: numberOr(msg.completed_roles),
-    total_roles: numberOr(msg.total_roles),
-    progress: numberOr(msg.progress),
-    server_time: serverTime,
-    error: stringOr(msg.error) || null,
-    runner_event: isRecord(msg.runner_event) ? msg.runner_event : null,
-  };
-}
-
-function appendTaskProgressEvent(
-  prev: TeamTaskProgressEvent[],
-  event: TeamTaskProgressEvent,
-) {
-  const filtered = prev.filter((item) => item.id !== event.id);
-  return [...filtered, event].slice(-80);
-}
-
-function mergeTaskIntoList(
-  current: TeamTask[] | undefined,
-  task: TeamTask,
-): TeamTask[] {
-  const existing = current ?? [];
-  const next = existing.some((item) => item.id === task.id)
-    ? existing.map((item) => (item.id === task.id ? task : item))
-    : [task, ...existing];
-  return [...next].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-}
-
-function removeTaskFromList(
-  current: TeamTask[] | undefined,
-  taskId: string,
-): TeamTask[] {
-  return (current ?? []).filter((item) => item.id !== taskId);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
-}
-
-const FLOOR_POLICIES = [
-  "free",
-  "admin_only",
-  "round_robin",
-  "roll_call",
-  "moderated",
-] as const satisfies readonly SpeakerPolicy[];
-
-// Extract floor state from either a dedicated ``floor`` event or a team
-// object (which carries the same fields). Tolerant of missing keys.
-function floorFrom(source: unknown): FloorState {
-  const item = isRecord(source) ? source : {};
-  const policy = String(item.speaker_policy ?? "free");
-  return {
-    speakerPolicy: isOneOf(policy, FLOOR_POLICIES) ? policy : "free",
-    currentSpeakerId:
-      typeof item.current_speaker_id === "string"
-        ? item.current_speaker_id
-        : null,
-    moderatorId:
-      typeof item.moderator_id === "string" ? item.moderator_id : null,
-    floorRequests: Array.isArray(item.floor_requests)
-      ? item.floor_requests.filter((x): x is string => typeof x === "string")
-      : [],
-  };
-}
-
-function stringOr(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function numberOr(value: unknown): number | undefined {
-  const number = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(number) ? number : undefined;
-}
-
-/** Collaborator identity colour: a stable ECHO categorical slot. */
-function colorFor(id: string): string {
-  return categoricalVar(categoricalSlot(id));
-}
-
-/** Snow hex for annotation authors: readable under white initials anywhere. */
-function avatarHex(id: string): string {
-  return categoricalSnowHex(categoricalSlot(id));
 }
