@@ -1,4 +1,5 @@
 import { useI18n } from "@/core/i18n/hooks";
+import { turnFailureCopy } from "@/core/i18n/locales/turn-failure";
 import type { AgentPhase } from "./agent-phases";
 import type { LiveToolEvent } from "./live-tool-timeline";
 import type { WorkBlock } from "./work-blocks";
@@ -169,7 +170,7 @@ export function deriveAgentTilesFromEvents(
 }
 
 export function useAgentWorkbenchI18n() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   function phaseBlockSummary(phase: AgentPhase, blocks: WorkBlock[]) {
     const related = blocks.filter((block) => phase.blockIds.includes(block.id));
@@ -216,11 +217,19 @@ export function useAgentWorkbenchI18n() {
     options?: {
       settled?: boolean;
       failed?: boolean;
+      needsSetup?: boolean;
       interrupted?: boolean;
       blocked?: boolean;
       responded?: boolean;
     },
   ) {
+    if (options?.needsSetup) {
+      return {
+        label: turnFailureCopy(locale).needsSetup,
+        className: agentRunBadgeClass("setup"),
+        dotClassName: agentRunDotClass("setup"),
+      };
+    }
     // The server can leave a stale pending phase in a replayed snapshot even
     // after the turn has emitted its final answer. Once the host tells us the
     // run is settled, that lifecycle signal is authoritative for the compact

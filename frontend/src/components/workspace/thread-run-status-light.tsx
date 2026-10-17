@@ -7,6 +7,7 @@ import {
   agentRunStatusLightPulseClass,
 } from "@/components/workspace/agent-run-status";
 import { useI18n } from "@/core/i18n/hooks";
+import { turnFailureCopy } from "@/core/i18n/locales/turn-failure";
 import { attentionTitle } from "@/core/notification/attention";
 import { useThreadAttention } from "@/core/notification/attention-store";
 import type { ThreadRunStatus } from "@/core/threads/sidebar";
@@ -26,7 +27,7 @@ export function ThreadRunStatusLight({
   /** Names the cause (approval, pause reason…) when the thread waits. */
   threadId?: string;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const attention = useThreadAttention(threadId);
   if (!status) {
     if (idle === "hidden") return null;
@@ -65,7 +66,9 @@ export function ThreadRunStatusLight({
           ? t.sidebar.taskStatusFailed
           : status === "waiting"
             ? t.agentWorkbench.waitingToContinue
-            : t.sidebar.taskStatusPending;
+            : status === "setup"
+              ? turnFailureCopy(locale).needsSetup
+              : t.sidebar.taskStatusPending;
   const colorClass = agentRunStatusLightClass(status);
   const pulseClass = agentRunStatusLightPulseClass(status);
 

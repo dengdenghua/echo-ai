@@ -23,6 +23,8 @@ export interface TurnFailureCopy {
   toolCatalogTooLarge: string;
   /** Codex's account sign-in has expired or cannot be read. */
   codexSignIn: string;
+  /** Short status for a session that only lacks a model (sidebar dot, 主电脑). */
+  needsSetup: string;
   setup: {
     connectOpencode: string;
     /** Tooltip on 连接 OpenCode: what the key unlocks. */
@@ -45,6 +47,7 @@ const zhCN: TurnFailureCopy = {
     "当前任务加载的工具过多，已超过执行接口上限。请减少启用的插件或工具后重试。",
   codexSignIn:
     "Codex 的 ChatGPT 登录已失效或无法读取。请在设置 → 模型里重新登录，或换一个执行引擎。",
+  needsSetup: "待连接模型",
   setup: {
     connectOpencode: "连接 OpenCode",
     connectOpencodeHint: "免费模型，需连接 OpenCode Zen 并填入 API Key",
@@ -68,6 +71,7 @@ const enUS: TurnFailureCopy = {
     "This task loaded more tools than the execution API allows. Turn off some plugins or tools and try again.",
   codexSignIn:
     "Codex's ChatGPT sign-in has expired or can't be read. Sign in again in Settings → Models, or pick another engine.",
+  needsSetup: "Needs a model",
   setup: {
     connectOpencode: "Connect OpenCode",
     connectOpencodeHint: "Free models; needs an OpenCode Zen API key",
@@ -91,6 +95,7 @@ const jaJP: TurnFailureCopy = {
     "このタスクで読み込んだツールが実行 API の上限を超えています。プラグインやツールを減らしてもう一度お試しください。",
   codexSignIn:
     "Codex の ChatGPT ログインが期限切れか、読み取れません。設定 → モデルで再ログインするか、別のエンジンを選んでください。",
+  needsSetup: "モデル未接続",
   setup: {
     connectOpencode: "OpenCode を接続",
     connectOpencodeHint: "無料モデル。OpenCode Zen の API キーが必要です",
@@ -114,6 +119,7 @@ const koKR: TurnFailureCopy = {
     "이 작업이 불러온 도구가 실행 API 한도를 넘었습니다. 플러그인이나 도구를 줄인 뒤 다시 시도하세요.",
   codexSignIn:
     "Codex의 ChatGPT 로그인이 만료되었거나 읽을 수 없습니다. 설정 → 모델에서 다시 로그인하거나 다른 엔진을 고르세요.",
+  needsSetup: "모델 연결 필요",
   setup: {
     connectOpencode: "OpenCode 연결",
     connectOpencodeHint: "무료 모델, OpenCode Zen API 키 필요",

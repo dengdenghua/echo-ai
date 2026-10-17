@@ -242,7 +242,13 @@ export function attentionBody(
   return `${title}\n${copy.actionHint}`;
 }
 
-type TrackState = "running" | "pending" | "waiting" | "error" | "done";
+type TrackState =
+  | "running"
+  | "pending"
+  | "waiting"
+  | "error"
+  | "setup"
+  | "done";
 
 interface ThreadTrack {
   state?: TrackState;
@@ -490,6 +496,15 @@ export function createAttentionTracker(
           title: entry.title,
           source: "live",
         });
+        return;
+      }
+
+      // A turn that could not start for want of a model: the card in the
+      // thread offers the setup, so nothing failed and nothing is announced.
+      if (state === "setup") {
+        cancelTerminal(entry);
+        entry.state = state;
+        entry.attention = undefined;
         return;
       }
 

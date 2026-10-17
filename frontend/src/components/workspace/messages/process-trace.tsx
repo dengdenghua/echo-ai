@@ -27,7 +27,7 @@ import {
   progressForPhases,
 } from "../agent-phases";
 import {
-  type AgentRunState,
+  type StepRunState,
   agentRunAvatarAnimationClass,
   agentRunHue,
   agentRunIconClass,
@@ -48,7 +48,7 @@ type MessageAgentRow = {
   id: string;
   name: string;
   label: string;
-  status: AgentRunState;
+  status: StepRunState;
   task: string;
   prompt?: string;
   role?: string;

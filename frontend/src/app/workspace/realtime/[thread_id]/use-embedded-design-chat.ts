@@ -13,6 +13,7 @@ import {
 
 import { latestSettledDesignAnswer } from "./realtime-turn-utils";
 import type { StateSetter } from "./realtime-page-types";
+import type { SidebarRunState } from "./use-agent-run-state";
 
 /**
  * The conversation embedded in the same-origin Design Canvas: its route
@@ -91,7 +92,7 @@ interface DesignThreadBridgeInput {
   agentRunInterrupted: boolean;
   agentRunFailed: boolean;
   hasCompletedAgentOutput: boolean;
-  sidebarRunState: "running" | "waiting" | "error" | null;
+  sidebarRunState: SidebarRunState;
   lastTurnMessages: Message[];
   threadTitle: string | undefined;
   resultPreviewUrl: string | null | undefined;
@@ -126,7 +127,7 @@ export function useDesignThreadBridge({
             ? "failed"
             : hasCompletedAgentOutput
               ? "completed"
-              : sidebarRunState || "idle",
+              : (sidebarRunState !== "setup" && sidebarRunState) || "idle",
       },
       embeddedDesignParentOrigin,
     );

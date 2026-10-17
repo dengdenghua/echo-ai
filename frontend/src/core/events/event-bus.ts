@@ -52,7 +52,15 @@ export interface EventMap {
   "chats:sort": void;
   "thread:run-status": {
     href?: string;
-    state: "running" | "waiting" | "pending" | "error" | "done" | null;
+    state:
+      | "running"
+      | "waiting"
+      | "pending"
+      | "error"
+      /** No model is connected yet: neutral, never a failure. */
+      | "setup"
+      | "done"
+      | null;
     threadId: string;
     /** Why a ``waiting`` thread needs the user; read by the attention
      * notifier and the sidebar marker label. */

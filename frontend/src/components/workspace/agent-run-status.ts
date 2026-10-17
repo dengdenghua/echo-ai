@@ -7,7 +7,13 @@ export type AgentRunState =
   | "waiting"
   | "error"
   | "pending"
-  | "done";
+  | "done"
+  /** Nothing ran because the session still needs setup (no model yet).
+   *  A neutral state: it is neither a failure nor waiting on approval. */
+  | "setup";
+
+/** Run states a single step or event can be in (a step never "needs setup"). */
+export type StepRunState = Exclude<AgentRunState, "setup">;
 
 export type AgentRunStatusInput =
   | AgentRunState
@@ -70,6 +76,7 @@ export function agentRunDotClass(status: AgentRunStatusInput): string {
   if (state === "running") return "bg-success";
   if (state === "waiting") return "bg-warning";
   if (state === "done") return "bg-muted-foreground/50";
+  if (state === "setup") return "bg-muted-foreground/45";
   return "bg-warning/80";
 }
 
@@ -95,6 +102,7 @@ export function agentRunProgressBarClass(status: AgentRunStatusInput): string {
   if (state === "error") return "bg-destructive";
   if (state === "waiting") return "bg-warning";
   if (state === "pending") return "bg-warning/70";
+  if (state === "setup") return "bg-muted-foreground/40";
   return "bg-success";
 }
 

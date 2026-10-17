@@ -142,6 +142,16 @@ describe("attention notification rules", () => {
     ]);
   });
 
+  it("announces nothing for a turn that only lacks a model", () => {
+    const { tracker, delivered } = setup();
+    tracker.ingestRunStatus({ threadId: "t1", state: "running" });
+    // The turn closes as an error for a moment, then settles as setup.
+    tracker.ingestRunStatus({ threadId: "t1", state: "error" });
+    tracker.ingestRunStatus({ threadId: "t1", state: "setup" });
+    vi.advanceTimersByTime(5_000);
+    expect(delivered).toHaveLength(0);
+  });
+
   it("notifies approvals and each new wait cause in one run", () => {
     const { tracker, delivered } = setup();
     tracker.ingestRunStatus({ threadId: "t1", state: "running" });

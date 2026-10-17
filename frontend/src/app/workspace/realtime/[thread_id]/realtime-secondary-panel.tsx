@@ -1,4 +1,4 @@
-import { memo, type ComponentProps } from "react";
+import { memo, useMemo, type ComponentProps } from "react";
 import { XIcon } from "lucide-react";
 
 import {
@@ -26,7 +26,11 @@ import type {
   RealtimeTranslations,
   StateSetter,
 } from "./realtime-page-types";
-import type { ConversationUserInput } from "./realtime-turn-utils";
+import {
+  type ConversationUserInput,
+  messagesSinceLastHuman,
+} from "./realtime-turn-utils";
+import { turnNeedsModel } from "./use-agent-run-state";
 
 /*
  * Surfaces of the single right-hand panel. The page picks one of them in
@@ -251,6 +255,16 @@ export function RealtimeWorkbenchSurface({
   selectAgentWorkbenchTab,
   openWorkbenchArtifact,
 }: RealtimeWorkbenchSurfaceProps) {
+  // 主电脑 waits for a model instead of failing (see useAgentRunState).
+  const runNeedsSetup = useMemo(
+    () =>
+      turnNeedsModel(
+        messagesSinceLastHuman(thread.messages),
+        thread.error,
+        thread.isLoading,
+      ),
+    [thread.error, thread.isLoading, thread.messages],
+  );
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
@@ -304,6 +318,7 @@ export function RealtimeWorkbenchSurface({
               : focusedWorkbenchAgentSnapshot?.status ===
                 "error"
           }
+          runNeedsSetup={focusedWorkbenchTurnIndex === null && runNeedsSetup}
           runInterrupted={agentRunInterrupted}
           runBlocked={agentRunBlocked}
           paused={hasPausedOrPendingBackgroundTask}

@@ -633,4 +633,19 @@ describe("workspace sidebar thread status lights", () => {
       "waiting",
     );
   });
+
+  test("keeps a model-less session neutral: setup is not a failure", () => {
+    const href = "/workspace/realtime/thread-no-model";
+    const statusByHref = __testing.buildThreadRunStatusByHref({
+      activeTeamTasks: [],
+      backgroundTasks: undefined,
+      liveThreadRunStatusByHref: new Map([[href, "setup"]]),
+      threadHrefById: new Map([["thread-no-model", href]]),
+    });
+
+    expect(statusByHref.get(href)).toBe("setup");
+    // Any real activity outranks the setup hint.
+    expect(__testing.mergeThreadRunStatus("setup", "running")).toBe("running");
+    expect(__testing.mergeThreadRunStatus("setup", "pending")).toBe("pending");
+  });
 });

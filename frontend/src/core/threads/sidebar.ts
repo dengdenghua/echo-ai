@@ -31,7 +31,13 @@ export type ThreadSummary = {
 /** Subset of ``AgentRunState`` (components/workspace/agent-run-status.ts)
  *  that a sidebar thread row can display. Declared as a literal union so
  *  this core module does not depend on the components layer. */
-export type ThreadRunStatus = "running" | "waiting" | "pending" | "error";
+export type ThreadRunStatus =
+  | "running"
+  | "waiting"
+  | "pending"
+  | "error"
+  /** The last turn could not start because no model is connected yet. */
+  | "setup";
 
 export function syncThreadAgentSelection(agents: string[]) {
   if (agents.length !== 1) return;
@@ -188,13 +194,14 @@ export function teamTaskRunStatus(
 }
 
 export function normalizeThreadRunStatus(
-  status: "running" | "waiting" | "pending" | "error" | "done" | null,
+  status: "running" | "waiting" | "pending" | "error" | "setup" | "done" | null,
 ): ThreadRunStatus | null {
   if (
     status === "running" ||
     status === "waiting" ||
     status === "pending" ||
-    status === "error"
+    status === "error" ||
+    status === "setup"
   ) {
     return status;
   }
@@ -223,6 +230,7 @@ export function mergeThreadRunStatus(
     waiting: 3,
     running: 2,
     pending: 1,
+    setup: 0,
   };
   if (!current) return next;
   return priority[next] > priority[current] ? next : current;

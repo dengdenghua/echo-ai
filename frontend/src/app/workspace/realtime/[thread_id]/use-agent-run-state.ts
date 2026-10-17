@@ -7,6 +7,7 @@ import {
   finalOutputArtifactEntries,
 } from "@/components/workspace/agent-workbench-utils";
 import { convertToSteps } from "@/components/workspace/messages/message-group";
+import { structuredFailureFromMessages } from "@/components/workspace/messages/message-list-failure";
 import { extractResultUrl } from "@/components/workspace/messages/message-output-summary";
 import {
   latestPersistedTodoEventsFromMessages,
@@ -32,6 +33,7 @@ import { classifyPauseRequest } from "@/core/notification/attention";
 import { buildReplayHtml } from "@/core/sharing/replay-html";
 import { downloadTextFile, shareSlug } from "@/core/sharing/download";
 import type { useTasks } from "@/core/tasks/hooks";
+import { isNoModelConfigured } from "@/core/threads/errors";
 import { buildProgressOutline } from "@/core/threads/progress-outline";
 import { liveEventIsReportLike } from "@/core/threads/report-deliverable";
 
@@ -47,7 +49,26 @@ import {
   messagesSinceLastHuman,
 } from "./realtime-turn-utils";
 
-export type SidebarRunState = "running" | "waiting" | "error" | null;
+export type SidebarRunState = "running" | "waiting" | "error" | "setup" | null;
+
+/**
+ * The turn could not start because no model is connected (structured turn
+ * error or thread error). A setup step, not a task failure: the card offers
+ * 连接 OpenCode / 添加模型, and the sidebar dot and 主电脑 stay neutral.
+ */
+export function turnNeedsModel(
+  lastTurnMessages: Message[],
+  error: RealtimeThread["error"],
+  isLoading: boolean,
+): boolean {
+  if (isLoading) return false;
+  const structured = structuredFailureFromMessages(lastTurnMessages);
+  const raw: unknown = error;
+  const detail =
+    structured?.detail ??
+    (typeof raw === "string" ? raw : raw instanceof Error ? raw.message : "");
+  return isNoModelConfigured(detail);
+}
 
 /** Projections of the current turn: previews, result URL, user input, outline. */
 export function useLastTurnView(messages: Message[]) {
@@ -315,16 +336,22 @@ export function useAgentRunState({
     (!error || hasFinalArtifact) &&
     agentRunSettled &&
     (!requiresReportDeliverable || hasReportArtifact || hasFinalArtifact);
+  const agentRunNeedsModel = useMemo(
+    () => turnNeedsModel(lastTurnMessages, error, isLoading),
+    [error, isLoading, lastTurnMessages],
+  );
   const agentRunFailed =
     agentRunSettled &&
     !agentRunInterrupted &&
     !agentRunBlocked &&
     !hasCompletedAgentOutput &&
-    !hasPausedOrPendingBackgroundTask;
+    !hasPausedOrPendingBackgroundTask &&
+    !agentRunNeedsModel;
   const sidebarRunState = useMemo<SidebarRunState>(() => {
     if (hasPausedOrPendingBackgroundTask) return "waiting";
     if (agentRunInterrupted) return null;
     if (agentRunBlocked) return "waiting";
+    if (agentRunNeedsModel) return "setup";
     if (agentRunFailed || (error && !isLoading)) return "error";
     if (agentRunSettled) return null;
     if (
@@ -346,6 +373,7 @@ export function useAgentRunState({
     agentRunInterrupted,
     agentRunBlocked,
     agentRunFailed,
+    agentRunNeedsModel,
     agentRunSettled,
     hasActiveBackgroundTask,
     hasPausedOrPendingBackgroundTask,
@@ -392,6 +420,7 @@ export function useAgentRunState({
     agentRunSettled,
     hasCompletedAgentOutput,
     agentRunFailed,
+    agentRunNeedsModel,
     sidebarRunState,
     sidebarAttention,
   };
@@ -409,6 +438,7 @@ export function useSidebarRunStatus({
   sidebarAttention = null,
   agentRunSettled,
   agentRunFailed,
+  agentRunNeedsModel = false,
   hasCompletedAgentOutput,
   thread,
 }: {
@@ -418,6 +448,7 @@ export function useSidebarRunStatus({
   sidebarAttention?: ThreadAttentionSignal | null;
   agentRunSettled: boolean;
   agentRunFailed: boolean;
+  agentRunNeedsModel?: boolean;
   hasCompletedAgentOutput: boolean;
   thread: Pick<RealtimeThread, "streamingMessage" | "values">;
 }) {
@@ -427,8 +458,9 @@ export function useSidebarRunStatus({
   // The in-page sprite pet was removed — the desktop sidecar is the only pet
   // now, so the returned mood is unused and the call is kept for its effect.
   usePetAgentEvents({
-    runState: sidebarRunState,
-    settled: agentRunSettled,
+    // A model-less session is idle for the pet: nothing ran, nothing failed.
+    runState: sidebarRunState === "setup" ? null : sidebarRunState,
+    settled: agentRunSettled && !agentRunNeedsModel,
     failed: agentRunFailed,
     streaming,
   });

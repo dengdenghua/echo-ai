@@ -30,7 +30,7 @@ import {
 } from "@/hooks/use-streaming-text-buffer";
 import { useConversationDetailLevel } from "./use-conversation-detail-level";
 import {
-  type AgentRunState,
+  type StepRunState,
   agentRunStatusLightClass,
   agentRunStatusLightPulseClass,
 } from "../agent-run-status";
@@ -2706,7 +2706,7 @@ function stepText(step: CoTStep): string {
 function runStateForCurrentStep(
   step: CoTStep,
   isLoading: boolean,
-): AgentRunState {
+): StepRunState {
   if (stepHasError(step)) return "error";
   if (stepIsWaiting(step)) return "waiting";
   if (step.type === "toolCall" && step.resultReceived) return "done";
