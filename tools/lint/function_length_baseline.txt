@@ -64,8 +64,8 @@ runtime/sensing/gateway/codex_hotspot.py::create_hotspot	384
 runtime/platform/ui/_reflex_admin_stats.py::register_reflex_stats_endpoints	383
 runtime/safety/recovery/scheduler.py::RegenerationScheduler._tick_once	378
 runtime/sensing/gateway/registry_consumer_router.py::create_registry_consumer_router	371
-runtime/platform/plugins/bundled/narrative_studio/__init__.py::NarrativeStudioPlugin.register_routes	370
 runtime/platform/process/streaming.py::stream_run	366
+runtime/platform/plugins/bundled/narrative_studio/core_routes.py::register_core_routes	357
 runtime/sensing/gateway/_config_endpoints_custom_models.py::_register_custom_models	354
 runtime/platform/plugins/bundled/clip_studio/project_store.py::_apply_operation	353
 runtime/sensing/gateway/execution_nodes_router.py::create_execution_nodes_router	353

@@ -24,7 +24,6 @@ runtime/memory/cowork/context_steward.py	1082
 runtime/memory/cowork/group_store.py	1102
 runtime/memory/journal/journal.py	1865
 runtime/platform/capabilities/capability_registry.py	1030
-runtime/platform/plugins/bundled/narrative_studio/__init__.py	1012
 runtime/platform/plugins/bundled/narrative_studio/store.py	1774
 runtime/platform/plugins/bundled/paper_trading/__init__.py	1526
 runtime/platform/plugins/bundled/paper_trading/quote_hub.py	1238
