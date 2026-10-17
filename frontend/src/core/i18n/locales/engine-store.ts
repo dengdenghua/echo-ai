@@ -35,6 +35,8 @@ export interface EngineStoreCopy {
   adminOnly: string;
   /** The engine menu's row for an engine this computer does not have yet. */
   menuInstall: (megabytes: number) => string;
+  /** The same row after one click: the download starts on the next. */
+  menuConfirmInstall: (megabytes: number) => string;
   installed: (engine: string) => string;
   unavailable: string;
 }
@@ -74,6 +76,7 @@ const zhCN: EngineStoreCopy = {
   },
   adminOnly: "由管理员安装",
   menuInstall: (megabytes) => `还没安装 · 点击安装（约 ${megabytes} MB）`,
+  menuConfirmInstall: (megabytes) => `再点一次开始下载（约 ${megabytes} MB）`,
   installed: (engine) => `${engine} 已安装，可以使用了`,
   unavailable: "暂时读不到引擎状态",
 };
@@ -115,6 +118,8 @@ const enUS: EngineStoreCopy = {
   adminOnly: "Installed by an admin",
   menuInstall: (megabytes) =>
     `Not installed · click to install (about ${megabytes} MB)`,
+  menuConfirmInstall: (megabytes) =>
+    `Click again to start the download (about ${megabytes} MB)`,
   installed: (engine) => `${engine} is installed and ready`,
   unavailable: "Engine status is unavailable right now",
 };
@@ -158,6 +163,8 @@ const jaJP: EngineStoreCopy = {
   adminOnly: "管理者がインストール",
   menuInstall: (megabytes) =>
     `未インストール · クリックしてインストール（約 ${megabytes} MB）`,
+  menuConfirmInstall: (megabytes) =>
+    `もう一度クリックするとダウンロードを開始します（約 ${megabytes} MB）`,
   installed: (engine) => `${engine} をインストールしました。使用できます`,
   unavailable: "エンジンの状態を読み込めません",
 };
@@ -199,6 +206,8 @@ const koKR: EngineStoreCopy = {
   adminOnly: "관리자가 설치",
   menuInstall: (megabytes) =>
     `설치되지 않음 · 클릭하여 설치(약 ${megabytes} MB)`,
+  menuConfirmInstall: (megabytes) =>
+    `한 번 더 클릭하면 다운로드를 시작합니다(약 ${megabytes} MB)`,
   installed: (engine) => `${engine}이(가) 설치되어 사용할 수 있습니다`,
   unavailable: "지금은 엔진 상태를 읽을 수 없습니다",
 };

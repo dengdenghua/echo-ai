@@ -1,4 +1,5 @@
 import { CheckIcon, SparklesIcon } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -134,6 +135,9 @@ export function ExecutionEnginePicker({
   const store = engineStoreCopy(locale);
   const engines = useEngines(!codexAvailable || !opencodeAvailable);
   const engineAction = useEngineAction();
+  // A download of 60–170 MB starts on the second click of the row, so a
+  // stray click (or one meant to pick the engine) only asks.
+  const [armedInstall, setArmedInstall] = useState<string | null>(null);
   const installable = (
     engine: "auto" | "codex" | "opencode",
   ): EngineStatus | undefined => {
@@ -150,12 +154,14 @@ export function ExecutionEnginePicker({
       ? engineStatusLine(status, store).text
       : status.state === "update_available"
         ? store.updateAvailable(status.version)
-        : store.menuInstall(engineMegabytes(status.download_size));
+        : armedInstall === status.id
+          ? store.menuConfirmInstall(engineMegabytes(status.download_size))
+          : store.menuInstall(engineMegabytes(status.download_size));
   const triggerTitle =
     selectedUnavailable ||
     `${title}: ${labels[value]}${value === "auto" && resolvedLabel ? ` · ${resolvedLabel}` : ""}`;
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => open || setArmedInstall(null)}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -211,6 +217,11 @@ export function ExecutionEnginePicker({
                 // Stay open so the row can show the download's progress.
                 event.preventDefault();
                 if (missing.state === "installing") return;
+                if (armedInstall !== missing.id) {
+                  setArmedInstall(missing.id);
+                  return;
+                }
+                setArmedInstall(null);
                 engineAction.mutate(
                   { id: missing.id, action: "install" },
                   {

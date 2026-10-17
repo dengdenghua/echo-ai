@@ -59,7 +59,13 @@ it("installs a missing engine from the menu instead of selecting it", async () =
     name: /Codex.*Not installed · click to install \(about 165 MB\)/,
   });
   expect(item).not.toHaveAttribute("aria-disabled", "true");
+  // The first click only asks: a stray click never starts a 165 MB download.
   await user.click(item);
+  expect(apiPost).not.toHaveBeenCalled();
+  const confirm = screen.getByRole("menuitem", {
+    name: /Codex.*Click again to start the download \(about 165 MB\)/,
+  });
+  await user.click(confirm);
   expect(apiPost).toHaveBeenCalledWith("/api/engines/{engine_id}/install", {
     path: { engine_id: "codex" },
   });
