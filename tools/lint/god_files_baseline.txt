@@ -22,7 +22,6 @@ runtime/memory/cowork/collaboration_collectors.py	1245
 runtime/memory/cowork/collaboration_store.py	1478
 runtime/memory/cowork/context_steward.py	1082
 runtime/memory/cowork/group_store.py	1102
-runtime/memory/diagnostics/_trace_store_storage.py	1012
 runtime/memory/journal/journal.py	1865
 runtime/platform/capabilities/capability_registry.py	1030
 runtime/platform/plugins/bundled/narrative_studio/__init__.py	1012

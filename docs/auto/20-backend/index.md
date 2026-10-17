@@ -50,7 +50,7 @@ graph LR
   sensing -- 39 --> adapters
   core -- 34 --> safety
   core -- 29 --> execution
-  memory -- 26 --> safety
+  memory -- 27 --> safety
   platform -- 24 --> sensing
   safety -- 22 --> memory
   execution -- 21 --> core

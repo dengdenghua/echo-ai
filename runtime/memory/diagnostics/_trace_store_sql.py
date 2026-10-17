@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from ._trace_store_models import _json_loads
+
 _TRACE_TABLE_FILTERS = {
     "messages": frozenset({"thread_id", "turn_id", "agent_id", "tenant_id", "owner_actor_id"}),
     "agui_events": frozenset(
@@ -39,6 +41,20 @@ _TRACE_TABLE_FILTERS = {
     ),
 }
 _SAFE_FILTER_COLUMNS = frozenset().union(*_TRACE_TABLE_FILTERS.values())
+
+
+def _decode_row(
+    row: sqlite3.Row,
+    *,
+    json_fields: tuple[str, ...] = (),
+    bool_fields: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    out = dict(row)
+    for field in json_fields:
+        out[field] = _json_loads(out.get(field))
+    for field in bool_fields:
+        out[field] = bool(out.get(field))
+    return out
 
 
 class _TraceStoreSqlMixin:
@@ -141,4 +157,4 @@ class _TraceStoreSqlMixin:
         ).fetchone()
 
 
-__all__ = ["_TraceStoreSqlMixin"]
+__all__ = ["_TraceStoreSqlMixin", "_decode_row"]

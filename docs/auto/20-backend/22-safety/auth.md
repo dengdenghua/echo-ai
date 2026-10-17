@@ -255,7 +255,7 @@ tier: "core"
 
 ## Who imports this
 
-**222** file(s) reference this package:
+**223** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -284,13 +284,13 @@ tier: "core"
   - `runtime/execution/codex_backend/role_runner.py`
   - `runtime/execution/cron_context.py`
   - _… and 26 more_
-- **`runtime/memory/`** · 14 file(s)
+- **`runtime/memory/`** · 15 file(s)
   - `runtime/memory/diagnostics/_trace_store_replay_storage.py`
   - `runtime/memory/diagnostics/_trace_store_storage.py`
+  - `runtime/memory/diagnostics/_trace_store_task_runs.py`
   - `runtime/memory/hemolymph/composer.py`
   - `runtime/memory/journal/_journal_base.py`
-  - `runtime/memory/journal/journal.py`
-  - _… and 9 more_
+  - _… and 10 more_
 - **`runtime/platform/`** · 25 file(s)
   - `runtime/platform/capabilities/permission_grants.py`
   - `runtime/platform/capabilities/service.py`
