@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useI18n } from "@/core/i18n/hooks";
+import { desktopStartupCopy } from "@/core/i18n/locales/desktop-startup";
 
 /**
  * First-launch bootstrap gate for the packaged Electron app.
@@ -62,7 +64,8 @@ async function backendReady(): Promise<boolean> {
 export function BackendBootstrapOverlay() {
   // null = undetermined (first check pending); true = backend up; false = down.
   const [ready, setReady] = useState<boolean | null>(null);
-  const [message, setMessage] = useState("正在启动后端…");
+  // The development bootstrap path may name its current step instead.
+  const [message, setMessage] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | undefined>(undefined);
 
   useEffect(() => {
@@ -102,16 +105,29 @@ export function BackendBootstrapOverlay() {
   const visible = isPackagedShell() && ready === false;
   if (!visible) return null;
 
+  return <BackendStartupCard message={message} percent={percent} />;
+}
+
+/** The startup card itself: what is starting, in the reader's language. */
+export function BackendStartupCard({
+  message,
+  percent,
+}: {
+  message: string | null;
+  percent?: number;
+}) {
+  const { locale } = useI18n();
+  const copy = desktopStartupCopy(locale);
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm">
       <Card className="w-[min(90vw,420px)] border-none p-6">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="size-8 animate-pulse rounded-full bg-primary/60" />
           <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">{message}</p>
-            <p className="text-xs text-muted-foreground">
-              正在启动随应用安装的后端，无需下载依赖
+            <p className="text-sm font-medium text-foreground">
+              {message ?? copy.title}
             </p>
+            <p className="text-xs text-muted-foreground">{copy.detail}</p>
           </div>
           {percent !== undefined && (
             <Progress value={percent} className="w-full" />
