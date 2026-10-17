@@ -2,25 +2,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-  AlertTriangleIcon,
   ChevronRightIcon,
   PlusIcon,
   RefreshCwIcon,
   TrashIcon,
 } from "lucide-react";
 
-import type { components } from "@/core/api/openapi-types";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
 import { getBackendBaseURL } from "@/core/config";
@@ -31,65 +19,36 @@ import { ReachControl } from "@/components/workspace/reach-control";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { formatAiModeDevice, type AiModeDevice } from "./settings-resilience";
+import { formatAiModeDevice } from "./settings-resilience";
 import { getSettingsUxCopy } from "./settings-ux-copy";
 import { PersonalSpaceFolderSettings } from "./personal-space-settings-page";
-
-// ─── Local API types · narrow to what the UI actually uses ──────
-//
-// These mirror the backend wire shape (see ``runtime/web/ai_mode_router.py``
-// and ``runtime/web/path_denylist_router.py``). They're intentionally
-// hand-rolled rather than codegen — the endpoints are recent and
-// the openapi-ts pipeline hasn't picked them up yet.
-type AiModeId = "efficiency" | "privacy";
-
-interface AiModeOption {
-  id: AiModeId;
-  label: string;
-  description: string;
-  recommended_default?: boolean;
-}
-
-interface AiModeStatus {
-  mode: AiModeId;
-  recommended: AiModeId;
-  device?: AiModeDevice;
-  modes: AiModeOption[];
-}
-
-interface PathDenylistStatus {
-  paths: string[];
-}
-
-interface FactoryResetResult {
-  ok: boolean;
-}
-
-// Pulled from the auto-generated OpenAPI types so backend changes
-// to the ``IdentityLockResponse`` pydantic model propagate here
-// without a hand-edit. See docs/adr/004-openapi-ts-codegen.md.
-// The ``source`` field is typed as ``string`` in the generated
-// file (FastAPI can't express the ``"runtime" | "env" | "default"``
-// union through pydantic without a Literal); we re-narrow it for
-// UI-side compile-time safety where we branch on it.
-type LockStatus = components["schemas"]["IdentityLockResponse"] & {
-  source: "runtime" | "env" | "default";
-};
-
-type ConstitutionProfile = "strict" | "normal" | "lax";
-
-type ConstitutionProfileStatus = {
-  profile: ConstitutionProfile;
-  available: ConstitutionProfile[];
-};
-
-// LLM 语义安全 judge:enabled=当前是否接了真 judge;available=有无模型路由可接。
-type JudgeStatus = {
-  enabled: boolean;
-  available: boolean;
-};
-
-type LoadState = "loading" | "ready" | "error";
+import {
+  AddDenylistPathDialog,
+  FactoryResetDialog,
+  RemoveDenylistPathDialog,
+} from "./privacy-settings/privacy-dialogs";
+import {
+  clearEchoBrowserState,
+  isAbsoluteLikePath,
+  isConstitutionProfileStatus,
+  isPathList,
+} from "./privacy-settings/privacy-helpers";
+import {
+  FactoryResetSection,
+  UnlockPathsDetails,
+} from "./privacy-settings/privacy-sections";
+import type {
+  AiModeId,
+  AiModeStatus,
+  ConstitutionProfile,
+  ConstitutionProfileStatus,
+  FactoryResetResult,
+  JudgeStatus,
+  LoadState,
+  LockStatus,
+  PathDenylistStatus,
+} from "./privacy-settings/privacy-types";
+import { SettingsStateNotice } from "./privacy-settings/settings-state-notice";
 
 export default function PrivacySettingsPage() {
   const { t, locale } = useI18n();
@@ -841,330 +800,36 @@ export default function PrivacySettingsPage() {
           <ReachControl />
 
           {/* ─── Alternative unlock paths ─── */}
-          <details className="group rounded-lg border border-border-subtle bg-muted/20 p-4">
-            <summary className="cursor-pointer list-none rounded text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
-              <span className="flex items-center justify-between gap-3">
-                <span>
-                  <span className="block font-semibold">
-                    {copy.advancedTitle}
-                  </span>
-                  <span className="mt-0.5 block font-normal text-muted-foreground">
-                    {copy.advancedSummary}
-                  </span>
-                </span>
-                <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-              </span>
-            </summary>
-            <div className="mt-3 border-t border-border-subtle pt-3">
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {copy.advancedDescription}
-              </p>
-              <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground/90">
-                <li>{copy.advancedEnvironment}</li>
-                <li>{copy.advancedTurn}</li>
-                <li>{copy.advancedApi}</li>
-              </ul>
-            </div>
-          </details>
+          <UnlockPathsDetails />
         </div>
       </details>
 
-      <details className="group rounded-lg border border-destructive/20 bg-destructive/5">
-        <summary className="cursor-pointer list-none rounded-lg px-5 py-4 outline-none focus-visible:ring-2 focus-visible:ring-destructive/35">
-          <span className="flex items-center justify-between gap-4">
-            <span>
-              <span className="block text-sm font-semibold text-destructive">
-                {t.accountSettings.factoryResetTitle}
-              </span>
-              <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                {t.accountSettings.factoryResetDescription}
-              </span>
-            </span>
-            <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-destructive/70 transition-transform group-open:rotate-90" />
-          </span>
-        </summary>
-        <div className="border-t border-destructive/15 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <h3 className="text-base font-semibold text-destructive">
-                {t.accountSettings.factoryResetTitle}
-              </h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t.accountSettings.factoryResetDescription}
-              </p>
-            </div>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => setShowFactoryResetDialog(true)}
-            >
-              {t.accountSettings.factoryResetTitle}
-            </Button>
-          </div>
-        </div>
-      </details>
+      <FactoryResetSection onOpen={() => setShowFactoryResetDialog(true)} />
 
-      <Dialog
+      <AddDenylistPathDialog
         open={showAddPathDialog}
-        onOpenChange={(open) => {
-          if (!denylistBusy) setShowAddPathDialog(open);
-        }}
-      >
-        <DialogContent closeLabel={t.common.close} className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle>{t.privacySettings.addPathDialogTitle}</DialogTitle>
-            <DialogDescription>
-              {t.privacySettings.addPathDialogDesc}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-3 py-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!denylistBusy && isAbsoluteLikePath(newPath.trim())) {
-                void addDenylistPath();
-              }
-            }}
-          >
-            <Label htmlFor="denylist-path-input" className="text-sm">
-              {t.privacySettings.pathLabel}
-            </Label>
-            <Input
-              id="denylist-path-input"
-              value={newPath}
-              onChange={(e) => setNewPath(e.target.value)}
-              placeholder="C:\\Users\\you\\secrets"
-              className="h-9 font-mono text-xs"
-              autoFocus
-              required
-              aria-invalid={
-                newPath.trim().length > 0 && !isAbsoluteLikePath(newPath.trim())
-              }
-            />
-            <DialogFooter className="gap-2 pt-1 sm:gap-0">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowAddPathDialog(false)}
-                disabled={denylistBusy}
-              >
-                {t.common.cancel}
-              </Button>
-              <Button
-                type="submit"
-                disabled={denylistBusy || !isAbsoluteLikePath(newPath.trim())}
-              >
-                {denylistBusy ? t.common.loading : t.common.confirm}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        setOpen={setShowAddPathDialog}
+        busy={denylistBusy}
+        newPath={newPath}
+        setNewPath={setNewPath}
+        onAdd={addDenylistPath}
+      />
 
-      <Dialog
-        open={pathToRemove !== null}
-        onOpenChange={(open) => {
-          if (!open && !denylistBusy) setPathToRemove(null);
-        }}
-      >
-        <DialogContent closeLabel={t.common.close} className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle className="text-destructive">
-              {copy.removePathTitle}
-            </DialogTitle>
-            <DialogDescription>
-              {pathToRemove ? copy.removePathDescription(pathToRemove) : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setPathToRemove(null)}
-              disabled={denylistBusy}
-            >
-              {t.common.cancel}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                if (!pathToRemove) return;
-                const removed = await removeDenylistPath(pathToRemove);
-                if (removed) setPathToRemove(null);
-              }}
-              disabled={denylistBusy}
-            >
-              {denylistBusy ? t.common.loading : copy.removePathConfirm}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RemoveDenylistPathDialog
+        pathToRemove={pathToRemove}
+        setPathToRemove={setPathToRemove}
+        busy={denylistBusy}
+        onRemove={removeDenylistPath}
+      />
 
-      <Dialog
+      <FactoryResetDialog
         open={showFactoryResetDialog}
-        onOpenChange={(open) => {
-          if (!factoryResetPending) setShowFactoryResetDialog(open);
-        }}
-      >
-        <DialogContent closeLabel={t.common.close} className="sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangleIcon className="size-5" />
-              {t.accountSettings.factoryResetTitle}
-            </DialogTitle>
-            <DialogDescription>
-              {t.accountSettings.factoryResetDialogDescription}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-4">
-            <Label htmlFor="factory-reset-confirm" className="text-sm">
-              {t.accountSettings.factoryResetTypeToConfirm}
-            </Label>
-            <Input
-              id="factory-reset-confirm"
-              value={factoryResetConfirmText}
-              onChange={(e) => setFactoryResetConfirmText(e.target.value)}
-              placeholder="RESET ECHO"
-              className="h-9"
-            />
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowFactoryResetDialog(false)}
-              disabled={factoryResetPending}
-            >
-              {t.common.cancel}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleFactoryReset}
-              disabled={
-                factoryResetConfirmText !== "RESET ECHO" ||
-                factoryResetPending
-              }
-            >
-              {factoryResetPending
-                ? t.accountSettings.factoryResetPending
-                : t.accountSettings.factoryResetConfirm}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        setOpen={setShowFactoryResetDialog}
+        pending={factoryResetPending}
+        confirmText={factoryResetConfirmText}
+        setConfirmText={setFactoryResetConfirmText}
+        onConfirm={handleFactoryReset}
+      />
     </div>
-  );
-}
-
-function SettingsStateNotice({
-  state,
-  copy,
-  onRetry,
-  compact = false,
-}: {
-  state: Exclude<LoadState, "ready"> | "ready";
-  copy: Pick<
-    ReturnType<typeof getSettingsUxCopy>["privacy"],
-    "loading" | "loadFailed" | "retry"
-  >;
-  onRetry: () => void | Promise<void>;
-  compact?: boolean;
-}) {
-  if (state === "ready") return null;
-  const failed = state === "error";
-  if (!failed) {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        aria-label={copy.loading}
-        className={cn("mt-3 space-y-2", compact && "mt-2")}
-      >
-        <span className="block h-2.5 w-2/3 animate-pulse rounded-full bg-muted" />
-        {!compact ? (
-          <span className="block h-2.5 w-2/5 animate-pulse rounded-full bg-muted/70" />
-        ) : null}
-      </div>
-    );
-  }
-  return (
-    <div
-      role="alert"
-      aria-live="polite"
-      className={cn(
-        "mt-3 flex items-center justify-between gap-3 rounded-lg border px-3 text-xs",
-        compact ? "border-transparent bg-transparent px-0 py-1" : "py-3",
-        "border-destructive/25 bg-destructive/5 text-destructive",
-      )}
-    >
-      <span className="flex min-w-0 items-center gap-2">
-        <span>{copy.loadFailed}</span>
-      </span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-7 shrink-0 px-2 text-xs"
-        onClick={() => void onRetry()}
-      >
-        {copy.retry}
-      </Button>
-    </div>
-  );
-}
-
-function clearEchoBrowserState(): void {
-  if (typeof window === "undefined") return;
-  const prefixes = ["echo", "code:", "team:", "realtime:"];
-  const exactKeys = new Set([
-    "token",
-    "echo_auth_token",
-    "echo_user",
-    "echo_auth_ts",
-  ]);
-  for (const store of [window.localStorage, window.sessionStorage]) {
-    for (let i = store.length - 1; i >= 0; i -= 1) {
-      const key = store.key(i);
-      if (!key) continue;
-      if (
-        exactKeys.has(key) ||
-        prefixes.some((prefix) => key.startsWith(prefix))
-      ) {
-        store.removeItem(key);
-      }
-    }
-  }
-  window.dispatchEvent(new Event("storage"));
-}
-
-function isPathList(value: unknown): value is string[] {
-  return (
-    Array.isArray(value) && value.every((path) => typeof path === "string")
-  );
-}
-
-function isConstitutionProfileStatus(
-  value: ConstitutionProfileStatus,
-): boolean {
-  const allowed = new Set<ConstitutionProfile>(["strict", "normal", "lax"]);
-  return (
-    allowed.has(value?.profile) &&
-    Array.isArray(value.available) &&
-    value.available.length > 0 &&
-    value.available.every((profile) => allowed.has(profile)) &&
-    value.available.includes(value.profile)
-  );
-}
-
-function isAbsoluteLikePath(path: string): boolean {
-  if (!path) return false;
-  return (
-    path.startsWith("/") ||
-    path.startsWith("~/") ||
-    path.startsWith("$HOME/") ||
-    path.startsWith("%USERPROFILE%") ||
-    path.startsWith("%APPDATA%") ||
-    /^[a-zA-Z]:[\\/]/.test(path) ||
-    path.startsWith("\\\\")
   );
 }

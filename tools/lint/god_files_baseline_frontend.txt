@@ -36,7 +36,6 @@ frontend/src/components/workspace/messages/message-output-summary.test.tsx	1218
 frontend/src/components/workspace/messages/message-output-summary.tsx	1233
 frontend/src/components/workspace/model-picker.tsx	1062
 frontend/src/components/workspace/settings/model-settings-page.test.tsx	1297
-frontend/src/components/workspace/settings/privacy-settings-page.tsx	1170
 frontend/src/components/workspace/workspace-sidebar.tsx	2792
 frontend/src/core/agents/agent-world-api.ts	1391
 frontend/src/core/messages/utils.test.ts	1335
