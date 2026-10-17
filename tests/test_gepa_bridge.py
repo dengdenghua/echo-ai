@@ -508,3 +508,31 @@ def test_mark_winner_proposal_applied_matches_variant_scope(tmp_path) -> None:
         canary_config=canary_config,
     )
     assert sidecar["ok"] is True
+
+
+def test_optimize_for_recipe_without_failure_signal_returns_a_skipped_result(
+    tmp_path, monkeypatch
+) -> None:
+    # GepaResult was imported only for type checking, so this early return
+    # raised NameError and the caller logged an error instead of a skip.
+    from runtime.safety.recovery import gepa_bridge
+
+    monkeypatch.setattr(gepa_bridge, "collect_failures_from_journal", lambda *a, **k: [])
+    monkeypatch.setattr(gepa_bridge, "collect_failures_from_ledger", lambda *a, **k: [])
+    monkeypatch.setattr(gepa_bridge, "collect_external_session_failures", lambda *a, **k: [])
+
+    result = gepa_bridge.optimize_for_recipe(
+        seed_prompt="seed",
+        journal=None,
+        router=None,
+        ledger_path=tmp_path / "proposal_ledger.jsonl",
+    )
+
+    assert isinstance(result, GepaResult)
+    assert result.iterations_run == 0
+    assert result.history[0]["skipped"] is True
+    assert result.winner_proposal == {
+        "ok": False,
+        "skipped": True,
+        "reason": "insufficient_failure_signal",
+    }

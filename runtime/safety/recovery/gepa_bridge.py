@@ -57,7 +57,7 @@ from __future__ import annotations
 # ╚════════════════════════════════════════════════════════════════════════╝
 import logging
 import os
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
 from runtime.safety.recovery._gepa_failures import (
@@ -84,15 +84,12 @@ from runtime.safety.recovery.external_importers import (
     build_external_session_dataset,
     collect_external_session_failures,
 )
-from runtime.safety.recovery.gepa_optimizer import GepaConfig, gepa_optimize
+from runtime.safety.recovery.gepa_optimizer import GepaConfig, GepaResult, gepa_optimize
 from runtime.safety.recovery.native_evolution_eval import evaluate_front_native
 from runtime.safety.recovery.native_llm_replay import replay_llm_candidates
 from runtime.safety.recovery.native_replay import replay_candidates
 from runtime.safety.recovery.native_replay_sandbox import run_sandbox_replay
 from runtime.safety.recovery.native_turn_replay import replay_turn_candidates
-
-if TYPE_CHECKING:
-    from runtime.safety.recovery.gepa_optimizer import GepaResult
 
 _LOG = logging.getLogger("echo.gepa.bridge")
 
