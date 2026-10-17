@@ -108,6 +108,8 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
         weight=8,
         paths=(
             "frontend/src/components/workspace/swarm-run-overview.tsx",
+            "frontend/src/components/workspace/swarm-run-overview-model.ts",
+            "frontend/src/components/workspace/swarm-run-replay.ts",
             "frontend/src/components/workspace/swarm-run-overview.test.tsx",
             "frontend/src/components/workspace/live-tool-timeline.tsx",
             "frontend/src/components/workspace/use-agent-workbench-i18n.ts",
@@ -137,6 +139,8 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
             "runtime/execution/agents/group_fanout.py",
             "runtime/sensing/gateway/realtime_team_stream.py",
             "frontend/src/components/workspace/swarm-run-overview.tsx",
+            "frontend/src/components/workspace/swarm-run-overview-model.ts",
+            "frontend/src/components/workspace/swarm-run-replay.ts",
             "frontend/src/components/workspace/agent-workbench-utils.ts",
             "frontend/src/core/threads/use-thread-stream-realtime.ts",
             "frontend/src/components/workspace/swarm-run-overview.test.tsx",

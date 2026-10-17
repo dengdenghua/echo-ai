@@ -145,6 +145,8 @@ CHECKS: tuple[KimiSwarmEvidenceCheck, ...] = (
             "runtime/execution/agents/group_fanout.py",
             "runtime/sensing/gateway/realtime_team_stream.py",
             "frontend/src/components/workspace/swarm-run-overview.tsx",
+            "frontend/src/components/workspace/swarm-run-overview-model.ts",
+            "frontend/src/components/workspace/swarm-run-replay.ts",
             "frontend/src/core/threads/use-thread-stream-realtime.ts",
             "frontend/src/components/workspace/swarm-run-overview.test.tsx",
         ),
@@ -213,6 +215,8 @@ CHECKS: tuple[KimiSwarmEvidenceCheck, ...] = (
         capability="operator_visibility",
         paths=(
             "frontend/src/components/workspace/swarm-run-overview.tsx",
+            "frontend/src/components/workspace/swarm-run-overview-model.ts",
+            "frontend/src/components/workspace/swarm-run-replay.ts",
             "frontend/src/components/workspace/swarm-run-overview.test.tsx",
             "frontend/src/components/workspace/agent-workbench-utils.ts",
         ),
