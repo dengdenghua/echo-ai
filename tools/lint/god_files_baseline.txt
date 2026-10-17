@@ -14,7 +14,6 @@ runtime/execution/codex_backend/security.py	1070
 runtime/execution/misc/agent_packs.py	1032
 runtime/execution/subagents/candidate_patch.py	1247
 runtime/execution/subagents/sessions.py	1419
-runtime/execution/suckers/browser_skills.py	1016
 runtime/execution/suckers/ephemeral_agents.py	1187
 runtime/execution/suckers/ephemeral_runner.py	1279
 runtime/execution/suckers/kimi_compat_skills.py	1218

@@ -1,11 +1,20 @@
 from __future__ import annotations
 
-import contextlib
 import threading
 from typing import Any
 
 from runtime.execution.suckers.browser_launch import (
     launch_chromium,
+)
+
+from ._browser_skills_page_actions import (
+    _click_page,
+    _navigate_page,
+    _screenshot_page,
+    _scroll_page,
+    _type_page,
+    _upload_page,
+    _wait_page,
 )
 
 try:
@@ -377,24 +386,13 @@ def _browser_navigate(
     elif not url:
         return {"error": "missing url"}
 
-    def _act(p: Any) -> dict[str, Any]:
-        try:
-            resp = p.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
-        except Exception as e:  # noqa: BLE001
-            return {"error": f"nav_error: {type(e).__name__}: {e}"}
-        if wait_ms > 0:
-            p.wait_for_timeout(wait_ms)
-        try:
-            title = p.title()
-        except (AttributeError, RuntimeError):  # noqa: BLE001
-            title = ""
-        return {
-            "url": p.url,
-            "status_code": resp.status if resp else None,
-            "title": title,
-        }
-
-    return _with_page(page, _act, verb="navigate", payload={"url": url}, url=url)
+    return _with_page(
+        page,
+        lambda p: _navigate_page(p, url, timeout_ms, wait_ms),
+        verb="navigate",
+        payload={"url": url},
+        url=url,
+    )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -584,31 +582,9 @@ def _browser_click(
             if err:
                 return {"error": err, "blocked": err.startswith("ssrf_")}
 
-    def _act(p: Any) -> dict[str, Any]:
-        if url:
-            try:
-                p.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
-            except Exception as e:  # noqa: BLE001
-                return {"error": f"nav_error: {type(e).__name__}: {e}"}
-        try:
-            p.click(selector, timeout=timeout_ms)
-        except Exception as e:  # noqa: BLE001
-            return {"error": f"click_error: {type(e).__name__}: {e}"}
-        if wait_after_ms > 0:
-            p.wait_for_timeout(wait_after_ms)
-        try:
-            title = p.title()
-        except (AttributeError, RuntimeError):  # noqa: BLE001
-            title = ""
-        return {
-            "clicked": selector,
-            "final_url": p.url,
-            "title": title,
-        }
-
     return _with_page(
         page,
-        _act,
+        lambda p: _click_page(p, url, selector, timeout_ms, wait_after_ms),
         verb="click",
         payload={"selector": selector},
         url=url,
@@ -657,65 +633,17 @@ def _browser_type(
             if err:
                 return {"error": err, "blocked": err.startswith("ssrf_")}
 
-    def _act(p: Any) -> dict[str, Any]:
-        if url:
-            try:
-                p.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
-            except Exception as e:  # noqa: BLE001
-                return {"error": f"nav_error: {type(e).__name__}: {e}"}
-        try:
-            locator = p.locator(selector)
-            try:
-                tag_name = locator.evaluate("element => element.tagName")
-            except AttributeError:
-                # Lightweight/test backends may expose the older page-level
-                # fill/press API without a full Locator implementation.
-                if clear_first:
-                    p.fill(selector, "", timeout=timeout_ms)
-                    p.fill(selector, text, timeout=timeout_ms)
-                else:
-                    p.focus(selector, timeout=timeout_ms)
-                    p.press(selector, "ControlOrMeta+End", timeout=timeout_ms)
-                    p.type(selector, text, timeout=timeout_ms)
-                if press_enter:
-                    p.press(selector, "Enter", timeout=timeout_ms)
-                input_kind = "text"
-            else:
-                if str(tag_name).upper() == "SELECT":
-                    # Keep one generic form-entry primitive while still handling
-                    # native selects correctly. Prefer the visible label, then
-                    # fall back to the value for machine-oriented forms.
-                    try:
-                        locator.select_option(label=text, timeout=timeout_ms)
-                    except Exception:  # noqa: BLE001
-                        locator.select_option(value=text, timeout=timeout_ms)
-                    input_kind = "select"
-                else:
-                    replacement = text
-                    if not clear_first:
-                        existing = (
-                            locator.input_value(timeout=timeout_ms)
-                            if str(tag_name).upper() in {"INPUT", "TEXTAREA"}
-                            else locator.inner_text(timeout=timeout_ms)
-                        )
-                        replacement = existing + text
-                    locator.fill(replacement, timeout=timeout_ms)
-                    input_kind = "text"
-                if press_enter:
-                    locator.press("Enter", timeout=timeout_ms)
-        except Exception as e:  # noqa: BLE001
-            return {"error": f"type_error: {type(e).__name__}: {e}"}
-        return {
-            "filled": selector,
-            "text_len": len(text),
-            "input_kind": input_kind,
-            "pressed_enter": press_enter,
-            "final_url": p.url,
-        }
-
     return _with_page(
         page,
-        _act,
+        lambda p: _type_page(
+            p,
+            url,
+            selector,
+            text,
+            press_enter=press_enter,
+            clear_first=clear_first,
+            timeout_ms=timeout_ms,
+        ),
         verb="type",
         payload={"selector": selector, "text": text, "clear": clear_first},
         url=url,
@@ -756,28 +684,9 @@ def _browser_scroll(
             if err:
                 return {"error": err, "blocked": err.startswith("ssrf_")}
 
-    def _act(p: Any) -> dict[str, Any]:
-        if url:
-            try:
-                p.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
-            except Exception as e:  # noqa: BLE001
-                return {"error": f"nav_error: {type(e).__name__}: {e}"}
-        try:
-            if to_selector is not None:
-                p.locator(to_selector).scroll_into_view_if_needed(
-                    timeout=timeout_ms,
-                )
-                scrolled_to = {"selector": to_selector}
-            else:
-                p.evaluate(f"window.scrollTo(0, {int(to_y)})")
-                scrolled_to = {"y": int(to_y)}
-        except Exception as e:  # noqa: BLE001
-            return {"error": f"scroll_error: {type(e).__name__}: {e}"}
-        return {"scrolled_to": scrolled_to, "final_url": p.url}
-
     return _with_page(
         page,
-        _act,
+        lambda p: _scroll_page(p, url, to_selector, to_y, timeout_ms),
         verb="scroll",
         payload={
             "selector": to_selector,
@@ -835,26 +744,9 @@ def _browser_upload(
             if err:
                 return {"error": err, "blocked": err.startswith("ssrf_")}
 
-    def _act(p: Any) -> dict[str, Any]:
-        if url:
-            try:
-                p.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
-            except Exception as exc:  # noqa: BLE001
-                return {"error": f"nav_error: {type(exc).__name__}: {exc}"}
-        try:
-            p.locator(selector).set_input_files(str(resolved), timeout=timeout_ms)
-        except Exception as exc:  # noqa: BLE001
-            return {"error": f"upload_error: {type(exc).__name__}: {exc}"}
-        return {
-            "uploaded": selector,
-            "file_name": resolved.name,
-            "size_bytes": size,
-            "final_url": p.url,
-        }
-
     return _with_page(
         page,
-        _act,
+        lambda p: _upload_page(p, url, selector, resolved, size, timeout_ms),
     )
 
 
@@ -893,26 +785,9 @@ def _browser_wait(
             if err:
                 return {"error": err, "blocked": err.startswith("ssrf_")}
 
-    def _act(p: Any) -> dict[str, Any]:
-        if url:
-            try:
-                p.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
-            except Exception as e:  # noqa: BLE001
-                return {"error": f"nav_error: {type(e).__name__}: {e}"}
-        try:
-            p.wait_for_selector(selector, state=state, timeout=timeout_ms)
-        except Exception as e:  # noqa: BLE001
-            return {
-                "error": f"wait_timeout: {type(e).__name__}: {e}",
-                "timed_out": True,
-                "selector": selector,
-                "state": state,
-            }
-        return {"waited_for": selector, "state": state, "final_url": p.url}
-
     return _with_page(
         page,
-        _act,
+        lambda p: _wait_page(p, url, selector, state, timeout_ms),
         verb="wait",
         payload={"selector": selector, "timeout": timeout_ms},
         url=url,
@@ -962,40 +837,17 @@ def _browser_screenshot(
             if err:
                 return {"error": err, "blocked": err.startswith("ssrf_")}
 
-    def _act(p: Any) -> dict[str, Any]:
-        if url:
-            try:
-                p.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
-            except Exception as e:  # noqa: BLE001
-                return {"error": f"nav_error: {type(e).__name__}: {e}"}
-        if wait_ms > 0:
-            p.wait_for_timeout(wait_ms)
-        try:
-            p.screenshot(path=str(resolved), full_page=full_page)
-        except Exception as e:  # noqa: BLE001
-            return {"error": f"screenshot_error: {type(e).__name__}: {e}"}
-
-        from pathlib import Path as _P  # noqa: N814
-
-        size = 0
-        with contextlib.suppress(OSError):
-            size = _P(str(resolved)).stat().st_size
-        if size > MAX_SCREENSHOT_BYTES:
-            with contextlib.suppress(OSError):
-                _P(str(resolved)).unlink()
-            return {
-                "error": f"screenshot too large: {size} > {MAX_SCREENSHOT_BYTES}",
-                "path": str(resolved),
-            }
-        return {
-            "path": str(resolved),
-            "size_bytes": size,
-            "full_page": full_page,
-        }
-
     return _with_page(
         page,
-        _act,
+        lambda p: _screenshot_page(
+            p,
+            url,
+            resolved,
+            full_page=full_page,
+            timeout_ms=timeout_ms,
+            wait_ms=wait_ms,
+            max_bytes=MAX_SCREENSHOT_BYTES,
+        ),
         verb="screenshot",
         payload={"path": str(resolved), "full_page": bool(full_page)},
         url=url,

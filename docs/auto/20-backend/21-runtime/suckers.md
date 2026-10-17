@@ -44,6 +44,7 @@ Suckers = skill pool.
 | --- | --- |
 | `_browser_skills_handlers.py` | Registrar for browser_skills · extracted from browser_skills.py. |
 | `_browser_skills_helpers.py` | Helpers for browser_skills · extracted from browser_skills.py. |
+| `_browser_skills_page_actions.py` | Playwright page interactions behind the browser_skills action handlers. |
 | `_code_intel_handlers.py` | Registrar for code_intelligence_skills · extracted from code_intelligence_skills.py. |
 | `_code_intel_helpers.py` | Pure helper functions for code_intelligence_skills · extracted from code_intelligence_skills.py to keep the parent file under 1000 lines. |
 | `_delegation_skills_agent.py` | ``_call_agent`` · single isolated subagent delegation. |
