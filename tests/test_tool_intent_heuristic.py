@@ -231,3 +231,43 @@ def test_clock_and_calendar_tasks_are_not_calendar_questions(goal: str) -> None:
     from runtime.sensing.gateway.realtime_turn_routing import _CALENDAR_QA_RE
 
     assert not _CALENDAR_QA_RE.match(goal)
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "你好吗",
+        "你好呀",
+        "您好啊",
+        "在吗",
+        "早",
+        "早安",
+        "晚安",
+        "好久不见",
+        "辛苦了",
+        "最近怎么样",
+        "你是谁",
+        "hi there",
+        "How are you?",
+        "good morning",
+        "嗨嗨",
+    ],
+)
+def test_greetings_need_no_tools(goal: str) -> None:
+    assert looks_like_plain_chat(goal)
+    assert not looks_like_tool_intent(goal)
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "你好，帮我写个脚本",
+        "在吗？把 README 前 20 行发我",
+        "早上好，查一下今天的新闻",
+        "hi, open the browser",
+    ],
+)
+def test_a_greeting_followed_by_a_task_is_still_a_task(goal: str) -> None:
+    from runtime.sensing.gateway.realtime_turn_routing import _GREETING_RE
+
+    assert not _GREETING_RE.match(goal)

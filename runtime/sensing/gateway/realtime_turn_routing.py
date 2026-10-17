@@ -39,6 +39,20 @@ _KNOWLEDGE_QA_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Whole-message greetings and pleasantries beyond _CHITCHAT_RE's single
+# words. "你好吗" or "在吗" went to the tool-carrying path (a live run on
+# 2026-10-17 put "你好吗" in Codex's tool thread, 9.2 s to the first word).
+_GREETING_RE = re.compile(
+    r"^\s*(?:"
+    r"(?:你好|您好|哈喽|嗨+|hello|hi|hey)\s*(?:呀|啊|哇|吗|么|嘛|there)?|"
+    r"早|早安|午安|晚安|早上好|中午好|下午好|晚上好|好久不见|辛苦了?|"
+    r"最近(?:怎么样|好吗|还好吗)|在吗|在不在|在么|在嘛|你是谁|你叫什么(?:名字)?|"
+    r"how\s+are\s+you(?:\s+doing)?|good\s+(?:morning|afternoon|evening|night)|"
+    r"nice\s+to\s+meet\s+you"
+    r")\s*[!！。.?？~～,，]*\s*$",
+    re.IGNORECASE,
+)
+
 # Today's date and weekday, relative days and the year. Every engine has the
 # date in its own context: OpenCode's environment block, Codex's
 # <current_date>, and the date line of Echo's own prompts. The time of day is
@@ -180,7 +194,12 @@ def looks_like_plain_chat(goal: str) -> bool:
         return True
     if _DIRECT_REPLY_RE.search(g) and not _FILE_SIGNAL_RE.search(g):
         return True
-    if _CHITCHAT_RE.match(g) or _is_short_chitchat(g) or _CALENDAR_QA_RE.match(g):
+    if (
+        _CHITCHAT_RE.match(g)
+        or _is_short_chitchat(g)
+        or _GREETING_RE.match(g)
+        or _CALENDAR_QA_RE.match(g)
+    ):
         return True
     return bool(_KNOWLEDGE_QA_RE.match(g) and not _FILE_SIGNAL_RE.search(g))
 
