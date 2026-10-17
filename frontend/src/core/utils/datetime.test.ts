@@ -26,8 +26,22 @@ describe("compact relative timestamps", () => {
 
     const recentDate = new Date(2026, 6, 9, 8, 42, 0);
 
-    expect(formatCompactRelativeTimestamp(recentDate, "zh-CN")).toBe("18m");
+    expect(formatCompactRelativeTimestamp(recentDate, "zh-CN")).toBe("18 分钟");
     expect(formatCompactRelativeTimestamp(recentDate, "en-US")).toBe("18m");
+    expect(formatCompactRelativeTimestamp(recentDate, "ja-JP")).toBe("18分");
+    expect(formatCompactRelativeTimestamp(recentDate, "ko-KR")).toBe("18분");
+  });
+
+  test("names hours in the reader's language too", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 9, 9, 0, 0));
+
+    const earlier = new Date(2026, 6, 9, 4, 30, 0);
+
+    expect(formatCompactRelativeTimestamp(earlier, "zh-CN")).toBe("4 小时");
+    expect(formatCompactRelativeTimestamp(earlier, "en-US")).toBe("4h");
+    expect(formatCompactRelativeTimestamp(earlier, "ja-JP")).toBe("4時間");
+    expect(formatCompactRelativeTimestamp(earlier, "ko-KR")).toBe("4시간");
   });
 
   test("keeps the first minute as just-now instead of 0m", () => {

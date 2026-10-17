@@ -84,6 +84,25 @@ export function formatRelativeTimestamp(
   return formatDate(d, effectiveLocale);
 }
 
+/** The sidebar's short age in the reader's language: 13 分钟, 13分, 13m. */
+function compactUnit(
+  value: number,
+  unit: "minute" | "hour",
+  locale: Locale,
+): string {
+  const minute = unit === "minute";
+  switch (locale) {
+    case "zh-CN":
+      return `${value} ${minute ? "分钟" : "小时"}`;
+    case "ja-JP":
+      return `${value}${minute ? "分" : "時間"}`;
+    case "ko-KR":
+      return `${value}${minute ? "분" : "시간"}`;
+    default:
+      return `${value}${minute ? "m" : "h"}`;
+  }
+}
+
 export function formatCompactRelativeTimestamp(
   date: Date | string | number,
   locale?: Locale,
@@ -99,12 +118,10 @@ export function formatCompactRelativeTimestamp(
   // Under a minute stays "now"; 30–59 s used to render as "0m".
   if (deltaSec < 60) return isZh ? "刚刚" : "now";
   if (deltaSec < 3600) {
-    const m = Math.floor(deltaSec / 60);
-    return `${m}m`;
+    return compactUnit(Math.floor(deltaSec / 60), "minute", effectiveLocale);
   }
   if (deltaSec < 86400) {
-    const h = Math.floor(deltaSec / 3600);
-    return `${h}h`;
+    return compactUnit(Math.floor(deltaSec / 3600), "hour", effectiveLocale);
   }
   if (deltaSec < 7 * 86400) {
     return format(d, "EEE", { locale: getDateFnsLocale(effectiveLocale) });
