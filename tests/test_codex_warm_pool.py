@@ -114,3 +114,15 @@ def test_wrapped_or_credential_carrying_launches_stay_one_shot(tmp_path) -> None
     before = warm_pool.key_for(signed_in, context, wrapped=False)
     (login / "auth.json").write_text('{"account": "b"}', encoding="utf-8")
     assert warm_pool.key_for(signed_in, context, wrapped=False) != before
+
+
+def test_a_direct_launch_may_stay_warm_but_a_real_wrapper_may_not() -> None:
+    # Windows resolves DirectBackend (no hard backend): identity transform,
+    # no enforcement, so the process is the same as an unwrapped one.
+    from runtime.execution.codex_backend.backend import _launch_is_wrapped
+    from runtime.safety.sandboxing.sandbox import BackendChoice, DirectBackend
+
+    assert _launch_is_wrapped(None) is False
+    assert _launch_is_wrapped(BackendChoice(DirectBackend(), "direct", hard=False)) is False
+    wrapper = SimpleNamespace(backend=object(), name="bwrap", hard=True)
+    assert _launch_is_wrapped(cast(Any, wrapper)) is True

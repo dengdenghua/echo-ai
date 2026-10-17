@@ -20,6 +20,7 @@ from runtime.execution.request import ExecutionRequest
 from runtime.safety.approval.approval_gate import ApprovalProvider
 from runtime.safety.sandboxing.sandbox import (
     BackendChoice,
+    DirectBackend,
     SandboxPolicy,
     SandboxViolation,
     SeatbeltBackend,
@@ -380,7 +381,7 @@ class CodexExecutionSession:
                 warm_pool.key_for(
                     self.request,
                     context,
-                    wrapped=process_backend is not None
+                    wrapped=_launch_is_wrapped(process_backend)
                     or self._security.policy.outer_hard_sandbox_required,
                 )
                 if self._keep_warm_enabled
@@ -829,6 +830,18 @@ class CodexExecutionSession:
             choice.name,
         )
         return None
+
+
+def _launch_is_wrapped(process_backend: BackendChoice | None) -> bool:
+    """Whether the App Server runs inside a launch the turn's policy shaped.
+
+    ``DirectBackend`` (Windows and other hosts without a hard backend) hands
+    the command back unchanged and enforces nothing, so its launch is the
+    same as an unwrapped one and may stay warm. Treating it as wrapped kept
+    every real Windows turn cold (2026-10-17: warm=False on every turn).
+    """
+
+    return process_backend is not None and not isinstance(process_backend.backend, DirectBackend)
 
 
 def _principal_scoped_tenant(tenant_id: str, principal_id: str) -> str:
