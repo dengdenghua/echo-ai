@@ -570,7 +570,7 @@ const OPTIONAL_GROUPS = {
     "reportlab>=4.4.4",
   ],
   mcp: [
-    "mcp>=2.0.0,<3.0",
+    "mcp>=2.2.0,<3.0",
     "pydantic-settings>=2.14.2",
     "pyjwt[crypto]>=2.15.0",
   ],

@@ -338,7 +338,10 @@ def test_durable_report_lock_does_not_block_interrupt_or_lose_late_report(
     def hold_durable_lock() -> None:
         with store._lock:  # noqa: SLF001 - deliberate contention boundary
             durable_lock_held.set()
-            release_durable_lock.wait(10.0)
+            # Released explicitly (or in finally). The auto-release only
+            # bounds a broken test; it must outlast both lock assertions on
+            # a loaded CI runner.
+            release_durable_lock.wait(30.0)
         durable_lock_released.set()
 
     lock_holder = threading.Thread(target=hold_durable_lock, daemon=True)
@@ -387,8 +390,10 @@ def test_durable_report_lock_does_not_block_interrupt_or_lose_late_report(
 
             # The lifecycle spends at most its one-second startup budget on
             # the deferred scan. The real wrapper's busy marker must then pass
-            # independently while the durable lock is still held.
-            assert first_model_entered.wait(2.0), (
+            # independently while the durable lock is still held. The lock is
+            # held for the whole wait, so a wrapper blocked on it still fails;
+            # the slack is for a loaded runner (CI 2026-10-17 missed 2 s).
+            assert first_model_entered.wait(10.0), (
                 "stream_react_loop wrapper waited for the durable store lock"
             )
             assert not durable_lock_released.is_set()
