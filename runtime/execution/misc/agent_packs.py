@@ -11,19 +11,30 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-try:
-    import yaml  # type: ignore[import-untyped]
-except ImportError:  # pragma: no cover
-    yaml = None  # type: ignore[assignment]
-
+from runtime.execution.misc._agent_packs_apps import _scan_app_modules
+from runtime.execution.misc._agent_packs_models import (
+    AgentPackAgentNotFound,
+    AgentPackImportResult,
+    AgentPackPreview,
+    PackModule,
+)
+from runtime.execution.misc._agent_packs_parsing import (
+    _coerce_tool_list,
+    _count_assets,
+    _first_heading_or_line,
+    _parse_frontmatter,
+    _read_json,
+    _read_readme_summary,
+    _read_text,
+    _read_yaml,
+    _strip_frontmatter,
+)
 from runtime.execution.misc.agent_avatar import pixel_agent_avatar_svg
 from runtime.platform.io import atomic_write_json, atomic_write_text
 
-_FRONTMATTER_RE = re.compile(r"\A\s*---\s*\n(.*?)\n---\s*(?:\n|$)", re.DOTALL)
 _SAFE_PACK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _PACK_IMPORT_SOURCE = "agent-pack-import"
 
@@ -35,53 +46,6 @@ _PACK_MANIFEST_FORMATS: tuple[tuple[str, str], ...] = (
     (".codex-plugin", "codex"),
     (".codebuddy-plugin", "codebuddy"),
 )
-
-
-class AgentPackAgentNotFound(ValueError):
-    """Raised when a requested agent is not present in a scanned pack."""
-
-
-@dataclass(frozen=True)
-class PackModule:
-    id: str
-    kind: str
-    name: str
-    path: str
-    description: str = ""
-    source_plugin: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class AgentPackPreview:
-    root: str
-    marketplace: dict[str, Any] | None
-    plugins: list[PackModule]
-    apps: list[PackModule]
-    agents: list[PackModule]
-    skills: list[PackModule]
-    commands: list[PackModule]
-    mcp_servers: list[PackModule]
-    managed_agents: list[PackModule]
-    subagents: list[PackModule]
-    warnings: list[str]
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass(frozen=True)
-class AgentPackImportResult:
-    agent_id: str
-    agent_name: str
-    agent_path: str
-    copied_skills: list[str]
-    skipped_skills: list[str]
-    warnings: list[str]
-    already_exists: bool = False
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
 
 
 def scan_agent_pack(root: str | Path) -> AgentPackPreview:
@@ -466,188 +430,6 @@ def _scan_mcp_servers(
     return modules
 
 
-def _scan_app_modules(
-    plugin_dir: Path,
-    plugin: PackModule,
-    warnings: list[str],
-) -> list[PackModule]:
-    modules: list[PackModule] = []
-    seen_paths: set[Path] = set()
-    candidates = [
-        plugin_dir / "echo-app.jsonc",
-        plugin_dir / ".echo-app.jsonc",
-        plugin_dir / ".app.json",
-        plugin_dir / "app.jsonc",
-        plugin_dir / "app.json",
-        plugin_dir / "app.yaml",
-    ]
-    apps_dir = plugin_dir / "apps"
-    if apps_dir.is_dir():
-        for child in sorted(apps_dir.iterdir()):
-            if not child.is_dir():
-                continue
-            candidates.extend(
-                [
-                    child / "echo-app.jsonc",
-                    child / "app.jsonc",
-                    child / "app.json",
-                    child / "app.yaml",
-                    child / "meta.jsonc",
-                    child / "meta.json",
-                    child / "meta.yaml",
-                ]
-            )
-
-    for manifest in candidates:
-        if manifest in seen_paths or not manifest.is_file():
-            continue
-        seen_paths.add(manifest)
-        data = _read_app_manifest(manifest, warnings) or {}
-        for name, app_data in _iter_app_manifest_entries(data, manifest, warnings):
-            title = str(
-                app_data.get("title")
-                or app_data.get("displayName")
-                or app_data.get("display_name")
-                or app_data.get("name")
-                or name
-            )
-            actions = _normalize_app_actions(app_data.get("actions"))
-            modules.append(
-                PackModule(
-                    id=f"{plugin.id}:app:{name}",
-                    kind="app",
-                    name=name,
-                    path=str(
-                        plugin_dir
-                        if manifest.name in {"echo-app.jsonc", ".echo-app.jsonc", ".app.json"}
-                        else manifest.parent
-                    ),
-                    description=str(
-                        app_data.get("description")
-                        or app_data.get("shortDescription")
-                        or app_data.get("short_description")
-                        or ""
-                    ),
-                    source_plugin=plugin.id,
-                    metadata={
-                        "manifest": str(manifest),
-                        "schema_version": app_data.get("schema_version")
-                        or data.get("schema_version")
-                        or data.get("version"),
-                        "title": title,
-                        "category": app_data.get("category") or data.get("category") or "connector",
-                        "route": app_data.get("route") or app_data.get("path"),
-                        "entry": app_data.get("entry") or app_data.get("main"),
-                        "icon": app_data.get("icon"),
-                        "connector_id": app_data.get("connector_id")
-                        or app_data.get("connectorId")
-                        or (
-                            app_data.get("id")
-                            if isinstance(app_data.get("id"), str)
-                            and str(app_data.get("id")).startswith("connector_")
-                            else None
-                        ),
-                        "permissions": app_data.get("permissions")
-                        if isinstance(app_data.get("permissions"), list)
-                        else [],
-                        "actions": actions,
-                        "action_count": len(actions),
-                    },
-                )
-            )
-    return modules
-
-
-def _read_app_manifest(path: Path, warnings: list[str]) -> dict[str, Any] | None:
-    suffix = path.suffix.lower()
-    if suffix in {".yaml", ".yml"}:
-        return _read_yaml(path, warnings)
-    if suffix == ".jsonc":
-        return _read_jsonc(path, warnings)
-    return _read_json(path, warnings)
-
-
-def _iter_app_manifest_entries(
-    data: dict[str, Any],
-    manifest: Path,
-    warnings: list[str],
-) -> list[tuple[str, dict[str, Any]]]:
-    raw_apps = data.get("apps")
-    entries: list[tuple[str, dict[str, Any]]] = []
-    if isinstance(raw_apps, dict):
-        for key, value in sorted(raw_apps.items()):
-            if not isinstance(value, dict):
-                warnings.append(f"{manifest}: app `{key}` must be an object")
-                continue
-            name = str(value.get("app_id") or value.get("slug") or key).strip()
-            if not name:
-                warnings.append(f"{manifest}: app key `{key}` resolved to an empty id")
-                continue
-            entries.append((name, value))
-        return entries
-    if isinstance(raw_apps, list):
-        for index, value in enumerate(raw_apps):
-            if not isinstance(value, dict):
-                warnings.append(f"{manifest}: apps[{index}] must be an object")
-                continue
-            name = str(value.get("id") or value.get("name") or "").strip()
-            if not name:
-                warnings.append(f"{manifest}: apps[{index}] is missing id")
-                continue
-            entries.append((name, value))
-        return entries
-
-    name = str(data.get("id") or data.get("name") or manifest.parent.name).strip()
-    if not name:
-        warnings.append(f"{manifest}: app manifest resolved to an empty id")
-        return []
-    return [(name, data)]
-
-
-def _normalize_app_actions(raw: Any) -> list[dict[str, Any]]:
-    items: list[Any]
-    if isinstance(raw, dict):
-        items = [
-            {**value, "name": key} if isinstance(value, dict) else {"name": key}
-            for key, value in raw.items()
-        ]
-    elif isinstance(raw, list):
-        items = raw
-    else:
-        return []
-
-    actions: list[dict[str, Any]] = []
-    for item in items:
-        if isinstance(item, str):
-            name = item.strip()
-            if name:
-                actions.append({"name": name, "description": "", "input_schema": {}})
-            continue
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("name") or item.get("id") or "").strip()
-        if not name:
-            continue
-        schema = (
-            item.get("input_schema")
-            or item.get("inputSchema")
-            or item.get("schema")
-            or item.get("parameters")
-            or {}
-        )
-        actions.append(
-            {
-                "name": name,
-                "description": str(item.get("description") or ""),
-                "input_schema": schema if isinstance(schema, dict) else {},
-                "requires_confirmation": bool(
-                    item.get("requires_confirmation") or item.get("confirm")
-                ),
-            }
-        )
-    return actions
-
-
 def _scan_managed_agents(
     base: Path,
     warnings: list[str],
@@ -718,193 +500,6 @@ def _append_security_warnings(
             + ", ".join(write_enabled)
             + ". Install should require explicit human approval."
         )
-
-
-def _read_json(path: Path, warnings: list[str]) -> dict[str, Any] | None:
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        warnings.append(f"{path}: JSON parse failed: {exc}")
-        return None
-    if not isinstance(data, dict):
-        warnings.append(f"{path}: expected JSON object")
-        return None
-    return data
-
-
-def _read_jsonc(path: Path, warnings: list[str]) -> dict[str, Any] | None:
-    if not path.is_file():
-        return None
-    try:
-        text = path.read_text(encoding="utf-8")
-        data = json.loads(_remove_jsonc_trailing_commas(_strip_jsonc_comments(text)))
-    except (OSError, json.JSONDecodeError) as exc:
-        warnings.append(f"{path}: JSONC parse failed: {exc}")
-        return None
-    if not isinstance(data, dict):
-        warnings.append(f"{path}: expected JSONC object")
-        return None
-    return data
-
-
-def _strip_jsonc_comments(text: str) -> str:
-    result: list[str] = []
-    i = 0
-    in_string = False
-    quote = ""
-    escaped = False
-    while i < len(text):
-        char = text[i]
-        nxt = text[i + 1] if i + 1 < len(text) else ""
-        if in_string:
-            result.append(char)
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == quote:
-                in_string = False
-            i += 1
-            continue
-        if char in {'"', "'"}:
-            in_string = True
-            quote = char
-            result.append(char)
-            i += 1
-            continue
-        if char == "/" and nxt == "/":
-            while i < len(text) and text[i] not in "\r\n":
-                i += 1
-            continue
-        if char == "/" and nxt == "*":
-            i += 2
-            while i + 1 < len(text) and not (text[i] == "*" and text[i + 1] == "/"):
-                i += 1
-            i += 2
-            continue
-        result.append(char)
-        i += 1
-    return "".join(result)
-
-
-def _remove_jsonc_trailing_commas(text: str) -> str:
-    result: list[str] = []
-    i = 0
-    in_string = False
-    quote = ""
-    escaped = False
-    while i < len(text):
-        char = text[i]
-        if in_string:
-            result.append(char)
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == quote:
-                in_string = False
-            i += 1
-            continue
-        if char in {'"', "'"}:
-            in_string = True
-            quote = char
-            result.append(char)
-            i += 1
-            continue
-        if char == ",":
-            j = i + 1
-            while j < len(text) and text[j].isspace():
-                j += 1
-            if j < len(text) and text[j] in "]}":
-                i += 1
-                continue
-        result.append(char)
-        i += 1
-    return "".join(result)
-
-
-def _read_yaml(path: Path, warnings: list[str]) -> dict[str, Any] | None:
-    if yaml is None:
-        warnings.append("PyYAML unavailable; YAML managed-agent manifests were skipped")
-        return None
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:  # type: ignore[attr-defined]
-        warnings.append(f"{path}: YAML parse failed: {exc}")
-        return None
-    if not isinstance(data, dict):
-        warnings.append(f"{path}: expected YAML mapping")
-        return None
-    return data
-
-
-def _read_text(path: Path, warnings: list[str]) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError as exc:
-        warnings.append(f"{path}: read failed: {exc}")
-        return ""
-
-
-def _parse_frontmatter(
-    text: str,
-    path: Path,
-    warnings: list[str],
-) -> dict[str, Any]:
-    match = _FRONTMATTER_RE.match(text)
-    if not match:
-        return {}
-    if yaml is None:
-        warnings.append("PyYAML unavailable; markdown frontmatter was skipped")
-        return {}
-    try:
-        data = yaml.safe_load(match.group(1))
-    except yaml.YAMLError as exc:  # type: ignore[attr-defined]
-        warnings.append(f"{path}: frontmatter parse failed: {exc}")
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _coerce_tool_list(value: Any) -> list[str]:
-    if isinstance(value, str):
-        return [item.strip() for item in value.split(",") if item.strip()]
-    if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    return []
-
-
-def _first_heading_or_line(text: str) -> str:
-    for line in text.splitlines():
-        clean = line.strip()
-        if not clean or clean == "---":
-            continue
-        if clean.startswith("#"):
-            return clean.lstrip("#").strip()
-        if not clean.startswith(("name:", "description:", "tools:")):
-            return clean[:180]
-    return ""
-
-
-def _count_assets(directory: Path) -> int:
-    return sum(1 for path in directory.rglob("*") if path.is_file() and path.name != "SKILL.md")
-
-
-def _read_readme_summary(directory: Path, warnings: list[str]) -> str:
-    readme = directory / "README.md"
-    if not readme.is_file():
-        return ""
-    text = _read_text(readme, warnings)
-    for line in text.splitlines():
-        clean = line.strip()
-        if clean and not clean.startswith("#"):
-            return clean[:240]
-    return ""
-
-
-def _strip_frontmatter(text: str) -> str:
-    return _FRONTMATTER_RE.sub("", text, count=1)
 
 
 def _slugify_agent_id(value: str) -> str:
