@@ -2,9 +2,7 @@ import type { Message } from "@/core/api/types";
 import type { CoworkRoomMessage } from "@/core/cowork";
 import {
   CopyIcon,
-  FileIcon,
   GitForkIcon,
-  Loader2Icon,
   MessageSquareQuoteIcon,
   PencilIcon,
   RefreshCwIcon,
@@ -16,7 +14,6 @@ import {
   memo,
   useCallback,
   useMemo,
-  type ComponentProps,
   type ImgHTMLAttributes,
   type ReactNode,
 } from "react";
@@ -29,26 +26,17 @@ import {
   MessageResponse as AIElementMessageResponse,
 } from "@/components/ai-elements/message";
 import { Task, TaskTrigger } from "@/components/ai-elements/task";
-import { Badge } from "@/components/ui/badge";
-import { RoutedWebLink } from "@/components/ui/routed-web-link";
-import {
-  artifactRefFromMarkdownHref,
-  dispatchOpenArtifact,
-} from "@/core/artifacts/open-artifact";
-import { resolveArtifactURL } from "@/core/artifacts/utils";
 import { jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { copyTextToClipboard } from "@/core/clipboard";
 import { useI18n } from "@/core/i18n/hooks";
 import { messageActionsCopy } from "@/core/i18n/locales/message-actions";
 import { useForkThread } from "@/core/threads/hooks";
-import type { ExecutionPlan } from "@/core/threads/types";
 import {
   extractContentFromMessage,
   extractTextFromMessage,
   parseUploadedFiles,
   stripInternalToolProtocol,
-  stripLeakedRendererMarkup,
   stripUploadedFilesTag,
   type FileInMessage,
 } from "@/core/messages/utils";
@@ -60,31 +48,22 @@ import {
   CoworkRoomMessageActions,
   type CoworkRoomMessageActionsProps,
 } from "../collab";
-import { emitOpenAgentWorkbench } from "../agent-workbench-events";
 import {
-  ExecutionPlanReview,
   isExecutionPlanMessage,
   getExecutionPlanFromMessage,
 } from "../execution-plan-review";
 import {
-  TaskProgressChecklist,
   isTaskChecklistMessage,
   getChecklistPlanFromMessage,
 } from "../task-progress-checklist";
-import { normalizeExecutionPlan } from "../execution-plan-utils";
 
 import { MarkdownContent } from "./markdown-content";
 import { ProjectResultContent } from "./project-result-content";
 import { ProjectCommandContent } from "./project-command-content";
-import { useThreadValues } from "./context";
 import {
   STREAMING_TYPE_PRESETS,
   useStreamingTextBuffer,
 } from "@/hooks/use-streaming-text-buffer";
-import {
-  RETRY_PENDING_MESSAGE_EVENT,
-  type OutboundDeliveryState,
-} from "@/core/threads/optimistic-messages";
 import { ClarificationChoiceCard } from "./clarification-choice-card";
 import { GroundingChip } from "./grounding-chip";
 import {
@@ -93,8 +72,33 @@ import {
   type MessageMenuAction,
 } from "./message-action-menu";
 import { extractClarificationQuestionnaire } from "../clarification-questionnaire";
+import {
+  HumanMessageDeliveryStatus,
+  outboundDeliveryState,
+} from "./message-delivery-status";
+import {
+  buildReasoningSummary,
+  containsProtocolMarkers,
+  messageClipboardText,
+  splitInlineThinkingDetails,
+  stripInternalTraceDetails,
+  stripLegacySubagentBudgetPlaceholder,
+} from "./message-list-item-text";
+import {
+  LiveExecutionPlanContent,
+  LiveTaskChecklistContent,
+} from "./message-live-plan-content";
+import { RichFilesList } from "./message-rich-files";
+import { MessageImage, RoutedMessageLink } from "./routed-message-link";
+import { SegmentedReasoningPanel } from "./segmented-reasoning-panel";
 import { ShadowReviewAction, type ShadowReviewContext } from "./message-shadow-review";
 export { ShadowReviewAction, type ShadowReviewContext } from "./message-shadow-review";
+export { HumanMessageDeliveryStatus } from "./message-delivery-status";
+export {
+  containsProtocolMarkers,
+  messageClipboardText,
+} from "./message-list-item-text";
+export { RoutedMessageLink } from "./routed-message-link";
 
 export interface MessageListProjectActions extends Omit<
   CoworkRoomMessageActionsProps,
@@ -125,242 +129,6 @@ export function threadMessageToCoworkRoomMessage(
       source_message_id: sourceMessageId,
     },
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function outboundDeliveryState(message: Message): OutboundDeliveryState | null {
-  if (message.type !== "human") return null;
-  const state = message.additional_kwargs?.delivery_state;
-  return state === "queued" || state === "sending" || state === "failed"
-    ? state
-    : null;
-}
-
-export function HumanMessageDeliveryStatus({
-  message,
-  threadId,
-}: {
-  message: Message;
-  threadId?: string | null;
-}) {
-  const { t } = useI18n();
-  const state = outboundDeliveryState(message);
-  if (!state) return null;
-  const clientMessageId = message.id;
-  const canRetry =
-    state === "failed" &&
-    typeof clientMessageId === "string" &&
-    clientMessageId.length > 0;
-  const label =
-    state === "queued"
-      ? t.conversation.messageQueued
-      : state === "sending"
-        ? t.conversation.messageSending
-        : t.conversation.messageSendFailed;
-  const error = message.additional_kwargs?.delivery_error;
-  return (
-    <div
-      className={cn(
-        "mt-1 flex items-center justify-end gap-1.5 text-xs leading-4",
-        state === "failed" ? "text-destructive/80" : "text-muted-foreground",
-      )}
-      data-testid="human-message-delivery-status"
-      data-delivery-state={state}
-      role="status"
-      title={typeof error === "string" ? error : undefined}
-    >
-      {state === "sending" ? (
-        <Loader2Icon className="size-3 animate-spin" aria-hidden="true" />
-      ) : (
-        <span
-          className={cn(
-            "size-1.5 rounded-full",
-            state === "failed" ? "bg-destructive/70" : "bg-current/45",
-          )}
-          aria-hidden="true"
-        />
-      )}
-      <span>{label}</span>
-      {canRetry ? (
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 rounded px-1 py-0.5 font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
-          data-testid="retry-pending-message"
-          onClick={() => {
-            window.dispatchEvent(
-              new CustomEvent(RETRY_PENDING_MESSAGE_EVENT, {
-                detail: { threadId, clientMessageId },
-              }),
-            );
-          }}
-        >
-          <RefreshCwIcon className="size-3" aria-hidden="true" />
-          {t.conversation.retry}
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-const INTERNAL_TRACE_DETAILS_RE =
-  /^\s*<details\b[^>]*>\s*<summary\b[^>]*>\s*[^<]*(?:ReAct|\u8f68\u8ff9)[^<]*<\/summary>[\s\S]*?<\/details>\s*/i;
-
-const INLINE_THINKING_DETAILS_CAPTURE_RE =
-  /^\s*<details\b[^>]*>\s*<summary\b[^>]*>\s*[^<]*(?:\u601d\u8003\u8fc7\u7a0b|Thinking)[^<]*<\/summary>([\s\S]*?)<\/details>\s*/i;
-
-const LEGACY_SUBAGENT_BUDGET_PLACEHOLDER_RE =
-  /^\s*(?:\[[^\]\n]+\]\s*)?\(sub-agent exceeded token budget \d+\/\d+\)\s*$/i;
-
-function stripInternalTraceDetails(content: string): string {
-  let next = content;
-  for (let i = 0; i < 4; i += 1) {
-    const stripped = next.replace(INTERNAL_TRACE_DETAILS_RE, "");
-    if (stripped === next) break;
-    next = stripped.trimStart();
-  }
-  return next;
-}
-
-function stripLegacySubagentBudgetPlaceholder(content: string): string {
-  return LEGACY_SUBAGENT_BUDGET_PLACEHOLDER_RE.test(content) ? "" : content;
-}
-
-function splitInlineThinkingDetails(content: string) {
-  const match = content.match(INLINE_THINKING_DETAILS_CAPTURE_RE);
-  if (!match) {
-    return { content, hadInlineThinking: false, thinkingContent: null };
-  }
-  const fullMatch = match[0] ?? "";
-  const thinkingContent = (match[1] ?? "").trim();
-  return {
-    content: content.slice(fullMatch.length).trimStart(),
-    hadInlineThinking: true,
-    thinkingContent: thinkingContent || null,
-  };
-}
-
-/**
- * Cheap pre-filter for the streaming hot path.
- *
- * The full protocol-cleaning chain (stripInternalToolProtocol →
- * stripInternalTraceDetails → splitInlineThinkingDetails → …) is a dozen
- * whole-string regex passes — fine per settled message, wasteful when it
- * re-runs on every streamed token. Every pattern in that chain requires at
- * least one of the characters below (protocol XML/fence markers, ReAct
- * field headers, guard boilerplate, and the ASCII opening paren of the
- * legacy ``(sub-agent exceeded token budget N/N)`` placeholder — its
- * optional ``[...]`` prefix already matches via ``[``). A reply containing
- * none of them is guaranteed to pass through every stage unchanged, so we
- * can skip the entire chain. First-mark test is O(n) with zero allocation.
- */
-const PROTOCOL_FIRST_MARK_RE = /[<`TAFONS质量（({[]/;
-
-export function containsProtocolMarkers(content: string): boolean {
-  return PROTOCOL_FIRST_MARK_RE.test(content);
-}
-
-function getReasoningSummary(message: Message): string | null {
-  const additional = isRecord(message.additional_kwargs)
-    ? message.additional_kwargs
-    : null;
-  const echo = isRecord(additional?.echo) ? additional.echo : null;
-  for (const source of [additional, echo]) {
-    if (!source) continue;
-    const value = source.public_reasoning_summary;
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
-}
-
-function buildReasoningSummary(message: Message): string | null {
-  // Legacy snapshots used this explicit field for readable reasoning
-  // summaries. It remains a reasoning disclosure and is never promoted to
-  // normal commentary. Provider aliases are intentionally not guessed here.
-  return getReasoningSummary(message);
-}
-
-function cleanClipboardText(value: string): string {
-  return stripLeakedRendererMarkup(stripInternalToolProtocol(value), {
-    trim: true,
-  });
-}
-
-export function messageClipboardText(message: Message): string {
-  const rawContent = extractContentFromMessage(message) ?? "";
-  if (message.type === "human") {
-    return stripUploadedFilesTag(rawContent).trim();
-  }
-
-  const displayContent = splitInlineThinkingDetails(
-    stripLegacySubagentBudgetPlaceholder(stripInternalTraceDetails(rawContent)),
-  ).content;
-  const visibleContent =
-    extractClarificationQuestionnaire(displayContent)?.visibleContent ??
-    displayContent;
-  const cleanedVisible = cleanClipboardText(visibleContent);
-  if (cleanedVisible) return cleanedVisible;
-
-  // Preserve the legacy explicit summary in clipboard output without ever
-  // falling back to raw provider reasoning or guessed alias fields.
-  return cleanClipboardText(getReasoningSummary(message) ?? "");
-}
-
-type MarkdownRenderProps = Pick<
-  ComponentProps<typeof MarkdownContent>,
-  "components" | "rehypePlugins" | "chatFontSize"
->;
-
-function SegmentedReasoningPanel({
-  publicThinkingSummary,
-  isLoading,
-  messageId,
-}: MarkdownRenderProps & {
-  publicThinkingSummary?: string | null;
-  isLoading: boolean;
-  messageId?: string;
-}) {
-  const replyThinking = publicThinkingSummary?.trim() || null;
-  if (!replyThinking) return null;
-  const summary = replyThinking.replace(/\s+/g, " ").trim();
-
-  return (
-    <button
-      type="button"
-      onClick={() =>
-        emitOpenAgentWorkbench({
-          tab: "agent",
-          eventId: messageId,
-          eventKind: "thinking",
-          view: "summary",
-          processEvent: {
-            kind: "thinking",
-            summary,
-            detail: replyThinking,
-            status: isLoading ? "running" : "done",
-            count: 1,
-          },
-        })
-      }
-      className="group/thinking-row mb-1 flex w-full min-w-0 items-center gap-1.5 rounded-full border border-border/50 bg-muted/40 px-2.5 py-1 text-left text-xs leading-4 text-muted-foreground transition-colors hover:text-muted-foreground hover:border-border"
-      data-process-event-id={messageId}
-      data-process-event-kind="thinking"
-      data-testid="assistant-thinking-event"
-      aria-label={summary}
-    >
-      <span
-        className={cn(
-          "inline-flex size-1.5 shrink-0 rounded-full bg-muted-foreground/35",
-          isLoading && "animate-pulse bg-primary/55",
-        )}
-      />
-      <span className="min-w-0 flex-1 truncate">{summary}</span>
-    </button>
-  );
 }
 
 // Wrapped in React.memo with chatFontSize as an explicit prop.
@@ -653,160 +421,6 @@ export const MessageListItem = memo(function MessageListItem({
     </MessageContextMenu>
   );
 });
-
-/**
- * Custom image component that handles artifact URLs
- */
-function MessageImage({
-  src,
-  alt,
-  threadId,
-  maxWidth: _maxWidth = "90%",
-  ...props
-}: React.ImgHTMLAttributes<HTMLImageElement> & {
-  threadId: string;
-  maxWidth?: string;
-}) {
-  if (!src) return null;
-
-  const imgClassName = "overflow-hidden rounded-lg max-w-[90%]";
-
-  if (typeof src !== "string") {
-    return <img className={imgClassName} src={src} alt={alt} {...props} />;
-  }
-
-  const url = src.startsWith("/mnt/") ? resolveArtifactURL(src, threadId) : src;
-
-  return (
-    <RoutedMessageLink href={url}>
-      <img className={imgClassName} src={url} alt={alt} {...props} />
-    </RoutedMessageLink>
-  );
-}
-
-export function RoutedMessageLink({
-  href,
-  onClick,
-  children,
-  ...props
-}: ComponentProps<"a">) {
-  if (typeof href === "string" && isVideoPreviewHref(href)) {
-    return (
-      <VideoPreviewLink {...props} href={href} onClick={onClick}>
-        {children}
-      </VideoPreviewLink>
-    );
-  }
-
-  return (
-    <RoutedWebLink
-      {...props}
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(event) => {
-        onClick?.(event);
-        if (event.defaultPrevented || !href) return;
-        const artifactRef = artifactRefFromMarkdownHref(href);
-        if (artifactRef && dispatchOpenArtifact(artifactRef)) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      }}
-      openTargetSource="conversation"
-    >
-      {children}
-    </RoutedWebLink>
-  );
-}
-
-function VideoPreviewLink({
-  href,
-  onClick,
-  children,
-  ...props
-}: ComponentProps<"a"> & { href: string }) {
-  const { locale } = useI18n();
-  const label =
-    typeof children === "string"
-      ? children
-      : messageActionsCopy(locale).videoPreview;
-  return (
-    <span className="my-3 block w-full max-w-3xl">
-      <video
-        aria-label={label}
-        className="aspect-video w-full rounded-xl bg-black shadow-sm"
-        controls
-        playsInline
-        preload="metadata"
-        src={href}
-      />
-      <RoutedWebLink
-        {...props}
-        className="mt-1.5 inline-block text-xs text-muted-foreground underline underline-offset-2"
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(event) => {
-          onClick?.(event);
-          if (event.defaultPrevented) return;
-        }}
-        openTargetSource="conversation"
-      >
-        {children}
-      </RoutedWebLink>
-    </span>
-  );
-}
-
-function isVideoPreviewHref(href: string): boolean {
-  return /\.(?:mp4|webm|m4v|mov)(?:[?#].*)?$/i.test(href.trim());
-}
-
-function useLiveExecutionPlan(planFromMessage: ExecutionPlan): ExecutionPlan {
-  const { values } = useThreadValues();
-  const livePlan = normalizeExecutionPlan(values?.execution_plan);
-  return livePlan?.plan_id === planFromMessage.plan_id
-    ? livePlan
-    : planFromMessage;
-}
-
-/**
- * Keep the frequently-changing thread values subscription inside the two
- * message variants that actually need live plan updates. Regular transcript
- * rows must not re-render when an unrelated execution-plan value changes.
- */
-function LiveTaskChecklistContent({
-  className,
-  planFromMessage,
-}: {
-  className?: string;
-  planFromMessage: ExecutionPlan;
-}) {
-  const plan = useLiveExecutionPlan(planFromMessage);
-  return (
-    <AIElementMessageContent className={className}>
-      <TaskProgressChecklist plan={plan} />
-    </AIElementMessageContent>
-  );
-}
-
-function LiveExecutionPlanContent({
-  className,
-  planFromMessage,
-  threadId,
-}: {
-  className?: string;
-  planFromMessage: ExecutionPlan;
-  threadId: string;
-}) {
-  const plan = useLiveExecutionPlan(planFromMessage);
-  return (
-    <AIElementMessageContent className={className}>
-      <ExecutionPlanReview plan={plan} threadId={threadId} />
-    </AIElementMessageContent>
-  );
-}
 
 function MessageContent_({
   className,
@@ -1160,176 +774,6 @@ function MessageContent_({
         </div>
       )}
     </AIElementMessageContent>
-  );
-}
-
-/**
- * Get file extension and check helpers
- */
-const getFileExt = (filename: string) =>
-  filename.split(".").pop()?.toLowerCase() ?? "";
-
-const FILE_TYPE_MAP: Record<string, string> = {
-  json: "JSON",
-  csv: "CSV",
-  txt: "TXT",
-  md: "Markdown",
-  py: "Python",
-  js: "JavaScript",
-  ts: "TypeScript",
-  tsx: "TSX",
-  jsx: "JSX",
-  html: "HTML",
-  css: "CSS",
-  xml: "XML",
-  yaml: "YAML",
-  yml: "YAML",
-  pdf: "PDF",
-  png: "PNG",
-  jpg: "JPG",
-  jpeg: "JPEG",
-  gif: "GIF",
-  svg: "SVG",
-  zip: "ZIP",
-  tar: "TAR",
-  gz: "GZ",
-};
-
-const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"];
-
-function getFileTypeLabel(filename: string, fileFallback: string): string {
-  const ext = getFileExt(filename);
-  return FILE_TYPE_MAP[ext] ?? (ext.toUpperCase() || fileFallback);
-}
-
-function isImageFile(filename: string): boolean {
-  return IMAGE_EXTENSIONS.includes(getFileExt(filename));
-}
-
-/**
- * Format bytes to human-readable size string
- */
-function formatBytes(
-  bytes: number,
-  units: { b: string; kb: string; mb: string },
-): string {
-  if (bytes === 0) return `0 ${units.b}`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} ${units.kb}`;
-  return `${(kb / 1024).toFixed(1)} ${units.mb}`;
-}
-
-/**
- * List of files from additional_kwargs.files (with optional upload status)
- */
-function RichFilesList({
-  files,
-  threadId,
-}: {
-  files: FileInMessage[];
-  threadId: string;
-}) {
-  if (files.length === 0) return null;
-  return (
-    <div className="mb-2 flex flex-wrap justify-end gap-2">
-      {files.map((file, index) => (
-        <RichFileCard
-          key={`${file.filename}-${index}`}
-          file={file}
-          threadId={threadId}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
- * Single file card that handles FileInMessage (supports uploading state)
- */
-function RichFileCard({
-  file,
-  threadId,
-}: {
-  file: FileInMessage;
-  threadId: string;
-}) {
-  const { t } = useI18n();
-  const isUploading = file.status === "uploading";
-  const isImage = isImageFile(file.filename);
-
-  if (isUploading) {
-    return (
-      <div className="bg-background border-border-subtle flex max-w-50 min-w-30 flex-col gap-1 rounded-lg border p-3 opacity-60 shadow-[var(--shadow-xs)]">
-        <div className="flex items-start gap-2">
-          <Loader2Icon className="text-muted-foreground mt-0.5 size-4 shrink-0 animate-spin" />
-          <span
-            className="text-foreground truncate text-sm font-medium"
-            title={file.filename}
-          >
-            {file.filename}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <Badge
-            variant="secondary"
-            className="rounded px-1.5 py-0.5 text-xs font-normal"
-          >
-            {getFileTypeLabel(file.filename, t.messageGrouping.fileFallback)}
-          </Badge>
-          <span className="text-muted-foreground text-xs">
-            {t.uploads.uploading}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!file.path) return null;
-
-  const fileUrl = resolveArtifactURL(file.path, threadId);
-
-  if (isImage) {
-    return (
-      <RoutedMessageLink
-        href={fileUrl}
-        className="border-border-subtle relative block overflow-hidden rounded-lg border"
-      >
-        <img
-          src={fileUrl}
-          alt={file.filename}
-          className="h-32 w-auto max-w-60 object-cover"
-        />
-      </RoutedMessageLink>
-    );
-  }
-
-  return (
-    <div className="bg-background border-border-subtle flex max-w-50 min-w-30 flex-col gap-1 rounded-lg border p-3 shadow-[var(--shadow-xs)]">
-      <div className="flex items-start gap-2">
-        <FileIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-        <span
-          className="text-foreground truncate text-sm font-medium"
-          title={file.filename}
-        >
-          {file.filename}
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <Badge
-          variant="secondary"
-          className="rounded px-1.5 py-0.5 text-xs font-normal"
-        >
-          {getFileTypeLabel(file.filename, t.messageGrouping.fileFallback)}
-        </Badge>
-        <span className="text-muted-foreground text-xs">
-          {formatBytes(file.size, {
-            b: t.common.fileSizeB,
-            kb: t.common.fileSizeKB,
-            mb: t.common.fileSizeMB,
-          })}
-        </span>
-      </div>
-    </div>
   );
 }
 
