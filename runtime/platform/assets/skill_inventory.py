@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -145,18 +146,40 @@ def warm_on_startup(app: Any) -> None:
     A cold scan reads and YAML-parses hundreds of files (about 6 s for ~600
     skills, more with a cold disk cache); the first HUB or automation page
     load used to pay for it. Later scans reuse the stat-validated cache.
+
+    The warm-up only fills that per-file cache, so it stops at shutdown: a
+    partial pass loses nothing, and an app that exits quickly (tests, reloads)
+    no longer leaves the scan running behind it.
     """
+
+    stop = threading.Event()
+    workers: list[threading.Thread] = []
 
     def _warm() -> None:
         try:
-            scan_local_skills()
+            for root, _source in skill_roots():
+                if not root.is_dir():
+                    continue
+                for entry in _skill_files(root):
+                    if stop.is_set():
+                        return
+                    _parse_skill(entry, os.path.realpath(entry.path))
         except Exception as exc:  # noqa: BLE001 — intentional: warming is best effort
             _log.debug("skill inventory warm-up skipped: %s", exc)
 
     async def _start() -> None:
-        threading.Thread(target=_warm, name="skill-inventory-warm", daemon=True).start()
+        stop.clear()
+        worker = threading.Thread(target=_warm, name="skill-inventory-warm", daemon=True)
+        workers[:] = [worker]
+        worker.start()
+
+    async def _stop() -> None:
+        stop.set()
+        for worker in workers:
+            await asyncio.to_thread(worker.join, 5.0)
 
     app.router.add_event_handler("startup", _start)
+    app.router.add_event_handler("shutdown", _stop)
 
 
 def public_skill_inventory(rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:

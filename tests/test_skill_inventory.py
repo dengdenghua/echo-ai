@@ -60,13 +60,45 @@ def test_startup_warms_the_inventory_in_the_background(monkeypatch):
 
     scanned = threading.Event()
 
-    def fake_scan(*_args, **_kwargs):
+    def fake_roots(*_args, **_kwargs):
         scanned.set()
         raise OSError("disk went away")  # a failed warm-up must not break startup
 
-    monkeypatch.setattr(skill_inventory, "scan_local_skills", fake_scan)
+    monkeypatch.setattr(skill_inventory, "skill_roots", fake_roots)
     app = FastAPI()
     skill_inventory.warm_on_startup(app)
 
     with TestClient(app):
         assert scanned.wait(5)
+
+
+def test_the_warm_up_stops_when_the_app_shuts_down(monkeypatch, tmp_path):
+    import itertools
+    import threading
+    import time
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from runtime.platform.assets import skill_inventory
+
+    started = threading.Event()
+
+    def endless_files(_root):
+        for index in itertools.count():
+            yield type("Entry", (), {"path": str(tmp_path / f"{index}" / "SKILL.md")})()
+
+    def slow_parse(_entry, _resolved):
+        started.set()
+        time.sleep(0.01)
+
+    monkeypatch.setattr(skill_inventory, "skill_roots", lambda: [(tmp_path, "test")])
+    monkeypatch.setattr(skill_inventory, "_skill_files", endless_files)
+    monkeypatch.setattr(skill_inventory, "_parse_skill", slow_parse)
+    app = FastAPI()
+    skill_inventory.warm_on_startup(app)
+
+    with TestClient(app):
+        assert started.wait(5)
+    # A scan of hundreds of files used to outlive a quickly closed app.
+    assert not any(t.name == "skill-inventory-warm" for t in threading.enumerate())
