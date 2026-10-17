@@ -60,7 +60,9 @@ Public model interfaces; provider implementations load on first access.
 
 | Module | Summary |
 | --- | --- |
+| `_payload_rules.py` | Low-level payload rewrite helpers for OpenAI-compatible gateways. |
 | `_providers_data.py` | Provider profile data and data-layer accessors for OpenAI-compatible gateways. |
+| `_request_contract.py` | Dry-run request-contract summary for OpenAI-compatible gateways. |
 | `_response_parsers.py` | Response-parsing helpers for OpenAI-compatible providers. |
 | `actor_context.py` | Provider-neutral actor context for model-router calls. |
 | `anthropic_router.py` | — |
@@ -105,6 +107,12 @@ Public model interfaces; provider implementations load on first access.
 | func | `def openai_compat_profile_ids()` |  |
 | func | `def resolve_openai_compat_profile(base_url, model)` |  |
 | func | `def describe_openai_compat_profile(profile)` | Machine-readable summary for UI/API compatibility diagnostics. |
+
+### `_request_contract.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def sample_openai_compat_contract_payload(model)` | Representative dry-run request covering common compat edge-fields. |
 
 ### `_response_parsers.py`
 
@@ -241,7 +249,6 @@ Public model interfaces; provider implementations load on first access.
 | --- | --- | --- |
 | func | `def sample_openai_compat_profile_probe(profile)` |  |
 | func | `def audit_openai_compat_profile_catalog(required_profile_ids)` |  |
-| func | `def sample_openai_compat_contract_payload(model)` | Representative dry-run request covering common compat edge-fields. |
 | func | `def probe_openai_compat_request_contract(profile, model)` | Dry-run request contract probe for a provider/profile pair. |
 | func | `def apply_custom_openai_compat_profile(entry, base_profile)` |  |
 | func | `def normalize_openai_compat_payload(payload, profile)` |  |
