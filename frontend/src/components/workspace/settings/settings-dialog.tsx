@@ -1,24 +1,4 @@
-import {
-  ActivityIcon,
-  BellIcon,
-  InfoIcon,
-  BrainIcon,
-  CpuIcon,
-  LogOutIcon,
-  PaletteIcon,
-  ShieldIcon,
-  UserIcon,
-  ZapIcon,
-  CreditCardIcon,
-  ServerIcon,
-  SettingsIcon,
-  SearchIcon,
-  XIcon,
-  Globe2Icon,
-  MessageSquareTextIcon,
-  MonitorIcon,
-  GitBranchIcon,
-} from "lucide-react";
+import { LogOutIcon, UserIcon, SearchIcon, XIcon } from "lucide-react";
 import {
   Fragment,
   useCallback,
@@ -46,13 +26,30 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Suspense, lazy } from "react";
+import { Suspense } from "react";
 import { getSettingsUxCopy } from "./settings-ux-copy";
-import { StreamingDebugSetting } from "./streaming-debug-setting";
 import AppearanceSettingsPage from "./appearance-settings-page";
 import { CodingToolboxPanel } from "./coding-toolbox-panel";
 import type { SettingsSection } from "./settings-sections";
+import {
+  AboutSettingsPage,
+  AccountSettingsPage,
+  AutomationSecuritySettingsPage,
+  BrowserAutomationSettingsPage,
+  ConversationSettingsPage,
+  DesktopAutomationSettingsPage,
+  McpSettingsPage,
+  MemorySettingsPage,
+  ModelSettingsPage,
+  NotificationSettingsPage,
+  PrivacySettingsPage,
+  SettingsPageSkeleton,
+  SubscriptionSettingsPage,
+  preloadSettingsPages,
+} from "./settings-dialog-pages";
+import { buildSettingsSections } from "./settings-dialog-sections";
+import { SettingsObservabilitySection } from "./settings-observability-section";
+import { MIN_W, useSettingsDialogSize } from "./use-settings-dialog-size";
 
 export {
   SETTINGS_SECTIONS,
@@ -60,85 +57,6 @@ export {
   type SettingsSection,
 } from "./settings-sections";
 
-// Lazy load settings pages. Each ``import()`` is kept as a reusable factory
-// so we can preload *all* chunks the moment the dialog opens — see
-// ``preloadSettingsPages`` below. Without preloading, switching to a tab
-// that hasn't been visited in this session triggered a fresh chunk
-// download + Suspense fallback, which users correctly perceived as "every
-// tab reloads".
-const importAbout = () =>
-  import("@/components/workspace/settings/about-settings-page");
-const importAccount = () =>
-  import("@/components/workspace/settings/account-settings-page");
-const importMemory = () =>
-  import("@/components/workspace/settings/memory-settings-page");
-const importNotification = () =>
-  import("@/components/workspace/settings/notification-settings-page");
-const importModel = () =>
-  import("@/components/workspace/settings/model-settings-page");
-const importSubscription = () =>
-  import("@/components/workspace/settings/subscription-settings-page");
-const importPrivacy = () =>
-  import("@/components/workspace/settings/privacy-settings-page");
-const importAutomation = () =>
-  import("@/components/workspace/settings/automation-settings-page");
-const importAutomationSecurity = () =>
-  import("@/components/workspace/settings/automation-security-settings-page");
-const importBrowserAutomation = () =>
-  import("@/components/workspace/settings/browser-automation-settings-page");
-const importDesktopAutomation = () =>
-  import("@/components/workspace/settings/desktop-automation-settings-page");
-const importConversation = () =>
-  import("@/components/workspace/settings/conversation-settings-page");
-const importMcp = () =>
-  import("@/components/workspace/settings/mcp-settings-page").then((mod) => ({
-    default: mod.McpSettingsPage,
-  }));
-
-const AboutSettingsPage = lazy(importAbout);
-const AccountSettingsPage = lazy(importAccount);
-const MemorySettingsPage = lazy(importMemory);
-const NotificationSettingsPage = lazy(importNotification);
-const ModelSettingsPage = lazy(importModel);
-const SubscriptionSettingsPage = lazy(importSubscription);
-const PrivacySettingsPage = lazy(importPrivacy);
-const AutomationSecuritySettingsPage = lazy(importAutomationSecurity);
-const BrowserAutomationSettingsPage = lazy(importBrowserAutomation);
-const DesktopAutomationSettingsPage = lazy(importDesktopAutomation);
-const ConversationSettingsPage = lazy(importConversation);
-const McpSettingsPage = lazy(importMcp);
-
-// Run every chunk import in parallel the first time the dialog opens.
-// Browsers dedupe the ``import()`` calls against cache, so repeated opens
-// are no-ops. We deliberately swallow errors — a failed preload doesn't
-// break anything; the per-tab Suspense fallback will still catch it on
-// actual navigation.
-let preloadStarted = false;
-function preloadSettingsPages(): void {
-  if (preloadStarted) return;
-  preloadStarted = true;
-  [
-    importAbout,
-    importAccount,
-    importMemory,
-    importNotification,
-    importModel,
-    importSubscription,
-    importPrivacy,
-    importAutomation,
-    importAutomationSecurity,
-    importBrowserAutomation,
-    importDesktopAutomation,
-    importConversation,
-    importMcp,
-  ].forEach((fn) => {
-    fn().catch((e) => {
-      swallow(e);
-    });
-  });
-}
-
-import { swallow } from "@/core/utils/log";
 import { useI18n } from "@/core/i18n/hooks";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
@@ -148,27 +66,6 @@ import { octApi } from "@/core/oct/api";
 type SettingsDialogProps = React.ComponentProps<typeof Dialog> & {
   defaultSection?: SettingsSection;
 };
-
-// Persist user-chosen dialog size across sessions so we don't reset on every
-// open. localStorage is fine — the preference is per-browser, non-sensitive.
-const DIALOG_SIZE_KEY = "echo_settings_dialog_size";
-const MIN_W = 560;
-const MIN_H = 360;
-
-function readSavedSize(): { w: number; h: number } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(DIALOG_SIZE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { w?: unknown; h?: unknown };
-    if (typeof parsed.w === "number" && typeof parsed.h === "number") {
-      return { w: parsed.w, h: parsed.h };
-    }
-  } catch (e) {
-    swallow(e);
-  }
-  return null;
-}
 
 function isPlaceholderUsername(username?: string | null): boolean {
   const value = username?.trim().toLowerCase();
@@ -213,18 +110,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const [activeSection, setActiveSection] =
     useState<SettingsSection>(defaultSection);
 
-  // Null = "let the Tailwind default sizing apply". Once the user drags the
-  // corner handle we switch to an inline width/height so DialogContent grows
-  // symmetrically around its translate-[-50%,-50%] center anchor.
-  const [size, setSize] = useState<{ w: number; h: number } | null>(() =>
-    readSavedSize(),
-  );
-  const resizeStartRef = useRef<{
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  } | null>(null);
+  const { size, onResizeStart, onResizeKeyDown } = useSettingsDialogSize();
   const contentScrollRootRef = useRef<HTMLDivElement>(null);
   const sectionScrollRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -260,55 +146,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [activeSection, dialogProps.open]);
-
-  const onResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const content = e.currentTarget.closest('[data-slot="dialog-content"]');
-    if (!content) return;
-    const rect = content.getBoundingClientRect();
-    resizeStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      w: rect.width,
-      h: rect.height,
-    };
-    const onMove = (ev: MouseEvent) => {
-      const start = resizeStartRef.current;
-      if (!start) return;
-      const dx = ev.clientX - start.x;
-      const dy = ev.clientY - start.y;
-      // Dialog is center-anchored, so corner drag of dx px moves the right
-      // edge by dx — we need to grow width by 2*dx to keep the corner under
-      // the cursor.
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const nextW = Math.max(MIN_W, Math.min(vw - 32, start.w + dx * 2));
-      const nextH = Math.max(MIN_H, Math.min(vh - 32, start.h + dy * 2));
-      setSize({ w: nextW, h: nextH });
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      resizeStartRef.current = null;
-      // Persist the last value we pushed into state. We read via a setter
-      // callback to avoid a stale closure over `size`.
-      setSize((latest) => {
-        if (latest) {
-          try {
-            window.localStorage.setItem(
-              DIALOG_SIZE_KEY,
-              JSON.stringify(latest),
-            );
-          } catch (e) {
-            swallow(e, "storage");
-          }
-        }
-        return latest;
-      });
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
 
   useEffect(() => {
     // When opening the dialog, ensure the active section follows the caller's intent.
@@ -361,17 +198,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
   };
 
   const sections = useMemo(() => {
-    type SectionGroup = "account" | "workspace" | "capabilities" | "system";
-    type Section = {
-      id: SettingsSection;
-      label: string;
-      icon: React.ComponentType<{ className?: string }>;
-      keywords: string[];
-      group: SectionGroup;
-      disabled?: boolean;
-      disabledReason?: string;
-    };
-
     const toolsLabel = locale.toLowerCase().startsWith("zh")
       ? "工具与集成"
       : locale.toLowerCase().startsWith("ja")
@@ -387,229 +213,30 @@ export function SettingsDialog(props: SettingsDialogProps) {
           ? "자동화 및 보안"
           : "Automation & security";
 
-    const all: Section[] = [
+    return buildSettingsSections(
       {
-        id: "account",
-        group: "account",
-        label: t.settings.sections.account,
-        icon: SettingsIcon,
-        keywords: [
-          "account",
-          "user",
-          "login",
-          "profile",
-          ...t.settings.dialog.sectionKeywords.account,
-        ],
-      },
-      {
-        id: "subscription",
-        group: "account",
-        label: t.settings.sections.subscription,
-        icon: CreditCardIcon,
-        keywords: [
-          "subscription",
-          "billing",
-          "plan",
-          "usage",
-          ...t.settings.dialog.sectionKeywords.subscription,
-        ],
-      },
-      {
-        id: "appearance",
-        group: "workspace",
-        label: t.settings.sections.general,
-        icon: PaletteIcon,
-        keywords: [
-          "appearance",
-          "theme",
-          "material",
-          "glass",
-          "density",
-          "language",
-          ...t.settings.dialog.sectionKeywords.appearance,
-        ],
-      },
-      {
-        id: "conversation",
-        group: "workspace",
-        label: t.settings.sections.conversation,
-        icon: MessageSquareTextIcon,
-        keywords: [
-          "conversation",
-          "chat",
-          "detail level",
-          "font size",
-          "对话",
-          "细节",
-          "字号",
-          ...t.settings.dialog.sectionKeywords.appearance,
-        ],
-      },
-      {
-        id: "models",
-        group: "workspace",
-        label: t.settings.model.title,
-        icon: CpuIcon,
-        keywords: [
-          "model",
-          "llm",
-          "api",
-          "provider",
-          ...t.settings.dialog.sectionKeywords.models,
-        ],
-      },
-      {
-        id: "memory",
-        group: "workspace",
-        label: t.settings.sections.memory,
-        icon: BrainIcon,
-        keywords: [
-          "memory",
-          "knowledge",
-          ...t.settings.dialog.sectionKeywords.memory,
-        ],
-      },
-      {
-        id: "notification",
-        group: "workspace",
-        label: t.settings.sections.notification,
-        icon: BellIcon,
-        keywords: [
-          "notification",
-          "alert",
-          ...t.settings.dialog.sectionKeywords.notification,
-        ],
-      },
-      {
-        id: "coding",
-        group: "capabilities",
-        label: locale.toLowerCase().startsWith("zh") ? "编码" : "Coding",
-        icon: GitBranchIcon,
-        keywords: [
-          "coding",
-          "code",
-          "git",
-          "hooks",
-          "worktrees",
-          "编码",
-          "代码",
-          "提交",
-          "工作树",
-          "钩子",
-        ],
-      },
-      {
-        id: "tools",
-        group: "capabilities",
-        label: toolsLabel,
-        icon: ServerIcon,
-        keywords: [
-          "tools",
-          "integrations",
-          "mcp",
-          "tool",
-          "server",
-          ...t.settings.dialog.sectionKeywords.mcp,
-        ],
-      },
-      {
-        id: "browserAutomation",
-        group: "capabilities",
-        label: locale.toLowerCase().startsWith("zh")
+        account: t.settings.sections.account,
+        subscription: t.settings.sections.subscription,
+        general: t.settings.sections.general,
+        conversation: t.settings.sections.conversation,
+        models: t.settings.model.title,
+        memory: t.settings.sections.memory,
+        notification: t.settings.sections.notification,
+        coding: locale.toLowerCase().startsWith("zh") ? "编码" : "Coding",
+        tools: toolsLabel,
+        browserAutomation: locale.toLowerCase().startsWith("zh")
           ? "浏览器自动化"
           : "Browser automation",
-        icon: Globe2Icon,
-        keywords: [
-          "browser",
-          "relay",
-          "extension",
-          "link",
-          "浏览器",
-          "扩展",
-          "链接",
-          ...t.settings.dialog.sectionKeywords.automation,
-        ],
-      },
-      {
-        id: "desktopAutomation",
-        group: "capabilities",
-        label: locale.toLowerCase().startsWith("zh")
+        desktopAutomation: locale.toLowerCase().startsWith("zh")
           ? "桌面自动化"
           : "Desktop automation",
-        icon: MonitorIcon,
-        keywords: [
-          "desktop",
-          "computer",
-          "screen recording",
-          "accessibility",
-          "桌面",
-          "电脑",
-          "屏幕录制",
-          "辅助功能",
-          ...t.settings.dialog.sectionKeywords.automation,
-        ],
+        automationSecurity: automationSecurityLabel,
+        privacy: t.settings.sections.privacy,
+        observability: t.settings.sections.observability,
+        about: t.settings.sections.about,
       },
-      {
-        id: "automationSecurity",
-        group: "capabilities",
-        label: automationSecurityLabel,
-        icon: ZapIcon,
-        keywords: [
-          "automation",
-          "security",
-          "sandbox",
-          "execution",
-          "permission",
-          "browser",
-          "desktop",
-          "approval",
-          "沙箱",
-          "执行",
-          "权限",
-          "自动化",
-          ...t.settings.dialog.sectionKeywords.automation,
-          ...t.settings.dialog.sectionKeywords.sandbox,
-        ],
-      },
-      {
-        id: "privacy",
-        group: "capabilities",
-        label: t.settings.sections.privacy,
-        icon: ShieldIcon,
-        keywords: [
-          "privacy",
-          "permission",
-          "security",
-          ...t.settings.dialog.sectionKeywords.privacy,
-        ],
-      },
-      {
-        id: "observability",
-        group: "system",
-        label: t.settings.sections.observability,
-        icon: ActivityIcon,
-        keywords: [
-          "observability",
-          "diagnostics",
-          "logs",
-          ...t.settings.dialog.sectionKeywords.observability,
-        ],
-      },
-      {
-        id: "about",
-        group: "system",
-        label: t.settings.sections.about,
-        icon: InfoIcon,
-        keywords: [
-          "about",
-          "version",
-          "help",
-          ...t.settings.dialog.sectionKeywords.about,
-        ],
-      },
-    ];
-
-    return all;
+      t.settings.dialog.sectionKeywords,
+    );
   }, [
     t.settings.sections.account,
     t.settings.sections.subscription,
@@ -1062,74 +689,13 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 </Suspense>
               )}
               {hasSettingsResults && activeSection === "observability" && (
-                <section
-                  aria-labelledby="settings-observability-title"
-                  className="space-y-6"
-                >
-                  <header className="space-y-1.5">
-                    <h2
-                      id="settings-observability-title"
-                      className="text-lg font-semibold tracking-tight"
-                    >
-                      {settingsUxCopy.observability.title}
-                    </h2>
-                    <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                      {settingsUxCopy.observability.description}
-                    </p>
-                  </header>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {[
-                      {
-                        icon: ActivityIcon,
-                        title: settingsUxCopy.observability.activityTitle,
-                        description:
-                          settingsUxCopy.observability.activityDescription,
-                      },
-                      {
-                        icon: ZapIcon,
-                        title: settingsUxCopy.observability.tracesTitle,
-                        description:
-                          settingsUxCopy.observability.tracesDescription,
-                      },
-                      {
-                        icon: SettingsIcon,
-                        title: settingsUxCopy.observability.healthTitle,
-                        description:
-                          settingsUxCopy.observability.healthDescription,
-                      },
-                    ].map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <div
-                          key={item.title}
-                          className="rounded-lg border border-border bg-muted/20 p-4"
-                        >
-                          <Icon
-                            aria-hidden="true"
-                            className="mb-3 size-4 text-primary"
-                          />
-                          <h3 className="text-sm font-medium">{item.title}</h3>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                            {item.description}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <Button
-                    className="w-full sm:w-auto"
-                    onClick={() => {
-                      dialogProps.onOpenChange?.(false);
-                      void navigate("/workspace/observability");
-                    }}
-                  >
-                    {settingsUxCopy.observability.openDashboard}
-                  </Button>
-                  <StreamingDebugSetting
-                    title={settingsUxCopy.observability.debugTitle}
-                    description={settingsUxCopy.observability.debugDescription}
-                  />
-                </section>
+                <SettingsObservabilitySection
+                  copy={settingsUxCopy.observability}
+                  onOpenDashboard={() => {
+                    dialogProps.onOpenChange?.(false);
+                    void navigate("/workspace/observability");
+                  }}
+                />
               )}
               {hasSettingsResults && activeSection === "about" && (
                 <Suspense fallback={<SettingsPageSkeleton />}>
@@ -1144,57 +710,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             to grab without overlapping close-button or scrollbars. */}
         <div
           onMouseDown={onResizeStart}
-          // Keyboard fallback: arrow keys grow/shrink the dialog so
-          // keyboard-only and screen-reader users can resize too.
-          // Shift = 4× step. Home/End snaps to min/default.
-          onKeyDown={(e) => {
-            const step = e.shiftKey ? 64 : 16;
-            const current = size ?? {
-              w: MIN_W + 200,
-              h: MIN_H + 200,
-            };
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const maxW = vw - 32;
-            const maxH = vh - 32;
-            let nextW = current.w;
-            let nextH = current.h;
-            switch (e.key) {
-              case "ArrowRight":
-                nextW = Math.min(maxW, current.w + step);
-                break;
-              case "ArrowLeft":
-                nextW = Math.max(MIN_W, current.w - step);
-                break;
-              case "ArrowDown":
-                nextH = Math.min(maxH, current.h + step);
-                break;
-              case "ArrowUp":
-                nextH = Math.max(MIN_H, current.h - step);
-                break;
-              case "Home":
-                nextW = MIN_W;
-                nextH = MIN_H;
-                break;
-              case "End":
-                nextW = Math.min(maxW, 1280);
-                nextH = Math.min(maxH, 800);
-                break;
-              default:
-                return;
-            }
-            e.preventDefault();
-            const next = { w: nextW, h: nextH };
-            setSize(next);
-            try {
-              window.localStorage.setItem(
-                DIALOG_SIZE_KEY,
-                JSON.stringify(next),
-              );
-            } catch (err) {
-              swallow(err, "storage");
-            }
-          }}
+          onKeyDown={onResizeKeyDown}
           role="separator"
           aria-orientation="vertical"
           aria-label={t.settings.dialog.dragToResize}
@@ -1219,20 +735,5 @@ export function SettingsDialog(props: SettingsDialogProps) {
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// Skeleton loader for settings pages
-function SettingsPageSkeleton() {
-  return (
-    <div className="space-y-6">
-      <Skeleton className="h-8 w-48" />
-      <Skeleton className="h-4 w-96" />
-      <div className="space-y-4">
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    </div>
   );
 }
