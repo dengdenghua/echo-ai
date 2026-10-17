@@ -40,6 +40,7 @@ import {
   VideoIcon,
   type LucideIcon,
 } from "lucide-react";
+import { electronFindOptions } from "./find-in-page-options";
 import { CrashGlyph } from "./tab-crash-glyph";
 
 import { swallow } from "@/core/utils/log";
@@ -1971,7 +1972,10 @@ export const WebviewTab = forwardRef<WebviewTabHandle, Props>(
               });
             }
             wv.addEventListener("found-in-page", onFound);
-            requestId = wv.findInPage(text, { forward, findNext });
+            requestId = wv.findInPage(
+              text,
+              electronFindOptions({ forward, findNext }),
+            );
           }),
         stopFindInPage: () =>
           safe(() => {
