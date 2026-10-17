@@ -10,7 +10,6 @@ frontend/src/app/workspace/design/director-stage.tsx	1946
 frontend/src/app/workspace/design/page.tsx	7827
 frontend/src/app/workspace/narrative/page.tsx	1602
 frontend/src/app/workspace/narrative/studio-panels.tsx	1173
-frontend/src/app/workspace/observability/page.tsx	1856
 frontend/src/app/workspace/realtime/[thread_id]/page.tsx	1768
 frontend/src/components/browser/assistant-panel.tsx	1868
 frontend/src/components/browser/browser-home.tsx	3210
