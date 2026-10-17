@@ -77,11 +77,24 @@ def test_ci_runs_the_complete_suite_once_and_keeps_python_312_compatibility() ->
     lint_job = jobs["lint-and-test"]
     steps = _steps_by_name(lint_job)
 
-    full = steps["pytest (full suite with coverage)"]
-    assert full["if"] == "always() && matrix.python-version == '3.11.9'"
+    # The complete suite runs once, split into shards; every shard measures
+    # the shippable runtime and the release threshold applies to their union.
+    shards = jobs["pytest-full"]
+    assert shards["strategy"]["matrix"]["shard"] == [1, 2, 3, 4]
+    assert shards["strategy"]["fail-fast"] is False
+    full = _steps_by_name(shards)["pytest (full suite shard with coverage)"]
+    assert full["env"]["ECHO_TEST_SHARD"] == "${{ matrix.shard }}/4"
+    assert full["env"]["COVERAGE_FILE"] == ".coverage.shard-${{ matrix.shard }}"
     assert "--cov=runtime" in full["run"]
     assert "--cov=tools" not in full["run"]
-    assert "--cov-fail-under=77.5" in full["run"]
+    gate = jobs["coverage"]
+    assert gate["needs"] == "pytest-full"
+    combine = _steps_by_name(gate)["Combine coverage and apply the release threshold"]["run"]
+    assert "coverage combine" in combine
+    assert "--fail-under=77.5" in combine
+    assert not any(
+        "--cov" in str(step.get("run", "")) for step in lint_job["steps"] if isinstance(step, dict)
+    )
 
     collection = steps["pytest collection compatibility (Python 3.12)"]
     assert collection["if"] == "always() && matrix.python-version == '3.12.11'"
@@ -103,7 +116,7 @@ def test_ci_runs_the_complete_suite_once_and_keeps_python_312_compatibility() ->
         for step in lint_job["steps"]
         if isinstance(step, dict) and str(step.get("run", "")).lstrip().startswith("pytest ")
     ]
-    assert len(pytest_steps) == 3
+    assert len(pytest_steps) == 2
 
 
 def test_ci_cross_platform_lane_is_focused_on_portability_contracts() -> None:

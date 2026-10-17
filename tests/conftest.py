@@ -529,6 +529,22 @@ def pytest_addoption(parser):
     )
 
 
+def pytest_ignore_collect(collection_path, config):
+    """Leave out test files that belong to another CI shard (``ECHO_TEST_SHARD=i/N``)."""
+    from tests import sharding
+
+    shard = sharding.selected_shard()
+    if shard is None or collection_path.suffix != ".py":
+        return None
+    if not collection_path.name.startswith("test_"):
+        return None
+    try:
+        relative = collection_path.relative_to(config.rootpath).as_posix()
+    except ValueError:
+        return None
+    return True if sharding.shard_for(relative, shard.total) != shard.index else None
+
+
 @pytest.fixture
 def snapshot(request):
     from tests.snapshot_utils import Snapshotter

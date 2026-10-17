@@ -720,10 +720,23 @@ def test_ci_runs_production_readiness_gate_with_isolated_state() -> None:
 def test_ci_uploads_coverage_data_fail_closed_including_hidden_file() -> None:
     path = REPO_ROOT / ".github" / "workflows" / "ci.yml"
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["lint-and-test"]["steps"]
-    named = {step.get("name"): step for step in steps if step.get("name")}
 
-    upload = named["Upload coverage"]
+    def named(job: str) -> dict:
+        steps = workflow["jobs"][job]["steps"]
+        return {step.get("name"): step for step in steps if step.get("name")}
+
+    shard_upload = named("pytest-full")["Upload shard coverage"]
+    assert shard_upload["uses"] == ACTIONS_UPLOAD_ARTIFACT
+    assert shard_upload["with"]["name"] == "coverage-shard-${{ matrix.shard }}"
+    assert shard_upload["with"]["path"] == ".coverage.shard-${{ matrix.shard }}"
+    assert shard_upload["with"]["include-hidden-files"] is True
+    assert shard_upload["with"]["if-no-files-found"] == "error"
+
+    download = named("coverage")["Download shard coverage"]
+    assert download["uses"] == ACTIONS_DOWNLOAD_ARTIFACT
+    assert download["with"] == {"pattern": "coverage-shard-*", "merge-multiple": True}
+
+    upload = named("coverage")["Upload coverage"]
     assert upload["uses"] == ACTIONS_UPLOAD_ARTIFACT
     assert upload["with"]["name"] == "coverage-report"
     assert upload["with"]["path"] == ".coverage"
