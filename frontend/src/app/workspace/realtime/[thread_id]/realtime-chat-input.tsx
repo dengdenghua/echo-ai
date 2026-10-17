@@ -11,6 +11,7 @@ import {
 } from "@/components/workspace/team-mode-picker";
 import type { AutomationTarget } from "@/core/computer/api";
 import type { DesignCanvasAgentContext } from "@/core/design/mode-bridge";
+import { useCodexPrewarm } from "@/core/execution/codex-prewarm";
 import { useOpencodePrewarm } from "@/core/execution/opencode-prewarm";
 import type { useThreadWorkLocation } from "@/core/execution/work-location";
 import { useI18n } from "@/core/i18n/hooks";
@@ -149,6 +150,7 @@ export function RealtimeChatInput({
     settings.context.model_name,
     canWriteConversation,
   );
+  useCodexPrewarm(selectedExecutionEngine, canWriteConversation);
   return (
     <ChatInputBox
       {...forwarded}
