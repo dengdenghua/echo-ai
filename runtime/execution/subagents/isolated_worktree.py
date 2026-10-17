@@ -10,8 +10,9 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import threading
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,20 @@ from runtime.platform.process.tree import (
 )
 from runtime.safety.approval.cancellation import current_cancellation_token
 
+# Git subcommands that write loose objects into the (shared) object store.
+_OBJECT_WRITERS = frozenset({"add", "apply", "commit-tree", "hash-object", "write-tree"})
+# Tournament candidates snapshot and export against one repository at once,
+# and their worktrees share its object store. Git for Windows can fail a
+# concurrent write of the same loose object with exit 128 (2026-10-17: one
+# run in four lost a candidate to `write-tree`). These commands are short, so
+# one writer at a time per process costs little.
+_OBJECT_WRITE_LOCK = threading.Lock()
+
+
+def _object_write_guard(args: tuple[str, ...]) -> Any:
+    subcommand = next((arg for arg in args if not arg.startswith("-")), "")
+    return _OBJECT_WRITE_LOCK if subcommand in _OBJECT_WRITERS else nullcontext()
+
 
 def _git(
     root: Path,
@@ -57,28 +72,29 @@ def _git(
     try:
         # Own process group + (Windows) kill-on-close Job Object: a cancelled,
         # timed-out or orphaned git cannot leave helpers running.
-        proc = spawn_in_job(
-            ["git", "-C", str(root), *_GIT_HARDENING, *args],
-            env=git_env,
-            stdin=subprocess.DEVNULL,
-            stdout=handle if handle is not None else subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        with _object_write_guard(args):
+            proc = spawn_in_job(
+                ["git", "-C", str(root), *_GIT_HARDENING, *args],
+                env=git_env,
+                stdin=subprocess.DEVNULL,
+                stdout=handle if handle is not None else subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
 
-        def stop(_reason: str) -> None:
-            terminate_process_tree(proc, grace_s=0.2, kill_wait_s=0.5)
-
-        unlink = (lambda: None) if cleanup else token.on_cancelled(stop)
-        try:
-            try:
-                stdout, stderr = proc.communicate(timeout=60)
-            except subprocess.TimeoutExpired:
+            def stop(_reason: str) -> None:
                 terminate_process_tree(proc, grace_s=0.2, kill_wait_s=0.5)
-                proc.communicate()
-                raise
-        finally:
-            unlink()
-            close_process_job(proc)
+
+            unlink = (lambda: None) if cleanup else token.on_cancelled(stop)
+            try:
+                try:
+                    stdout, stderr = proc.communicate(timeout=60)
+                except subprocess.TimeoutExpired:
+                    terminate_process_tree(proc, grace_s=0.2, kill_wait_s=0.5)
+                    proc.communicate()
+                    raise
+            finally:
+                unlink()
+                close_process_job(proc)
         if not cleanup:
             token.throw_if_cancelled()
         if proc.returncode:
