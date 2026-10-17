@@ -38,6 +38,7 @@ from runtime.execution.host_mcp_connection import HostMCPConnection
 # One turn against a running server; re-exported because callers and tests
 # import these from here.
 from runtime.execution.opencode_turn import (  # noqa: F401
+    ZEN_KEY_REQUIRED_MESSAGE,
     MessageEvents,
     OpenCodeError,
     _abort_and_settle,

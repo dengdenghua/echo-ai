@@ -11,6 +11,8 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from runtime.safety.auth.scope import TenantScope
+
 
 class HotspotStore:
     def __init__(self, root: Path):
@@ -19,6 +21,8 @@ class HotspotStore:
         with self.connect() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS task_engines(member TEXT PRIMARY KEY, engine TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS owners(
+                    member TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, actor_id TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value INTEGER);
                 INSERT OR IGNORE INTO settings VALUES('enabled',0);
                 CREATE TABLE IF NOT EXISTS grants(
@@ -43,6 +47,24 @@ class HotspotStore:
             raise ValueError("unsupported task engine")
         with self.connect() as db:
             db.execute("INSERT OR REPLACE INTO task_engines VALUES(?,?)", (member, engine))
+
+    def set_owner(self, member, owner):
+        """Who opened this role: an identity, never a credential."""
+        if owner is None:
+            return
+        tenant_id = owner.get("tenant_id") if isinstance(owner, dict) else None
+        actor_id = owner.get("actor_id") if isinstance(owner, dict) else None
+        if not all(isinstance(v, str) and 0 < len(v) <= 200 for v in (tenant_id, actor_id)):
+            raise ValueError("invalid owner")
+        with self.connect() as db:
+            db.execute("INSERT OR REPLACE INTO owners VALUES(?,?,?)", (member, tenant_id, actor_id))
+
+    def owner_scope(self, member) -> TenantScope | None:
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT tenant_id, actor_id FROM owners WHERE member=?", (member,)
+            ).fetchone()
+        return TenantScope(row["tenant_id"], row["actor_id"]) if row else None
 
     @contextmanager
     def connect(self):

@@ -12,11 +12,18 @@ from urllib.parse import urlsplit
 import httpx
 from fastapi import HTTPException, Request
 
+from runtime.safety.auth.scope import scope_from_request
 from runtime.sensing.gateway.hotspot_local import ROOT, owner_token
 
 BASE = "http://127.0.0.1:8322"
 _lock = asyncio.Lock()
 _process = None
+
+
+def _owner(request: Request) -> dict[str, str] | None:
+    """The signed-in owner, so an OpenCode role can read their saved Zen key."""
+    scope = scope_from_request(request)
+    return {"tenant_id": scope.tenant_id, "actor_id": scope.actor_id} if scope else None
 
 
 def require_local_owner(request: Request):
@@ -93,7 +100,9 @@ def mount_control(router):
     @router.post("/hotspot/local-role")
     async def local_role(request: Request, body: dict | None = None):
         require_local_owner(request)
-        return await register_local_role((body or {}).get("task_engine", "codex"))
+        return await register_local_role(
+            (body or {}).get("task_engine", "codex"), owner=_owner(request)
+        )
 
     @router.get("/hotspot/status")
     async def status(request: Request):
@@ -116,7 +125,7 @@ def mount_control(router):
     @router.post("/hotspot/members")
     async def invite(request: Request, body: dict):
         require_local_owner(request)
-        return await control("POST", "members", body)
+        return await control("POST", "members", {**body, "owner": _owner(request)})
 
     @router.delete("/hotspot/members/{member}")
     async def revoke(request: Request, member: str):
@@ -126,7 +135,7 @@ def mount_control(router):
         return await control("DELETE", "members/" + member)
 
 
-async def register_local_role(engine="codex"):
+async def register_local_role(engine="codex", *, owner: dict[str, str] | None = None):
     if engine not in {"codex", "opencode"}:
         raise HTTPException(400, "不支持的任务引擎")
     label = "OpenCode" if engine == "opencode" else "Codex"
@@ -150,6 +159,10 @@ async def register_local_role(engine="codex"):
     if existing:
         try:
             await a2a_router._resolve_agent_card(existing["base_url"], read_token(existing))
+            if owner:
+                # A role opened before roles recorded their owner had no Zen key.
+                member = str(existing["base_url"]).rstrip("/").rsplit("/", 1)[-1]
+                await control("PUT", f"members/{member}/owner", owner)
             return {"agent_id": existing["agent_id"], "name": label}
         except (
             Exception
@@ -163,6 +176,7 @@ async def register_local_role(engine="codex"):
             "task_engine": engine,
             "hours": 168,
             "max_requests": 1000,
+            "owner": owner,
         },
     )
     card = await a2a_router._resolve_agent_card(invitation["task_url"], invitation["token"])

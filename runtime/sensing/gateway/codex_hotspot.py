@@ -41,6 +41,33 @@ def _has_file_reference(item: dict[str, object]) -> bool:
     return any(isinstance(part, dict) and part.get("file_id") for part in content)
 
 
+def _opencode_role(root: Path, store: HotspotStore, member: str):
+    from runtime.execution.opencode_hotspot import OpenCodeRemoteConfig, stream_opencode
+
+    # Read per turn: the owner who opened the role answers with their Zen key.
+    cfg = OpenCodeRemoteConfig(
+        root / "members" / member, owner_scope=lambda: store.owner_scope(member)
+    )
+    return cfg, stream_opencode
+
+
+def _record_owner(store: HotspotStore, member: str, owner: object, *, revoke=True) -> None:
+    try:
+        store.set_owner(member, owner)
+    except ValueError:
+        if revoke:
+            store.revoke(member)
+        raise HTTPException(400, "邀请参数无效") from None
+
+
+def _mount_owner_admin(app: FastAPI, store: HotspotStore) -> None:
+    @app.put("/admin/members/{member}/owner")
+    async def set_owner(member: str, request: Request):
+        # A role opened before roles recorded their owner gets one here.
+        _record_owner(store, member, await bounded_body(request), revoke=False)
+        return {"ok": True}
+
+
 def create_hotspot(
     root: Path = ROOT,
     source_home: Path | None = None,
@@ -82,10 +109,7 @@ def create_hotspot(
             runner = task_runner
             cfg: RoleBridgeConfig = CodexRemoteConfig(root / "members" / member, auth.home, auth)
             if engine == "opencode":
-                from runtime.execution.opencode_hotspot import OpenCodeRemoteConfig, stream_opencode
-
-                cfg = OpenCodeRemoteConfig(root / "members" / member)
-                runner = stream_opencode
+                cfg, runner = _opencode_role(root, store, member)
 
             class AuditedExecutor(WorkBuddyExecutor):
                 async def _run(self, prompt, key, task, updater):
@@ -212,6 +236,7 @@ def create_hotspot(
         except (TypeError, ValueError):
             raise HTTPException(400, "邀请参数无效") from None
         store.set_task_engine(member["id"], engine)
+        _record_owner(store, member["id"], body.get("owner"))
         ensure_role(member["id"])
         return {
             "task_engine": engine,
@@ -219,6 +244,8 @@ def create_hotspot(
             "task_url": f"http://127.0.0.1:{port}/members/{member['id']}",
             "base_url": f"http://127.0.0.1:{port}/v1",
         }
+
+    _mount_owner_admin(app, store)
 
     @app.delete("/admin/members/{member}")
     def revoke(member: str):

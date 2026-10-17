@@ -1406,7 +1406,7 @@ tier: "standard"
 | func | `async def ensure_running()` |  |
 | func | `async def control(method, path, body)` |  |
 | func | `def mount_control(router)` |  |
-| func | `async def register_local_role(engine)` |  |
+| func | `async def register_local_role(engine, owner)` |  |
 
 ### `hotspot_discovery.py`
 

@@ -142,6 +142,9 @@ async def refuse_permission(client: httpx.AsyncClient, event: dict[str, Any]) ->
     return True
 
 
+ZEN_KEY_REQUIRED_MESSAGE = "先在设置里连接 OpenCode Zen（免费，需要 API Key）。"
+
+
 def _has_status(detail: str, status: str) -> bool:
     """A status code, not any digits that happen to spell one.
 
@@ -159,7 +162,7 @@ def public_model_error(error: Any) -> str:
         # Not an entitlement problem: Zen's free models answer only with an
         # OpenCode Zen API Key, and this request carried none. Switching model
         # does not help, so do not send the user model-shopping.
-        return "先在设置里连接 OpenCode Zen（免费，需要 API Key）。"
+        return ZEN_KEY_REQUIRED_MESSAGE
     if _has_status(detail, "429") or "limit" in detail or "rate" in detail:
         return "当前模型额度或请求频率受限，请稍后重试或切换模型。"
     if (
