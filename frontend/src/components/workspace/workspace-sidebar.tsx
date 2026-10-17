@@ -1910,7 +1910,7 @@ function ProjectGroup({
                       className={
                         active
                           ? "w-0 opacity-0"
-                          : "w-10 opacity-100 group-hover/thread:w-0 group-hover/thread:opacity-0 group-focus-within/thread:w-0 group-focus-within/thread:opacity-0"
+                          : "w-12 opacity-100 group-hover/thread:w-0 group-hover/thread:opacity-0 group-focus-within/thread:w-0 group-focus-within/thread:opacity-0"
                       }
                     />
                   </Link>
@@ -2475,7 +2475,7 @@ function ChatsSection({
                       </span>
                       <SidebarTimestamp
                         updatedAt={t.updatedAt}
-                        className="w-10 group-hover/thread:opacity-0 group-focus-within/thread:opacity-0"
+                        className="w-12 group-hover/thread:opacity-0 group-focus-within/thread:opacity-0"
                       />
                     </Link>
                     <DropdownMenu>

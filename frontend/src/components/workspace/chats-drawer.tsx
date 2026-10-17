@@ -430,7 +430,7 @@ export function ChatsDrawer({ open, onOpenChange }: ChatsDrawerProps) {
                         </span>
                         <span
                           className={cn(
-                            "w-10 shrink-0 overflow-hidden whitespace-nowrap text-right text-xs text-muted-foreground [@media(hover:none)]:mr-6",
+                            "w-12 shrink-0 overflow-hidden whitespace-nowrap text-right text-xs text-muted-foreground [@media(hover:none)]:mr-6",
                             "transition-[width,opacity] group-hover/thread:w-0 group-hover/thread:opacity-0",
                           )}
                         >
