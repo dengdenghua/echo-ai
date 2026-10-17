@@ -72,5 +72,18 @@ def test_prewarm_failures_answer_not_warm(tmp_path, monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(endpoint, "prewarm_codex_chat", broken)
     with _client(tmp_path) as client:
         assert client.post("/api/codex/prewarm").json() == {"warm": False}
+
+
+def test_prewarm_needs_no_default_agent(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The app wires the realtime runtime with agent=None (resolved per turn);
+    # the App Server process a chat turn takes does not depend on the agent.
+    agents: list[Any] = []
+
+    async def prewarm(stack: Any, agent: Any, *, trusted_session: Any) -> bool:
+        agents.append(agent)
+        return True
+
+    monkeypatch.setattr(endpoint, "prewarm_codex_chat", prewarm)
     with _client(tmp_path, agent=None) as client:
-        assert client.post("/api/codex/prewarm").json() == {"warm": False}
+        assert client.post("/api/codex/prewarm").json() == {"warm": True}
+    assert agents == [None]

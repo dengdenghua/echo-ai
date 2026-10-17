@@ -26,10 +26,10 @@ def register_codex_prewarm(router: Any, stack: Any) -> None:
         ``warm: false`` and is left for the turn itself to report.
         """
 
+        # Usually None: turns resolve their agent per thread. The App Server
+        # command and warm-pool key do not depend on it (codex_app_server_command).
         gateway = getattr(request.app.state, "realtime_gateway", None)
         agent = getattr(getattr(gateway, "_runtime", None), "_default_agent", None)
-        if agent is None:
-            return CodexPrewarmResponse(warm=False)
         # The same principal the realtime gateway stamps on a turn.
         scope = scope_from_request(request)
         session = None
