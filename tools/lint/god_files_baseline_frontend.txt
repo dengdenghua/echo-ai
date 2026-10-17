@@ -9,7 +9,6 @@ frontend/src/app/workspace/channels/page.tsx	1156
 frontend/src/app/workspace/design/canvas-model.ts	1182
 frontend/src/app/workspace/design/director-stage.tsx	1946
 frontend/src/app/workspace/design/page.tsx	7827
-frontend/src/app/workspace/narrative/api.ts	1480
 frontend/src/app/workspace/narrative/page.tsx	1602
 frontend/src/app/workspace/narrative/studio-panels.tsx	1173
 frontend/src/app/workspace/observability/page.tsx	1856
