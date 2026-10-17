@@ -4429,6 +4429,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/codex/prewarm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Codex Prewarm
+         * @description Start the App Server the caller's next Codex chat reply will use.
+         *
+         *     A conversation's first reply otherwise paid a cold App Server start
+         *     (6.5 s to the first word, measured 2026-10-17). Best effort, like the
+         *     OpenCode prewarm: any account, engine or model problem answers
+         *     ``warm: false`` and is left for the turn itself to report.
+         */
+        post: operations["api_codex_prewarm_api_codex_prewarm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/collab/{thread_id}": {
         parameters: {
             query?: never;
@@ -18054,6 +18079,11 @@ export interface components {
              */
             source: "codex_account";
         };
+        /** CodexPrewarmResponse */
+        CodexPrewarmResponse: {
+            /** Warm */
+            warm: boolean;
+        };
         /** CodexRateLimitBucket */
         CodexRateLimitBucket: {
             /** Limit Id */
@@ -30486,6 +30516,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CodexUsageResponse"];
+                };
+            };
+        };
+    };
+    api_codex_prewarm_api_codex_prewarm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodexPrewarmResponse"];
                 };
             };
         };

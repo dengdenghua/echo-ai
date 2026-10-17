@@ -24,6 +24,7 @@ from typing import Any
 from fastapi import Request
 
 from runtime.sensing.gateway._config_endpoints_codex import _register_coder_codex
+from runtime.sensing.gateway._config_endpoints_codex_prewarm import register_codex_prewarm
 from runtime.sensing.gateway._config_endpoints_custom_models import (
     _register_custom_models,
 )
@@ -79,6 +80,7 @@ def _build_endpoints(ctx: _ConfigCtx) -> None:
     _register_local_models(router, ctx)
     _register_system(router, ctx)
     _register_coder_codex(router, ctx)
+    register_codex_prewarm(router, ctx.stack)
 
     @router.get("/api/config/opencode/status", tags=["config"])
     async def opencode_status(request: Request) -> dict[str, Any]:

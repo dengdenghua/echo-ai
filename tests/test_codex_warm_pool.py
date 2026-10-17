@@ -126,3 +126,74 @@ def test_a_direct_launch_may_stay_warm_but_a_real_wrapper_may_not() -> None:
     assert _launch_is_wrapped(BackendChoice(DirectBackend(), "direct", hard=False)) is False
     wrapper = SimpleNamespace(backend=object(), name="bwrap", hard=True)
     assert _launch_is_wrapped(cast(Any, wrapper)) is True
+
+
+def test_a_prewarm_starts_the_process_a_later_chat_turn_takes(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(warm_pool, "key_for", lambda *_args, **_kwargs: "principal-chat")
+    first, security, context, factory, client = _make_session(tmp_path, binding=_binding())
+    client.ready = True
+
+    def session(turn_id: str) -> CodexExecutionSession:
+        return CodexExecutionSession(
+            replace(first.request, outer_turn_id=turn_id),
+            security=cast(Any, security),
+            approval_provider=AutoDenyProvider(),
+            is_interrupted=lambda: False,
+            client_factory=cast(Any, factory),
+            keep_warm=True,
+        )
+
+    async def scenario() -> None:
+        warming = session("prewarm")
+        assert await warming.prewarm() is True
+        await warming.close()
+        calls = [call for call, _ in client.calls]
+        assert "config/read" in calls  # the effective config was checked before keeping it
+        assert "thread/resume" not in calls and "thread/start" not in calls
+        assert client.closed is False and context.cleaned is False
+        assert warm_pool._pool["principal-chat"].in_use is False
+
+        turn = session("outer-1")
+        client.events = [_completed()]
+        await turn.start()
+        assert [call for call, _ in client.calls].count("initialize") == 1
+        async for _ in turn.notifications():
+            pass
+        await turn.close()
+        assert client.closed is False
+
+    asyncio.run(scenario())
+
+
+def test_a_prewarm_that_can_never_be_kept_closes_its_process(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(warm_pool, "key_for", lambda *_args, **_kwargs: None)
+    session, _security, context, _factory, client = _make_session(tmp_path, binding=_binding())
+
+    async def scenario() -> None:
+        assert await session.prewarm() is False
+        await session.close()
+        assert client.closed is True and context.cleaned is True
+        assert warm_pool._pool == {}
+
+    asyncio.run(scenario())
+
+
+def test_chat_turns_sharing_a_home_take_turns_to_start() -> None:
+    from runtime.execution.codex_backend import chat_warm
+
+    async def scenario() -> None:
+        first = await chat_warm.acquire_startup("home")
+        assert await chat_warm.acquire_startup(None) is None
+        second = asyncio.ensure_future(chat_warm.acquire_startup("home"))
+        await asyncio.sleep(0.05)
+        assert not second.done()  # waits while the first writes config and binds
+        chat_warm.release_startup(first)
+        lock = await asyncio.wait_for(second, timeout=1)
+        assert lock is first
+        chat_warm.release_startup(lock)
+
+    asyncio.run(scenario())

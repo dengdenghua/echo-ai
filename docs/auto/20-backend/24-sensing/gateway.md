@@ -48,6 +48,7 @@ tier: "standard"
 | `_computer_plan_routes.py` | Preview, plan, ground, and vision routes for computer automation. |
 | `_config_endpoints.py` | Endpoint handlers for the config router. |
 | `_config_endpoints_codex.py` | Principal-scoped Coder/Codex account and model control endpoints. |
+| `_config_endpoints_codex_prewarm.py` | ``POST /api/codex/prewarm``: warm the App Server for the next Codex chat reply. |
 | `_config_endpoints_custom_models.py` | Custom-model lifecycle endpoints for the config router. |
 | `_config_endpoints_local_models.py` | Local-model discovery + one-click import endpoints for the config router. |
 | `_config_endpoints_models.py` | Model listing & compatibility endpoints for the config router. |
@@ -453,6 +454,12 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def register_computer_appshot_routes(router, state, screenshot, preview_action, auth_dependency)` | Register screenshot-grounded semantic target routes on ``router``. |
+
+### `_config_endpoints_codex_prewarm.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def register_codex_prewarm(router, stack)` |  |
 
 ### `_conversation_error_diagnostics.py`
 

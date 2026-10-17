@@ -26,7 +26,17 @@ from runtime.safety.sandboxing.sandbox import (
     SeatbeltBackend,
 )
 
-from . import warm_pool
+from . import chat_warm, warm_pool
+from ._app_server_protocol import (
+    _entity_id,
+    _environment_sandbox_refused,
+    _notification_matches,
+    _permission_profile,
+    _thread_extra_params,
+    _thread_not_found,
+    _turn_extra_params,
+    _unsupported_api,
+)
 from .approvals import CodexApprovalBroker
 from .client import CodexAppServerClient
 from .models_cache import seed_models_cache, share_models_cache
@@ -50,8 +60,6 @@ from .types import (
 )
 
 _SERVER_AUTHORITY = "server"
-_METHOD_NOT_FOUND = -32601
-_INVALID_REQUEST = -32600
 _NESTED_SEATBELT_BYPASS = "none_due_to_nested_incompatibility"
 
 _logger = logging.getLogger(__name__)
@@ -279,6 +287,8 @@ class CodexExecutionSession:
         self._warm_key: str | None = None
         self._handlers = warm_pool.TurnHandlers()
         self._inner_turn_done = False
+        self._prewarmed = False
+        self._startup_lock: Any = None
 
     async def __aenter__(self) -> Self:
         return await self.start()
@@ -326,84 +336,9 @@ class CodexExecutionSession:
         self._start_attempted = True
         startup_at = time.perf_counter()
         try:
-            process_backend = self._effective_process_backend()
-            context = self._security.prepare(
-                # Keep tool-free conversations in a separate private state
-                # namespace. Resuming a task after a chat reply must not retain
-                # the earlier empty execution-environment selection.
-                realm_id=(self.request.realm_id + "/codex-tool-free-v1")
-                if self.request.tool_free
-                else self.request.realm_id,
-                tenant_id=_principal_scoped_tenant(
-                    self.request.tenant_id,
-                    self.request.principal_id,
-                ),
-                thread_id=self.request.outer_thread_id,
-                task_id=self.request.outer_turn_id,
-                workspace=self.request.workspace,
-                sandbox_mode=self.request.sandbox_mode,
-                approval_reviewer=self.request.approval_reviewer,
-                provider_profile=self.request.provider_profile,
-                selected_app_ids=self.request.selected_app_ids,
-                # Locks off newer default-on features only where this build
-                # defines them; see feature_support.
-                codex_executable=self.request.command[0],
-                # This attestation is derived from the effective BackendChoice
-                # that will actually wrap the process, never from a
-                # caller-owned bool or a bypassed nested-incompatible backend.
-                # Full enforcement and a successful transform are checked
-                # below before the process can start.
-                outer_hard_sandbox_active=bool(
-                    process_backend is not None and process_backend.hard
-                ),
-                host_env=self.request.host_env,
-            )
-            self._context = context
-            prepared_at = time.perf_counter()
-            if self.request.source_codex_home is not None:
-                self._auth_seeded = self._security.seed_auth_from_codex_home(
-                    context,
-                    source_codex_home=self.request.source_codex_home,
-                    authority=_SERVER_AUTHORITY,
-                )
-            seed_models_cache(context, fallback_home=self.request.source_codex_home)
-
-            broker = CodexApprovalBroker(
-                self._approval_provider,
-                outer_thread_id=self.request.outer_thread_id,
-                outer_turn_id=self.request.outer_turn_id,
-                workspace=context.workspace,
-                selected_app_ids=self.request.selected_app_ids,
-                is_interrupted=self._is_interrupted,
-            )
-            self._approval_broker = broker
-            self._warm_key = (
-                warm_pool.key_for(
-                    self.request,
-                    context,
-                    wrapped=_launch_is_wrapped(process_backend)
-                    or self._security.policy.outer_hard_sandbox_required,
-                )
-                if self._keep_warm_enabled
-                else None
-            )
-            self._warm = warm_pool.take(self._warm_key)
-            if self._warm is not None:
-                self._handlers = self._warm.handlers
-                self._client = self._warm.client
-            else:
-                await self._launch_client(context, process_backend)
-            self._handlers.approval = broker
-            self._handlers.dynamic_tool = self.request.dynamic_tool_handler
-            client_ready_at = time.perf_counter()
-
-            config_response = await self._request_pre_turn(
-                "config/read",
-                {"cwd": str(context.workspace), "includeLayers": False},
-            )
-            if not isinstance(config_response, Mapping):
-                raise ProtocolError("config/read response must be a JSON object")
-            context.validate_effective_config(cast(Mapping[str, object], config_response))
+            prepared_at, client_ready_at = await self._open_process()
+            context = self._require_context()
+            broker = self._require_approval_broker()
             config_ready_at = time.perf_counter()
 
             binding = self._security.read_server_binding(
@@ -412,6 +347,8 @@ class CodexExecutionSession:
             )
             inner_thread_id = await self._restore_or_create_thread(context, binding)
             self._inner_thread_id = inner_thread_id
+            chat_warm.release_startup(self._startup_lock)
+            self._startup_lock = None
             thread_ready_at = time.perf_counter()
             share_models_cache(context)
 
@@ -473,6 +410,127 @@ class CodexExecutionSession:
         except BaseException:
             await self._release(suppress_errors=True)
             raise
+
+    async def _open_process(self) -> tuple[float, float]:
+        """Provision the sidecar and take or launch a config-checked App Server.
+
+        Returns when provisioning and the client finished. A turn that shares
+        a CODEX_HOME holds its startup slot until its thread is bound.
+        """
+
+        process_backend = self._effective_process_backend()
+        tenant_id = _principal_scoped_tenant(self.request.tenant_id, self.request.principal_id)
+        # Keep tool-free conversations in a separate private state namespace.
+        # Resuming a task after a chat reply must not retain the earlier empty
+        # execution-environment selection. v2: a principal's chat turns share
+        # one CODEX_HOME (chat_warm), so v1 bindings point at threads it lacks.
+        realm_id = (
+            self.request.realm_id + "/codex-tool-free-v2"
+            if self.request.tool_free
+            else self.request.realm_id
+        )
+        home_scope = chat_warm.home_scope(self.request)
+        self._startup_lock = await chat_warm.acquire_startup(
+            None
+            if home_scope is None
+            else "\0".join((str(self._security.policy.state_root), realm_id, tenant_id, home_scope))
+        )
+        context = self._security.prepare(
+            realm_id=realm_id,
+            tenant_id=tenant_id,
+            thread_id=self.request.outer_thread_id,
+            task_id=self.request.outer_turn_id,
+            workspace=self.request.workspace,
+            sandbox_mode=self.request.sandbox_mode,
+            approval_reviewer=self.request.approval_reviewer,
+            provider_profile=self.request.provider_profile,
+            selected_app_ids=self.request.selected_app_ids,
+            # Locks off newer default-on features only where this build
+            # defines them; see feature_support.
+            codex_executable=self.request.command[0],
+            # This attestation is derived from the effective BackendChoice
+            # that will actually wrap the process, never from a caller-owned
+            # bool or a bypassed nested-incompatible backend. Full enforcement
+            # and a successful transform are checked before the process starts.
+            outer_hard_sandbox_active=bool(process_backend is not None and process_backend.hard),
+            host_env=self.request.host_env,
+            codex_home_scope=home_scope,
+        )
+        self._context = context
+        prepared_at = time.perf_counter()
+        if self.request.source_codex_home is not None:
+            self._auth_seeded = self._security.seed_auth_from_codex_home(
+                context,
+                source_codex_home=self.request.source_codex_home,
+                authority=_SERVER_AUTHORITY,
+            )
+        seed_models_cache(context, fallback_home=self.request.source_codex_home)
+
+        self._approval_broker = CodexApprovalBroker(
+            self._approval_provider,
+            outer_thread_id=self.request.outer_thread_id,
+            outer_turn_id=self.request.outer_turn_id,
+            workspace=context.workspace,
+            selected_app_ids=self.request.selected_app_ids,
+            is_interrupted=self._is_interrupted,
+        )
+        self._warm_key = (
+            warm_pool.key_for(
+                self.request,
+                context,
+                wrapped=_launch_is_wrapped(process_backend)
+                or self._security.policy.outer_hard_sandbox_required,
+            )
+            if self._keep_warm_enabled
+            else None
+        )
+        self._warm = warm_pool.take(self._warm_key)
+        if self._warm is not None:
+            self._handlers = self._warm.handlers
+            self._client = self._warm.client
+        else:
+            await self._launch_client(context, process_backend)
+        self._handlers.approval = self._approval_broker
+        self._handlers.dynamic_tool = self.request.dynamic_tool_handler
+        client_ready_at = time.perf_counter()
+
+        config_response = await self._request_pre_turn(
+            "config/read",
+            {"cwd": str(context.workspace), "includeLayers": False},
+        )
+        if not isinstance(config_response, Mapping):
+            raise ProtocolError("config/read response must be a JSON object")
+        context.validate_effective_config(cast(Mapping[str, object], config_response))
+        return prepared_at, client_ready_at
+
+    async def prewarm(self) -> bool:
+        """Start, or find, the warm App Server this request's turns will take.
+
+        No thread or turn is created. ``close`` then keeps the process in the
+        warm pool for the next matching turn; ``False`` means this launch can
+        never be kept (an outer sandbox wrapper, a turn-scoped credential).
+        """
+
+        if self._start_attempted:
+            raise CodexBackendStateError("Codex execution session can only be started once")
+        self._start_attempted = True
+        try:
+            await self._open_process()
+        finally:
+            chat_warm.release_startup(self._startup_lock)
+            self._startup_lock = None
+        self._prewarmed = self._warm_key is not None
+        return self._prewarmed
+
+    def _require_context(self) -> CodexSidecarContext:
+        if self._context is None:
+            raise CodexBackendStateError("Codex sidecar context is not prepared")
+        return self._context
+
+    def _require_approval_broker(self) -> CodexApprovalBroker:
+        if self._approval_broker is None:
+            raise CodexBackendStateError("Codex approval broker is not prepared")
+        return self._approval_broker
 
     async def notifications(self) -> AsyncIterator[Notification]:
         """Yield only notifications scoped to this exact inner turn."""
@@ -554,7 +612,7 @@ class CodexExecutionSession:
     def _keep_warm(self) -> bool:
         """Offer the process for the conversation's next turn."""
 
-        if not self._inner_turn_done or self._client is None:
+        if not (self._inner_turn_done or self._prewarmed) or self._client is None:
             return False
         if self._warm is not None:
             warm_pool.keep(self._warm)
@@ -706,6 +764,8 @@ class CodexExecutionSession:
                 return
             self._closed = True
             first_error: BaseException | None = None
+            chat_warm.release_startup(self._startup_lock)
+            self._startup_lock = None
             kept = self._keep_warm()
             if self._client is not None and not kept:
                 try:
@@ -848,106 +908,6 @@ def _principal_scoped_tenant(tenant_id: str, principal_id: str) -> str:
     """Prevent two principals in one tenant from sharing a Codex home."""
 
     return f"tenant:{len(tenant_id)}:{tenant_id}\x1fprincipal:{len(principal_id)}:{principal_id}"
-
-
-def _thread_extra_params(
-    overrides: Mapping[str, object],
-    *,
-    resume: bool,
-) -> dict[str, object]:
-    """Remove fields owned by the client's typed thread convenience API."""
-
-    reserved = {
-        "cwd",
-        "model",
-        "approvalPolicy",
-        "approvalsReviewer",
-        "sandbox",
-        "permissions",
-        "ephemeral",
-    }
-    # Resume must reassert every mutable capability selector.  Otherwise the
-    # App Server may retain the previous turn's dynamic tool allowlist.
-    supported_extras = {
-        "runtimeWorkspaceRoots",
-        "dynamicTools",
-        "selectedCapabilityRoots",
-        "developerInstructions",
-    }
-    return {
-        key: value
-        for key, value in overrides.items()
-        if key not in reserved and key in supported_extras
-    }
-
-
-def _turn_extra_params(overrides: Mapping[str, object]) -> dict[str, object]:
-    """Allow only local named-profile fields on ``turn/start``.
-
-    In particular, never forward ``environments``. App Server treats an empty
-    list as disabling the local execution environment and a non-empty list as
-    an explicit environment selection; neither is caller-controlled here.
-    """
-
-    supported = {
-        "cwd",
-        "runtimeWorkspaceRoots",
-        "approvalPolicy",
-        "approvalsReviewer",
-        "permissions",
-    }
-    return {key: value for key, value in overrides.items() if key in supported}
-
-
-def _permission_profile(overrides: Mapping[str, object]) -> str:
-    value = overrides.get("permissions")
-    if not isinstance(value, str) or not value.strip():
-        raise ProtocolError("security context did not provide a named permissions profile")
-    return value
-
-
-def _entity_id(
-    payload: Mapping[str, JsonValue],
-    *,
-    entity: str,
-    operation: str,
-) -> str:
-    nested = payload.get(entity)
-    value = nested.get("id") if isinstance(nested, Mapping) else None
-    if not isinstance(value, str) or not value.strip():
-        raise ProtocolError(f"{operation} response {entity} is missing a non-empty id")
-    return value
-
-
-def _unsupported_api(error: RemoteError) -> bool:
-    return error.code == _METHOD_NOT_FOUND
-
-
-def _thread_not_found(error: RemoteError, thread_id: str) -> bool:
-    return error.code == _INVALID_REQUEST and error.message == f"thread not found: {thread_id}"
-
-
-def _environment_sandbox_refused(error: RemoteError) -> bool:
-    """Resume failed only because the default local environment's sandbox could not start."""
-    return "failed to prepare fs sandbox" in error.message
-
-
-def _notification_matches(
-    notification: Notification,
-    *,
-    thread_id: str,
-    turn_id: str,
-) -> bool:
-    params = notification.params
-    event_thread_id = params.get("threadId")
-    if notification.method == "thread/tokenUsage/updated":
-        return event_thread_id == thread_id
-    event_turn_id = params.get("turnId")
-    if event_turn_id is None:
-        raw_turn = params.get("turn")
-        if isinstance(raw_turn, Mapping):
-            event_turn_id = raw_turn.get("id")
-    return event_thread_id == thread_id and event_turn_id == turn_id
 
 
 __all__ = [

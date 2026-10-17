@@ -2061,6 +2061,19 @@
         "title": "CodexModelsResponse",
         "type": "object"
       },
+      "CodexPrewarmResponse": {
+        "properties": {
+          "warm": {
+            "title": "Warm",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "warm"
+        ],
+        "title": "CodexPrewarmResponse",
+        "type": "object"
+      },
       "CodexRateLimitBucket": {
         "properties": {
           "limit_id": {
@@ -24305,6 +24318,29 @@
         "tags": [
           "config",
           "coder"
+        ]
+      }
+    },
+    "/api/codex/prewarm": {
+      "post": {
+        "description": "Start the App Server the caller's next Codex chat reply will use.\n\nA conversation's first reply otherwise paid a cold App Server start\n(6.5 s to the first word, measured 2026-10-17). Best effort, like the\nOpenCode prewarm: any account, engine or model problem answers\n``warm: false`` and is left for the turn itself to report.",
+        "operationId": "api_codex_prewarm_api_codex_prewarm_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodexPrewarmResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Codex Prewarm",
+        "tags": [
+          "config",
+          "config"
         ]
       }
     },

@@ -142,6 +142,10 @@ if FASTAPI_AVAILABLE:
         # True when the engine for the next reply is running or starting.
         warm: bool
 
+    class CodexPrewarmResponse(BaseModel):
+        # True when a warm App Server waits for the caller's next chat reply.
+        warm: bool
+
     class ConstitutionProfileResponse(BaseModel):
         profile: str  # "strict" | "normal" | "lax"
         available: list[str]
@@ -315,6 +319,7 @@ __all__ = [
     "CodexModelProfileResponse",
     "CodexModelsResponse",
     "CodexModelWire",
+    "CodexPrewarmResponse",
     "CodexRateLimitBucket",
     "CodexRateLimitsResponse",
     "CodexRateLimitWindow",

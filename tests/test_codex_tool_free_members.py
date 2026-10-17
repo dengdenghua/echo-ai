@@ -53,8 +53,10 @@ async def test_tool_free_reasserts_no_environments_on_thread_and_turn(tmp_path, 
     )
     session.request = replace(session.request, tool_free=True)
     await session.start()
-    assert security.prepare_kwargs["realm_id"] == session.request.realm_id + "/codex-tool-free-v1"
+    assert security.prepare_kwargs["realm_id"] == session.request.realm_id + "/codex-tool-free-v2"
     assert security.prepare_kwargs["thread_id"] == session.request.outer_thread_id
+    # A principal's chat turns share one CODEX_HOME; the thread still binds its own.
+    assert security.prepare_kwargs["codex_home_scope"].startswith("tool-free-chat-v1")
     if resumed:
         params = next(value for name, value in client.calls if name == "thread/resume")[1][
             "extra_params"
@@ -138,3 +140,6 @@ def test_tool_free_account_request_needs_no_native_router_or_broker(tmp_path, mo
     assert request.dynamic_tools == () and request.selected_app_ids == ()
     assert broker is None and request.dynamic_tool_handler is None
     assert request.approval_reviewer == "user"
+    # Every conversation's chat turns run in one neutral cwd, so they key the
+    # same warm App Server instead of each paying a cold start.
+    assert request.workspace == (tmp_path / "state-chat-cwd").resolve()

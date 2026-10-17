@@ -97,7 +97,9 @@ class _FakeSecurity:
 
     @property
     def policy(self) -> SimpleNamespace:
-        return SimpleNamespace(outer_hard_sandbox_required=self.require_hard)
+        return SimpleNamespace(
+            outer_hard_sandbox_required=self.require_hard, state_root=Path("state")
+        )
 
     def prepare(self, **kwargs: Any) -> _FakeContext:
         self.prepare_kwargs = kwargs
