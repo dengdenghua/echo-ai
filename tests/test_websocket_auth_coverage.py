@@ -89,6 +89,8 @@ _GATE_DELEGATES = {
     "runtime/sensing/gateway/realtime_gateway.py": "runtime/sensing/gateway/_realtime_gateway_session.py",
     "runtime/sensing/gateway/team_rooms_router.py": "runtime/sensing/gateway/team_rooms_ws.py",
     "runtime/sensing/gateway/_team_room_transcript.py": "runtime/sensing/gateway/team_rooms_ws.py",
+    # /device/ws hands the socket to serve_device_socket (device credential gate).
+    "runtime/tentacle/dashboard.py": "runtime/tentacle/transport/asgi.py",
 }
 
 

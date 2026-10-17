@@ -80,6 +80,7 @@ graph LR
   core -- 5 --> adapters
   memory -- 5 --> core
   platform -- 5 --> tentacle
+  tentacle -- 5 --> safety
   adapters -- 4 --> sensing
   cli_core.py -- 4 --> execution
   cli_execution.py -- 4 --> execution
@@ -97,7 +98,6 @@ graph LR
   execution -- 3 --> sensing
   platform -- 3 --> cli
   projectos -- 3 --> memory
-  tentacle -- 3 --> safety
   tour.py -- 3 --> core
   tour.py -- 3 --> safety
   workspace -- 3 --> safety

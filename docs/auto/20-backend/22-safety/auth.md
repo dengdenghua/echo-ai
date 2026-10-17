@@ -255,7 +255,7 @@ tier: "core"
 
 ## Who imports this
 
-**223** file(s) reference this package:
+**225** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -319,7 +319,9 @@ tier: "core"
   - `runtime/sensing/gateway/_config_endpoints_codex.py`
   - `runtime/sensing/gateway/_config_endpoints_local_models.py`
   - _… and 97 more_
-- **`runtime/tentacle/`** · 3 file(s)
+- **`runtime/tentacle/`** · 5 file(s)
+  - `runtime/tentacle/_dashboard_mcp_routes.py`
+  - `runtime/tentacle/_dashboard_screen_routes.py`
   - `runtime/tentacle/coordinator.py`
   - `runtime/tentacle/dashboard.py`
   - `runtime/tentacle/transport/asgi.py`
