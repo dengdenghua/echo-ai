@@ -92,7 +92,7 @@ export const zhCN: Translations = {
     brandLine: "每一次交互，都留下回响。",
     createYourOwnSkill: "创建你自己的智能体技能",
     createYourOwnSkillDescription:
-      "创建自定义智能体技能是 ECHO AI 的核心功能之一,Echo\n会根据你的描述自动生成代码,你可以随时修改和优化\n这个技能,让它更好地为你服务。",
+      "创建自定义智能体技能是 ECHO AI 的核心功能之一，Echo\n会根据你的描述自动生成代码，你可以随时修改和优化\n这个技能，让它更好地为你服务。",
 
     scenes: {
       daily: "日常办公",
@@ -1810,7 +1810,7 @@ export const zhCN: Translations = {
     surfaceFallback: "插件",
     discoveredTitle: "已发现未加载",
     discoveredHint:
-      "扫描本地插件目录中尚未加载的插件,可手动加载/启动/停止/卸载。",
+      "扫描本地插件目录中尚未加载的插件，可手动加载/启动/停止/卸载。",
     noDiscovered: "未发现新插件",
     refreshDiscovered: "重新扫描",
     actionLoad: "加载",
@@ -1943,7 +1943,7 @@ export const zhCN: Translations = {
     navAssistant: "助手",
     navPaperTrading: "模拟炒股",
     navPaperTradingDesc:
-      "平台配资盘 · 原版网页(iframe 内嵌,复刻版已移至插件中心)",
+      "平台配资盘 · 原版网页(iframe 内嵌，复刻版已移至插件中心)",
     navCommunity: "广场",
     navMcp: "MCP",
     navEvolution: "自进化",
@@ -2491,7 +2491,7 @@ export const zhCN: Translations = {
     resumedDescNoThread: "无 thread_id 记录 · 手动去对应线程发消息即可接续。",
     clearedPrefix: "已清除 · 任务",
     pauseRequestedPrefix: "已请求暂停 · 任务",
-    pauseRequestedDesc: "下轮迭代后生效,状态会自动切到'已暂停'。",
+    pauseRequestedDesc: "下轮迭代后生效，状态会自动切到'已暂停'。",
     agentLabel: "智能体：",
     threadLabel: "会话：",
     tokensLabel: "累计处理量",
@@ -2508,7 +2508,7 @@ export const zhCN: Translations = {
   },
   armsDialog: {
     titlePrefix: "Arms ·",
-    description: "编辑此智能体可用的 arm(能力组)· 保存后后端热重载,无需重启",
+    description: "编辑此智能体可用的 arm(能力组)· 保存后后端热重载，无需重启",
     wrenchTitle: "Arms · 编辑能力",
   },
   agentConfig: {
@@ -2777,31 +2777,31 @@ export const zhCN: Translations = {
     description: "自定义智能体允许你通过 Prompt 来定制专属 AI 助手",
     newAgent: "新建智能体",
     emptyTitle: "还没有自定义智能体",
-    emptyDescription: "创建你自己的智能体,定制专属的 AI 助手",
+    emptyDescription: "创建你自己的智能体，定制专属的 AI 助手",
     chat: "对话",
     delete: "删除",
-    deleteConfirm: "确定要删除这个智能体吗?此操作不可撤销。",
+    deleteConfirm: "确定要删除这个智能体吗？此操作不可撤销。",
     deleteSuccess: "智能体已删除",
     newChat: "新对话",
     createPageTitle: "创建自定义智能体",
-    createPageSubtitle: "通过简单的步骤,创建专属于你的 AI 助手",
+    createPageSubtitle: "通过简单的步骤，创建专属于你的 AI 助手",
     nameStepTitle: "给你的智能体起个名字",
-    nameStepHint: "智能体名称应该简洁明了,方便你识别和使用(例如 code-reviewer)",
+    nameStepHint: "智能体名称应该简洁明了，方便你识别和使用(例如 code-reviewer)",
     nameStepPlaceholder: "例如 code-reviewer",
     nameStepContinue: "继续",
-    nameStepInvalidError: "名称无效,只能包含字母、数字、连字符和下划线",
+    nameStepInvalidError: "名称无效，只能包含字母、数字、连字符和下划线",
     nameStepAlreadyExistsError: "智能体名称已存在",
-    nameStepNetworkError: "网络错误,请检查连接后重试",
-    nameStepCheckError: "检查名称时出错,请重试",
+    nameStepNetworkError: "网络错误，请检查连接后重试",
+    nameStepCheckError: "检查名称时出错，请重试",
     nameStepBootstrapMessage:
-      "你好!我是你的智能体 {name},请帮我定义我的 **SOUL**?",
+      "你好！我是你的智能体 {name},请帮我定义我的 **SOUL**?",
     save: "保存智能体",
     saving: "正在保存智能体...",
-    saveRequested: "已收到保存请求,Echo 将自动创建必要的文件和配置",
-    saveHint: "你可以继续与智能体对话来完善它的功能,或者现在就开始使用",
+    saveRequested: "已收到保存请求，Echo 将自动创建必要的文件和配置",
+    saveHint: "你可以继续与智能体对话来完善它的功能，或者现在就开始使用",
     saveCommandMessage:
-      "如果你想修改智能体的配置,可以直接编辑工作目录中的文件。系统提示词存储在 SOUL.md 中,你可以使用 setup_agent 命令来更新配置",
-    agentCreatedPendingRefresh: "智能体已创建,ECHO AI 正在刷新以应用更改",
+      "如果你想修改智能体的配置，可以直接编辑工作目录中的文件。系统提示词存储在 SOUL.md 中，你可以使用 setup_agent 命令来更新配置",
+    agentCreatedPendingRefresh: "智能体已创建，ECHO AI 正在刷新以应用更改",
     more: "更多操作",
     agentCreated: "智能体创建成功!",
     startChatting: "开始对话",
@@ -3008,7 +3008,7 @@ export const zhCN: Translations = {
     loading: "加载中…",
     notAvailableTitle: "企业版资产库未接通。",
     notAvailableHintPrefix: "后端配置",
-    notAvailableHintSuffix: "后,这里会列出企业版托管的角色资产。",
+    notAvailableHintSuffix: "后，这里会列出企业版托管的角色资产。",
     empty: "企业版暂无匹配的角色资产。",
     header: (count) => `来自企业版资产库 · 共 ${count} 个(消费而非 fork)`,
     install: "导入本地",
@@ -3197,7 +3197,7 @@ export const zhCN: Translations = {
 
   uploads: {
     uploading: "上传中...",
-    uploadingFiles: "正在上传文件,请稍候...",
+    uploadingFiles: "正在上传文件，请稍候...",
     uploadProgress: (percent) => `上传中 ${percent}%`,
     uploadFailed: "上传失败",
     retryUpload: "重试上传",
@@ -3673,8 +3673,8 @@ export const zhCN: Translations = {
       light: "浅色",
       dark: "深色",
       systemDescription: "自动跟随系统设置",
-      lightDescription: "明亮的界面,适合日间使用",
-      darkDescription: "深色界面,减轻眼睛疲劳",
+      lightDescription: "明亮的界面，适合日间使用",
+      darkDescription: "深色界面，减轻眼睛疲劳",
       paletteTitle: "配色风格",
       paletteDescription: "中性底色，细腻点缀。找到适合你的经典配色。",
       paletteEcho: "ECHO 石墨",
@@ -3698,8 +3698,8 @@ export const zhCN: Translations = {
       paletteGroupSoft: "柔彩",
       paletteGroupDeep: "经典",
       paletteCustom: "自定义",
-      paletteCustomDescription: "自选主色,实时预览并自动保存",
-      paletteCustomHint: "用取色器选任意主色,前景色与高亮会自动适配",
+      paletteCustomDescription: "自选主色，实时预览并自动保存",
+      paletteCustomHint: "用取色器选任意主色，前景色与高亮会自动适配",
       languageTitle: "语言",
       languageDescription: "选择界面显示语言",
       languageEnglish: "English",
@@ -3944,7 +3944,7 @@ export const zhCN: Translations = {
       millionContextLabel: "1M 上下文",
       backendUrlHint:
         "当前前端实际请求的网关地址。修改请使用环境变量 `VITE_BACKEND_BASE_URL`。",
-      connectionHelp: "连接有问题?尝试以下操作:",
+      connectionHelp: "连接有问题？尝试以下操作:",
       connectionHelpReconnect: "重新连接 - 尝试重新建立与网关的连接",
       setDefaultHint: "在自定义模型列表点击「设为默认」即可切换系统默认模型。",
       connectionHelpDiagnose: "诊断 - 运行诊断工具检查连接问题",
@@ -3993,7 +3993,7 @@ export const zhCN: Translations = {
       localModels: {
         title: "本地模型",
         subtitle:
-          "一键扫描本机 Ollama / LM Studio / vLLM / llama.cpp 等服务,导入后即可在 Auto 模式中作为「本地」档路由,免去手动填写 base_url。",
+          "一键扫描本机 Ollama / LM Studio / vLLM / llama.cpp 等服务，导入后即可在 Auto 模式中作为「本地」档路由，免去手动填写 base_url。",
         scanButton: "扫描本地服务",
         scanButtonScanning: "扫描中…",
         empty: "未发现本地服务",
@@ -4021,7 +4021,7 @@ export const zhCN: Translations = {
     echoMix: {
       title: "Echo Mix · 多模型协同",
       description:
-        "选 2+ 个模型作为 proposer(各自独立起草、无工具),再选一个 aggregator 综合出最终答案。聊天里选 “Echo Mix” 即走此配置;proposer 留空则用默认模型 × 数量。",
+        "选 2+ 个模型作为 proposer(各自独立起草、无工具),再选一个 aggregator 综合出最终答案。聊天里选 “Echo Mix” 即走此配置；proposer 留空则用默认模型 × 数量。",
       proposersLabel: "Proposers(参与起草的模型)",
       noCandidates: "暂无可选模型",
       aggregatorLabel: "聚合器",
@@ -4169,7 +4169,7 @@ export const zhCN: Translations = {
     reject: "拒绝",
     approveExecute: "批准并执行",
     startQuest: "开始 Quest",
-    questDesc: "描述一个复杂任务,让 Echo 自主规划、执行和验证",
+    questDesc: "描述一个复杂任务，让 Echo 自主规划、执行和验证",
     requirementPlaceholder: "描述你想要完成的任务...",
     executionPlan: "执行计划",
     verificationPassed: "验证通过",
@@ -4530,7 +4530,7 @@ export const zhCN: Translations = {
     deviceTablet: "平板视图 · 768×1024",
     deviceMobile: "手机视图 · 390×844",
     viewportHint: (label, w, h) =>
-      `${label} · 视口 ${w}×${h} · 响应式 CSS 已生效;按 UA 切换的站点请用 Playwright 模式`,
+      `${label} · 视口 ${w}×${h} · 响应式 CSS 已生效；按 UA 切换的站点请用 Playwright 模式`,
     startBrowsingHint: "输入网址开始浏览",
     loadingPage: "正在加载页面...",
     embeddedBlocked: "此网站不支持嵌入显示",
@@ -4546,7 +4546,7 @@ export const zhCN: Translations = {
       translateToChinese: "翻译为中文",
       recorderTitle: "外部 AI 调研 · 记录员",
       recorderDesc: "平台从浏览器桌面打开，这里只负责调度、记录和简报",
-      researchGoalPlaceholder: "调研目标,留空则使用下方输入框",
+      researchGoalPlaceholder: "调研目标，留空则使用下方输入框",
       start: "开始",
       recordCurrentPage: "记录当前页",
       clearLog: "清空日志",
@@ -4563,18 +4563,18 @@ export const zhCN: Translations = {
       confirmSensitiveAction: "页面语义动作看起来像敏感操作",
       stopAgentMessage: "[用户已手动停止智能体 · 不再继续自动操作]",
       maxLoopReached: (count) =>
-        `[已达到最大智能体循环 ${count} 次,自动停止防止失控]`,
+        `[已达到最大智能体循环 ${count} 次，自动停止防止失控]`,
       webviewNotReadyError:
-        "[执行失败:webview 没准备好(可能在浏览器里跑而不是 Electron)]",
+        "[执行失败：webview 没准备好(可能在浏览器里跑而不是 Electron)]",
       confirmedRiskyOperation: "[用户已确认高风险操作]",
       recorderProtocol: `[外部 AI 调研 · 记录员模式]
-目标: 尽量少消耗本地模型 token。你是浏览器调度员和记录员,不是主研究模型。
+目标: 尽量少消耗本地模型 token。你是浏览器调度员和记录员，不是主研究模型。
 策略:
-1. 优先打开/操控外部 AI 平台完成重推理,例如 Gemini、NotebookLM、豆包、Perplexity。
+1. 优先打开/操控外部 AI 平台完成重推理，例如 Gemini、NotebookLM、豆包、Perplexity。
 2. 本地只做短步骤规划、页面操作、等待结果、摘录关键结论、保存证据日志。
-3. 不要把整页长文本回灌给本地模型;只抽取标题、URL、3-8 条关键结论、明显引用和待核查点。
-4. 每个平台输出后,记录: 平台、使用的 prompt、结果摘要、URL、时间、证据/截图线索。
-5. 遇到登录、上传文件、发送敏感数据、发帖/提交表单/付费操作,必须停下请用户确认。
+3. 不要把整页长文本回灌给本地模型；只抽取标题、URL、3-8 条关键结论、明显引用和待核查点。
+4. 每个平台输出后，记录: 平台、使用的 prompt、结果摘要、URL、时间、证据/截图线索。
+5. 遇到登录、上传文件、发送敏感数据、发帖/提交表单/付费操作，必须停下请用户确认。
 6. 最终报告只基于各平台结果做合并、去重、冲突标注和下一步建议。`,
       researchMissionLabel: "[本次调研任务]",
       researchPlatformDivisionLabel: "[外部平台分工]",
@@ -4586,7 +4586,7 @@ export const zhCN: Translations = {
       researchRequirementDoNotFeedBack:
         "- 不要把外部平台完整长回答反复喂回本地模型。",
       researchRequirementLogPerPlatform:
-        "- 每个平台完成后,用一条简短研究日志汇报: 平台 / URL / 5 条以内要点 / 待核查。",
+        "- 每个平台完成后，用一条简短研究日志汇报: 平台 / URL / 5 条以内要点 / 待核查。",
       researchRequirementPauseForSensitive:
         "- 需要登录、上传文件、提交敏感信息时暂停并请用户确认。",
       researchPlatformHintGemini: "综合搜索、长问题、多轮分析",
@@ -4602,7 +4602,7 @@ export const zhCN: Translations = {
       needElectronError: "Need Electron · 当前在浏览器(非 Electron)里运行",
       tabNotReadyError: "当前 tab 没准备好",
       summarizePagePrompt: "请用中文简明总结这个页面的核心内容,3-5 个要点。",
-      extractKeyPointsPrompt: "从这个页面提取所有事实性要点,以有序列表给出。",
+      extractKeyPointsPrompt: "从这个页面提取所有事实性要点，以有序列表给出。",
       translateToChinesePrompt: "把这个页面的主要内容完整翻译成中文。",
       currentPageLabel: "[当前页面]",
       urlLabel: "URL：",
@@ -4724,7 +4724,7 @@ export const zhCN: Translations = {
       ],
       crashTitle: "页面崩溃了",
       crashDesc:
-        "通常是网页进程内存不足或脚本错误,跟你电脑无关。重载即可继续。",
+        "通常是网页进程内存不足或脚本错误，跟你电脑无关。重载即可继续。",
       crashReload: "重载页面",
       ctxEditIcon: "编辑图标",
       ctxDelete: "删除",
@@ -5666,7 +5666,7 @@ export const zhCN: Translations = {
       description:
         "手机装 echo-mobile,扫码或粘贴口令即可连进群(需在同一 Wi-Fi)",
       connectCodeLabel: "连接口令(手机设置里粘贴)",
-      manualFillPrefix: "或手动填:地址",
+      manualFillPrefix: "或手动填：地址",
       manualFillCode: "· 口令",
     },
   },
@@ -7193,7 +7193,7 @@ export const zhCN: Translations = {
     cardSavedHint: "卡片改动已保存并热重载",
     cardField_action: "设备动作",
     cardField_replyOnFailure: "动作失败时改口",
-    cardField_replyOnFailurePlaceholder: "比如:网关没响应,可能没关上",
+    cardField_replyOnFailurePlaceholder: "比如：网关没响应，可能没关上",
     cardField_hubPreset: "选择网关模板…",
     cardField_headers: "请求头(可选)",
     cardField_body: "请求体 JSON(可选)",
@@ -7433,7 +7433,7 @@ export const zhCN: Translations = {
     noConcurrentTasksHint:
       "启动需要并行协作的对话后，这里会实时显示子智能体的技能调用。",
     nestedSseNote:
-      "注:嵌套的 sub_tool_start 事件在聊天 SSE 里(单轮对话内),这里展示的是全局日志的 Step 事件流。",
+      "注：嵌套的 sub_tool_start 事件在聊天 SSE 里(单轮对话内),这里展示的是全局日志的 Step 事件流。",
     journalEventStream: "日志事件流",
     // Tab names
     tabRuns: "运行复盘",
@@ -7839,13 +7839,13 @@ export const zhCN: Translations = {
     permissionDesc: "文件改动和命令执行需要多少确认。",
     guardianTitle: "高危动作独立评审",
     guardianDesc:
-      "对规则引擎判为高危的动作,由独立评审模型按「用户授权证据 × 动作风险」做二次裁决,与上方权限档位独立工作——即使「完全访问」,授权不足的高危动作也会被拦下。默认关闭。",
+      "对规则引擎判为高危的动作，由独立评审模型按「用户授权证据 × 动作风险」做二次裁决，与上方权限档位独立工作——即使「完全访问」，授权不足的高危动作也会被拦下。默认关闭。",
     guardianToggleLabel: "启用独立评审",
     guardianToggleDesc:
-      "仅对 high/critical 动作触发;评审失败自动降级为规则引擎结论,不阻塞任务;每轮最多评审 3 次。",
+      "仅对 high/critical 动作触发；评审失败自动降级为规则引擎结论，不阻塞任务；每轮最多评审 3 次。",
     guardianModelLabel: "评审模型",
     guardianModelHint:
-      "留空则使用当前对话模型(推荐);可指定独立评审模型,如 gpt-5.6-luna。",
+      "留空则使用当前对话模型(推荐);可指定独立评审模型，如 gpt-5.6-luna。",
     toastGuardianOn: "高危动作独立评审已开启",
     toastGuardianOff: "高危动作独立评审已关闭",
     toastEnvSwitched: (label: string) => `执行环境已切换为「${label}」`,
@@ -8234,7 +8234,7 @@ export const zhCN: Translations = {
     copyId: "复制 id",
     pairingDetails: "配对详情",
     autoRegisterDesc:
-      "该渠道首次收到消息时自动登记配对。id 直接来自平台,尚未对接",
+      "该渠道首次收到消息时自动登记配对。id 直接来自平台，尚未对接",
     metadataDesc: "元数据(昵称 / 头像)。",
   },
 
@@ -8257,7 +8257,7 @@ export const zhCN: Translations = {
     qrCodeFailed: "获取 QR 码失败",
     scanConfirmed: "扫码确认成功",
     pollFailed: "轮询失败",
-    wechatScanInstruction: "点击下方按钮获取二维码,用微信扫码确认后即可接入。",
+    wechatScanInstruction: "点击下方按钮获取二维码，用微信扫码确认后即可接入。",
     requesting: "请求中...",
     getQrCode: "获取二维码",
     qrPending: "等待扫码",
@@ -8286,7 +8286,7 @@ export const zhCN: Translations = {
     telegramWebhookSecretPlaceholder: "自定义字符串",
     telegramWebhookSecretHint:
       "调 setWebhook 时传入的 secret_token · 用于 header 校验。",
-    discordBotTokenPlaceholder: "(Bot 凭证,主动发消息用)",
+    discordBotTokenPlaceholder: "(Bot 凭证，主动发消息用)",
     discordBotTokenHint: "Discord Developer Portal · 应用 · Bot 页复制。",
     discordPublicKeyPlaceholder: "(64 字符 hex)",
     discordPublicKeyHint:
@@ -8516,7 +8516,7 @@ export const zhCN: Translations = {
     loading: "加载 arms...",
     loadFailed: (msg) => `加载失败: ${msg}`,
     description:
-      "勾选这个智能体能使用的 arm · 每个 arm 附带一组技能(白名单) · 原子层技能对所有智能体默认放行,不受此处控制。",
+      "勾选这个智能体能使用的 arm · 每个 arm 附带一组技能(白名单) · 原子层技能对所有智能体默认放行，不受此处控制。",
     armsTab: "ARM 能力臂",
     skillsTab: "技能白名单",
     permissionsTab: "权限",
