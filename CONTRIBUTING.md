@@ -40,6 +40,10 @@ make test        # 或 python -m pytest tests/ -q
    - 怎么测（新增测试数 / 手测场景）
 4. 模块归属规则见 [docs/forklist.md](docs/forklist.md) — 任何从既有代码库引入的模块都需要在文件头注明 `# Provenance: <original repo>, <original path>`，并同步更新该清单
 
+`main` 受分支保护（2026-10-17 起）：只能经 PR 合并，管理员也一样；不要求人工审批，但这些 CI 检查必须全部通过：
+`Lint + Test (Python 3.11.9)`、`Lint + Test (Python 3.12.11)`、`pytest full suite (shard 1/4…4/4)`、`Coverage gate (combined shards)`、`Frontend lint + build`、`Security scan`、`Secret scan (gitleaks)`、`OpenAPI schema + TS types contract gate`。
+改这些 CI job 的名字时，同步更新仓库的分支保护设置，否则 PR 会一直等一个不存在的检查。
+
 ## 架构约束（hard constraints）
 
 ### 命名导航：先看职责，再看隐喻
