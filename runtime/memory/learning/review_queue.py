@@ -46,6 +46,7 @@ class ReviewQueue:
         *,
         now: datetime | None = None,
         scope: TenantScope | None = None,
+        once_per_task: bool = False,
     ) -> dict[str, Any]:
         with self._write_lock():
             payload = self._read()
@@ -62,6 +63,11 @@ class ReviewQueue:
                     items.append(candidate)
                     touched.append(candidate)
                     created += 1
+                    continue
+                # Automatic finalization may repeat after reconnect/recovery.
+                # Count an immutable task/turn as evidence only once, without
+                # reopening a promoted or rejected candidate.
+                if once_per_task and source["task_id"] in (existing.get("source_task_ids") or []):
                     continue
                 _merge_existing_item(existing, candidate, now_text)
                 touched.append(existing)
