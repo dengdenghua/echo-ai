@@ -41,7 +41,7 @@ dev = [
     # tracing state that collects tests and then fails at fixture setup.
     "opentelemetry-api>=1.25",
     "opentelemetry-sdk>=1.25",
-    "mcp>=2.0.0,<3.0",
+    "mcp>=2.2.0,<3.0",
     "playwright>=1.48",
     # Windows does not ship an IANA timezone database. Runtime modules use
     # ZoneInfo("Asia/Shanghai") at import time, so clean Windows CI needs it.
@@ -158,7 +158,7 @@ anthropic = [
 ]
 # ── MCP client ───────────────────────────────────────────
 mcp = [
-    "mcp>=2.0.0,<3.0",
+    "mcp>=2.2.0,<3.0",
     "pydantic-settings>=2.14.2",
     "pyjwt[crypto]>=2.15.0",
 ]
@@ -263,7 +263,7 @@ all = [
     # LLM providers
     "anthropic>=0.40,<1.0",
     # MCP client
-    "mcp>=2.0.0,<3.0",
+    "mcp>=2.2.0,<3.0",
     "pydantic-settings>=2.14.2",
     "pyjwt[crypto]>=2.15.0",
     # browsers
