@@ -162,7 +162,7 @@ def test_call_text_and_tool_calls(monkeypatch) -> None:
     assert resp.provider == "ollama"
     assert resp.tool_calls[0].name == "list_cwd"
     assert resp.tool_calls[0].input == {"path": "."}
-    assert resp.tool_calls[1].input == {}  # malformed json -> {}
+    assert resp.tool_calls[1].arguments_error
     assert len(resp.tool_calls) == 2
     payload = client.calls[0][2]["json"]
     assert "tools" in payload

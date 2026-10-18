@@ -4,6 +4,7 @@ import json
 import os
 from typing import Any
 
+from ._response_parsers import tool_call_from_arguments
 from .models import (
     LLMResponseFormatError,
     ModelRequest,
@@ -173,16 +174,11 @@ class OllamaModelRouter(Provider, ModelRouter):
                 if not isinstance(tc, dict):
                     continue
                 fn = tc.get("function") or {}
-                args_raw = fn.get("arguments") or ""
-                try:
-                    args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
-                except json.JSONDecodeError:
-                    args = {}
                 tool_calls.append(
-                    ToolCall(
-                        id=str(tc.get("id") or ""),
+                    tool_call_from_arguments(
+                        call_id=str(tc.get("id") or ""),
                         name=str(fn.get("name") or ""),
-                        input=args if isinstance(args, dict) else {},
+                        value=fn.get("arguments"),
                     )
                 )
 

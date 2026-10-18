@@ -314,6 +314,8 @@ def step_from_tool_calls(
     structured_confirmed_fact = ""
     structured_next_action = ""
     for call in tool_calls:
+        if getattr(call, "arguments_error", None):
+            continue
         name = str(getattr(call, "name", "") or "").strip()
         if not name:
             continue

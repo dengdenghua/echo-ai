@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from runtime.sensing.model_router.openai_compat_providers import (
     apply_custom_openai_compat_profile,
     audit_openai_compat_profile_catalog,
@@ -634,7 +636,8 @@ def test_parse_tool_call_arguments_accepts_json_and_python_repr() -> None:
     assert parse_tool_call_arguments('{"path":"README.md"}') == {"path": "README.md"}
     assert parse_tool_call_arguments("{'path': 'README.md'}") == {"path": "README.md"}
     assert parse_tool_call_arguments({"path": "README.md"}) == {"path": "README.md"}
-    assert parse_tool_call_arguments("not-json") == {}
+    with pytest.raises(ValueError, match="malformed tool arguments"):
+        parse_tool_call_arguments("not-json")
 
 
 def test_parse_tool_call_arguments_recovers_kimi_xml_parameters() -> None:

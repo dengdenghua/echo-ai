@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import os
 from collections.abc import Iterator
 from typing import Any
@@ -16,6 +15,7 @@ except ImportError:  # pragma: no cover
     HTTPX_AVAILABLE = False
     httpx = None  # type: ignore[assignment]
 
+from ._response_parsers import tool_call_from_arguments
 from .actor_context import current_actor
 from .models import CostEntry, ModelRequest, ModelResponse, ModelRouter, ModelStreamEvent
 
@@ -181,16 +181,11 @@ class OctModelRouter(Provider, ModelRouter):
             if not isinstance(tc, dict):
                 continue
             fn = tc.get("function") or {}
-            args_raw = fn.get("arguments") or ""
-            try:
-                args = json.loads(args_raw) if args_raw else {}
-            except json.JSONDecodeError:
-                args = {}
             tool_calls.append(
-                ToolCall(
-                    id=str(tc.get("id") or ""),
+                tool_call_from_arguments(
+                    call_id=str(tc.get("id") or ""),
                     name=str(fn.get("name") or ""),
-                    input=args if isinstance(args, dict) else {},
+                    value=fn.get("arguments"),
                 )
             )
         usage = data.get("usage") or {}

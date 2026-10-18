@@ -29,12 +29,12 @@ import json
 from collections.abc import Callable, Iterator
 from typing import Any
 
+from ._response_parsers import tool_call_from_arguments
 from .models import CostEntry, ModelResponse, ModelStreamEvent
 from .openai_compat_providers import (
     InlineReasoningSplitter,
     extract_openai_compat_reasoning,
     extract_openai_compat_usage,
-    parse_tool_call_arguments,
 )
 
 
@@ -304,17 +304,13 @@ def iter_openai_sse(
 
     tool_calls: list[Any] = []
     if tool_state:
-        from .models import ToolCall
-
         for index in sorted(tool_state):
             slot = tool_state[index]
-            args_raw = slot.get("arguments") or ""
-            args = parse_tool_call_arguments(args_raw)
             tool_calls.append(
-                ToolCall(
-                    id=str(slot.get("id") or ""),
+                tool_call_from_arguments(
+                    call_id=str(slot.get("id") or ""),
                     name=str(slot.get("name") or ""),
-                    input=args if isinstance(args, dict) else {},
+                    value=slot.get("arguments"),
                 )
             )
             yield ModelStreamEvent(type="tool_use", tool_call=tool_calls[-1])

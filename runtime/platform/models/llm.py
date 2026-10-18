@@ -203,6 +203,9 @@ class ToolCall(BaseModel):
     id: str  # Anthropic's tool_use_id · must echo back in tool_result
     name: str
     input: dict[str, Any] = Field(default_factory=dict)
+    # Internal protocol failure, kept alongside the id so callers can return
+    # the matching tool_result error. Execution adapters must reject it.
+    arguments_error: str | None = None
 
 
 class ModelRequest(BaseModel):

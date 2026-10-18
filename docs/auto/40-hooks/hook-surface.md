@@ -17,10 +17,10 @@ tier: "standard"
 - `runtime/execution/tool_engine/executor.py:574`
 - `runtime/execution/tool_engine/executor.py:609`
 - `runtime/execution/tool_engine/executor.py:612`
-- `runtime/sensing/model_router/anthropic_router.py:220`
-- `runtime/sensing/model_router/anthropic_router.py:231`
-- `runtime/sensing/model_router/anthropic_router.py:525`
-- `runtime/sensing/model_router/anthropic_router.py:530`
+- `runtime/sensing/model_router/anthropic_router.py:240`
+- `runtime/sensing/model_router/anthropic_router.py:251`
+- `runtime/sensing/model_router/anthropic_router.py:532`
+- `runtime/sensing/model_router/anthropic_router.py:537`
 
 ## `post_tool` · 1 处
 

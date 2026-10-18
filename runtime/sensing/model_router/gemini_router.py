@@ -8,6 +8,7 @@ from typing import Any
 from runtime.adapters.instrumentation import record_gen_ai_cost, trace_stage
 from runtime.platform.models import CostEntry
 
+from ._response_parsers import tool_call_from_arguments
 from .models import (
     DEFAULT_USER_AGENT,
     LLMResponseFormatError,
@@ -256,12 +257,11 @@ class GeminiModelRouter(Provider, ModelRouter):
             if not isinstance(fn, dict):
                 continue
             name = fn.get("name") or ""
-            args = fn.get("args") or {}
             out.append(
-                ToolCall(
-                    id=f"gemfn_{name}_{idx}",
+                tool_call_from_arguments(
+                    call_id=f"gemfn_{name}_{idx}",
                     name=str(name),
-                    input=args if isinstance(args, dict) else {},
+                    value=fn.get("args", {}),
                 )
             )
         return out

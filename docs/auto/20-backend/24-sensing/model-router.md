@@ -111,7 +111,8 @@ Public model interfaces; provider implementations load on first access.
 | --- | --- | --- |
 | func | `def extract_openai_compat_reasoning(message)` |  |
 | func | `def extract_openai_compat_usage(data)` |  |
-| func | `def parse_tool_call_arguments(value)` |  |
+| func | `def parse_tool_call_arguments(value)` | Decode supported object formats; malformed input must never become {}. |
+| func | `def tool_call_from_arguments(call_id, name, value)` | Keep call identity for a protocol error without granting an invocation. |
 | func | `def split_inline_reasoning(text)` | Split ``<think>``-wrapped reasoning out of a content string. |
 | class | `class InlineReasoningSplitter` | Streaming counterpart to :func:`split_inline_reasoning`. |
 

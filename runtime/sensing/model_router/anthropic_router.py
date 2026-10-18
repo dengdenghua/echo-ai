@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import logging
 import os
 import re
@@ -22,11 +21,13 @@ from runtime.platform.models import CostEntry
 
 _logger = logging.getLogger(__name__)
 
+from ._response_parsers import tool_call_from_arguments
 from .models import (
     Message,
     ModelRequest,
     ModelResponse,
     ModelRouter,
+    ToolCall,
     thinking_budget_for_effort,
 )
 
@@ -47,6 +48,25 @@ def _estimate_usd(model: str, in_tok: int, out_tok: int) -> float:
 
 
 from .provider import Provider, ProviderCapabilities
+
+
+def _tool_calls_from_content(
+    content: Any, streamed: dict[str, ToolCall] | None = None
+) -> list[ToolCall]:
+    calls = []
+    for block in content or []:
+        if getattr(block, "type", None) != "tool_use":
+            continue
+        call_id = getattr(block, "id", "") or ""
+        calls.append(
+            (streamed or {}).get(call_id)
+            or tool_call_from_arguments(
+                call_id=call_id,
+                name=getattr(block, "name", "") or "",
+                value=getattr(block, "input", None),
+            )
+        )
+    return calls
 
 
 class AnthropicModelRouter(Provider, ModelRouter):
@@ -268,19 +288,7 @@ class AnthropicModelRouter(Provider, ModelRouter):
             )
 
             # Extract tool_use blocks (native tool_use path).
-            from .models import ToolCall
-
-            tool_calls: list[ToolCall] = []
-            for block in getattr(resp, "content", None) or []:
-                if getattr(block, "type", None) == "tool_use":
-                    inp = getattr(block, "input", None)
-                    tool_calls.append(
-                        ToolCall(
-                            id=getattr(block, "id", "") or "",
-                            name=getattr(block, "name", "") or "",
-                            input=inp if isinstance(inp, dict) else {},
-                        )
-                    )
+            tool_calls = _tool_calls_from_content(getattr(resp, "content", None))
 
             return ModelResponse(
                 text=text,
@@ -422,6 +430,8 @@ class AnthropicModelRouter(Provider, ModelRouter):
             _tool_id: str | None = None
             _tool_name: str | None = None
             _tool_input_buf: list[str] = []
+            _tool_initial_input: Any = {}
+            _stream_tool_calls: dict[str, ToolCall] = {}
 
             final_msg: Any = None
             try:
@@ -462,23 +472,20 @@ class AnthropicModelRouter(Provider, ModelRouter):
                                 _tool_id = getattr(block, "id", None)
                                 _tool_name = getattr(block, "name", None)
                                 _tool_input_buf = []
+                                _tool_initial_input = getattr(block, "input", {})
                             continue
                         if etype == "content_block_stop":
                             if _tool_id and _tool_name:
                                 raw_json = "".join(_tool_input_buf)
-                                try:
-                                    parsed = __import__("json").loads(raw_json) if raw_json else {}
-                                except json.JSONDecodeError:
-                                    parsed = {}
-                                from .models import ToolCall
-
+                                call = tool_call_from_arguments(
+                                    call_id=_tool_id,
+                                    name=_tool_name,
+                                    value=raw_json if _tool_input_buf else _tool_initial_input,
+                                )
+                                _stream_tool_calls[call.id] = call
                                 yield ModelStreamEvent(
                                     type="tool_use",
-                                    tool_call=ToolCall(
-                                        id=_tool_id,
-                                        name=_tool_name,
-                                        input=parsed if isinstance(parsed, dict) else {},
-                                    ),
+                                    tool_call=call,
                                 )
                                 _tool_id = None
                                 _tool_name = None
@@ -576,19 +583,15 @@ class AnthropicModelRouter(Provider, ModelRouter):
             # stream, but the ``done`` frame's ``ModelResponse``
             # carries the full list for consumers that want a
             # single source of truth.
-            from .models import ToolCall
-
-            tool_calls: list[ToolCall] = []
-            for block in getattr(final_msg, "content", None) or []:
-                if getattr(block, "type", None) == "tool_use":
-                    inp = getattr(block, "input", None)
-                    tool_calls.append(
-                        ToolCall(
-                            id=getattr(block, "id", "") or "",
-                            name=getattr(block, "name", "") or "",
-                            input=inp if isinstance(inp, dict) else {},
-                        )
-                    )
+            if _tool_id and _tool_name:
+                _stream_tool_calls[_tool_id] = ToolCall(
+                    id=_tool_id,
+                    name=_tool_name,
+                    arguments_error="incomplete tool argument stream",
+                )
+            tool_calls = _tool_calls_from_content(
+                getattr(final_msg, "content", None), _stream_tool_calls
+            )
 
             yield ModelStreamEvent(
                 type="done",
