@@ -6,7 +6,7 @@ runtime/execution/subagents/bridge.py::call_subagent	1537
 runtime/platform/ui/browser_router.py::create_browser_router	1179
 runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	972
 runtime/tentacle/dashboard.py::create_tentacle_router	978
-runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	997
+runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	988
 runtime/sensing/gateway/agent_world_router.py::create_agent_world_router	966
 runtime/core/cerebrum/react_model_stream.py::_phase_6b_model_stream	946
 runtime/sensing/gateway/computer_router.py::create_computer_router	269

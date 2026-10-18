@@ -331,6 +331,135 @@ class TestExecutorIntegration:
         )
         assert step.result.status == "success"
         assert step.result.output == "echoed:rewritten"
+        assert step.action.args == {"x": "rewritten"}
+
+    def test_rewritten_args_are_checked_once_before_execution(self, monkeypatch):
+        import runtime.execution.tool_engine.executor as module
+        from runtime.platform.models import ArmId, SkillId, TaskId
+        from runtime.safety.hooks import HookDecision, PreToolUseEvent, register_hook
+
+        checked = []
+        original = module.evaluate_execution_policy
+
+        def deny_rewritten(instruction, **kwargs):
+            checked.append(instruction.args_preview)
+            kwargs["capability"] = (False, "rewritten request denied")
+            return original(instruction, **kwargs)
+
+        monkeypatch.setattr(module, "evaluate_execution_policy", deny_rewritten)
+
+        @register_hook(PreToolUseEvent)
+        def rewrite(event):
+            return HookDecision.modify_args({"x": "rewritten"})
+
+        executor = _make_executor()
+        tid = TaskId(uuid4())
+        step = executor.execute_step(
+            0,
+            "n0",
+            SkillId("echo"),
+            {"x": "original"},
+            caller="test",
+            task_id=tid,
+            arm_id=ArmId("a"),
+            budget=_make_budget(tid),
+        )
+        assert len(checked) == 1
+        assert "rewritten" in checked[0] and "original" not in checked[0]
+        assert step.result.status == "immune_reject"
+        assert step.action.args == {"x": "rewritten"}
+
+    def test_rewrite_cannot_reintroduce_privileged_flags(self):
+        from runtime.platform.models import ArmId, SkillId, TaskId
+        from runtime.safety.hooks import HookDecision, PreToolUseEvent, register_hook
+
+        @register_hook(PreToolUseEvent)
+        def rewrite(event):
+            return HookDecision.modify_args(
+                {"x": "rewritten", "allow_sensitive": True, "allow_private": True}
+            )
+
+        executor = _make_executor()
+        tid = TaskId(uuid4())
+        step = executor.execute_step(
+            0,
+            "n0",
+            SkillId("echo"),
+            {"x": "original"},
+            caller="test",
+            task_id=tid,
+            arm_id=ArmId("a"),
+            budget=_make_budget(tid),
+        )
+        assert step.result.status == "success"
+        assert step.action.args == {"x": "rewritten"}
+
+    def test_in_place_hook_mutation_without_decision_is_detached(self):
+        from runtime.platform.models import ArmId, SkillId, TaskId
+        from runtime.safety.hooks import PreToolUseEvent, register_hook
+
+        @register_hook(PreToolUseEvent)
+        def mutate(event):
+            event.args["x"] = "unapproved mutation"
+
+        executor = _make_executor()
+        tid = TaskId(uuid4())
+        args = {"x": "original"}
+        step = executor.execute_step(
+            0,
+            "n0",
+            SkillId("echo"),
+            args,
+            caller="test",
+            task_id=tid,
+            arm_id=ArmId("a"),
+            budget=_make_budget(tid),
+        )
+        assert step.result.output == "echoed:original"
+        assert step.action.args == args == {"x": "original"}
+
+    @pytest.mark.parametrize(
+        "url, allowed",
+        [
+            ("http://127.0.0.1:8000/new", True),
+            ("http://169.254.169.254/latest", False),
+        ],
+    )
+    def test_trusted_loopback_grant_uses_final_url(self, url, allowed):
+        from runtime.execution.suckers import Skill
+        from runtime.platform.models import ArmId, SkillId, TaskId
+        from runtime.safety.hooks import HookDecision, PreToolUseEvent, register_hook
+
+        @register_hook(PreToolUseEvent)
+        def rewrite(event):
+            return HookDecision.modify_args({"url": url, "allow_private": True})
+
+        executor = _make_executor()
+        executor.registry.register(
+            Skill(
+                name="browser_navigate",
+                description="test",
+                affinity=["test"],
+                cost_profile="low",
+                trusted_source="skill://public/browser",
+                handler=lambda **kwargs: kwargs,
+            )
+        )
+        tid = TaskId(uuid4())
+        step = executor.execute_step(
+            0,
+            "n0",
+            SkillId("browser_navigate"),
+            {"url": "http://localhost:8000/original"},
+            caller="test",
+            task_id=tid,
+            arm_id=ArmId("a"),
+            budget=_make_budget(tid),
+            trusted_browser_loopback=True,
+        )
+        assert step.result.status == "success"
+        assert bool(step.result.output.get("allow_private")) is allowed
+        assert step.action.args == step.result.output
 
     def test_post_tool_modify_output_rewrites_result(self):
         from runtime.platform.models import ArmId, SkillId, TaskId

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import time
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -290,11 +291,6 @@ class ToolExecutor:
             # defeat the sensitive-file / SSRF guards. Trusted internal callers
             # set these by invoking handlers directly, never via execute_step.
             args, _stripped_overrides = strip_model_controlled_overrides(args)
-            args = _restore_trusted_browser_loopback_access(
-                sucker_id,
-                args,
-                trusted_runtime_grant=trusted_browser_loopback,
-            )
             if _stripped_overrides:
                 span.set_attribute(
                     "echo.args.stripped_overrides",
@@ -426,6 +422,43 @@ class ToolExecutor:
                 and str(sucker_id) not in _host_request.task.allowed_tools
             ):
                 return _reject_step("failed", "tool is outside the host execution contract")
+
+            # Resolve public rewrites before every argument-dependent gate.
+            # Hooks receive a detached snapshot: in-place edits without an
+            # explicit modify_args decision must not change the invocation.
+            try:
+                from runtime.safety.hooks.runner import dispatch_pre_tool
+
+                pre_decision = dispatch_pre_tool(
+                    sucker_id=str(sucker_id),
+                    args=deepcopy(args),
+                    caller=caller,
+                    session=_policy_session,
+                )
+                if pre_decision.cancelled:
+                    reason = pre_decision.reason or "pre_tool_hook_cancelled"
+                    return _reject_step(
+                        "failed",
+                        f"hook_cancel: {reason}",
+                        span_attrs={"echo.hook.cancelled": reason},
+                    )
+                if pre_decision.modified_args is not None:
+                    args = deepcopy(pre_decision.modified_args)
+            except (TypeError, ValueError, RuntimeError):  # best-effort public hooks
+                pass
+
+            # A rewrite cannot grant privileged flags. Recompute trusted
+            # loopback access from the final URL instead of carrying a grant
+            # from a previous URL into a rewritten request.
+            args, final_stripped = strip_model_controlled_overrides(args)
+            _stripped_overrides = sorted(set(_stripped_overrides) | set(final_stripped))
+            args = _restore_trusted_browser_loopback_access(
+                sucker_id, args, trusted_runtime_grant=trusted_browser_loopback
+            )
+            call = call.model_copy(update={"args": deepcopy(args)})
+            if _stripped_overrides:
+                span.set_attribute("echo.args.stripped_overrides", ",".join(_stripped_overrides))
+
             _policy_context = getattr(_policy_session, "metadata", None) or {}
             _audit_denial = audit_read_only_tool_denial(
                 sucker_id,
@@ -605,7 +638,7 @@ class ToolExecutor:
                     sucker_id=sucker_id,
                     node_id=node_id,
                     step_id=step_id,
-                    call=call,
+                    call=call.model_copy(deep=True),
                     result=None,
                 )
                 try:
@@ -636,47 +669,6 @@ class ToolExecutor:
                         pre_exists = Path(_pre_path).is_file()
                 pre_content = _try_read_pre_content(_pre_path)
             t0 = time.monotonic()
-
-            # 6a. PUBLIC PreToolUse hook · pre/post tool lifecycle
-            # event · community handlers can cancel or rewrite args here.
-            # Runs BEFORE legacy self.hooks pre_result branch so a
-            # community hook can still override · returns None if no
-            # handler registered (cheap no-op).
-            hook_cancel: str | None = None
-            try:
-                from runtime.platform.process.session import current_session as _cs
-                from runtime.safety.hooks.runner import dispatch_pre_tool
-
-                pre_decision = dispatch_pre_tool(
-                    sucker_id=str(sucker_id),
-                    args=args,
-                    caller=caller,
-                    session=_cs(),
-                )
-                if pre_decision.cancelled:
-                    hook_cancel = pre_decision.reason or "pre_tool_hook_cancelled"
-                elif pre_decision.modified_args is not None:
-                    args = pre_decision.modified_args
-            except (TypeError, ValueError, RuntimeError):  # noqa: BLE001 — pre-tool hook best-effort
-                pass
-
-            if hook_cancel is not None:
-                budget.commit(reservation, CostEntry())
-                self.journal.write_budget(
-                    "budget_commit",
-                    task_id=task_id,
-                    actor=actor,
-                )
-                step = _make_reject_step(
-                    step_id,
-                    node_id,
-                    call,
-                    "failed",
-                    reason=f"hook_cancel: {hook_cancel}",
-                )
-                self.journal.write_step(task_id, arm_id, step, actor=actor)
-                span.set_attribute("echo.hook.cancelled", hook_cancel)
-                return step
 
             _effect_resolution: EffectResolution | None = None
             _effect_receipt_index = self._current_effect_receipts()
