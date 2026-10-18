@@ -800,7 +800,7 @@ def _record_task_run_finished(
     recover_stale_lease: bool = False,
 ) -> None:
     status_value = str(getattr(turn.status, "value", turn.status) or "").lower()
-    if status_value in {"in_progress", "in-progress", "pending", ""}:
+    if status_value in {"inprogress", "in_progress", "in-progress", "pending", ""}:
         return
     status = {
         "completed": "completed",
@@ -865,25 +865,16 @@ def _record_task_run_finished(
     if runtime._trace_store is None:
         return
     try:
-        runtime._trace_store.record_task_run_finished(
-            # Trace task-run identity is the transport attempt (turn id).
-            # The durable ReAct/objective id is carried in payload metadata
-            # and on Turn.taskId; mixing both ids in one event stream creates
-            # a phantom never-finished run for every turn.
-            task_id=turn.id,
-            thread_id=turn.thread_id,
-            turn_id=turn.id,
+        from ._realtime_turn_learning import record_finished_trace
+
+        record_finished_trace(
+            runtime,
+            turn,
             agent_id=_turn_agent_id(turn),
             status=status,
             reason=status_value,
             scope=_turn_scope(turn),
-            metadata={
-                "item_count": len(getattr(turn, "items", []) or []),
-                "error": getattr(turn, "error", None),
-                "engine": _turn_execution_engine(turn),
-                "outcome_reason": getattr(turn, "outcome_reason", None),
-                "completion_decision": getattr(turn, "completion_decision", None),
-            },
+            engine=_turn_execution_engine(turn),
         )
     except Exception as exc:  # noqa: BLE001
         _logger.warning("trace store finish failed for %s: %s", turn.id, exc)

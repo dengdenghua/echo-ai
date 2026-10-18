@@ -140,6 +140,7 @@ tier: "standard"
 | `_realtime_turn_context.py` | Explicit in-memory state shared by the phases of a single realtime turn. |
 | `_realtime_turn_dispatch.py` | Composer routing and coordinated delivery acceptance for realtime turns. |
 | `_realtime_turn_idempotency.py` | Durable ``userItemId`` replay helpers for realtime turn startup. |
+| `_realtime_turn_learning.py` | Capture terminal trace reviews as pending experience candidates. |
 | `_realtime_turn_lifecycle_helpers.py` | Shared helpers for the realtime turn lifecycle. |
 | `_realtime_turn_lifecycle_resume.py` | Resume-intent persistence for the realtime turn lifecycle. |
 | `_realtime_turn_prepare.py` | Validate, anchor and prepare a realtime turn without starting its driver. |
@@ -767,6 +768,13 @@ tier: "standard"
 | func | `def turn_for_user_item_id(logs_root, thread_id, user_item_id)` | Return the durable turn that already owns one client item id. |
 | func | `def turn_input_text(params)` |  |
 | func | `def existing_user_item_text(turn)` |  |
+
+### `_realtime_turn_learning.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def record_finished_trace(runtime, turn, status, reason, agent_id, engine, scope)` | Persist the terminal fact before deriving any learning from it. |
+| func | `def queue_finished_turn_review(runtime, turn, status, scope)` | Reuse evidence-derived reviews; never invent or automatically activate lessons. |
 
 ### `_remote_backend_lifetime.py`
 
