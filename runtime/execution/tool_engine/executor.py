@@ -1136,7 +1136,7 @@ class ToolExecutor:
                     sucker_id=sucker_id,
                     node_id=node_id,
                     step_id=step_id,
-                    call=call,
+                    call=call.model_copy(deep=True),
                     result=result,
                 )
                 post_out = self.hooks.run_post(post_ctx)
