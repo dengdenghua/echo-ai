@@ -113,7 +113,9 @@ def _is_source_of_truth(rel_path: str) -> bool:
 def _iter_text_files() -> list[Path]:
     """Yield tracked, non-binary, non-generated text files under the repo root."""
     git_dir = REPO_ROOT / ".git"
-    if git_dir.is_dir():
+    if git_dir.exists():
+        # Linked worktrees use a .git file; they still need git's tracked
+        # file list rather than walking ignored dependency junctions.
         # Use git ls-files to respect .gitignore.
         import subprocess
 
