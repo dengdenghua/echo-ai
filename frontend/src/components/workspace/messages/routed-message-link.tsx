@@ -1,11 +1,17 @@
 import { type ComponentProps } from "react";
 
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
+import { AuthenticatedImage } from "@/components/ui/authenticated-image";
 import {
   artifactRefFromMarkdownHref,
   dispatchOpenArtifact,
 } from "@/core/artifacts/open-artifact";
-import { resolveArtifactURL } from "@/core/artifacts/utils";
+import {
+  normalizeWorkspaceArtifactRef,
+  parseWorkspaceOutputRef,
+  resolveArtifactURL,
+  urlOfArtifact,
+} from "@/core/artifacts/utils";
 import { useI18n } from "@/core/i18n/hooks";
 import { messageActionsCopy } from "@/core/i18n/locales/message-actions";
 
@@ -30,11 +36,23 @@ export function MessageImage({
     return <img className={imgClassName} src={src} alt={alt} {...props} />;
   }
 
-  const url = src.startsWith("/mnt/") ? resolveArtifactURL(src, threadId) : src;
+  const reference = /^(?:https?:|data:|blob:|\/\/)/i.test(src)
+    ? src
+    : normalizeWorkspaceArtifactRef(src, threadId);
+  const url = parseWorkspaceOutputRef(reference)
+    ? urlOfArtifact({ filepath: reference, threadId })
+    : src.startsWith("/mnt/")
+      ? resolveArtifactURL(src, threadId)
+      : src;
 
   return (
     <RoutedMessageLink href={url}>
-      <img className={imgClassName} src={url} alt={alt} {...props} />
+      <AuthenticatedImage
+        className={imgClassName}
+        src={url}
+        alt={alt ?? ""}
+        {...props}
+      />
     </RoutedMessageLink>
   );
 }

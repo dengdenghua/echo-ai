@@ -154,6 +154,12 @@ async def stream_role(
     system += f"\n当前工作区：{workspace}。历史权限说明不代表当前状态。"
     if output_root := session.metadata.get("_artifact_output_root"):
         system += f"\n本轮文件产物输出目录：{output_root}。"
+        system += (
+            "已成功生成的工作区图片可用 Markdown 图片语法展示，例如"
+            " ![预览](output/final/preview.png)，路径必须对应实际产物。"
+            "展示由 Echo 的当前会话产物接口完成，无需再次直接读取 AppData 文件；"
+            "文件读取被拒绝不代表产物预览不可用，也不代表已完成视觉检查。"
+        )
     with execution_request_scope(request), session_scope(session):
         async with _task_deadline(request), contextlib.AsyncExitStack() as lifetime:
             connection = (

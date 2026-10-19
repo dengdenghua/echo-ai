@@ -1,13 +1,77 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, it } from "vitest";
-
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { MessageImage } from "./routed-message-link";
 import {
   OPEN_ARTIFACT_EVENT,
   type OpenArtifactDetail,
 } from "@/core/artifacts/open-artifact";
 import { renderWithProviders } from "@/test/harness";
-
 import { RoutedMessageLink } from "./message-list-item";
+
+vi.mock("@/core/auth/api", () => ({
+  getToken: () => "png-test-token",
+  authHeaders: () => ({ Authorization: "Bearer png-test-token" }),
+}));
+afterEach(() => vi.unstubAllGlobals());
+
+it.each([
+  "output/final/bicycle_preview.png",
+  "C:/Users/owner/AppData/Roaming/echo-frontend/data/workspaces/thread-png/output/final/bicycle_preview.png",
+  "workspace-output:final:bicycle_preview.png",
+])("loads the current thread image with authentication: %s", async (src) => {
+  const fetchImage = vi.fn().mockResolvedValue({
+    ok: true,
+    blob: async () => new Blob(["PNG"], { type: "image/png" }),
+  });
+  const revoke = vi.fn();
+  vi.stubGlobal("fetch", fetchImage);
+  vi.stubGlobal(
+    "URL",
+    class extends URL {
+      static createObjectURL = vi.fn(() => "blob:protected-png");
+      static revokeObjectURL = revoke;
+    },
+  );
+  const { unmount } = render(
+    <MessageImage
+      src={src}
+      threadId="thread-png"
+      alt="自行车预览"
+      width={800}
+    />,
+  );
+  await waitFor(() =>
+    expect(screen.getByAltText("自行车预览")).toHaveAttribute(
+      "src",
+      "blob:protected-png",
+    ),
+  );
+  expect(fetchImage).toHaveBeenCalledWith(
+    expect.stringContaining(
+      "/api/threads/thread-png/outputs/bicycle_preview.png?area=final",
+    ),
+    expect.objectContaining({
+      headers: { Authorization: "Bearer png-test-token" },
+    }),
+  );
+  expect(screen.getByAltText("自行车预览")).toHaveAttribute("width", "800");
+  unmount();
+  expect(revoke).toHaveBeenCalledWith("blob:protected-png");
+});
+
+it.each([
+  "https://images.example.test/preview.png",
+  "https://images.example.test/workspaces/thread-png/output/final/preview.png",
+])(
+  "leaves remote images public and never sends Echo credentials to %s",
+  (src) => {
+    const fetchImage = vi.fn();
+    vi.stubGlobal("fetch", fetchImage);
+    render(<MessageImage src={src} threadId="thread-png" alt="remote" />);
+    expect(screen.getByAltText("remote")).toHaveAttribute("src", src);
+    expect(fetchImage).not.toHaveBeenCalled();
+  },
+);
 
 it("opens a generated Office link in the current artifact workbench", () => {
   let opened: OpenArtifactDetail | null = null;

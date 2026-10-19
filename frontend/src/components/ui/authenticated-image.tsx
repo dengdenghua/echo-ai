@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+  type ImgHTMLAttributes,
+} from "react";
 
 import { swallow } from "@/core/utils/log";
 import { authHeaders, getToken } from "@/core/auth/api";
 import { getBackendTransportBaseURL } from "@/core/config";
 
-interface AuthenticatedImageProps {
+interface AuthenticatedImageProps extends Omit<
+  ImgHTMLAttributes<HTMLImageElement>,
+  "src" | "alt"
+> {
   src: string;
   alt: string;
   className?: string;
@@ -66,6 +75,8 @@ export function AuthenticatedImage({
   alt,
   className,
   fallback = null,
+  onError,
+  ...imageProps
 }: AuthenticatedImageProps) {
   const normalizedSrc = useMemo(() => {
     const normalized = normalizeImageSrc(src);
@@ -149,10 +160,14 @@ export function AuthenticatedImage({
 
   return (
     <img
+      {...imageProps}
       src={resolvedSrc}
       alt={alt}
       className={className}
-      onError={() => setFailed(true)}
+      onError={(event) => {
+        setFailed(true);
+        onError?.(event);
+      }}
     />
   );
 }
