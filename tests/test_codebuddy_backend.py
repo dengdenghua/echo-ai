@@ -1,6 +1,7 @@
 """Official protocol fixtures and real child-process lifecycle, without cloud calls."""
 
 import asyncio
+import json
 import sys
 
 import pytest
@@ -106,11 +107,45 @@ def test_hosted_tenants_cannot_use_a_machine_account(monkeypatch):
     assert backend.model_catalog() == []
 
 
-def test_model_ownership_is_explicit():
+def test_model_ownership_is_explicit(tmp_path, monkeypatch):
     assert backend.resolve_model("auto") == "auto"
     assert backend.resolve_model("codebuddy/hy3") == "hy3"
     with pytest.raises(CodeBuddyError):
         backend.resolve_model("opencode-zen/big-pickle")
+
+
+def test_official_catalog_excludes_custom_models_and_never_falls_back(monkeypatch):
+    monkeypatch.setattr(backend, "inspect_readiness", lambda: {"available": True})
+    monkeypatch.setattr(backend, "executable", lambda: sys.executable)
+    monkeypatch.setattr(
+        backend, "_models", lambda *args: ("deepseek-v4.1-flash", "custom-local:claude")
+    )
+    assert backend.model_catalog() == ["deepseek-v4.1-flash"]
+    with pytest.raises(CodeBuddyError, match="官方积分通道"):
+        backend.resolve_model("codebuddy/custom-local:claude")
+
+
+@pytest.mark.parametrize(
+    "detail,expected",
+    [
+        ("503 No available channel for model hy3", "无法调用所选模型"),
+        ("401 Unauthorized", "账号验证失败"),
+        ("insufficient credit balance", "额度不足"),
+        ("429 rate limit", "过于频繁"),
+    ],
+)
+def test_provider_failure_is_actionable_without_echoing_secrets(detail, expected):
+    with pytest.raises(CodeBuddyError, match=expected) as error:
+        CodeBuddyEvents().consume(
+            {
+                "type": "result",
+                "is_error": True,
+                "subtype": "error_during_execution",
+                "errors": [detail + " https://private.example/key=secret"],
+            }
+        )
+    assert "private.example" not in str(error.value)
+    assert "secret" not in str(error.value)
 
 
 @pytest.mark.parametrize(
@@ -149,6 +184,7 @@ import json,sys,pathlib
 args=sys.argv[1:]
 assert args[args.index('--tools')+1] == 'NoDefer(mcp__echo__echo_probe)'
 assert args[args.index('--permission-mode')+1] == 'dontAsk'
+assert args[args.index('--setting-sources')+1] == 'local'
 assert '--strict-mcp-config' in args
 assert '--no-session-persistence' in args
 assert 'secret-bearer' not in ' '.join(args)
@@ -235,11 +271,11 @@ def test_shutdown_metadata_is_ignored_but_second_answer_is_not():
         reducer.consume(assistant({"type": "text", "text": "another answer"}))
 
 
-def test_cli_auth_environment_is_preserved_without_loading_hooks(tmp_path, monkeypatch):
-    import json
+def test_official_environment_does_not_inherit_third_party_settings(tmp_path, monkeypatch):
 
     monkeypatch.setenv("CODEBUDDY_CONFIG_DIR", str(tmp_path))
-    monkeypatch.delenv("CODEBUDDY_API_KEY", raising=False)
+    monkeypatch.setenv("CODEBUDDY_API_KEY", "shell-secret")
+    monkeypatch.setenv("CODEBUDDY_BASE_URL", "https://third-party.example")
     (tmp_path / "settings.json").write_text(
         json.dumps(
             {
@@ -254,7 +290,9 @@ def test_cli_auth_environment_is_preserved_without_loading_hooks(tmp_path, monke
         )
     )
     env = backend.child_environment()
-    assert env["CODEBUDDY_API_KEY"] == "local-test-secret"
-    assert env["CODEBUDDY_MODEL"] == "test-model"
+    assert "CODEBUDDY_API_KEY" not in env
+    assert "CODEBUDDY_MODEL" not in env
+    assert "CODEBUDDY_BASE_URL" not in env
+    assert env["CODEBUDDY_INTERNET_ENVIRONMENT"] == "internal"
     assert "NODE_OPTIONS" not in env
     assert "ARBITRARY_COMMAND" not in env

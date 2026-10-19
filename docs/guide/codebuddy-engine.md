@@ -5,10 +5,11 @@ same host task, journal, role instructions, tool broker and approval boundary
 as the existing OpenCode integration.
 
 Install the CLI with `npm install -g @tencent-ai/codebuddy-code`, then run
-`codebuddy` (or `codebuddy.cmd` in PowerShell) and complete `/login`. In Echo,
+`codebuddy --setting-sources local` (or `codebuddy.cmd` in PowerShell), complete
+`/login`, and choose the Chinese site. In Echo,
 select **CodeBuddy** from the conversation's execution engine menu. The model
-menu uses the installed CLI's advertised models. **Auto** follows that CLI's
-current default. Explicit model selections are stored as `codebuddy/<model-id>`.
+menu uses the installed CLI's advertised official models, excluding custom-local
+models. **Auto** follows the official CLI default. Explicit model selections are stored as `codebuddy/<model-id>`.
 
 The Echo CLI also supports:
 
@@ -28,9 +29,12 @@ CLI; it does not add a vendored engine-store download.
   deployments reject this engine before reading account configuration.
 - CodeBuddy handles its login and upstream requests. Echo does not expose a
   substitute model API or copy its authentication token into a model provider.
-- The trusted user's supported authentication/model environment settings are
-  passed to the official process. Other user/project settings, hooks and MCP
-  servers are excluded. No credentials enter process arguments or Echo traces.
+- Echo uses the official Chinese site account and credits. Third-party endpoint,
+  API key and model environment overrides are removed from the child process.
+  User/project settings, hooks and MCP servers are excluded. The CLI receives
+  `--setting-sources local` in a fresh directory: an empty sources argument
+  actually restores the CLI's default scopes. The user's CLI settings stay intact.
+  No credentials enter process arguments or Echo traces.
 - The official CLI runs in a fresh temporary directory with no transcript
   persistence. Echo supplies bounded conversation history for each invocation.
 - Only exact names from the current role's Echo tool catalog are exposed.
@@ -40,9 +44,9 @@ CLI; it does not add a vendored engine-store download.
   invocation never silently switches to another engine.
 - This adapter currently accepts text input. Image input is rejected by engine
   admission before execution. Team scheduling is performed by the host.
-- Billing follows the CLI's selected configuration. A custom third-party model
-  uses that provider's billing rather than CodeBuddy credits. No credit balance
-  is inferred from token counts.
+- Calls use the official account's billing. Authentication failure never falls
+  back to a third-party API. No credit balance is inferred from token counts;
+  check the official account's usage page for actual deductions.
 
 ## Verification
 

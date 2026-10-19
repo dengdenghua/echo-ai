@@ -36,3 +36,20 @@ it("replaces another engine's model with the CLI default on entry", () => {
   expect(onChange).toHaveBeenCalledWith("auto");
   expect(screen.getByRole("combobox")).toHaveValue("auto");
 });
+
+it("marks an unavailable saved model without silently changing the user's provider", async () => {
+  vi.mocked(apiGet).mockResolvedValue({ models: ["custom-local:example"] });
+  const onChange = vi.fn();
+  renderWithProviders(
+    <CodeBuddyModelControl
+      value="codebuddy/deepseek-v4.1-flash"
+      onChange={onChange}
+    />,
+  );
+  await screen.findByRole("option", { name: "custom-local:example" });
+  expect(screen.getByRole("combobox")).toHaveAttribute("aria-invalid", "true");
+  expect(
+    screen.getByRole("option", { name: /deepseek-v4.1-flash/ }),
+  ).toBeDisabled();
+  expect(onChange).not.toHaveBeenCalled();
+});

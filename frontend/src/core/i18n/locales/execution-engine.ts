@@ -33,6 +33,7 @@ export interface ExecutionEngineCopy {
   opencodeDescription: string;
   codebuddyDescription: string;
   codebuddyCheckSetup: string;
+  codebuddyModelUnavailable: string;
   codexDescription: string;
   executedBy: (engine: string) => string;
   /** The quiet label under an answer, so an engine never reads as a name. */
@@ -50,7 +51,9 @@ export interface ExecutionEngineCopy {
 }
 
 const zhCN: ExecutionEngineCopy = {
-  codebuddyDescription: "沿用本机 CodeBuddy 登录与模型配置，工具与审批由 Echo 管理。",
+  codebuddyModelUnavailable: "当前配置不可用，请重新选择模型",
+  codebuddyDescription:
+    "使用 CodeBuddy 中国站官方账号与积分，工具与审批由 Echo 管理。",
   codebuddyCheckSetup: "请先在终端安装 CodeBuddy CLI 并登录。",
   title: "执行引擎",
   auto: "自动",
@@ -108,8 +111,12 @@ const zhCN: ExecutionEngineCopy = {
 };
 
 const enUS: ExecutionEngineCopy = {
-  codebuddyDescription: "Use the local CodeBuddy login and models with Echo tools and approvals.",
-  codebuddyCheckSetup: "Install CodeBuddy CLI and sign in from a terminal first.",
+  codebuddyModelUnavailable:
+    "Unavailable in this configuration; choose another model",
+  codebuddyDescription:
+    "Use the official CodeBuddy China account and credits with Echo tools and approvals.",
+  codebuddyCheckSetup:
+    "Install CodeBuddy CLI and sign in from a terminal first.",
   title: "Execution engine",
   auto: "Auto",
   legacyNative: "Legacy native mode",
@@ -173,8 +180,12 @@ const enUS: ExecutionEngineCopy = {
 };
 
 const jaJP: ExecutionEngineCopy = {
-  codebuddyDescription: "ローカルの CodeBuddy アカウントを使用し、ツールと承認は Echo が管理します。",
-  codebuddyCheckSetup: "CodeBuddy CLI をインストールし、ターミナルでログインしてください。",
+  codebuddyModelUnavailable:
+    "現在の設定では利用できません。モデルを選び直してください",
+  codebuddyDescription:
+    "CodeBuddy 中国版の公式アカウントとクレジットを使用し、ツールと承認は Echo が管理します。",
+  codebuddyCheckSetup:
+    "CodeBuddy CLI をインストールし、ターミナルでログインしてください。",
   title: "実行エンジン",
   auto: "自動",
   legacyNative: "旧ネイティブ互換モード",
@@ -238,7 +249,10 @@ const jaJP: ExecutionEngineCopy = {
 };
 
 const koKR: ExecutionEngineCopy = {
-  codebuddyDescription: "로컬 CodeBuddy 계정을 사용하며 도구와 승인은 Echo에서 관리합니다.",
+  codebuddyModelUnavailable:
+    "현재 구성에서 사용할 수 없습니다. 모델을 다시 선택하세요",
+  codebuddyDescription:
+    "CodeBuddy 중국 공식 계정과 크레딧을 사용하며 도구와 승인은 Echo에서 관리합니다.",
   codebuddyCheckSetup: "CodeBuddy CLI를 설치하고 터미널에서 로그인하세요.",
   title: "실행 엔진",
   auto: "자동",

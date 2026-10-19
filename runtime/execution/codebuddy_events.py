@@ -4,12 +4,27 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
 
 class CodeBuddyError(RuntimeError):
     """An engine failure safe to display without raw upstream output."""
+
+
+def failure_message(detail: str) -> str:
+    """Classify failures into fixed copy; raw provider output may contain secrets."""
+    detail = detail.lower()
+    if any(term in detail for term in ("no available channel", "model_not_found", "unknown model")):
+        return "CodeBuddy 当前接口无法调用所选模型，请选择 CLI 默认模型或检查模型配置。"
+    if re.search(r"\b401\b|unauthorized|invalid.api.key|authentication", detail):
+        return "CodeBuddy 官方账号验证失败，请在官方 CLI 使用 /login 登录中国站后重试。"
+    if any(term in detail for term in ("insufficient", "quota exceeded", "credit balance")):
+        return "CodeBuddy 当前接口额度不足，请检查该接口的余额或配额。"
+    if re.search(r"\b429\b|rate.limit", detail):
+        return "CodeBuddy 当前接口请求过于频繁，请稍后重试。"
+    return "CodeBuddy 执行失败，请检查当前接口和模型配置后重试。"
 
 
 @dataclass
@@ -69,6 +84,8 @@ class CodeBuddyEvents:
             text = "".join(
                 str(block.get("text") or "") for block in content if block.get("type") == "text"
             )
+            if envelope.get("isApiErrorMessage"):
+                raise CodeBuddyError(failure_message(text))
             old = self.snapshots.get(identity, "") if identity else ""
             if not text.startswith(old):
                 raise CodeBuddyError("CodeBuddy 回答快照不一致。")
@@ -116,7 +133,8 @@ class CodeBuddyEvents:
 
     def _result(self, message: dict[str, Any]) -> list[dict[str, Any]]:
         if message.get("is_error") or message.get("subtype") != "success":
-            raise CodeBuddyError("CodeBuddy 未完成本次任务，请检查登录、积分或模型设置。")
+            detail = json.dumps(message, ensure_ascii=False) + self.text
+            raise CodeBuddyError(failure_message(detail))
         if self.tools.keys() - self.ended:
             raise CodeBuddyError("CodeBuddy 仍有未完成的工具调用，本轮未完成。")
         events = []

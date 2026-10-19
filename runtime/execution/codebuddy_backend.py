@@ -70,7 +70,7 @@ def inspect_readiness(scope: Any = None) -> dict[str, Any]:
         "reason_code": None,
         "reason": None,
         "authentication": "cli_managed",
-        "billing": "cli_configuration",
+        "billing": "codebuddy_official",
     }
 
 
@@ -96,7 +96,11 @@ def model_catalog() -> list[str]:
     if not inspect_readiness()["available"] or not (binary := executable()):
         return []
     try:
-        return list(_models(binary, Path(binary).stat().st_mtime))
+        return [
+            model
+            for model in _models(binary, Path(binary).stat().st_mtime)
+            if not model.startswith("custom-local:")
+        ]
     except OSError:
         return []
 
@@ -109,31 +113,32 @@ def resolve_model(selection: str | None) -> str:
     model = selection.removeprefix("codebuddy/")
     if not model or model.startswith("-") or len(model) > 160 or any(c.isspace() for c in model):
         raise CodeBuddyError("CodeBuddy 模型名称无效。")
+    if model.startswith("custom-local:"):
+        raise CodeBuddyError("Echo 的 CodeBuddy 引擎使用官方积分通道，请选择官方模型。")
     return model
 
 
 def child_environment() -> dict[str, str]:
     env = dict(os.environ)
-    # Read only the official user's authentication/model environment. Loading
-    # all settings would also activate arbitrary hooks and plugins. Keep the
-    # credentials in the child environment, never in argv, traces or responses.
-    config_root = Path(env.get("CODEBUDDY_CONFIG_DIR") or Path.home() / ".codebuddy")
-    allowed = {
+    # Echo uses the Chinese official account/credits. Never inherit custom API
+    # credentials, endpoint overrides, or model routing from a shell or settings.
+    for name in (
         "CODEBUDDY_API_KEY",
+        "CODEBUDDY_AUTH_TOKEN",
         "CODEBUDDY_BASE_URL",
         "CODEBUDDY_MODEL",
         "CODEBUDDY_BIG_SLOW_MODEL",
         "CODEBUDDY_SMALL_FAST_MODEL",
-    }
-    try:
-        settings = json.loads((config_root / "settings.json").read_text(encoding="utf-8-sig"))
-        configured = settings.get("env", {}) if isinstance(settings, dict) else {}
-        if isinstance(configured, dict):
-            for name in allowed:
-                if isinstance(configured.get(name), str) and name not in env:
-                    env[name] = configured[name]
-    except (OSError, ValueError):  # noqa: BLE001 — optional CLI-native login storage
-        pass
+        "CODEBUDDY_CODE_SUBAGENT_MODEL",
+        "CODEBUDDY_CUSTOM_HEADERS",
+        "CODEBUDDY_RESOURCE_BASE_URL",
+        "ACC_PRODUCT_CONFIG_PATH",
+        "ACC_PRODUCT_CONFIG",
+        "ACC_PRODUCT_CONFIG_V2",
+        "ACC_PRODUCT_CONFIG_V3",
+    ):
+        env.pop(name, None)
+    env["CODEBUDDY_INTERNET_ENVIRONMENT"] = "internal"
     # Keep the official CLI's login flow and credential storage; do not extract
     # tokens or emulate the provider's private model API.
     for name in ("CODEBUDDY_PLUGIN_DIRS", "NODE_OPTIONS", "NODE_PATH"):
@@ -219,8 +224,10 @@ async def stream_prompt(
             str(config_path),
             "--permission-mode",
             "dontAsk",
+            # Empty means DEFAULT scopes in the official CLI, not no scopes.
+            # Only a nonexistent local file in this fresh temp cwd is allowed.
             "--setting-sources",
-            "",
+            "local",
             "--settings",
             json.dumps({"disableAllHooks": True, "enabledPlugins": {}}),
             "--system-prompt-file",
