@@ -376,6 +376,7 @@ export interface ModelPickerProps {
   showAutoOption?: boolean;
   footer?: ReactNode;
   header?: ReactNode;
+  emptyMessage?: ReactNode;
   disabled?: boolean;
   engineSource?: "opencode";
   open?: boolean;
@@ -395,6 +396,7 @@ export function ModelPicker({
   showAutoOption = true,
   footer,
   header,
+  emptyMessage,
   disabled,
   engineSource,
   open: controlledOpen,
@@ -854,13 +856,13 @@ export function ModelPicker({
               )
             ) : flatEntries.length === 0 ? (
               <div className="px-2 py-4 text-center text-ui text-muted-foreground">
-                {!engineSource
+                {emptyMessage ?? (!engineSource
                   ? t.modelPicker.noCustomModels
                   : openCodeSource === "custom"
                     ? t.modelPicker.noCustomModels
                     : openCodeSource === "opencode-go"
                       ? t.modelPicker.openCodeGoEmpty
-                      : t.modelPicker.openCodeZenEmpty}
+                      : t.modelPicker.openCodeZenEmpty)}
                 {engineSource && openCodeSource !== "custom" && (
                   <button
                     type="button"

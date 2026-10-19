@@ -69,8 +69,19 @@ export function useExecutionEngine({
   }));
   useEffect(() => {
     const changed = (event: Event) => {
-      const detail = (event as CustomEvent<{ principal: string; engine: string }>).detail;
-      if (detail?.principal === principal) setLastChoice({ key: lastChoiceKey, value: readPreference(lastChoiceKey) });
+      if (!(event instanceof CustomEvent)) return;
+      const detail: unknown = event.detail;
+      if (
+        typeof detail !== "object" ||
+        detail === null ||
+        !("principal" in detail)
+      )
+        return;
+      if (detail?.principal === principal)
+        setLastChoice({
+          key: lastChoiceKey,
+          value: readPreference(lastChoiceKey),
+        });
     };
     window.addEventListener(DEFAULT_MODEL_ROUTE_EVENT, changed);
     return () => window.removeEventListener(DEFAULT_MODEL_ROUTE_EVENT, changed);
@@ -106,8 +117,11 @@ export function useExecutionEngine({
   const codebuddy = useQuery({
     queryKey: ["codebuddy-status", principal],
     queryFn: async ({ signal }) =>
-      parseCodeBuddyStatus(await apiGet("/api/config/codebuddy/status", { signal })),
-    enabled, staleTime: 30_000,
+      parseCodeBuddyStatus(
+        await apiGet("/api/config/codebuddy/status", { signal }),
+      ),
+    enabled,
+    staleTime: 30_000,
   });
   const profile = useQuery({
     queryKey: coderQueryKeys(principal).profile,
@@ -123,7 +137,11 @@ export function useExecutionEngine({
   const opencodeHasModel = opencodeServesSelection(catalog.models, modelName);
   const codexAvailable = profile.data?.execution_available === true;
   const readiness: EngineReadiness = {
-    known: opencode.isSuccess && !profile.isPending && !codebuddy.isPending && catalogKnown,
+    known:
+      opencode.isSuccess &&
+      !profile.isPending &&
+      !codebuddy.isPending &&
+      catalogKnown,
     opencodeMissing,
     opencodeReady: opencode.data?.available === true && opencodeHasModel,
     codexReady: codexAvailable,
@@ -194,12 +212,17 @@ export function useExecutionEngine({
     engine,
     /** Whether the engine this conversation runs on can answer; null while
      * that is still being checked, false when it could not be checked. */
-    engineReady: engine === "codebuddy" ? (codebuddy.isPending ? null : codebuddy.data?.available === true) : readiness.known
-      ? canAnswerOn(engine, readiness)
-      : enabled &&
-          (opencode.isPending || profile.isPending || catalog.isLoading)
-        ? null
-        : false,
+    engineReady:
+      engine === "codebuddy"
+        ? codebuddy.isPending
+          ? null
+          : codebuddy.data?.available === true
+        : readiness.known
+          ? canAnswerOn(engine, readiness)
+          : enabled &&
+              (opencode.isPending || profile.isPending || catalog.isLoading)
+            ? null
+            : false,
     codebuddyAvailable: codebuddy.data?.available === true,
     codebuddyUnavailableReason: codebuddy.data?.reason ?? null,
     codebuddyCapabilityChecks: codebuddy.data?.capability_checks,
@@ -212,7 +235,10 @@ export function useExecutionEngine({
     opencodeAvailable: opencode.data?.available === true,
     opencodeUnavailableReason: opencode.data?.reason ?? null,
     /** Readiness is still loading — not a failure, so nothing is flagged yet. */
-    engineChecking: profile.isPending || opencode.isPending || (engine === "codebuddy" && codebuddy.isPending),
+    engineChecking:
+      profile.isPending ||
+      opencode.isPending ||
+      (engine === "codebuddy" && codebuddy.isPending),
     codexUnavailableReason:
       profile.data?.execution_unavailable_reason ??
       (profile.isError

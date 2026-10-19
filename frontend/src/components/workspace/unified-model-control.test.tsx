@@ -80,6 +80,14 @@ it("selects an official model and binds CodeBuddy without touching the Codex pro
     />,
   );
   await user.click(screen.getByTestId("unified-model-trigger"));
+  expect(screen.queryByRole("button", { name: /^(All|全部)$/ })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Echo", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(screen.queryByText("hy3")).toBeNull();
+  await user.click(
+    screen.getByRole("button", { name: "CodeBuddy", exact: true }),
+  );
   await user.click(await screen.findByText("hy3"));
   await waitFor(() => expect(onChange).toHaveBeenCalledWith("codebuddy/hy3"));
   expect(onEngineChange).toHaveBeenCalledWith("codebuddy");
@@ -101,6 +109,7 @@ it("publishes a Codex switch only after its server profile is saved", async () =
     />,
   );
   await user.click(screen.getByTestId("unified-model-trigger"));
+  await user.click(screen.getByRole("button", { name: "Codex", exact: true }));
   await user.click(await screen.findByText("GPT test"));
   await waitFor(() =>
     expect(api.save).toHaveBeenCalledWith({
@@ -111,7 +120,28 @@ it("publishes a Codex switch only after its server profile is saved", async () =
   expect(onEngineChange).not.toHaveBeenCalled();
   expect(onChange).not.toHaveBeenCalled();
   await user.click(screen.getByTestId("unified-model-trigger"));
+  await user.click(screen.getByRole("button", { name: "Codex", exact: true }));
   await user.click(await screen.findByText("GPT test"));
   await waitFor(() => expect(onEngineChange).toHaveBeenCalledWith("codex"));
   expect(onChange).toHaveBeenCalledWith("gpt-test");
+});
+
+it("describes an empty official catalog without calling it a custom-model list", async () => {
+  api.get.mockResolvedValue({ models: [] });
+  const user = userEvent.setup();
+  renderWithProviders(
+    <UnifiedModelControl engine="echo" models={[]} onEngineChange={vi.fn()} />,
+  );
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  await user.click(
+    screen.getByRole("button", { name: "CodeBuddy", exact: true }),
+  );
+  expect(
+    await screen.findByText(
+      /Could not load CodeBuddy official models|未能读取 CodeBuddy 官方模型/,
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/No custom models|没有自定义模型/),
+  ).not.toBeInTheDocument();
 });

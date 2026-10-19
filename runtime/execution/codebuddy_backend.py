@@ -87,9 +87,16 @@ def _models(binary: str, modified: float) -> tuple[str, ...]:
             **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}),
         )
         match = re.search(r"Currently supported:\s*\(([^)]+)\)", result.stdout)
-        return tuple(item.strip() for item in match[1].split(",") if item.strip()) if match else ()
-    except (OSError, subprocess.SubprocessError, CodeBuddyError):
-        return ()
+        models = (
+            tuple(item.strip() for item in match[1].split(",") if item.strip()) if match else ()
+        )
+        if result.returncode != 0 or not models:
+            raise CodeBuddyError("无法读取 CodeBuddy 官方模型列表，请重试。")
+        return models
+    except (OSError, subprocess.SubprocessError) as exc:
+        # lru_cache must retain successful discovery only. Caching () would make
+        # a temporary startup/timeout failure persist until the backend restarts.
+        raise CodeBuddyError("无法读取 CodeBuddy 官方模型列表，请重试。") from exc
 
 
 def model_catalog() -> list[str]:
@@ -101,7 +108,7 @@ def model_catalog() -> list[str]:
             for model in _models(binary, Path(binary).stat().st_mtime)
             if not model.startswith("custom-local:")
         ]
-    except OSError:
+    except (OSError, CodeBuddyError):
         return []
 
 

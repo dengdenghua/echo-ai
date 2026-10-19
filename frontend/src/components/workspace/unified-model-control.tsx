@@ -12,6 +12,11 @@ import {
   updateCoderModelProfile,
 } from "@/core/coder/api";
 import { useI18n } from "@/core/i18n/hooks";
+import { modelSourceCopy } from "@/core/i18n/locales/model-sources";
+import {
+  isReasoningEffort,
+  parseReasoningEffort,
+} from "@/core/threads/reasoning-effort";
 import type { ReasoningEffort } from "@/core/threads";
 import { rememberDefaultModelRoute } from "@/core/realtime/default-model-route";
 import { useAuth } from "@/providers/AuthProvider";
@@ -54,32 +59,12 @@ export function UnifiedModelControl({
   showManageLink?: boolean;
 }) {
   const { locale, t } = useI18n();
-  const copy = locale.startsWith("zh")
-    ? {
-        official: "CodeBuddy 官方积分",
-        subscription: "Codex 订阅",
-        api: "Codex API",
-        manage: "管理模型与账号",
-        failed: "保存模型选择失败，请重试",
-        loading: "正在读取模型",
-        unavailable: "部分模型来源暂不可用",
-        default: "默认模型",
-      }
-    : {
-        official: "CodeBuddy credits",
-        subscription: "Codex subscription",
-        api: "Codex API",
-        manage: "Manage models and accounts",
-        failed: "Could not save this selection. Retry.",
-        loading: "Loading models",
-        unavailable: "Some model sources are unavailable",
-        default: "Default model",
-      };
+  const copy = modelSourceCopy(locale);
   const { user, isLoading: authLoading } = useAuth();
   const keys = coderQueryKeys(user?.actor_id || user?.user_id || "local");
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<ModelEngine | "all">("all");
+  const [sourceFilter, setSourceFilter] = useState<ModelEngine>(engine);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -131,7 +116,7 @@ export function UnifiedModelControl({
         {
           name: model.id,
           display_name: model.display_name || model.id,
-          reasoning_efforts: model.reasoning_efforts as ReasoningEffort[],
+          reasoning_efforts: model.reasoning_efforts.filter(isReasoningEffort),
         },
         account.data?.account?.type === "apiKey" ? copy.api : copy.subscription,
       ),
@@ -242,25 +227,31 @@ export function UnifiedModelControl({
   const pending = disabled || save.isPending || effort.isPending;
   return (
     <ModelPicker
-      models={
-        sourceFilter === "all"
-          ? catalog
-          : catalog.filter((model) => model.executionEngine === sourceFilter)
-      }
+      models={catalog.filter((model) => model.executionEngine === sourceFilter)}
       value={selectedValue}
       onChange={(selection) => save.mutate(selection)}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) setSourceFilter(engine);
+        setOpen(nextOpen);
+      }}
       showSources
       showAutoOption={false}
       showSettingsLink={false}
+      emptyMessage={
+        sourceFilter === "codebuddy"
+          ? codebuddy.isFetching
+            ? copy.loading
+            : copy.codebuddyEmpty
+          : copy.noModels
+      }
       disabled={pending}
       header={
         <div
-          aria-label={locale.startsWith("zh") ? "模型来源" : "Model source"}
+          aria-label={copy.modelSourceLabel}
           className="mb-1 flex items-center justify-between gap-2 border-b border-border-subtle px-1"
         >
-          {(["all", "codebuddy", "codex", "opencode", "echo"] as const).map(
+          {(["codebuddy", "codex", "opencode", "echo"] as const).map(
             (source) => (
               <button
                 key={source}
@@ -269,17 +260,13 @@ export function UnifiedModelControl({
                 onClick={() => setSourceFilter(source)}
                 className={`-mb-px h-8 shrink-0 whitespace-nowrap border-b-2 px-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${sourceFilter === source ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
               >
-                {source === "all"
-                  ? locale.startsWith("zh")
-                    ? "全部"
-                    : "All"
-                  : source === "echo"
-                    ? "Echo"
-                    : source === "codebuddy"
-                      ? "CodeBuddy"
-                      : source === "codex"
-                        ? "Codex"
-                        : "OpenCode"}
+                {source === "echo"
+                  ? "Echo"
+                  : source === "codebuddy"
+                    ? "CodeBuddy"
+                    : source === "codex"
+                      ? "Codex"
+                      : "OpenCode"}
               </button>
             ),
           )}
@@ -287,7 +274,7 @@ export function UnifiedModelControl({
       }
       reasoningEffort={
         engine === "codex"
-          ? (profile.data?.reasoning_effort as ReasoningEffort | undefined)
+          ? parseReasoningEffort(profile.data?.reasoning_effort)
           : reasoningEffort
       }
       reasoningEffortDisabled={pending}

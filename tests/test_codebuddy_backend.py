@@ -3,6 +3,7 @@
 import asyncio
 import json
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -123,6 +124,35 @@ def test_official_catalog_excludes_custom_models_and_never_falls_back(monkeypatc
     assert backend.model_catalog() == ["deepseek-v4.1-flash"]
     with pytest.raises(CodeBuddyError, match="官方积分通道"):
         backend.resolve_model("codebuddy/custom-local:claude")
+
+
+@pytest.mark.parametrize("failure", ["timeout", "empty", "nonzero"])
+def test_model_discovery_retries_transient_failures_without_caching_empty(monkeypatch, failure):
+    backend._models.cache_clear()
+    monkeypatch.setattr(backend, "inspect_readiness", lambda: {"available": True})
+    monkeypatch.setattr(backend, "executable", lambda: sys.executable)
+    monkeypatch.setattr(backend, "command", lambda binary: [binary])
+    calls = []
+
+    def discover(*args, **kwargs):
+        calls.append(args)
+        if len(calls) == 1:
+            if failure == "timeout":
+                raise backend.subprocess.TimeoutExpired("codebuddy --help", 10)
+            return SimpleNamespace(
+                stdout="" if failure == "empty" else "Currently supported: (hy3)",
+                returncode=1 if failure == "nonzero" else 0,
+            )
+        return SimpleNamespace(stdout="Currently supported: (hy3, glm-5.3)", returncode=0)
+
+    monkeypatch.setattr(backend.subprocess, "run", discover)
+    try:
+        assert backend.model_catalog() == []
+        assert backend.model_catalog() == ["hy3", "glm-5.3"]
+        assert backend.model_catalog() == ["hy3", "glm-5.3"]
+        assert len(calls) == 2
+    finally:
+        backend._models.cache_clear()
 
 
 @pytest.mark.parametrize(

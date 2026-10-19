@@ -13,6 +13,7 @@ import { swallow } from "@/core/utils/log";
 import { authHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
+import { modelSourceCopy } from "@/core/i18n/locales/model-sources";
 import { modelSettingsPageCopy } from "@/core/i18n/locales/model-settings";
 import {
   clearThreadModelReferences,
@@ -696,7 +697,7 @@ export default function ModelSettingsPage() {
       <ModelSharingSettings onConnected={fetchModels} />
 
       <AdvancedDisclosure id="model-settings-codebuddy" title="CodeBuddy"
-        description={locale.startsWith("zh") ? "官方账号授权与积分用量" : "Official account authorization and credits"}
+        description={modelSourceCopy(locale).codebuddySettingsDescription}
         open={codebuddyOpen} onOpenChange={setCodebuddyOpen}>
         <CodeBuddyConnection />
       </AdvancedDisclosure>
