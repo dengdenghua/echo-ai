@@ -69,6 +69,21 @@ export function CodexIcon({ className }: { className?: string }) {
   );
 }
 
+/** Official mark from codebuddy.cn's favicon asset; see brands/README.md. */
+export function CodeBuddyIcon({ className }: { className?: string }) {
+  return (
+    <img
+      src="/brands/codebuddy.svg"
+      width={40}
+      height={40}
+      alt=""
+      aria-hidden="true"
+      data-testid="codebuddy-logo"
+      className={className}
+    />
+  );
+}
+
 export function ExecutionEnginePicker({
   value,
   resolvedEngine,
@@ -180,6 +195,8 @@ export function ExecutionEnginePicker({
         >
           {visibleEngine === "opencode" ? (
             <OpenCodeIcon className="size-3.5 shrink-0" />
+          ) : visibleEngine === "codebuddy" ? (
+            <CodeBuddyIcon className="size-4 shrink-0" />
           ) : visibleEngine === "codex" ? (
             <CodexIcon className="size-3.5 shrink-0" />
           ) : (
@@ -245,7 +262,7 @@ export function ExecutionEnginePicker({
               ) : engine === "opencode" ? (
                 <OpenCodeIcon className="mt-0.5 size-4 shrink-0" />
               ) : engine === "codebuddy" ? (
-                <SparklesIcon className="mt-0.5 size-4 shrink-0" />
+                <CodeBuddyIcon className="mt-0.5 size-4 shrink-0" />
               ) : (
                 <CodexIcon className="mt-0.5 size-4 shrink-0" />
               )}
@@ -297,6 +314,8 @@ export function ExecutionEngineBadge({ engine }: { engine: unknown }) {
   const Icon =
     engine === "opencode"
       ? OpenCodeIcon
+      : engine === "codebuddy"
+        ? CodeBuddyIcon
       : engine === "codex"
         ? CodexIcon
         : SparklesIcon;
