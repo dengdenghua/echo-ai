@@ -22,6 +22,9 @@ const {
   systemPreferences,
   webContents,
 } = require("electron");
+if (app.isPackaged) {
+  require("./desktop-logging.cjs").installDesktopLogging(app.getPath("userData"));
+}
 const fs = require("fs");
 const fsp = require("fs/promises");
 const os = require("os");
@@ -2150,6 +2153,7 @@ function openDesktopAuxiliaryWindow(rawURL, windowName = "echo-app") {
 function createMainWindow() {
   const useBuiltRenderer = app.isPackaged || BUILT_RENDERER_SMOKE;
   const win = new BrowserWindow({
+    icon: path.join(__dirname, "..", "dist", "favicon.ico"),
     width: 1440,
     height: 900,
     minWidth: 960,

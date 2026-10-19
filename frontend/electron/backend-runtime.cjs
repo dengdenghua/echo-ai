@@ -742,11 +742,19 @@ async function spawnBackend(configPath, onProgress) {
         "--port",
         backendPort(),
       ];
-  const child = spawn(executable, args, {
-    stdio: "inherit",
-    env,
-    windowsHide: true,
-  });
+  const logFd = packaged
+    ? require("./desktop-logging.cjs").openDesktopLog(app.getPath("userData"), "backend.log")
+    : null;
+  let child;
+  try {
+    child = spawn(executable, args, {
+      stdio: packaged ? ["ignore", logFd, logFd] : "inherit",
+      env,
+      windowsHide: true,
+    });
+  } finally {
+    if (logFd !== null) fs.closeSync(logFd);
+  }
   backendChild = child;
   child.on("exit", (code, signal) => {
     console.warn(

@@ -18,6 +18,7 @@
 
 appId: ai.echo.desktop
 productName: Echo
+icon: ../packaging/desktop/icon.png
 copyright: Echo · EchoOS
 compression: maximum
 
@@ -92,6 +93,7 @@ mac:
       to: backend/echo-backend
 
 win:
+  icon: ../packaging/desktop/icon.ico
   target:
     - nsis
   # Release builds are invalid without Authenticode. electron-builder obtains
