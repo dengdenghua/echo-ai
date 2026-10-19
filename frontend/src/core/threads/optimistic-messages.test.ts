@@ -39,6 +39,59 @@ function serverHuman(
 }
 
 describe("optimistic realtime message reconciliation", () => {
+  it("keeps a failed send above later replies and a successful retry", () => {
+    const failed = pending({
+      afterMessageId: "answer-1",
+      deliveryState: "failed",
+    });
+    const history: Message[] = [
+      serverHuman("original", "start"),
+      { id: "answer-1", type: "ai", content: "First answer" },
+      serverHuman("retry", "continue"),
+      { id: "answer-2", type: "ai", content: "Retry answer" },
+    ];
+    expect(
+      mergeOptimisticHumanMessages(history, [failed]).map((m) => m.id),
+    ).toEqual([
+      "original",
+      "answer-1",
+      failed.clientMessageId,
+      "retry",
+      "answer-2",
+    ]);
+  });
+
+  it("keeps failures from an empty conversation before new server messages", () => {
+    const failed = pending({ afterMessageId: null, deliveryState: "failed" });
+    const later = serverHuman("later", "try again");
+    expect(
+      mergeOptimisticHumanMessages([later], [failed]).map((m) => m.id),
+    ).toEqual([failed.clientMessageId, "later"]);
+  });
+
+  it("preserves multiple failures at the same position and removes only the acknowledged retry", () => {
+    const first = pending({
+      afterMessageId: "original",
+      deliveryState: "failed",
+    });
+    const second = pending({
+      afterMessageId: "original",
+      clientMessageId: "second",
+      deliveryState: "failed",
+    });
+    const history: Message[] = [
+      serverHuman("original", "start"),
+      { id: "answer", type: "ai", content: "Later output" },
+    ];
+    expect(
+      mergeOptimisticHumanMessages(history, [first, second]).map((m) => m.id),
+    ).toEqual(["original", first.clientMessageId, "second", "answer"]);
+    history.push(serverHuman(first.clientMessageId, first.displayText));
+    expect(
+      mergeOptimisticHumanMessages(history, [first, second]).map((m) => m.id),
+    ).toEqual(["original", "second", "answer", first.clientMessageId]);
+  });
+
   it("shows an outbound message before the server receipt exists", () => {
     const outbound = pending();
     const state = optimisticMessageReducer([], {

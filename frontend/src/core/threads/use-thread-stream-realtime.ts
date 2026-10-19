@@ -1933,6 +1933,7 @@ export function useThreadStreamRealtime(
         message: { text: rawText, files },
         displayText,
         createdAt: new Date().toISOString(),
+        afterMessageId: mapped.messages.at(-1)?.id ?? null,
         deliveryState: transportReady ? "sending" : "queued",
       };
       const currentPending = pendingOutboundRef.current;
@@ -1988,6 +1989,7 @@ export function useThreadStreamRealtime(
       threadId,
       transportReady,
       updateOptimisticMessages,
+      mapped.messages,
     ],
   );
 

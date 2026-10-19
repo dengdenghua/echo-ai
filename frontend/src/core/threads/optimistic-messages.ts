@@ -14,6 +14,8 @@ export interface PendingOutboundMessage {
   message: PromptInputMessage;
   displayText: string;
   createdAt: string;
+  /** Last server message visible at send time; null means before the first. */
+  afterMessageId?: string | null;
   deliveryState: OutboundDeliveryState;
   error?: string;
 }
@@ -161,12 +163,33 @@ export function mergeOptimisticHumanMessages(
 ): Message[] {
   if (pendingMessages.length === 0) return serverMessages;
   const acknowledged = acknowledgedClientMessageIds(serverMessages);
-  const optimistic = pendingMessages
-    .filter((pending) => !acknowledged.has(pending.clientMessageId))
-    .map(pendingOutboundToHumanMessage);
-  return optimistic.length === 0
-    ? serverMessages
-    : [...serverMessages, ...optimistic];
+  const pending = pendingMessages.filter(
+    (message) => !acknowledged.has(message.clientMessageId),
+  );
+  if (pending.length === 0) return serverMessages;
+  // Failed sends are local history too. Appending them on every update made
+  // old errors follow the newest answer forever, even after a later retry.
+  const positions = new Map(
+    serverMessages.map((message, index) => [message.id, index]),
+  );
+  const slots = new Map<number, Message[]>();
+  for (const message of pending) {
+    const anchor = message.afterMessageId;
+    const position =
+      anchor === null
+        ? 0
+        : anchor === undefined
+          ? serverMessages.length
+          : (positions.get(anchor) ?? -1) + 1;
+    const slot = slots.get(position) ?? [];
+    slot.push(pendingOutboundToHumanMessage(message));
+    slots.set(position, slot);
+  }
+  const merged: Message[] = [...(slots.get(0) ?? [])];
+  serverMessages.forEach((message, index) => {
+    merged.push(message, ...(slots.get(index + 1) ?? []));
+  });
+  return merged;
 }
 
 export function newClientMessageId(candidate?: string): string {
