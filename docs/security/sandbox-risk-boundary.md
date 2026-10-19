@@ -19,9 +19,17 @@
 | `strict` | 强制硬后端；不可用则拒绝执行（fail closed） |
 | `bwrap` / `bubblewrap`（Linux） | 用户态命名空间/容器隔离 |
 | `seatbelt` / `sandbox-exec`（macOS） | Seatbelt 沙箱 |
-| Windows | Job Object 进程树生命周期约束；工作区与环境检查为软约束，无受限令牌隔离 |
+| `mxc` / `windows-mxc`（Windows） | 使用 Echo 校验安装的 Codex 引擎启动 MXC 内核隔离；不可用则拒绝执行 |
 
 商用/共享模式强制硬后端，且不能降级到 soft（`runtime/safety/sandboxing/sandbox.py`）。
+
+Windows 的 `auto` 优先探测 MXC。每次执行创建独立权限配置，只开放工作区、
+必要系统文件及指定运行时；网络按执行策略单独授权。引擎安装并不代表隔离可用，
+必须通过实际启动探测。验收测试额外验证工作区外读写及网络连接被拒绝。
+
+本地 `auto` 的进程隔离与宿主 CAD 控制插件是不同权限边界：Zemax、SolidWorks
+等插件需要访问宿主应用、安装目录和许可证服务；不能将这些宿主操作宣称为沙箱内执行。
+全局 `strict` 同时要求 stdio MCP 配置工作区，未配置时会拒绝连接。
 
 ## 何时提升到 strict
 

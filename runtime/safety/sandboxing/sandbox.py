@@ -51,6 +51,7 @@ from runtime.safety.sandboxing.sandbox_backends import (
     SandboxViolation,
     SeatbeltBackend,
 )
+from runtime.safety.sandboxing.windows_mxc import WindowsMXCBackend
 
 _logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ _BASE_ALLOWED_ENV = (
     "TMP",
     "TMPDIR",
     "SystemRoot",
+    "WINDIR",
     "ComSpec",
     "PATHEXT",
 )
@@ -487,6 +489,8 @@ def process_sandbox_required() -> bool:
     raw = os.environ.get("ECHO_PROCESS_SANDBOX", "").strip().lower()
     return commercial_execution_mode() or raw in {
         "strict",
+        "mxc",
+        "windows-mxc",
         "bwrap",
         "bubblewrap",
         "seatbelt",
@@ -501,7 +505,15 @@ def effective_process_sandbox_mode() -> str:
     if commercial_execution_mode():
         # A commercial deployment may select a specific hard backend, but
         # cannot downgrade itself to ``soft``/``direct``/``auto``.
-        if raw in {"bwrap", "bubblewrap", "seatbelt", "sandbox-exec", "strict"}:
+        if raw in {
+            "bwrap",
+            "bubblewrap",
+            "seatbelt",
+            "sandbox-exec",
+            "strict",
+            "mxc",
+            "windows-mxc",
+        }:
             return raw
         return "strict"
     return raw or "auto"
@@ -537,6 +549,10 @@ def select_process_backend(mode: str | None = None) -> BackendChoice:
             "seatbelt sandbox requested but sandbox-exec is not available on this host"
         )
 
+    if raw in {"mxc", "windows-mxc"}:
+        if WindowsMXCBackend.available():
+            return BackendChoice(WindowsMXCBackend(), "windows-mxc", hard=True, strict=True)
+        raise SandboxViolation("Windows MXC needs Echo's verified Codex engine")
     if raw == "landlock":
         if LandlockBackend.available():
             return BackendChoice(LandlockBackend(), "landlock", hard=True, strict=True)
@@ -546,6 +562,8 @@ def select_process_backend(mode: str | None = None) -> BackendChoice:
 
     if raw in {"auto", "strict"}:
         strict = raw == "strict"
+        if sys.platform == "win32" and WindowsMXCBackend.available():
+            return BackendChoice(WindowsMXCBackend(), "windows-mxc", hard=True, strict=strict)
         if sys.platform.startswith("linux") and BubblewrapBackend.available():
             return BackendChoice(BubblewrapBackend(), "bwrap", hard=True, strict=strict)
         if sys.platform.startswith("linux") and LandlockBackend.available():
@@ -578,8 +596,7 @@ def _warn_soft_fallback_once() -> None:
     Before this existed the fallback was silent: on a Linux host without
     ``bwrap`` every agent command ran with soft constraints only, and
     the only way to notice was reading the execution-policy metadata.
-    Windows has no hard backend yet, so the warning there points at the
-    tracking gap rather than an install hint.
+    Windows requires a verified Codex engine and a working MXC runtime.
     """
     global _soft_fallback_warned
     with _soft_fallback_warn_lock:
@@ -590,6 +607,8 @@ def _warn_soft_fallback_once() -> None:
         hint = "install bubblewrap (bwrap) for kernel-level isolation"
     elif sys.platform == "darwin":
         hint = "sandbox-exec is unavailable on this host"
+    elif sys.platform == "win32":
+        hint = "install Echo's verified Codex engine on a Windows host supporting MXC"
     else:
         hint = "no hard sandbox backend exists for this platform yet"
     _logger.warning(
@@ -605,7 +624,7 @@ def _warn_soft_fallback_once() -> None:
 # remains available for embedders; a PATH-shadowed CLI must not be the probe.
 
 _PROBE_COMMAND = (
-    (sys.executable, "-c", "pass")
+    (str(Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32" / "whoami.exe"),)
     if os.name == "nt"
     else (shutil.which("echo", path=os.defpath) or "/bin/echo", "echo-sandbox-probe")
 )
@@ -629,6 +648,8 @@ class ProcessSandboxPosture:
 
 def _hard_backend_candidates(mode: str) -> list[tuple[Backend, str]]:
     """Priority-ordered (backend, name) hard candidates for ``mode``."""
+    if mode in {"mxc", "windows-mxc"}:
+        return [(WindowsMXCBackend(), "windows-mxc")]
     if mode in {"bwrap", "bubblewrap"}:
         return [(BubblewrapBackend(), "bwrap")]
     if mode in {"seatbelt", "sandbox-exec"}:
@@ -637,6 +658,8 @@ def _hard_backend_candidates(mode: str) -> list[tuple[Backend, str]]:
         return [(LandlockBackend(), "landlock")]
     # auto / strict
     out: list[tuple[Backend, str]] = []
+    if sys.platform == "win32":
+        out.append((WindowsMXCBackend(), "windows-mxc"))
     if sys.platform.startswith("linux"):
         out.append((BubblewrapBackend(), "bwrap"))
         out.append((LandlockBackend(), "landlock"))
@@ -729,6 +752,8 @@ def resolve_process_backend(mode: str | None = None) -> BackendChoice:
     if raw not in {
         "auto",
         "strict",
+        "mxc",
+        "windows-mxc",
         "bwrap",
         "bubblewrap",
         "seatbelt",
@@ -753,7 +778,8 @@ def resolve_process_backend(mode: str | None = None) -> BackendChoice:
 
     raise SandboxViolation(
         f"process sandbox mode '{raw}' has no usable hard backend "
-        "(install bwrap on Linux, rely on Landlock >= 5.13, use sandbox-exec "
+        "(install Echo's verified Codex engine for Windows MXC, install bwrap "
+        "on Linux, rely on Landlock >= 5.13, use sandbox-exec "
         "on macOS, or set ECHO_PROCESS_SANDBOX=auto to allow a soft fallback "
         "with an explicit warning)"
     )

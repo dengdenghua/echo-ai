@@ -62,6 +62,7 @@ def unavailable_hard_backends(monkeypatch):
         sandbox_module.BubblewrapBackend,
         sandbox_module.LandlockBackend,
         sandbox_module.SeatbeltBackend,
+        sandbox_module.WindowsMXCBackend,
     ):
         monkeypatch.setattr(backend, "available", staticmethod(lambda: False))
     _reset_process_backend_cache()

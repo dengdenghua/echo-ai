@@ -24,6 +24,7 @@ from runtime.safety.sandboxing.sandbox import (
     SandboxRunner,
     SandboxViolation,
     SeatbeltBackend,
+    WindowsMXCBackend,
     select_process_backend,
 )
 
@@ -404,6 +405,7 @@ class TestProcessBackendSelection:
         monkeypatch.setattr(BubblewrapBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(LandlockBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(SeatbeltBackend, "available", staticmethod(lambda: False))
+        monkeypatch.setattr(WindowsMXCBackend, "available", staticmethod(lambda: False))
 
         with pytest.raises(SandboxViolation):
             select_process_backend()
@@ -799,6 +801,7 @@ class TestLandlockSelection:
             lambda: True,
         )
         monkeypatch.setattr(SeatbeltBackend, "available", staticmethod(lambda: False))
+        monkeypatch.setattr(WindowsMXCBackend, "available", staticmethod(lambda: False))
         choice = select_process_backend()
         assert choice.name == "landlock"
 
@@ -850,6 +853,7 @@ class TestResolvedPosture:
         monkeypatch.setattr(BubblewrapBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(LandlockBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(SeatbeltBackend, "available", staticmethod(lambda: False))
+        monkeypatch.setattr(WindowsMXCBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(sandbox_mod, "probe_backend_runs", lambda _b: True)
 
         with pytest.raises(SandboxViolation, match="has no usable hard backend"):
@@ -871,6 +875,7 @@ class TestResolvedPosture:
         monkeypatch.setattr(BubblewrapBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(LandlockBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(SeatbeltBackend, "available", staticmethod(lambda: False))
+        monkeypatch.setattr(WindowsMXCBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(sandbox_mod, "probe_backend_runs", lambda _b: True)
 
         choice = resolve_process_backend()

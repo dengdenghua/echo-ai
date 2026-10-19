@@ -187,6 +187,8 @@ class ExecutionConfig(BaseModel):
 
     process_sandbox: Literal[
         "auto",
+        "mxc",
+        "windows-mxc",
         "soft",
         "direct",
         "off",

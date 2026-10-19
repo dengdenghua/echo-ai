@@ -19,6 +19,33 @@ from runtime.execution.engines import (
 from runtime.execution.host_mcp_connection import HostMCPConnection
 
 
+def test_tool_preview_unwraps_nested_mcp_content_before_truncating():
+    reducer = CodeBuddyEvents()
+    reducer.tools["t"] = "probe"
+    output = [
+        {
+            "type": "text",
+            "text": json.dumps(
+                [
+                    {
+                        "type": "text",
+                        "text": json.dumps({"stdout": "", "stderr": "文件不存在\n下一行"}),
+                    }
+                ]
+            ),
+        }
+    ]
+    events = reducer.consume(
+        {
+            "type": "user",
+            "message": {
+                "content": [{"type": "tool_result", "tool_use_id": "t", "content": output}]
+            },
+        }
+    )
+    assert events[0]["output_preview"] == "文件不存在\n下一行"
+
+
 def assistant(*content, identity="msg1"):
     return {"type": "assistant", "message": {"id": identity, "content": list(content)}}
 

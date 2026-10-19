@@ -1,3 +1,4 @@
+import { useViewportAwareLiveWindowHeight } from "./use-live-window-height";
 import { swallow } from "@/core/utils/log";
 import { builtinPersonaDisplayName } from "@/core/agents/persona-display";
 import { isAIMessage, type AIMessage, type Message } from "@/core/api/types";
@@ -11,7 +12,6 @@ import {
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -102,7 +102,11 @@ import {
   localizedAggregateVerb,
   stepEvidenceTab,
 } from "./process-step-display";
-import { ProcessStepDetail, stepDetailText } from "./process-step-detail";
+import {
+  ProcessStepDetail,
+  readableToolOutput,
+  stepDetailText,
+} from "./process-step-detail";
 import { formatProcessReplayLabel } from "./process-replay-label";
 
 const HIDDEN_TIMELINE_TOOL_NAMES = new Set([
@@ -463,59 +467,6 @@ export function getLiveStreamWindowHeight(naturalHeight: number): number {
 }
 
 /**
- * Let short live output occupy only its real content height, then cap long
- * output at the waterfall-window height. While the window is outside the
- * viewport (the reader is browsing history), freeze the last measured outer
- * height so new tokens cannot move historical content under the reader.
- */
-function useViewportAwareLiveWindowHeight(
-  ref: RefObject<HTMLDivElement | null>,
-  contentRef: RefObject<HTMLDivElement | null>,
-  trigger: string,
-): number | undefined {
-  const isVisibleRef = useRef(true);
-  const [height, setHeight] = useState<number>();
-
-  const measure = useCallback(() => {
-    const content = contentRef.current;
-    if (!content || !isVisibleRef.current) return;
-    // Measure an unconstrained inner node, not the scroll viewport itself.
-    // Once the viewport has reached its cap, its own scrollHeight can never
-    // fall below clientHeight. Reading it made a later shorter update inherit
-    // the old 128px height and leave a visible empty block below the text.
-    const naturalHeight = Math.ceil(content.scrollHeight);
-    if (naturalHeight < 1) return;
-    const nextHeight = getLiveStreamWindowHeight(naturalHeight);
-    setHeight((current) => (current === nextHeight ? current : nextHeight));
-  }, [contentRef]);
-
-  useLayoutEffect(() => {
-    measure();
-  }, [measure, trigger]);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(([entry]) => {
-      isVisibleRef.current = entry?.isIntersecting ?? true;
-      if (isVisibleRef.current) measure();
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [measure, ref]);
-
-  useEffect(() => {
-    const content = contentRef.current;
-    if (!content || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, [contentRef, measure]);
-
-  return height;
-}
-
-/**
  * Live typewriter window for the in-flight extended thinking.
  *
  * Reasoning can run for thousands of characters. Letting it grow in document
@@ -559,7 +510,7 @@ function LiveThinkingWindow({ text }: { text: string }) {
     <div
       ref={ref}
       onScroll={handleScroll}
-      className="live-thinking-window mt-1 ml-4 max-h-32 min-w-0 overflow-y-auto whitespace-pre-wrap border-l-2 border-foreground/15 bg-transparent px-1 pl-3 text-[13px] leading-6 text-muted-foreground"
+      className="live-thinking-window mt-1 ml-4 max-h-32 min-w-0 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere] border-l-2 border-foreground/15 bg-transparent px-1 pl-3 text-[13px] leading-6 text-muted-foreground"
       data-height-policy="inner-content-capped-history-frozen"
       data-testid="live-thinking-stream"
       style={{ height: windowHeight }}
@@ -600,6 +551,7 @@ function LiveExecWindow({ text }: { text: string }) {
     ref,
     contentRef,
     displayText,
+    224,
   );
 
   const handleScroll = () => {
@@ -613,7 +565,7 @@ function LiveExecWindow({ text }: { text: string }) {
     <div
       ref={ref}
       onScroll={handleScroll}
-      className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap border-l-2 border-foreground/15 bg-transparent px-1 pl-3 font-mono text-xs leading-6 text-muted-foreground/85"
+      className="ml-4 mt-1 min-w-0 max-w-full max-h-56 overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-r-md border-l-2 border-foreground/15 bg-muted/20 px-3 font-mono text-[13px] leading-6 text-foreground/85 [tab-size:4]"
       data-height-policy="inner-content-capped-history-frozen"
       data-testid="live-exec-stream"
       style={{ height: windowHeight }}
@@ -1213,10 +1165,12 @@ export function MessageGroup({
       // commandExecution.aggregatedOutput into tool_call.args.output).
       const liveExecOutput =
         step.type === "toolCall" && typeof step.args.output === "string"
-          ? step.args.output.trim()
+          ? readableToolOutput(step.args.output)
           : "";
       const stepDetail =
-        item.type === "toolCall" && step.type === "toolCall" ? stepDetailText(step) : null;
+        item.type === "toolCall" && step.type === "toolCall"
+          ? stepDetailText(step)
+          : null;
       // Show the typewriter output window only while the latest step is
       // actually running; once it settles the window folds back to the row.
       const liveExecStreamActive =
@@ -1244,8 +1198,7 @@ export function MessageGroup({
             { nested: true },
           ).filter(Boolean)
         : [];
-      const coveredItems =
-        compactExecutionCoverage.get(item.id) ?? [item];
+      const coveredItems = compactExecutionCoverage.get(item.id) ?? [item];
       const groupedTargetSummary =
         summarizeCompactExecutionTargets(coveredItems) ??
         (isAggregatedGroup
@@ -1575,8 +1528,14 @@ export function MessageGroup({
                 return;
               }
               // Its evidence is the trace this page does not show: open it here.
-              if (stepDetail && stepEvidenceTab(actionWorkbenchTab) === "agent") {
-                setExpandedThinkingRows((current) => ({ ...current, [item.id]: !current[item.id] }));
+              if (
+                stepDetail &&
+                stepEvidenceTab(actionWorkbenchTab) === "agent"
+              ) {
+                setExpandedThinkingRows((current) => ({
+                  ...current,
+                  [item.id]: !current[item.id],
+                }));
                 return;
               }
               activateTimelineItem(timelineItemLinkageId(item), "chat");
@@ -1857,7 +1816,8 @@ export function MessageGroup({
               </CollapsibleContent>
             </Collapsible>
           )}
-          {(item.type === "toolCall" || item.type === "aggregatedToolGroup") && (
+          {(item.type === "toolCall" ||
+            item.type === "aggregatedToolGroup") && (
             <Collapsible open={liveExecStreamActive}>
               <CollapsibleContent
                 className="overflow-hidden data-[state=open]:animate-[collapsible-down_150ms_ease-out] data-[state=closed]:animate-[collapsible-up_150ms_ease-out]"
@@ -1868,7 +1828,12 @@ export function MessageGroup({
             </Collapsible>
           )}
           {stepDetail && (
-            <Collapsible open={(expandedThinkingRows[item.id] ?? false) && !liveExecStreamActive}>
+            <Collapsible
+              open={
+                (expandedThinkingRows[item.id] ?? false) &&
+                !liveExecStreamActive
+              }
+            >
               <CollapsibleContent className="overflow-hidden data-[state=open]:animate-[collapsible-down_150ms_ease-out] data-[state=closed]:animate-[collapsible-up_150ms_ease-out]">
                 <ProcessStepDetail text={stepDetail} />
               </CollapsibleContent>
@@ -2654,9 +2619,7 @@ function summarizeCompactExecutionTargets(
   const targets = Array.from(
     new Set(
       items
-        .flatMap((item) =>
-          compactToolTargets(item.step),
-        )
+        .flatMap((item) => compactToolTargets(item.step))
         .filter((target): target is string => Boolean(target)),
     ),
   );
@@ -3136,7 +3099,8 @@ export function convertToSteps(messages: Message[]): CoTStep[] {
       // Empty output still acknowledges completion; truthiness of the text
       // cannot distinguish it from a tool that has not returned yet.
       step.resultReceived = messages.some(
-        (candidate) => candidate.type === "tool" && candidate.tool_call_id === toolCallId,
+        (candidate) =>
+          candidate.type === "tool" && candidate.tool_call_id === toolCallId,
       );
       const toolCallResult = findToolCallResult(toolCallId, messages);
       if (toolCallResult) {

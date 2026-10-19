@@ -1,8 +1,52 @@
 import { describe, expect, it } from "vitest";
 
-import { stepDetailText } from "./process-step-detail";
+import { readableToolOutput, stepDetailText } from "./process-step-detail";
 
 describe("stepDetailText", () => {
+  it("unwraps historical CodeBuddy Python-repr MCP envelopes without evaluation", () => {
+    const inner = JSON.stringify([
+      {
+        type: "text",
+        text: JSON.stringify({
+          stdout: "",
+          stderr: "系统找不到文件 OpticStudio.exe。\n",
+          sandbox_backend: "direct",
+        }),
+      },
+    ]);
+    const legacy =
+      "[{'type': 'text', 'text': '" +
+      inner.replace(/\\/g, "\\\\").replace(/'/g, "\\'") +
+      "'}]";
+    expect(readableToolOutput(legacy)).toBe("系统找不到文件 OpticStudio.exe。");
+  });
+  it("decodes JSON strings before displaying streamed code", () => {
+    const code = "def validate():\n    return 'ready'\n";
+    expect(readableToolOutput(JSON.stringify(JSON.stringify(code)))).toBe(
+      code.trim(),
+    );
+    expect(
+      readableToolOutput(
+        '{"path":"check.py","content":"def validate():\\n    return',
+      ),
+    ).toBe("def validate():\n    return");
+  });
+
+  it("keeps literal log escapes and Windows paths intact", () => {
+    expect(readableToolOutput(String.raw`C:\new\tools\test.py`)).toBe(
+      String.raw`C:\new\tools\test.py`,
+    );
+    expect(readableToolOutput(String.raw`pattern: \n\t`)).toBe(
+      String.raw`pattern: \n\t`,
+    );
+  });
+
+  it("buffers incomplete JSON escapes without flashing transport syntax", () => {
+    expect(readableToolOutput('{"content":"line\\nnext' + "\\")).toBe(
+      "line\nnext",
+    );
+    expect(readableToolOutput('{"content":"line\\u4e')).toBe("line");
+  });
   it("unwraps Codex's text items around the Echo tool result", () => {
     const result = JSON.stringify([
       {

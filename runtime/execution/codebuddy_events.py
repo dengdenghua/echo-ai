@@ -13,6 +13,29 @@ class CodeBuddyError(RuntimeError):
     """An engine failure safe to display without raw upstream output."""
 
 
+def tool_result_preview(value: Any, depth: int = 0) -> str:
+    """Unwrap text transports before bounding the user-visible preview."""
+    if depth > 8 or value is None:
+        return ""
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (ValueError, TypeError):
+            return value[:2000]
+        return tool_result_preview(parsed, depth + 1)
+    if isinstance(value, list):
+        return "\n".join(tool_result_preview(part, depth + 1) for part in value)[:2000]
+    if isinstance(value, dict):
+        parts = [
+            tool_result_preview(value[key], depth + 1)
+            for key in ("stdout", "stderr", "error", "output", "text", "content")
+            if key in value
+        ]
+        if parts:
+            return "\n".join(part for part in parts if part)[:2000]
+    return json.dumps(value, ensure_ascii=False, default=str)[:2000]
+
+
 def failure_message(detail: str) -> str:
     """Classify failures into fixed copy; raw provider output may contain secrets."""
     detail = detail.lower()
@@ -133,7 +156,7 @@ class CodeBuddyEvents:
                             "tool_call_id": call_id,
                             "success": success,
                             "status": "success" if success else "error",
-                            "output_preview": str(block.get("content") or "")[:2000],
+                            "output_preview": tool_result_preview(block.get("content")),
                         }
                     )
         return events
