@@ -71,8 +71,13 @@ class CodeBuddyEvents:
 
     def _message(self, envelope: dict[str, Any]) -> list[dict[str, Any]]:
         message = envelope.get("message") or {}
-        identity = str(message.get("id") or envelope.get("uuid") or "")
-        fingerprint = hashlib.sha256(json.dumps(message, sort_keys=True).encode()).hexdigest()
+        # The CLI emits separate content blocks with one shared message.id.
+        # Its envelope UUID identifies the block; message.id is only a fallback
+        # for producers that deliver cumulative message snapshots.
+        identity = str(envelope.get("uuid") or message.get("id") or "")
+        fingerprint = hashlib.sha256(
+            json.dumps([identity, message], sort_keys=True).encode()
+        ).hexdigest()
         if fingerprint in self.messages:
             return []
         self.messages.add(fingerprint)
@@ -87,10 +92,12 @@ class CodeBuddyEvents:
             if envelope.get("isApiErrorMessage"):
                 raise CodeBuddyError(failure_message(text))
             old = self.snapshots.get(identity, "") if identity else ""
-            if not text.startswith(old):
+            has_text = any(block.get("type") == "text" for block in content)
+            if has_text and not text.startswith(old):
                 raise CodeBuddyError("CodeBuddy 回答快照不一致。")
-            self.snapshots[identity] = text
-            novel = text[len(old) :]
+            if has_text:
+                self.snapshots[identity] = text
+            novel = text[len(old) :] if has_text else ""
             # A complete assistant snapshot repeats preceding stream deltas.
             if self.partial and novel:
                 if not novel.startswith(self.partial):

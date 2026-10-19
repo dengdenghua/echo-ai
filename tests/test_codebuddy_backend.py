@@ -43,6 +43,57 @@ def test_deltas_and_snapshot_are_not_duplicated_and_thoughts_stay_private():
     assert events[-1]["completion_receipt"]["model"] == "hy3"
 
 
+def test_official_block_envelopes_share_message_id_without_rewriting_text():
+    reducer = CodeBuddyEvents(tool_names={"mcp__echo__echo_probe": "probe"})
+    packets = [
+        assistant({"type": "thinking", "thinking": "private"}),
+        assistant({"type": "text", "text": "Checking."}),
+        assistant({"type": "tool_use", "id": "t", "name": "mcp__echo__echo_probe", "input": {}}),
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t"}]}},
+        assistant({"type": "text", "text": "Verified."}),
+    ]
+    events = []
+    for index, packet in enumerate(packets):
+        packet["uuid"] = f"block-{index}"
+        events.extend(reducer.consume(packet))
+        assert reducer.consume(packet) == []
+    events.extend(reducer.consume({"type": "result", "subtype": "success"}))
+    assert reducer.text == "Checking.Verified."
+    assert [event["type"] for event in events] == [
+        "text_delta",
+        "tool_start",
+        "tool_end",
+        "text_delta",
+        "react_completed",
+    ]
+
+
+def test_distinct_blocks_with_identical_text_are_not_discarded():
+    reducer = CodeBuddyEvents()
+    for identity in ("block-1", "block-2"):
+        packet = assistant({"type": "text", "text": "OK"})
+        packet["uuid"] = identity
+        reducer.consume(packet)
+    assert reducer.text == "OKOK"
+
+
+def test_rewriting_same_text_block_still_fails():
+    reducer = CodeBuddyEvents()
+    reducer.consume({**assistant({"type": "text", "text": "Original"}), "uuid": "same-block"})
+    with pytest.raises(CodeBuddyError, match="快照不一致"):
+        reducer.consume({**assistant({"type": "text", "text": "Rewritten"}), "uuid": "same-block"})
+
+
+def test_nontext_block_does_not_shrink_legacy_text_snapshot():
+    reducer = CodeBuddyEvents(tool_names={"mcp__echo__echo_probe": "probe"})
+    reducer.consume(assistant({"type": "text", "text": "Checking."}))
+    result = reducer.consume(
+        assistant({"type": "tool_use", "id": "t", "name": "mcp__echo__echo_probe"})
+    )
+    assert result[0]["type"] == "tool_start"
+    assert reducer.text == "Checking."
+
+
 def test_tool_pairs_map_to_the_host_catalog_and_refusals_are_failures():
     reducer = CodeBuddyEvents(tool_names={"mcp__echo__echo_read_file": "read_file"})
     tool = {"type": "tool_use", "id": "t1", "name": "mcp__echo__echo_read_file", "input": {}}
