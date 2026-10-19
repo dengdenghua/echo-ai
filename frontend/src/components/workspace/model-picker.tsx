@@ -696,7 +696,10 @@ export function ModelPicker({
         align="end"
         side="top"
         sideOffset={6}
-        className="w-72 p-1.5"
+        className={cn(
+          "max-w-[calc(100vw-1.5rem)] p-1.5",
+          showSources ? "w-80" : "w-72",
+        )}
         onKeyDown={moveTabFocusWithin}
         onFocus={(event) => {
           if (event.target === event.currentTarget) searchRef.current?.focus();

@@ -245,7 +245,7 @@ export function UnifiedModelControl({
       header={
         <div
           aria-label={locale.startsWith("zh") ? "模型来源" : "Model source"}
-          className="mb-1 flex flex-wrap gap-0.5 rounded-lg bg-muted/45 p-0.5"
+          className="mb-1 flex items-center justify-between gap-2 border-b border-border-subtle px-1"
         >
           {(["all", "codebuddy", "codex", "opencode", "echo"] as const).map(
             (source) => (
@@ -254,14 +254,14 @@ export function UnifiedModelControl({
                 type="button"
                 aria-pressed={sourceFilter === source}
                 onClick={() => setSourceFilter(source)}
-                className={`flex-1 rounded-md px-1.5 py-1 text-xs ${sourceFilter === source ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`}
+                className={`-mb-px h-8 shrink-0 whitespace-nowrap border-b-2 px-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${sourceFilter === source ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
               >
                 {source === "all"
                   ? locale.startsWith("zh")
                     ? "全部"
                     : "All"
                   : source === "echo"
-                    ? "API/Echo"
+                    ? "Echo"
                     : source === "codebuddy"
                       ? "CodeBuddy"
                       : source === "codex"
