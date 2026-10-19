@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
+import { RefreshCwIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { apiGet, apiPost } from "@/core/api/request";
@@ -10,6 +10,7 @@ import {
 import { useI18n } from "@/core/i18n/hooks";
 import { useCanManageWorkbenches } from "@/core/workbench/workbench-permissions";
 import { useOptionalAuth } from "@/providers/AuthProvider";
+import { CodeBuddyCredits } from "./codebuddy-credits";
 
 export function CodeBuddyConnection() {
   const { locale } = useI18n();
@@ -53,7 +54,7 @@ export function CodeBuddyConnection() {
           ? "使用 CodeBuddy 中国站官方账号与积分。本机 CLI 登录后，Echo 自动沿用授权，无需复制令牌。"
           : "Uses the official CodeBuddy China account and credits. Echo reuses the local CLI login; no token import is needed."}
       </p>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div>
         <section className="space-y-2">
           <h4 className="text-sm font-medium">
             {zh ? "本机授权" : "Local authorization"}
@@ -155,35 +156,16 @@ export function CodeBuddyConnection() {
               : `Official models: ${models.data?.models.length ?? "—"}`}
           </p>
         </section>
-        <section className="space-y-2 border-t border-border-subtle pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-          <h4 className="text-sm font-medium">
-            {zh ? "剩余积分与套餐" : "Remaining credits and plan"}
-          </h4>
-          <p className="text-xs leading-5 text-muted-foreground">
-            {zh
-              ? "在官方个人中心查看可用积分、套餐额度和消耗明细。当前 Echo 接入未同步积分余额，不会把 Token 数当成剩余积分。"
-              : "View credits, plan allowances and usage history in the official account center. Echo does not currently sync the balance or estimate credits from token counts."}
-          </p>
-          <Button asChild size="sm" variant="outline">
-            <a
-              href="https://www.codebuddy.cn/profile/plans-usage"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLinkIcon className="size-3.5" />
-              {zh ? "查看剩余积分" : "View remaining credits"}
-            </a>
-          </Button>
-          <a
-            className="block text-xs text-muted-foreground underline underline-offset-4"
-            href="https://www.codebuddy.cn/docs/cli/quickstart"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {zh ? "官方登录说明" : "Official sign-in guide"}
-          </a>
-        </section>
+        <a
+          className="block text-xs text-muted-foreground underline underline-offset-4"
+          href="https://www.codebuddy.cn/docs/cli/quickstart"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {zh ? "官方登录说明" : "Official sign-in guide"}
+        </a>
       </div>
+      <CodeBuddyCredits />
     </div>
   );
 }
