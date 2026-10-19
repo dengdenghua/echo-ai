@@ -33,6 +33,7 @@ const reporter: ReporterDescription | ReporterDescription[] = jsonReportPath
     : "list";
 const defaultTestMatch = [
   "full-stack-smoke.spec.ts",
+  "stream-output-layout.spec.ts",
   "chat.spec.ts",
   "regression.spec.ts",
   "workflow-editor.spec.ts",
