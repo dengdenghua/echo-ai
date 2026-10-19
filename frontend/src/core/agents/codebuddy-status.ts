@@ -10,6 +10,7 @@ import type { EngineCapabilityChecks } from "@/core/agents/engine-capability-che
 export interface CodeBuddyStatus {
   available: boolean;
   reason: string | null;
+  login_launch_supported?: boolean;
   capability_checks?: EngineCapabilityChecks;
 }
 
@@ -51,6 +52,7 @@ export function parseCodeBuddyStatus(payload: unknown): CodeBuddyStatus {
   );
   return {
     available: Reflect.get(payload, "available") === true,
+    login_launch_supported: Reflect.get(payload, "login_launch_supported") === true,
     reason: typeof reason === "string" ? reason : null,
     ...(checks ? { capability_checks: checks } : {}),
   };

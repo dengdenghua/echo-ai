@@ -46,6 +46,10 @@ export function OpenCodeConnections({
         Zen 有免费模型，需要填入 OpenCode API Key；Go
         需要有效套餐。使用哪个模型，在对话输入框选择。
       </p>
+      <a className="inline-flex text-xs text-muted-foreground underline underline-offset-4"
+        href="https://opencode.ai/auth" target="_blank" rel="noopener noreferrer">
+        查看 Zen 余额与 Go 剩余用量 ↗
+      </a>
       {query.isPending ? (
         <p role="status" className="text-xs">
           正在读取连接…

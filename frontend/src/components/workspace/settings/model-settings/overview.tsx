@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { ModelSettingsPageCopy } from "@/core/i18n/locales/model-settings";
+import { CodeBuddyIcon } from "@/components/workspace/execution-engine-picker";
 
 export function ModelSettingsOverview({
   copy,
@@ -27,6 +28,7 @@ export function ModelSettingsOverview({
   onScanLocal,
   onOpenZen,
   onOpenCodex,
+  onOpenCodeBuddy,
 }: {
   copy: ModelSettingsPageCopy;
   modelPicker: React.ReactNode;
@@ -37,6 +39,7 @@ export function ModelSettingsOverview({
   onScanLocal: () => void;
   onOpenZen: () => void;
   onOpenCodex: () => void;
+  onOpenCodeBuddy?: () => void;
 }) {
   const nextFocusSelector = useRef<string | null>(null);
   const gatewayLabel =
@@ -117,6 +120,18 @@ export function ModelSettingsOverview({
               <WifiIcon className="size-4" />
               {copy.scanLocalModels}
             </DropdownMenuItem>
+            {onOpenCodeBuddy && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  nextFocusSelector.current =
+                    "#model-settings-codebuddy > summary";
+                  onOpenCodeBuddy();
+                }}
+              >
+                <CodeBuddyIcon className="size-4" />
+                CodeBuddy
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

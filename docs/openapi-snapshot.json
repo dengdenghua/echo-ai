@@ -26656,6 +26656,30 @@
         ]
       }
     },
+    "/api/config/codebuddy/login": {
+      "post": {
+        "operationId": "codebuddy_login_api_config_codebuddy_login_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Codebuddy Login Api Config Codebuddy Login Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Codebuddy Login",
+        "tags": [
+          "config",
+          "config"
+        ]
+      }
+    },
     "/api/config/codebuddy/models": {
       "get": {
         "operationId": "codebuddy_models_api_config_codebuddy_models_get",

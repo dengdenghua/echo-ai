@@ -192,7 +192,7 @@ describe("ModelSettingsPage · everyday model selection", () => {
       screen.queryByRole("button", { name: "添加模型", exact: true }),
     ).not.toBeInTheDocument();
     await user.click(
-      screen.getByRole("button", { name: "Shared B", exact: true }),
+      screen.getByRole("button", { name: /^Shared B/ }),
     );
     expect(getLocalSettings().context.model_name).toBe("selection-b");
     expect(getThreadModelName("existing-chat")).toBe("conversation-model");

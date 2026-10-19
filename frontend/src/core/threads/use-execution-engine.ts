@@ -6,6 +6,7 @@ import { apiGet } from "@/core/api/request";
 import { parseCodeBuddyStatus } from "@/core/agents/codebuddy-status";
 import type { EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
 import { useModels } from "@/core/models/hooks";
+import { DEFAULT_MODEL_ROUTE_EVENT } from "@/core/realtime/default-model-route";
 import {
   hasAnsweringModel,
   opencodeServesSelection,
@@ -66,6 +67,14 @@ export function useExecutionEngine({
     key: lastChoiceKey,
     value: readPreference(lastChoiceKey),
   }));
+  useEffect(() => {
+    const changed = (event: Event) => {
+      const detail = (event as CustomEvent<{ principal: string; engine: string }>).detail;
+      if (detail?.principal === principal) setLastChoice({ key: lastChoiceKey, value: readPreference(lastChoiceKey) });
+    };
+    window.addEventListener(DEFAULT_MODEL_ROUTE_EVENT, changed);
+    return () => window.removeEventListener(DEFAULT_MODEL_ROUTE_EVENT, changed);
+  }, [principal, lastChoiceKey]);
   useEffect(() => {
     const saved = readPreference(storageKey);
     const parent = parentStorageKey ? readPreference(parentStorageKey) : null;

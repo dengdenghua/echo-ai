@@ -7,6 +7,7 @@ import { getCoderModelProfile } from "@/core/coder/api";
 import type * as CoderApi from "@/core/coder/api";
 import type { Model } from "@/core/models/types";
 import { previewExecutionEngine } from "@/core/realtime/execution-policy";
+import { rememberDefaultModelRoute } from "@/core/realtime/default-model-route";
 
 import { useExecutionEngine } from "./use-execution-engine";
 
@@ -520,4 +521,15 @@ it("retains a CodeBuddy preference and gates it on its own local readiness", asy
   expect(result.current.engine).toBe("codebuddy");
   expect(result.current.engineReady).toBe(true);
   expect(result.current.codebuddyAvailable).toBe(true);
+});
+
+it("applies a settings default to an unpicked chat and preserves an explicit conversation engine", async () => {
+  serve({ available: true });
+  const { result } = renderEngine();
+  await settled(result);
+  act(() => rememberDefaultModelRoute("alice", "codebuddy/hy3", "codebuddy"));
+  expect(result.current.preference).toBe("codebuddy");
+  act(() => result.current.setPreference("codex"));
+  act(() => rememberDefaultModelRoute("alice", "big-pickle", "opencode"));
+  expect(result.current.preference).toBe("codex");
 });

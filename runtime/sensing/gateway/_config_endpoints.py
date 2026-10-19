@@ -23,6 +23,7 @@ from typing import Any
 
 from fastapi import Request
 
+from runtime.sensing.gateway._config_endpoints_codebuddy import _register_codebuddy
 from runtime.sensing.gateway._config_endpoints_codex import _register_coder_codex
 from runtime.sensing.gateway._config_endpoints_codex_prewarm import register_codex_prewarm
 from runtime.sensing.gateway._config_endpoints_custom_models import (
@@ -94,25 +95,7 @@ def _build_endpoints(ctx: _ConfigCtx) -> None:
             **engine_observations(scope, "opencode"),
         }
 
-    @router.get("/api/config/codebuddy/status", tags=["config"])
-    async def codebuddy_status(request: Request) -> dict[str, Any]:
-        from runtime.execution.codebuddy_backend import inspect_readiness
-        from runtime.execution.engine_observations import engine_observations
-        from runtime.safety.auth.scope import scope_from_request
-
-        scope = scope_from_request(request)
-        return {
-            **await asyncio.to_thread(inspect_readiness, scope),
-            **engine_observations(scope, "codebuddy"),
-        }
-
-    @router.get("/api/config/codebuddy/models", tags=["config"])
-    async def codebuddy_models(request: Request) -> dict[str, Any]:
-        from runtime.execution.codebuddy_backend import model_catalog
-        from runtime.safety.auth.scope import scope_from_request
-
-        scope_from_request(request)
-        return {"models": await asyncio.to_thread(model_catalog)}
+    _register_codebuddy(router, ctx)
 
 
 __all__ = ["_ConfigCtx", "_build_endpoints"]

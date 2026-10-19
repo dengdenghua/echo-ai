@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, SparklesIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { apiGet } from "@/core/api/request";
 import { parseCodeBuddyModels } from "@/core/agents/codebuddy-status";
@@ -13,6 +13,7 @@ import {
 } from "@/core/coder/api";
 import { useI18n } from "@/core/i18n/hooks";
 import type { ReasoningEffort } from "@/core/threads";
+import { rememberDefaultModelRoute } from "@/core/realtime/default-model-route";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   CodeBuddyIcon,
@@ -36,6 +37,9 @@ export function UnifiedModelControl({
   onChange,
   reasoningEffort,
   onReasoningEffortChange,
+  lazy = false,
+  renderTrigger,
+  showManageLink = true,
 }: {
   models: PickerModel[];
   engine: ModelEngine;
@@ -45,6 +49,9 @@ export function UnifiedModelControl({
   onChange?: (model: string) => void;
   reasoningEffort?: ReasoningEffort;
   onReasoningEffortChange?: (effort: ReasoningEffort) => void;
+  lazy?: boolean;
+  renderTrigger?: (label: string, disabled: boolean) => ReactNode;
+  showManageLink?: boolean;
 }) {
   const { locale, t } = useI18n();
   const copy = locale.startsWith("zh")
@@ -83,22 +90,23 @@ export function UnifiedModelControl({
   const account = useQuery({
     queryKey: keys.account,
     queryFn: ({ signal }) => getCoderAccount(signal),
-    enabled: !authLoading,
+    enabled: !authLoading && (!lazy || open || engine === "codex"),
     staleTime: 30_000,
   });
   const profile = useQuery({
     queryKey: keys.profile,
     queryFn: ({ signal }) => getCoderModelProfile(signal),
-    enabled: !authLoading,
+    enabled: !authLoading && (!lazy || open || engine === "codex"),
     staleTime: 30_000,
   });
   const codex = useQuery({
     queryKey: keys.models,
     queryFn: ({ signal }) => getCoderModels(signal),
-    enabled: Boolean(account.data?.account),
+    enabled: Boolean(account.data?.account) && (!lazy || open),
     staleTime: 60_000,
   });
   const codebuddy = useQuery({
+    enabled: !lazy || open,
     queryKey: ["codebuddy-models"],
     queryFn: async ({ signal }) =>
       parseCodeBuddyModels(
@@ -194,6 +202,11 @@ export function UnifiedModelControl({
         client.setQueryData(keys.profile, next);
       }
       if (!mounted.current) return;
+      rememberDefaultModelRoute(
+        user?.actor_id || user?.user_id || "local",
+        model.wireModel,
+        model.executionEngine,
+      );
       onEngineChange(model.executionEngine);
       onChange?.(model.wireModel);
       setOpen(false);
@@ -285,20 +298,24 @@ export function UnifiedModelControl({
             ? (next) => effort.mutate(next)
             : undefined
       }
-      renderTrigger={() => (
-        <button
-          type="button"
-          data-testid="unified-model-trigger"
-          aria-label={`${engine} · ${label}`}
-          title={selected?.source_display_name || engine}
-          disabled={pending}
-          className="inline-flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2 text-ui text-muted-foreground hover:bg-muted/60"
-        >
-          <Icon className="size-4 shrink-0" />
-          <span className="max-w-40 truncate">{label}</span>
-          <ChevronDownIcon className="size-3 opacity-60" />
-        </button>
-      )}
+      renderTrigger={() =>
+        renderTrigger ? (
+          renderTrigger(label, Boolean(pending))
+        ) : (
+          <button
+            type="button"
+            data-testid="unified-model-trigger"
+            aria-label={`${engine} · ${label}`}
+            title={selected?.source_display_name || engine}
+            disabled={pending}
+            className="inline-flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2 text-ui text-muted-foreground hover:bg-muted/60"
+          >
+            <Icon className="size-4 shrink-0" />
+            <span className="max-w-40 truncate">{label}</span>
+            <ChevronDownIcon className="size-3 opacity-60" />
+          </button>
+        )
+      }
       footer={
         <div className="mt-1 border-t border-border-subtle pt-1">
           {(save.isError || effort.isError) && (
@@ -322,20 +339,22 @@ export function UnifiedModelControl({
               {copy.unavailable}
             </p>
           )}
-          <button
-            type="button"
-            className="w-full rounded-md px-2 py-1.5 text-ui text-muted-foreground hover:bg-accent"
-            onClick={() => {
-              setOpen(false);
-              window.dispatchEvent(
-                new CustomEvent("echo:open-settings", {
-                  detail: { tab: "models" },
-                }),
-              );
-            }}
-          >
-            {copy.manage}
-          </button>
+          {showManageLink && (
+            <button
+              type="button"
+              className="w-full rounded-md px-2 py-1.5 text-ui text-muted-foreground hover:bg-accent"
+              onClick={() => {
+                setOpen(false);
+                window.dispatchEvent(
+                  new CustomEvent("echo:open-settings", {
+                    detail: { tab: "models" },
+                  }),
+                );
+              }}
+            >
+              {copy.manage}
+            </button>
+          )}
         </div>
       }
     />

@@ -27,6 +27,22 @@ CLI; it does not add a vendored engine-store download.
 
 ## Ownership and limits
 
+In **Settings → Models**, **Add connection → CodeBuddy** opens the official
+account panel. **Sign in / Reauthorize** opens the official CLI on Windows;
+enter `/login` and choose the Chinese site. Other platforms use the linked
+official terminal instructions. Login remains owned by the CLI; Echo never
+imports a token. **Refresh connection** rereads installation/model metadata;
+only an actual conversation confirms that the account can make requests.
+
+The remaining-credit button opens the official account's **Plans and usage**
+page. Echo does not currently synchronize the balance and never converts token
+counts to an estimated remaining allowance. Codex allowances remain in its
+account panel; OpenCode connects to its official console for Zen/Go usage.
+
+The default model in Settings uses the same model/source menu as conversations.
+Choosing a default saves both its exact provider route and its execution engine
+for new, unpicked conversations. Existing conversation choices stay in place.
+
 - Only local deployments may inherit the machine's CLI account. Hosted
   deployments reject this engine before reading account configuration.
 - CodeBuddy handles its login and upstream requests. Echo does not expose a

@@ -1,10 +1,9 @@
 import {
   AlertTriangleIcon,
-  ChevronDownIcon,
   ChevronRightIcon,
   RefreshCwIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -23,10 +22,11 @@ import {
 import { useLocalSettings } from "@/core/settings/hooks";
 import { useModels } from "@/core/models/hooks";
 import { useModelSetupRequests } from "@/core/models/setup";
-import { ModelPicker } from "@/components/workspace/model-picker";
+import { DefaultModelControl } from "./model-settings/default-model-control";
 import { ModelCookbook } from "@/components/workspace/model-cookbook";
 import { CoderEngineSettings } from "@/components/workspace/coder-engine-settings";
 import { OpenCodeConnections } from "./opencode-connections";
+import { CodeBuddyConnection } from "./codebuddy-connection";
 import { ModelSharingSettings } from "./model-sharing-settings";
 
 import { MixSettingsSection } from "./mix-settings-section";
@@ -86,6 +86,7 @@ export default function ModelSettingsPage() {
   const [showLocalModels, setShowLocalModels] = useState(false);
   const [codexOpen, setCodexOpen] = useState(false);
   const [openCodeOpen, setOpenCodeOpen] = useState(false);
+  const [codebuddyOpen, setCodebuddyOpen] = useState(false);
   const [codexAccountSetupRequest, setCodexAccountSetupRequest] = useState(0);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<string | null>(null);
@@ -443,61 +444,14 @@ export default function ModelSettingsPage() {
       count + (Array.isArray(model.models) ? model.models.length : 0),
     0,
   );
-  const visibleDefaultModel = useMemo(() => {
-    const catalogModel =
-      availableModels.find((model) =>
-        [model.selection_id, model.name, model.id].includes(defaultModelName),
-      ) ?? availableModels.find((model) => model.entry_id === defaultModelName);
-    if (catalogModel)
-      return (
-        catalogModel.display_name || catalogModel.model || catalogModel.name
-      );
-    const matched = models.find((model) =>
-      customModelMatchesSelection(model, defaultModelName),
-    );
-    if (matched) {
-      const configured = Array.isArray(matched.models) ? matched.models : [];
-      const selectedId = defaultModelName?.includes("::")
-        ? defaultModelName.split("::").at(-1)
-        : null;
-      return (
-        (selectedId && configured.includes(selectedId) ? selectedId : null) ||
-        matched.display_name ||
-        matched.name
-      );
-    }
-    if (!defaultModelName) return "";
-    if (defaultModelName.startsWith("echo-custom-model:v1:")) {
-      return pageCopy.noDefault;
-    }
-    return defaultModelName;
-  }, [defaultModelName, models, availableModels, pageCopy.noDefault]);
 
   return (
     <div className="min-w-0 max-w-full space-y-6 overflow-x-hidden">
       <ModelSettingsOverview
         copy={pageCopy}
         modelPicker={
-          <ModelPicker
-            models={availableModels}
-            value={defaultModelName || "auto"}
-            showSettingsLink={false}
-            onChange={(name) => void handleSetDefault(name)}
-            renderTrigger={() => (
-              <button
-                type="button"
-                aria-label={pageCopy.currentDefault}
-                className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="min-w-0 truncate">
-                  {defaultModelName && defaultModelName !== "auto"
-                    ? visibleDefaultModel
-                    : t.modelPicker.autoModelLabel}
-                </span>
-                <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
-              </button>
-            )}
-          />
+          <DefaultModelControl models={availableModels} value={defaultModelName || "auto"}
+            label={pageCopy.currentDefault} onChange={(name) => void handleSetDefault(name)} />
         }
         customModelCount={models.length}
         modelCount={configuredModelCount}
@@ -505,6 +459,10 @@ export default function ModelSettingsPage() {
         onAddModel={handleOverviewAddModel}
         onScanLocal={handleOverviewScanLocal}
         onOpenZen={openOpenCodeSection}
+        onOpenCodeBuddy={() => {
+          setCodebuddyOpen(true);
+          scrollToSection("model-settings-codebuddy");
+        }}
         onOpenCodex={() => {
           setCodexAccountSetupRequest((request) => request + 1);
           setCodexOpen(true);
@@ -736,6 +694,12 @@ export default function ModelSettingsPage() {
       </div>
 
       <ModelSharingSettings onConnected={fetchModels} />
+
+      <AdvancedDisclosure id="model-settings-codebuddy" title="CodeBuddy"
+        description={locale.startsWith("zh") ? "官方账号授权与积分用量" : "Official account authorization and credits"}
+        open={codebuddyOpen} onOpenChange={setCodebuddyOpen}>
+        <CodeBuddyConnection />
+      </AdvancedDisclosure>
 
       <AdvancedDisclosure
         id="model-settings-opencode"
