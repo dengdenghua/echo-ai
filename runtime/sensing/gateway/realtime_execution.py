@@ -286,6 +286,17 @@ async def select_turn_execution(
             required=required,
             scheduler=scheduler,
         )
+    if route.engine is EngineId.CODEBUDDY:
+        from runtime.execution.codebuddy_backend import inspect_readiness, resolve_model
+        from runtime.sensing.gateway.realtime_codebuddy_backend import scope_for_turn
+
+        status = await asyncio.to_thread(inspect_readiness, scope_for_turn(turn))
+        if not status["available"]:
+            raise EngineSelectionError(
+                status["reason"], engine=EngineId.CODEBUDDY, reason="unavailable"
+            )
+        resolve_model(requested_model or getattr(turn.params, "model", None))
+        return route
     if route.engine is EngineId.ECHO:
         return route
     if route.engine is EngineId.OPENCODE:
@@ -442,6 +453,30 @@ class OpenCodeExecutionAdapter:
             )
 
 
+@dataclass(frozen=True, slots=True)
+class CodeBuddyExecutionAdapter:
+    host: _TurnHost
+    engine = EngineId.CODEBUDDY
+
+    async def execute(self, request: TurnExecutionRequest, phase: ExecutionPhase) -> None:
+        from runtime.sensing.gateway.realtime_codebuddy_backend import drive_codebuddy
+
+        h = self.host
+        async with h.context.activate(h.runtime, h.turn, h.agent, request.intent, request.text):
+            if await _dispatch_host_driver(h, request, phase):
+                return
+            await drive_codebuddy(
+                h.runtime,
+                h.turn,
+                h.log,
+                h.emitter,
+                request.intent,
+                h.agent,
+                h.provider,
+                text=request.text,
+            )
+
+
 def bind_turn_execution(
     runtime: Any,
     turn: Turn,
@@ -482,6 +517,7 @@ def bind_turn_execution(
     ] = {
         EngineId.CODEX: lambda host: CodexExecutionAdapter(host),
         EngineId.OPENCODE: lambda host: OpenCodeExecutionAdapter(host),
+        EngineId.CODEBUDDY: lambda host: CodeBuddyExecutionAdapter(host),
         EngineId.ECHO: lambda host: NativeExecutionAdapter(host),
     }
     adapter = adapter_by_engine[route.engine](host)

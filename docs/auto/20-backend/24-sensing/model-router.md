@@ -84,6 +84,7 @@ Public model interfaces; provider implementations load on first access.
 | `openai_compat_stream.py` | Shared OpenAI-compatible SSE stream parser. |
 | `openai_responses_router.py` | OpenAI Responses-compatible transport for API-key model providers. |
 | `openai_router.py` | — |
+| `openai_router_wire.py` | Split out of :mod:`openai_router` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
 | `pooled_router.py` | — |
 | `prompt_cache.py` | Anthropic prompt-cache hint helpers. |
 | `provider.py` | — |

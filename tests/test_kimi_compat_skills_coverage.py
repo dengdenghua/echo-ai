@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import runtime.execution.suckers.kimi_compat_skills as kcs
+import runtime.execution.suckers.kimi_media_skills as kim
 
 
 class _FakeResp:
@@ -202,55 +203,55 @@ def test_generate_image_b64_and_url(monkeypatch, tmp_path: Path) -> None:
 
     b64 = base64.b64encode(b"PNGDATA").decode()
     client = _FakeClient([_FakeResp(json={"data": [{"b64_json": b64}]})])
-    monkeypatch.setattr(kcs, "_client", lambda **k: client)
-    out = kcs._generate_image("a cat", output_path=str(tmp_path / "img.png"))
+    monkeypatch.setattr(kim, "_client", lambda **k: client)
+    out = kim._generate_image("a cat", output_path=str(tmp_path / "img.png"))
     assert out["ok"] is True
     assert (tmp_path / "img.png").read_bytes() == b"PNGDATA"
 
     client2 = _FakeClient([_FakeResp(json={"data": [{"url": "http://img/1"}]})])
-    monkeypatch.setattr(kcs, "_client", lambda **k: client2)
-    out2 = kcs._generate_image("a dog")
+    monkeypatch.setattr(kim, "_client", lambda **k: client2)
+    out2 = kim._generate_image("a dog")
     assert out2["ok"] is True and out2["url"] == "http://img/1"
 
 
 def test_generate_image_errors(monkeypatch) -> None:
-    assert "missing prompt" in kcs._generate_image("  ")["error"]
+    assert "missing prompt" in kim._generate_image("  ")["error"]
     monkeypatch.setenv("OPENAI_MEDIA_API_KEY", "")
     monkeypatch.setenv("OPENAI_API_KEY", "")
-    missing = kcs._generate_image("x")
+    missing = kim._generate_image("x")
     assert "provider" in missing.get("error", "")
     monkeypatch.setenv("OPENAI_MEDIA_API_KEY", "k")
     client = _FakeClient([_FakeResp(status=500)])
-    monkeypatch.setattr(kcs, "_client", lambda **k: client)
-    err = kcs._generate_image("x")
+    monkeypatch.setattr(kim, "_client", lambda **k: client)
+    err = kim._generate_image("x")
     assert "generate_image_error" in err["error"]
     empty = _FakeClient([_FakeResp(json={})])
-    monkeypatch.setattr(kcs, "_client", lambda **k: empty)
-    out = kcs._generate_image("x")
+    monkeypatch.setattr(kim, "_client", lambda **k: empty)
+    out = kim._generate_image("x")
     assert "generate_image_empty_response" in out["error"]
 
 
 def test_generate_speech(monkeypatch, tmp_path: Path) -> None:
-    assert "missing text" in kcs._generate_speech("  ")["error"]
+    assert "missing text" in kim._generate_speech("  ")["error"]
     monkeypatch.setenv("OPENAI_MEDIA_API_KEY", "")
     monkeypatch.setenv("OPENAI_API_KEY", "")
-    assert "provider" in kcs._generate_speech("hi")["error"]
+    assert "provider" in kim._generate_speech("hi")["error"]
     monkeypatch.setenv("OPENAI_MEDIA_API_KEY", "k")
     client = _FakeClient([_FakeResp(content=b"AUDIO")])
-    monkeypatch.setattr(kcs, "_client", lambda **k: client)
-    out = kcs._generate_speech("hi", output_path=str(tmp_path / "a.mp3"))
+    monkeypatch.setattr(kim, "_client", lambda **k: client)
+    out = kim._generate_speech("hi", output_path=str(tmp_path / "a.mp3"))
     assert out["ok"] is True and out["bytes"] == 5
     client_err = _FakeClient([_FakeResp(status=500)])
-    monkeypatch.setattr(kcs, "_client", lambda **k: client_err)
-    assert "generate_speech_error" in kcs._generate_speech("hi")["error"]
+    monkeypatch.setattr(kim, "_client", lambda **k: client_err)
+    assert "generate_speech_error" in kim._generate_speech("hi")["error"]
 
 
 def test_video_and_sfx_provider_missing() -> None:
-    assert "missing prompt" in kcs._generate_video("")["error"]
-    out = kcs._generate_video("go")
+    assert "missing prompt" in kim._generate_video("")["error"]
+    out = kim._generate_video("go")
     assert "provider" in out.get("error", "")
-    assert "missing prompt" in kcs._generate_sound_effects("")["error"]
-    out2 = kcs._generate_sound_effects("boom")
+    assert "missing prompt" in kim._generate_sound_effects("")["error"]
+    out2 = kim._generate_sound_effects("boom")
     assert "provider" in out2.get("error", "")
 
 
@@ -302,11 +303,11 @@ def test_safe_output_dir_and_media_path(tmp_path: Path, monkeypatch) -> None:
     import runtime.platform.process.paths as pp
 
     monkeypatch.setattr(pp, "app_paths", lambda: type("P", (), {"data_dir": tmp_path / "d"})())
-    d = kcs._safe_output_dir(None, "media")
+    d = kim._safe_output_dir(None, "media")
     assert d == tmp_path / "d" / "media"
-    explicit = kcs._safe_output_dir(str(tmp_path / "x"), "media")
+    explicit = kim._safe_output_dir(str(tmp_path / "x"), "media")
     assert explicit == tmp_path / "x"
-    out = kcs._media_output_path("image", "png", output_path=str(tmp_path / "o.png"))
+    out = kim._media_output_path("image", "png", output_path=str(tmp_path / "o.png"))
     assert out == tmp_path / "o.png"
 
 

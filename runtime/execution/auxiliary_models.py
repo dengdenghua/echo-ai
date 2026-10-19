@@ -20,7 +20,7 @@ class AuxiliaryModelRouter:
         from runtime.safety.approval.cancellation import current_cancellation_token
 
         parent = current_execution_request()
-        if parent is None or parent.task.execution_engine not in {"opencode", "codex"}:
+        if parent is None or parent.task.execution_engine not in {"opencode", "codex", "codebuddy"}:
             return self.native_router.call(request)
         session = current_session()
         task = parent.task
@@ -84,8 +84,11 @@ class AuxiliaryModelRouter:
                         if type(total.get(source)) is int and total[source] >= 0:
                             usage[target] = total[source]
 
-        if task.execution_engine == "opencode":
-            from runtime.execution.opencode_roles import run_role_sync
+        if task.execution_engine in {"opencode", "codebuddy"}:
+            if task.execution_engine == "codebuddy":
+                from runtime.execution.codebuddy_roles import run_role_sync
+            else:
+                from runtime.execution.opencode_roles import run_role_sync
 
             text = run_role_sync(
                 self.stack,

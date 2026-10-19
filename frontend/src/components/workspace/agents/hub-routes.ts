@@ -8,7 +8,7 @@ export const LOCAL_LIBRARY_INSTALLED_ONLY = false;
 // since #22 (CUA productization).
 export const HIDDEN_LOCAL_AGENT_IDS = new Set(["admin"]);
 
-export type HubMarketSection = "agents" | "applications" | "skills";
+export type HubMarketSection = "agents" | "applications" | "plugins" | "skills";
 export type HubApplicationView =
   | "featured"
   | "all"
@@ -30,17 +30,20 @@ export function resolveHubMarketRoute(search: string): {
   if (tab === "skills" || tab === "skill-packs") {
     return { section: "skills", applicationView: "all" };
   }
+  if (tab === "applications" || tab === "apps") {
+    return { section: "applications", applicationView: "all" };
+  }
   if (tab === "plugins" || tab === "packs") {
     const view = new URLSearchParams(search).get("view");
     if (view === "remote") return { section: "agents", applicationView: "all" };
     return {
-      section: "applications",
+      section: "plugins",
       applicationView:
         view === "installed" || view === "all" ? view : "featured",
     };
   }
   if (tab === "codex-plugins") {
-    return { section: "applications", applicationView: "codex" };
+    return { section: "plugins", applicationView: "codex" };
   }
   if (tab === "assets") {
     return { section: "applications", applicationView: "all" };

@@ -1,4 +1,4 @@
-.PHONY: install install-all quickstart quickstart-serve test test-fast test-unit test-integration test-sharded production-readiness production-readiness-static verify-local verify-full-stack lint lint-invariants lint-mypy lint-ruff format fix clean tree \
+.PHONY: install install-all quickstart quickstart-serve test test-fast test-unit test-integration test-sharded production-readiness production-readiness-static verify-local verify-full-stack lint lint-fast lint-invariants lint-mypy lint-ruff format fix clean tree \
         security \
         dev dev-stack-start dev-stack-stop dev-stack-restart dev-stack-status dev-stack-logs bootstrap-skills \
         up up-full down logs restart ps rebuild \
@@ -13,7 +13,7 @@
 # e.g. `lint-mypy` failed with "No module named mypy" while .venv had mypy
 # installed, so the type ratchet silently never ran and `make lint` died.
 # Override with `make PYTHON=/path/to/python <target>`.
-PYTHON ?= $(shell if [ -x .venv/bin/python ]; then printf '%s' .venv/bin/python; else printf '%s' python; fi)
+PYTHON ?= $(shell if [ -x .venv/bin/python ]; then printf '%s' .venv/bin/python; elif [ -x .venv/Scripts/python.exe ]; then printf '%s' .venv/Scripts/python.exe; else printf '%s' python; fi)
 FAST_TEST_MARKERS := not slow and not integration and not contract and not live
 
 # ─── Install ─────────────────────────────────────────
@@ -69,7 +69,11 @@ verify-full-stack:  ## Run the FastAPI + Vite localhost/127 smoke only
 	bash scripts/verify_local.sh --full-stack-only
 
 # ─── Lint ────────────────────────────────────────────
-lint: lint-invariants lint-fixtures lint-untracked-sources lint-mypy lint-ruff  ## Run all linters
+lint:  ## Run every Python gate ci.yml runs (local green must equal CI green)
+	$(PYTHON) tools/lint/run_ci_gates.py
+
+lint-fast:  ## Run only the mechanical gates (same list as mech-gates.yml)
+	$(PYTHON) tools/lint/run_gates.py
 
 lint-invariants:  ## Run Echo invariant checks (active: LINT-02/03/04/05/09)
 	$(PYTHON) -m tools.lint.invariant_check runtime/ tests/

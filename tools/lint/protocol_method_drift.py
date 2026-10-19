@@ -111,15 +111,31 @@ def _python_enum_values(module_path: Path, class_name: str) -> set[str]:
 
 _REDUCER_METHOD_RE = re.compile(r'method:\s*"([^"]+)"')
 
+# The ConversationEvent union used to live in ``reducer.ts``. A 2026-10 refactor
+# split the types out into ``reducer-types.ts`` and left only the ``switch
+# (evt.method)`` in the reducer, so the extractor found zero literals and the
+# gate aborted on every run. Scan the whole directory rather than one file: the
+# union is the contract and it may move again, but it never leaves this folder.
+RECONCILE_DIR = REDUCER_TS.parent
 
-def _reducer_methods(reducer_path: Path) -> set[str]:
-    """Return all ``method: "..."`` literals in the reducer source.
 
-    Captures handlers in the ConversationEvent discriminated union AND
-    any switch-case method strings.
+def _reducer_methods() -> set[str]:
+    """Return every ``method: "..."`` literal declared under ``realtime/``.
+
+    Test files are excluded: they legitimately invent methods
+    (``client/say``, ``future/event``) to exercise the unknown-method path, and
+    counting those as drift is a false positive.
     """
-    text = reducer_path.read_text(encoding="utf-8")
-    return set(_REDUCER_METHOD_RE.findall(text))
+    methods: set[str] = set()
+    for path in sorted(RECONCILE_DIR.glob("*.ts")):
+        if ".test." in path.name or path.name.endswith(".d.ts"):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        methods.update(_REDUCER_METHOD_RE.findall(text))
+    return methods
 
 
 def main() -> int:
@@ -138,7 +154,7 @@ def main() -> int:
         return 0
 
     server_methods = _python_enum_values(EVENTS_PY, "ServerMethod")
-    reducer_methods = _reducer_methods(REDUCER_TS)
+    reducer_methods = _reducer_methods()
 
     if not server_methods:
         print("Could not extract ServerMethod values; aborting.", file=sys.stderr)

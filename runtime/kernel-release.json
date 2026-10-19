@@ -1,6 +1,6 @@
 {
   "schema": "echo.kernel-release.v1",
-  "manifestVersion": "1.0.2",
+  "manifestVersion": "1.0.3",
   "authority": "echo-ai",
   "scope": "selected shared cross-device and safety sources; not the entire runtime or a signed bundle",
   "deviceProtocolVersion": "1.0",
@@ -51,7 +51,7 @@
       "sources": [
         {
           "path": "runtime/execution/request.py",
-          "sha256": "1c6898ca19a8abd8c75d93683e33e4910223fbd3166afc0bd530dbebb50fe1d8"
+          "sha256": "bbbf7acfc8ade71f8d3f926564ba488c0026053595d91977bb696b67faf82fc4"
         },
         {
           "path": "runtime/tentacle/execution.py",
@@ -63,7 +63,7 @@
         },
         {
           "path": "runtime/safety/sandboxing/sandbox.py",
-          "sha256": "3a5b7acf0ebb2a4c8c64c5ecb5a5ae57c4d7d3a132e1fbab0c44c37161a82421"
+          "sha256": "6be4b1a0398579ba174556d4743c591ded1c7108e6aba2782404161ae67d8b90"
         },
         {
           "path": "runtime/safety/auth/principal.py",
@@ -81,7 +81,7 @@
       "sources": [
         {
           "path": "runtime/execution/request.py",
-          "sha256": "c3ab8d4beb4c6649fe994ba45e050e9a063d0da327465df4242ba6334fde905e"
+          "sha256": "bbbf7acfc8ade71f8d3f926564ba488c0026053595d91977bb696b67faf82fc4"
         },
         {
           "path": "runtime/tentacle/execution.py",
@@ -93,7 +93,7 @@
         },
         {
           "path": "runtime/safety/sandboxing/sandbox.py",
-          "sha256": "079afb135f97e76158f799ccdbec116360f0fc9c7bf213e2659ef7cabde4af38"
+          "sha256": "6be4b1a0398579ba174556d4743c591ded1c7108e6aba2782404161ae67d8b90"
         },
         {
           "path": "runtime/safety/auth/principal.py",
@@ -106,5 +106,5 @@
       ]
     }
   },
-  "revision": "sha256:3a02cfcabfba7a1db07ace174baea7eb26e7c0e7e9e36c80fa069893c4681626"
+  "revision": "sha256:64afce8e7d8fdcbf88e3f9f505e7fc3758f1b3c68fc7e0078e72b3f19c695ee6"
 }

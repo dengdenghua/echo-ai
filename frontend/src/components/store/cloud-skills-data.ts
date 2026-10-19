@@ -19,6 +19,7 @@ export const SKILL_NAMES: Record<string, string> = {
   "agent-generator": "智能体生成器",
   "skill-creator": "技能创建器",
   "plugin-creator": "插件创建器",
+  "app-creator": "应用创建器",
   "agent-visual-kit": "智能体视觉设计",
   "agnes-image-generate": "AI 图像生成",
   "agnes-video-generate": "AI 视频生成",
@@ -95,7 +96,12 @@ export interface SkillEntry {
 
 export function entryCategories(entry: SkillEntry): string[] {
   const name = entry.cloud?.original_name || entry.name;
-  return ["skill-creator", "plugin-creator", "agent-generator"].includes(name)
+  return [
+    "skill-creator",
+    "app-creator",
+    "plugin-creator",
+    "agent-generator",
+  ].includes(name)
     ? ["开发工具"]
     : skillCategories(entry.cloud?.tags);
 }

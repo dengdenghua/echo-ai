@@ -140,7 +140,7 @@ export function MessageList({
     display_name?: string | null;
     avatar_url?: string | null;
     icon?: string | null;
-    execution_engine?: "echo" | "codex" | "opencode";
+    execution_engine?: "echo" | "codex" | "opencode" | "codebuddy";
   } | null;
   agentRoster?: MessageListAgentRosterEntry[];
   /** Project path for ambient suggestions */

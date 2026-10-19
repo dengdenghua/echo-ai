@@ -567,7 +567,7 @@ async def _select_turn_route(
         coordinated=coordinated,
         requested_model=requested_model,
     )
-    if route.engine in {"opencode", "codex"} and not orchestrated and not reflection:
+    if route.engine in {"opencode", "codex", "codebuddy"} and not orchestrated and not reflection:
         # A role that runs on Codex by default skips the classification
         # above, and so does one the user moved to OpenCode. Re-evaluate the
         # cheap host predicate after final engine selection so safe

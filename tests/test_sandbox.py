@@ -480,7 +480,7 @@ class TestEnforcementReport:
 
     def test_landlock_reports_partial(self, workspace: Path, monkeypatch) -> None:
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: True,
         )
         policy = SandboxPolicy(workspace=workspace)
@@ -671,7 +671,7 @@ class TestAdditionalWriteRoots:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: True,
         )
         roots = self._roots(tmp_path)
@@ -702,7 +702,7 @@ class TestLandlockBackend:
         self, workspace: Path, monkeypatch
     ) -> None:
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: True,
         )
         policy = SandboxPolicy(workspace=workspace, mode="workspace-write")
@@ -727,7 +727,7 @@ class TestLandlockBackend:
 
     def test_transform_read_only_has_no_write_paths(self, workspace: Path, monkeypatch) -> None:
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: True,
         )
         argv, env, _cwd = LandlockBackend().transform(
@@ -741,7 +741,7 @@ class TestLandlockBackend:
 
     def test_transform_rejects_cwd_escape(self, tmp_path: Path, monkeypatch) -> None:
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: True,
         )
         workspace = tmp_path / "ws"
@@ -758,7 +758,7 @@ class TestLandlockBackend:
 
     def test_transform_fails_closed_without_kernel(self, workspace: Path, monkeypatch) -> None:
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: False,
         )
         with pytest.raises(SandboxViolation):
@@ -771,7 +771,7 @@ class TestLandlockSelection:
     def test_landlock_mode_selects_backend(self, monkeypatch) -> None:
         monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "landlock")
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: True,
         )
         choice = select_process_backend()
@@ -781,7 +781,7 @@ class TestLandlockSelection:
     def test_landlock_mode_rejects_when_unavailable(self, monkeypatch) -> None:
         monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "landlock")
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: False,
         )
         with pytest.raises(SandboxViolation):
@@ -795,7 +795,7 @@ class TestLandlockSelection:
         monkeypatch.setattr(sys, "platform", "linux")
         monkeypatch.setattr(BubblewrapBackend, "available", staticmethod(lambda: False))
         monkeypatch.setattr(
-            "runtime.safety.sandboxing.sandbox._landlock_kernel_available",
+            "runtime.safety.sandboxing.sandbox_backends._landlock_kernel_available",
             lambda: True,
         )
         monkeypatch.setattr(SeatbeltBackend, "available", staticmethod(lambda: False))

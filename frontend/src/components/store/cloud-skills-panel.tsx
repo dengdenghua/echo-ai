@@ -1,3 +1,4 @@
+import { CreateAssetButton } from "./create-asset-button";
 import { skillDescription } from "@/core/utils/display-value";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -395,6 +396,7 @@ export function CloudSkillsPanel({
       <div className="sticky top-0 z-10 space-y-3 border-b border-border/60 bg-background py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="mr-auto text-sm font-medium">技能目录</h3>
+          <CreateAssetButton kind="skill" />
           <span className="text-xs text-muted-foreground">
             已安装{" "}
             {groups.filter((group) => group.variants.some(isInstalled)).length}{" "}

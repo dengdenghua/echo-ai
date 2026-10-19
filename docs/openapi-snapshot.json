@@ -13135,39 +13135,16 @@
         ]
       }
     },
-    "/api/account/avatar": {
-      "post": {
-        "operationId": "_avatar_api_account_avatar_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Avatar Api Account Avatar Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Avatar",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/account/billing": {
       "get": {
-        "operationId": "_billing_api_account_billing_get",
+        "operationId": "account_billing_summary_api_account_billing_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Billing Api Account Billing Get",
+                  "title": "Response Account Billing Summary Api Account Billing Get",
                   "type": "object"
                 }
               }
@@ -13175,46 +13152,38 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Billing",
+        "summary": "Account Billing Summary",
         "tags": [
-          "stub"
+          "account",
+          "usage"
         ]
       }
     },
     "/api/account/billing/history": {
       "get": {
-        "operationId": "_billing_history_api_account_billing_history_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Billing History Api Account Billing History Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Billing History",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/billing/invoices/{invoice_id}": {
-      "get": {
-        "operationId": "_invoice_api_account_billing_invoices__invoice_id__get",
+        "operationId": "account_billing_history_api_account_billing_history_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "invoice_id",
-            "required": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
             "schema": {
-              "title": "Invoice Id",
-              "type": "string"
+              "default": 20,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
             }
           }
         ],
@@ -13224,7 +13193,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Invoice Api Account Billing Invoices  Invoice Id  Get",
+                  "title": "Response Account Billing History Api Account Billing History Get",
                   "type": "object"
                 }
               }
@@ -13242,453 +13211,23 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Invoice",
+        "summary": "Account Billing History",
         "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/cancel": {
-      "post": {
-        "operationId": "_cancel_api_account_cancel_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Cancel Api Account Cancel Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Cancel",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/linked-accounts": {
-      "get": {
-        "operationId": "_linked_accounts_api_account_linked_accounts_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Linked Accounts Api Account Linked Accounts Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Linked Accounts",
-        "tags": [
-          "stub"
-        ]
-      },
-      "post": {
-        "operationId": "_link_account_api_account_linked_accounts_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Link Account Api Account Linked Accounts Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Link Account",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/linked-accounts/{provider}": {
-      "delete": {
-        "operationId": "_unlink_account_api_account_linked_accounts__provider__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "provider",
-            "required": true,
-            "schema": {
-              "title": "Provider",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Unlink Account Api Account Linked Accounts  Provider  Delete",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Unlink Account",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/overview": {
-      "get": {
-        "operationId": "_overview_api_account_overview_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Overview Api Account Overview Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Overview",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/plans": {
-      "get": {
-        "operationId": "_plans_api_account_plans_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Plans Api Account Plans Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Plans",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/privacy": {
-      "get": {
-        "operationId": "_privacy_api_account_privacy_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Privacy Api Account Privacy Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Privacy",
-        "tags": [
-          "stub"
-        ]
-      },
-      "patch": {
-        "operationId": "_privacy_patch_api_account_privacy_patch",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Privacy Patch Api Account Privacy Patch",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Privacy Patch",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/profile": {
-      "get": {
-        "operationId": "_profile_api_account_profile_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Profile Api Account Profile Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Profile",
-        "tags": [
-          "stub"
-        ]
-      },
-      "patch": {
-        "operationId": "_profile_patch_api_account_profile_patch",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Profile Patch Api Account Profile Patch",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Profile Patch",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/subscribe": {
-      "post": {
-        "operationId": "_subscribe_api_account_subscribe_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Subscribe Api Account Subscribe Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Subscribe",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/account/subscription": {
-      "get": {
-        "operationId": "_subscription_api_account_subscription_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Subscription Api Account Subscription Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Subscription",
-        "tags": [
-          "stub"
+          "account",
+          "usage"
         ]
       }
     },
     "/api/account/usage": {
       "get": {
-        "operationId": "_usage_api_account_usage_get",
+        "operationId": "account_usage_api_account_usage_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Usage Api Account Usage Get",
+                  "title": "Response Account Usage Api Account Usage Get",
                   "type": "object"
                 }
               }
@@ -13696,55 +13235,141 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Usage",
+        "summary": "Account Usage",
         "tags": [
-          "stub"
+          "account",
+          "usage"
         ]
       }
     },
     "/api/account/usage/events": {
       "get": {
-        "operationId": "_usage_events_api_account_usage_events_get",
+        "operationId": "account_usage_events_api_account_usage_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "month",
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Usage Events Api Account Usage Events Get",
+                  "title": "Response Account Usage Events Api Account Usage Events Get",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "summary": " Usage Events",
+        "summary": "Account Usage Events",
         "tags": [
-          "stub"
+          "account",
+          "usage"
         ]
       }
     },
     "/api/account/usage/summary": {
       "get": {
-        "operationId": "_usage_summary_api_account_usage_summary_get",
+        "operationId": "account_usage_summary_api_account_usage_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "month",
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Usage Summary Api Account Usage Summary Get",
+                  "title": "Response Account Usage Summary Api Account Usage Summary Get",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "summary": " Usage Summary",
+        "summary": "Account Usage Summary",
         "tags": [
-          "stub"
+          "account",
+          "usage"
         ]
       }
     },
@@ -19239,145 +18864,6 @@
         ]
       }
     },
-    "/api/alerts": {
-      "get": {
-        "operationId": "_alerts_api_alerts_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response  Alerts Api Alerts Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Alerts",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/alerts/rules": {
-      "get": {
-        "operationId": "_alert_rules_api_alerts_rules_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response  Alert Rules Api Alerts Rules Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Alert Rules",
-        "tags": [
-          "stub"
-        ]
-      },
-      "post": {
-        "operationId": "_alert_rule_create_api_alerts_rules_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Alert Rule Create Api Alerts Rules Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Alert Rule Create",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/alerts/rules/{name}": {
-      "delete": {
-        "operationId": "_alert_rule_delete_api_alerts_rules__name__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "name",
-            "required": true,
-            "schema": {
-              "title": "Name",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Alert Rule Delete Api Alerts Rules  Name  Delete",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Alert Rule Delete",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/ambient-suggestions": {
       "delete": {
         "operationId": "delete_suggestions_api_ambient_suggestions_delete",
@@ -19972,177 +19458,6 @@
         ]
       }
     },
-    "/api/arena/battle": {
-      "post": {
-        "operationId": "_arena_battle_api_arena_battle_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Arena Battle Api Arena Battle Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Arena Battle",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/arena/history": {
-      "get": {
-        "operationId": "_arena_hist_api_arena_history_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Arena Hist Api Arena History Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Arena Hist",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/arena/leaderboard": {
-      "get": {
-        "operationId": "_arena_lb_api_arena_leaderboard_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Arena Lb Api Arena Leaderboard Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Arena Lb",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/arena/stats": {
-      "get": {
-        "operationId": "_arena_stats_api_arena_stats_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Arena Stats Api Arena Stats Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Arena Stats",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/arena/vote": {
-      "post": {
-        "operationId": "_arena_vote_api_arena_vote_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Arena Vote Api Arena Vote Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Arena Vote",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/arms": {
       "get": {
         "operationId": "list_arms_api_arms_get",
@@ -20395,52 +19710,6 @@
         ]
       }
     },
-    "/api/auth/logout": {
-      "post": {
-        "operationId": "_auth_logout_api_auth_logout_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Auth Logout Api Auth Logout Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Auth Logout",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/auth/me": {
-      "get": {
-        "operationId": "_auth_me_api_auth_me_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Auth Me Api Auth Me Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Auth Me",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/auth/providers": {
       "get": {
         "description": "Return the list of configured login methods.\n\nThe frontend Login page hides tabs whose id isn't in the\nreturned set — so an empty response means \"no providers\nconfigured, don't show a broken form\".",
@@ -20463,39 +19732,16 @@
         ]
       }
     },
-    "/api/auth/refresh": {
-      "post": {
-        "operationId": "_auth_refresh_api_auth_refresh_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Auth Refresh Api Auth Refresh Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Auth Refresh",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/auth/status": {
       "get": {
-        "operationId": "_auth_status_api_auth_status_get",
+        "operationId": "auth_status_api_auth_status_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Auth Status Api Auth Status Get",
+                  "title": "Response Auth Status Api Auth Status Get",
                   "type": "object"
                 }
               }
@@ -20503,9 +19749,9 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Auth Status",
+        "summary": "Auth Status",
         "tags": [
-          "stub"
+          "meta"
         ]
       }
     },
@@ -27407,6 +26653,54 @@
         "summary": "Uia Tree",
         "tags": [
           "computer"
+        ]
+      }
+    },
+    "/api/config/codebuddy/models": {
+      "get": {
+        "operationId": "codebuddy_models_api_config_codebuddy_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Codebuddy Models Api Config Codebuddy Models Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Codebuddy Models",
+        "tags": [
+          "config",
+          "config"
+        ]
+      }
+    },
+    "/api/config/codebuddy/status": {
+      "get": {
+        "operationId": "codebuddy_status_api_config_codebuddy_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Codebuddy Status Api Config Codebuddy Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Codebuddy Status",
+        "tags": [
+          "config",
+          "config"
         ]
       }
     },
@@ -39498,124 +38792,6 @@
         ]
       }
     },
-    "/api/integrations/auth": {
-      "get": {
-        "operationId": "_int_auth_list_api_integrations_auth_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response  Int Auth List Api Integrations Auth Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Int Auth List",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/integrations/auth/providers": {
-      "get": {
-        "operationId": "_int_providers_api_integrations_auth_providers_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response  Int Providers Api Integrations Auth Providers Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Int Providers",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/integrations/auth/providers/types": {
-      "get": {
-        "operationId": "_int_provider_types_api_integrations_auth_providers_types_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "type": "object"
-                  },
-                  "title": "Response  Int Provider Types Api Integrations Auth Providers Types Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Int Provider Types",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/integrations/auth/providers/{provider_id}": {
-      "get": {
-        "operationId": "_int_provider_api_integrations_auth_providers__provider_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "provider_id",
-            "required": true,
-            "schema": {
-              "title": "Provider Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Int Provider Api Integrations Auth Providers  Provider Id  Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Int Provider",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/intel-evolution/frameworks/benchmarks": {
       "get": {
         "operationId": "framework_benchmarks_api_intel_evolution_frameworks_benchmarks_get",
@@ -40395,38 +39571,22 @@
     },
     "/api/intelligence/reports": {
       "get": {
-        "operationId": "_intel_reports_api_intelligence_reports_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Intel Reports Api Intelligence Reports Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Intel Reports",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/intelligence/reports/{report_id}": {
-      "get": {
-        "operationId": "_intel_report_detail_api_intelligence_reports__report_id__get",
+        "operationId": "list_reports_api_intelligence_reports_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "report_id",
-            "required": true,
+            "in": "query",
+            "name": "topic",
+            "required": false,
             "schema": {
-              "title": "Report Id",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Topic"
             }
           }
         ],
@@ -40436,7 +39596,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Intel Report Detail Api Intelligence Reports  Report Id  Get",
+                  "title": "Response List Reports Api Intelligence Reports Get",
                   "type": "object"
                 }
               }
@@ -40454,45 +39614,108 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Intel Report Detail",
-        "tags": [
-          "stub"
-        ]
+        "summary": "List Reports"
+      }
+    },
+    "/api/intelligence/reports/{report_id}": {
+      "get": {
+        "operationId": "get_report_api_intelligence_reports__report_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Report Api Intelligence Reports  Report Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report"
       }
     },
     "/api/intelligence/run": {
       "post": {
-        "operationId": "_intel_run_all_api_intelligence_run_post",
+        "operationId": "run_enabled_subscriptions_api_intelligence_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Intel Run All Api Intelligence Run Post",
+                  "title": "Response Run Enabled Subscriptions Api Intelligence Run Post",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "summary": " Intel Run All",
-        "tags": [
-          "stub"
-        ]
+        "summary": "Run Enabled Subscriptions"
       }
     },
     "/api/intelligence/subscriptions": {
       "get": {
-        "operationId": "_intel_subs_api_intelligence_subscriptions_get",
+        "operationId": "list_subscriptions_api_intelligence_subscriptions_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Intel Subs Api Intelligence Subscriptions Get",
+                  "title": "Response List Subscriptions Api Intelligence Subscriptions Get",
                   "type": "object"
                 }
               }
@@ -40500,31 +39723,53 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Intel Subs",
-        "tags": [
-          "stub"
-        ]
+        "summary": "List Subscriptions"
       },
       "post": {
-        "operationId": "_intel_subs_create_api_intelligence_subscriptions_post",
+        "operationId": "create_subscription_api_intelligence_subscriptions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Intel Subs Create Api Intelligence Subscriptions Post",
+                  "title": "Response Create Subscription Api Intelligence Subscriptions Post",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "summary": " Intel Subs Create",
-        "tags": [
-          "stub"
-        ]
+        "summary": "Create Subscription"
       }
     },
     "/api/intelligence/subscriptions/draft": {
@@ -40577,7 +39822,7 @@
     },
     "/api/intelligence/subscriptions/{sub_id}": {
       "delete": {
-        "operationId": "_intel_subs_delete_api_intelligence_subscriptions__sub_id__delete",
+        "operationId": "delete_subscription_api_intelligence_subscriptions__sub_id__delete",
         "parameters": [
           {
             "in": "path",
@@ -40595,7 +39840,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Intel Subs Delete Api Intelligence Subscriptions  Sub Id  Delete",
+                  "title": "Response Delete Subscription Api Intelligence Subscriptions  Sub Id  Delete",
                   "type": "object"
                 }
               }
@@ -40613,13 +39858,10 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Intel Subs Delete",
-        "tags": [
-          "stub"
-        ]
+        "summary": "Delete Subscription"
       },
       "patch": {
-        "operationId": "_intel_subs_update_api_intelligence_subscriptions__sub_id__patch",
+        "operationId": "update_subscription_api_intelligence_subscriptions__sub_id__patch",
         "parameters": [
           {
             "in": "path",
@@ -40631,13 +39873,31 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Intel Subs Update Api Intelligence Subscriptions  Sub Id  Patch",
+                  "title": "Response Update Subscription Api Intelligence Subscriptions  Sub Id  Patch",
                   "type": "object"
                 }
               }
@@ -40655,15 +39915,12 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Intel Subs Update",
-        "tags": [
-          "stub"
-        ]
+        "summary": "Update Subscription"
       }
     },
     "/api/intelligence/subscriptions/{sub_id}/run": {
       "post": {
-        "operationId": "_intel_subs_run_api_intelligence_subscriptions__sub_id__run_post",
+        "operationId": "run_subscription_api_intelligence_subscriptions__sub_id__run_post",
         "parameters": [
           {
             "in": "path",
@@ -40675,13 +39932,31 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Intel Subs Run Api Intelligence Subscriptions  Sub Id  Run Post",
+                  "title": "Response Run Subscription Api Intelligence Subscriptions  Sub Id  Run Post",
                   "type": "object"
                 }
               }
@@ -40699,10 +39974,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Intel Subs Run",
-        "tags": [
-          "stub"
-        ]
+        "summary": "Run Subscription"
       }
     },
     "/api/invariants": {
@@ -41291,17 +40563,30 @@
         ]
       }
     },
-    "/api/knowledge/entities/{entity_id}": {
+    "/api/knowledge/graph": {
       "get": {
-        "operationId": "_kg_entity_api_knowledge_entities__entity_id__get",
+        "operationId": "api_knowledge_graph_api_knowledge_graph_get",
         "parameters": [
           {
-            "in": "path",
-            "name": "entity_id",
-            "required": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
             "schema": {
-              "title": "Entity Id",
-              "type": "string"
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cross_tenant",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Cross Tenant",
+              "type": "boolean"
             }
           }
         ],
@@ -41311,7 +40596,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Kg Entity Api Knowledge Entities  Entity Id  Get",
+                  "title": "Response Api Knowledge Graph Api Knowledge Graph Get",
                   "type": "object"
                 }
               }
@@ -41329,32 +40614,9 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Kg Entity",
+        "summary": "Api Knowledge Graph",
         "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/knowledge/graph": {
-      "get": {
-        "operationId": "_kg_graph_api_knowledge_graph_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Kg Graph Api Knowledge Graph Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Kg Graph",
-        "tags": [
-          "stub"
+          "observability"
         ]
       }
     },
@@ -41580,24 +40842,46 @@
     },
     "/api/knowledge/stats": {
       "get": {
-        "operationId": "_kg_stats_api_knowledge_stats_get",
+        "operationId": "api_knowledge_stats_api_knowledge_stats_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cross_tenant",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Cross Tenant",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Kg Stats Api Knowledge Stats Get",
+                  "title": "Response Api Knowledge Stats Api Knowledge Stats Get",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "summary": " Kg Stats",
+        "summary": "Api Knowledge Stats",
         "tags": [
-          "stub"
+          "observability"
         ]
       }
     },
@@ -43586,14 +42870,14 @@
     },
     "/api/memory": {
       "delete": {
-        "operationId": "_memory_clear_api_memory_delete",
+        "operationId": "api_memory_clear_api_memory_delete",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Clear Api Memory Delete",
+                  "title": "Response Api Memory Clear Api Memory Delete",
                   "type": "object"
                 }
               }
@@ -43601,20 +42885,20 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Memory Clear",
+        "summary": "Api Memory Clear",
         "tags": [
-          "stub"
+          "memory"
         ]
       },
       "get": {
-        "operationId": "_memory_api_memory_get",
+        "operationId": "api_memory_get_api_memory_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Api Memory Get",
+                  "title": "Response Api Memory Get Api Memory Get",
                   "type": "object"
                 }
               }
@@ -43622,9 +42906,9 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Memory",
+        "summary": "Api Memory Get",
         "tags": [
-          "stub"
+          "memory"
         ]
       }
     },
@@ -43832,14 +43116,14 @@
     },
     "/api/memory/config": {
       "get": {
-        "operationId": "_memory_config_api_memory_config_get",
+        "operationId": "api_memory_config_api_memory_config_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Config Api Memory Config Get",
+                  "title": "Response Api Memory Config Api Memory Config Get",
                   "type": "object"
                 }
               }
@@ -43847,9 +43131,9 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Memory Config",
+        "summary": "Api Memory Config",
         "tags": [
-          "stub"
+          "memory"
         ]
       },
       "put": {
@@ -43876,14 +43160,14 @@
     },
     "/api/memory/export": {
       "get": {
-        "operationId": "_memory_export_api_memory_export_get",
+        "operationId": "api_memory_export_api_memory_export_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Export Api Memory Export Get",
+                  "title": "Response Api Memory Export Api Memory Export Get",
                   "type": "object"
                 }
               }
@@ -43891,66 +43175,38 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Memory Export",
+        "summary": "Api Memory Export",
         "tags": [
-          "stub"
+          "memory"
         ]
       }
     },
     "/api/memory/facts": {
       "post": {
-        "operationId": "_memory_fact_create_api_memory_facts_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
+        "operationId": "api_memory_add_fact_api_memory_facts_post",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Fact Create Api Memory Facts Post",
+                  "title": "Response Api Memory Add Fact Api Memory Facts Post",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
-        "summary": " Memory Fact Create",
+        "summary": "Api Memory Add Fact",
         "tags": [
-          "stub"
+          "memory"
         ]
       }
     },
     "/api/memory/facts/{fact_id}": {
       "delete": {
-        "operationId": "_memory_fact_delete_api_memory_facts__fact_id__delete",
+        "operationId": "api_memory_delete_fact_api_memory_facts__fact_id__delete",
         "parameters": [
           {
             "in": "path",
@@ -43968,7 +43224,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Fact Delete Api Memory Facts  Fact Id  Delete",
+                  "title": "Response Api Memory Delete Fact Api Memory Facts  Fact Id  Delete",
                   "type": "object"
                 }
               }
@@ -43986,13 +43242,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Memory Fact Delete",
+        "summary": "Api Memory Delete Fact",
         "tags": [
-          "stub"
+          "memory"
         ]
       },
       "patch": {
-        "operationId": "_memory_fact_update_api_memory_facts__fact_id__patch",
+        "operationId": "api_memory_update_fact_api_memory_facts__fact_id__patch",
         "parameters": [
           {
             "in": "path",
@@ -44004,31 +43260,13 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Fact Update Api Memory Facts  Fact Id  Patch",
+                  "title": "Response Api Memory Update Fact Api Memory Facts  Fact Id  Patch",
                   "type": "object"
                 }
               }
@@ -44046,73 +43284,45 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Memory Fact Update",
+        "summary": "Api Memory Update Fact",
         "tags": [
-          "stub"
+          "memory"
         ]
       }
     },
     "/api/memory/import": {
       "post": {
-        "operationId": "_memory_import_api_memory_import_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
+        "operationId": "api_memory_import_api_memory_import_post",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Import Api Memory Import Post",
+                  "title": "Response Api Memory Import Api Memory Import Post",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
-        "summary": " Memory Import",
+        "summary": "Api Memory Import",
         "tags": [
-          "stub"
+          "memory"
         ]
       }
     },
     "/api/memory/reload": {
       "post": {
-        "operationId": "_memory_reload_api_memory_reload_post",
+        "operationId": "api_memory_reload_api_memory_reload_post",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response  Memory Reload Api Memory Reload Post",
+                  "title": "Response Api Memory Reload Api Memory Reload Post",
                   "type": "object"
                 }
               }
@@ -44120,30 +43330,36 @@
             "description": "Successful Response"
           }
         },
-        "summary": " Memory Reload",
+        "summary": "Api Memory Reload",
         "tags": [
-          "stub"
+          "memory"
         ]
       }
     },
     "/api/memory/search": {
       "get": {
-        "operationId": "_memory_search_api_memory_search_get",
+        "operationId": "api_memory_search_api_memory_search_get",
         "parameters": [
           {
             "in": "query",
             "name": "q",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
+              "default": "",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
             }
           }
         ],
@@ -44152,8 +43368,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {},
-                  "title": "Response  Memory Search Api Memory Search Get",
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Api Memory Search Api Memory Search Get",
                   "type": "array"
                 }
               }
@@ -44171,9 +43390,9 @@
             "description": "Validation Error"
           }
         },
-        "summary": " Memory Search",
+        "summary": "Api Memory Search",
         "tags": [
-          "stub"
+          "memory"
         ]
       }
     },
@@ -44457,29 +43676,6 @@
         ]
       }
     },
-    "/api/metrics": {
-      "get": {
-        "operationId": "_metrics_api_metrics_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Metrics Api Metrics Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Metrics",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/metrics/json": {
       "get": {
         "description": "JSON view: every metric name + per-label values.\n\nShape::\n\n    {\n      \"metrics\": [\n        {\n          \"name\": \"echo_skill_calls_total\",\n          \"type\": \"counter\",\n          \"help\": \"Total skill invocations\",\n          \"samples\": [\n            {\"labels\": {\"sucker_id\": \"read_file\"}, \"value\": 42},\n            ...\n          ]\n        },\n        ...\n      ]\n    }\n\nHistograms get a slightly richer ``samples`` shape with\n``buckets`` / ``sum`` / ``count`` per labelset.",
@@ -44497,52 +43693,6 @@
         "summary": "Metrics Json",
         "tags": [
           "metrics"
-        ]
-      }
-    },
-    "/api/metrics/summary": {
-      "get": {
-        "operationId": "_metrics_summary_api_metrics_summary_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Metrics Summary Api Metrics Summary Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Metrics Summary",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/observability/health": {
-      "get": {
-        "operationId": "_obs_health_api_observability_health_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Obs Health Api Observability Health Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Obs Health",
-        "tags": [
-          "stub"
         ]
       }
     },
@@ -45783,6 +44933,133 @@
         ]
       }
     },
+    "/api/personal-apps": {
+      "get": {
+        "operationId": "list_personal_apps_api_personal_apps_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Personal Apps Api Personal Apps Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Personal Apps",
+        "tags": [
+          "deployments"
+        ]
+      }
+    },
+    "/api/personal-apps/{deployment_id}/data/{key}": {
+      "get": {
+        "operationId": "read_app_data_api_personal_apps__deployment_id__data__key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Read App Data Api Personal Apps  Deployment Id  Data  Key  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read App Data",
+        "tags": [
+          "deployments"
+        ]
+      },
+      "put": {
+        "operationId": "write_app_data_api_personal_apps__deployment_id__data__key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Write App Data Api Personal Apps  Deployment Id  Data  Key  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Write App Data",
+        "tags": [
+          "deployments"
+        ]
+      }
+    },
     "/api/plugin-hub/contributions": {
       "get": {
         "description": "List public metadata for active Echo plugin contributions.",
@@ -46465,14 +45742,17 @@
     },
     "/api/plugins": {
       "get": {
-        "operationId": "stub_list_plugins",
+        "operationId": "_plugins_api_plugins_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {},
-                  "title": "Response Stub List Plugins",
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response  Plugins Api Plugins Get",
                   "type": "array"
                 }
               }
@@ -46482,30 +45762,61 @@
         },
         "summary": " Plugins",
         "tags": [
-          "stub"
+          "plugins"
         ]
       }
     },
     "/api/plugins/capabilities": {
       "get": {
-        "operationId": "stub_plugin_capabilities",
+        "operationId": "_plugin_caps_api_plugins_capabilities_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {},
-                  "title": "Response Stub Plugin Capabilities",
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response  Plugin Caps Api Plugins Capabilities Get",
                   "type": "array"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": " Plugin Caps",
         "tags": [
-          "stub"
+          "plugins"
         ]
       }
     },
@@ -46977,7 +46288,7 @@
     },
     "/api/plugins/{plugin_id}": {
       "get": {
-        "operationId": "stub_get_plugin",
+        "operationId": "_plugin_get_api_plugins__plugin_id__get",
         "parameters": [
           {
             "in": "path",
@@ -46995,7 +46306,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Stub Get Plugin",
+                  "title": "Response  Plugin Get Api Plugins  Plugin Id  Get",
                   "type": "object"
                 }
               }
@@ -47015,7 +46326,7 @@
         },
         "summary": " Plugin Get",
         "tags": [
-          "stub"
+          "plugins"
         ]
       }
     },
@@ -50772,52 +50083,6 @@
         ]
       }
     },
-    "/api/skills/custom": {
-      "get": {
-        "operationId": "_skills_custom_api_skills_custom_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Skills Custom Api Skills Custom Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Skills Custom",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/skills/declining": {
-      "get": {
-        "operationId": "_skills_declining_api_skills_declining_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response  Skills Declining Api Skills Declining Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Skills Declining",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/skills/install": {
       "post": {
         "operationId": "api_install_skill_api_skills_install_post",
@@ -51149,29 +50414,6 @@
         "summary": "Search Skills",
         "tags": [
           "skill-market"
-        ]
-      }
-    },
-    "/api/skills/performance": {
-      "get": {
-        "operationId": "_skills_perf_api_skills_performance_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response  Skills Perf Api Skills Performance Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Skills Perf",
-        "tags": [
-          "stub"
         ]
       }
     },
@@ -52234,73 +51476,6 @@
         ]
       }
     },
-    "/api/swarm/status": {
-      "get": {
-        "operationId": "_swarm_status_api_swarm_status_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Swarm Status Api Swarm Status Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Swarm Status",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/swarm/tasks": {
-      "get": {
-        "operationId": "_swarm_tasks_api_swarm_tasks_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Swarm Tasks Api Swarm Tasks Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Swarm Tasks",
-        "tags": [
-          "stub"
-        ]
-      },
-      "post": {
-        "operationId": "_swarm_tasks_create_api_swarm_tasks_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Swarm Tasks Create Api Swarm Tasks Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Swarm Tasks Create",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/system/factory-reset": {
       "post": {
         "operationId": "factory_reset_api_system_factory_reset_post",
@@ -52349,75 +51524,6 @@
         "summary": "Factory Reset",
         "tags": [
           "system"
-        ]
-      }
-    },
-    "/api/task-board/all": {
-      "get": {
-        "operationId": "_tb_all_api_task_board_all_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Tb All Api Task Board All Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Tb All",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/task-board/stats": {
-      "get": {
-        "operationId": "_tb_stats_api_task_board_stats_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Tb Stats Api Task Board Stats Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Tb Stats",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/task-board/timeline": {
-      "get": {
-        "operationId": "_tb_timeline_api_task_board_timeline_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Tb Timeline Api Task Board Timeline Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Tb Timeline",
-        "tags": [
-          "stub"
         ]
       }
     },
@@ -55801,29 +54907,6 @@
         ]
       }
     },
-    "/api/telemetry/stats": {
-      "get": {
-        "operationId": "_telemetry_stats_api_telemetry_stats_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response  Telemetry Stats Api Telemetry Stats Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Telemetry Stats",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
     "/api/tentacle/broadcast": {
       "post": {
         "description": "把同一任务并发下发到多台设备并聚合结果。\n\nbody: ``{task, tentacle_ids?, max_concurrency?}``——``tentacle_ids`` 省略\n或为 null 时对所有在线设备群发。单台失败被隔离，不影响其它设备。",
@@ -58416,95 +57499,6 @@
         "summary": "Api Tool Effect Authorize Retry",
         "tags": [
           "observability"
-        ]
-      }
-    },
-    "/api/trace/recent": {
-      "get": {
-        "operationId": "_trace_recent_api_trace_recent_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response  Trace Recent Api Trace Recent Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Trace Recent",
-        "tags": [
-          "stub"
-        ]
-      }
-    },
-    "/api/trace/{trace_id}": {
-      "get": {
-        "operationId": "_trace_detail_api_trace__trace_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "trace_id",
-            "required": true,
-            "schema": {
-              "title": "Trace Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {},
-                  "title": "Response  Trace Detail Api Trace  Trace Id  Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": " Trace Detail",
-        "tags": [
-          "stub"
         ]
       }
     },

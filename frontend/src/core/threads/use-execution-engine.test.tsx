@@ -510,3 +510,14 @@ describe("a new conversation starts on an engine that can answer", () => {
     },
   );
 });
+
+
+it("retains a CodeBuddy preference and gates it on its own local readiness", async () => {
+  localStorage.setItem("echo:execution-engine:alice:new", "codebuddy");
+  serve({ available: true });
+  const { result } = renderEngine();
+  await settled(result);
+  expect(result.current.engine).toBe("codebuddy");
+  expect(result.current.engineReady).toBe(true);
+  expect(result.current.codebuddyAvailable).toBe(true);
+});

@@ -70,6 +70,9 @@ tier: "core"
 | `_journal_base.py` | — |
 | `_journal_models.py` | — |
 | `_journal_parse.py` | — |
+| `_journal_support.py` | Shared low-level helpers for the JSONL journal (lock, fsync, dedupe). |
+| `_jsonl_journal_redaction.py` | Tenant-scope and payload redaction for the JSONL journal. |
+| `_jsonl_journal_streams.py` | Trajectory, mirroring, and read paths for the JSONL journal. |
 | `activity.py` | Best-effort journal mirrors for long-running orchestration activity. |
 | `derive.py` | Project model-visible history from the journal (dsh session-log idea). |
 | `journal.py` | — |
@@ -142,6 +145,25 @@ tier: "core"
 | class | `class WorkflowEndEvent(JournalEvent)` | A workflow run settled (dsh workflow ``on_end`` / settlement). |
 | class | `class JobChangeEvent(JournalEvent)` | One background-job lifecycle transition (dsh ``tool-jobs``): start, stop request, or terminal settlement. ``status`` mirrors the registry's  |
 
+### `_journal_support.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class JournalTransactionError(RuntimeError)` | A durable journal transaction could not be established or verified. |
+| class | `class TrajectoryConflictError(JournalTransactionError)` | One idempotency key was reused for a different terminal payload. |
+
+### `_jsonl_journal_redaction.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class JournalRedactionMixin` | Structured, identity-preserving redaction for file journals. |
+
+### `_jsonl_journal_streams.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class JournalStreamsMixin` | Trajectory dedupe/canonicalisation, trace mirroring, and reads. |
+
 ### `activity.py`
 
 | Kind | Symbol | Doc |
@@ -175,10 +197,8 @@ tier: "core"
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| class | `class JournalTransactionError(RuntimeError)` | A durable journal transaction could not be established or verified. |
-| class | `class TrajectoryConflictError(JournalTransactionError)` | One idempotency key was reused for a different terminal payload. |
 | class | `class InMemoryJournal(Journal)` |  |
-| class | `class JSONLJournal(_StructuredJournalRedaction, Journal)` |  |
+| class | `class JSONLJournal(JournalRedactionMixin, JournalStreamsMixin, Journal)` |  |
 
 ### `journal_context.py`
 
@@ -221,7 +241,7 @@ tier: "core"
 
 ## Who imports this
 
-**63** file(s) reference this package:
+**65** file(s) reference this package:
 
 - **`runtime/_cli_commands.py/`** · 1 file(s)
   - `runtime/_cli_commands.py`
@@ -254,8 +274,9 @@ tier: "core"
   - `runtime/memory/hemolymph/composer.py`
   - `runtime/memory/learning/promotion_applier.py`
   - `runtime/memory/runtime_state/hub.py`
-- **`runtime/platform/`** · 3 file(s)
+- **`runtime/platform/`** · 4 file(s)
   - `runtime/platform/config/builder.py`
+  - `runtime/platform/runtime_policy/deployments.py`
   - `runtime/platform/ui/app.py`
   - `runtime/platform/ui/state.py`
 - **`runtime/safety/`** · 9 file(s)
@@ -265,13 +286,13 @@ tier: "core"
   - `runtime/safety/recovery/memory_consolidator.py`
   - `runtime/safety/recovery/recipe_evaluator.py`
   - _… and 4 more_
-- **`runtime/sensing/`** · 23 file(s)
+- **`runtime/sensing/`** · 24 file(s)
   - `runtime/sensing/gateway/_evolution_ops_learning_endpoints.py`
   - `runtime/sensing/gateway/_observability_auth.py`
   - `runtime/sensing/gateway/_observability_journal.py`
   - `runtime/sensing/gateway/_observability_progress_stream.py`
   - `runtime/sensing/gateway/_observability_rollback_panels.py`
-  - _… and 18 more_
+  - _… and 19 more_
 - **`runtime/tour.py/`** · 1 file(s)
   - `runtime/tour.py`
 

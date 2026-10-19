@@ -2436,11 +2436,11 @@ def test_evidence_synthesis_stall_emits_visible_handoff_without_phantom_tool_loo
                 yield ModelStreamEvent(type="thinking_delta", delta="private")
 
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop._model_iteration_timeout_s",
+        "runtime.core.cerebrum.react_loop_impl._model_iteration_timeout_s",
         lambda config_timeout_s=None: 0.025,
     )
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop.next_custom_model_fallback",
+        "runtime.core.cerebrum.react_loop_impl.next_custom_model_fallback",
         lambda *_args, **_kwargs: None,
     )
     router = EvidenceThenStallingRouter()
@@ -2804,7 +2804,7 @@ def test_hidden_reasoning_timeout_retries_once_without_extended_thinking(monkeyp
             )
 
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop._model_iteration_timeout_s",
+        "runtime.core.cerebrum.react_loop_impl._model_iteration_timeout_s",
         lambda config_timeout_s=None: 0.025,
     )
     router = StallingThenConvergingRouter()
@@ -2857,11 +2857,11 @@ def test_hidden_reasoning_timeout_switches_to_backup_model(monkeypatch) -> None:
             )
 
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop._model_iteration_timeout_s",
+        "runtime.core.cerebrum.react_loop_impl._model_iteration_timeout_s",
         lambda config_timeout_s=None: 0.025,
     )
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop.next_custom_model_fallback",
+        "runtime.core.cerebrum.react_loop_impl.next_custom_model_fallback",
         lambda current, attempted, **_kwargs: (
             "backup-model" if "backup-model" not in attempted else None
         ),
@@ -2921,11 +2921,11 @@ def test_post_tool_timeout_backup_reuses_evidence_and_finishes_plain_answer(
             )
 
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop._model_iteration_timeout_s",
+        "runtime.core.cerebrum.react_loop_impl._model_iteration_timeout_s",
         lambda config_timeout_s=None: 0.025,
     )
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop.next_custom_model_fallback",
+        "runtime.core.cerebrum.react_loop_impl.next_custom_model_fallback",
         lambda current, attempted, **_kwargs: (
             "backup-model" if "backup-model" not in attempted else None
         ),
@@ -2971,7 +2971,7 @@ def test_retryable_provider_error_switches_model_before_first_step(monkeypatch) 
             )
 
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop.next_custom_model_fallback",
+        "runtime.core.cerebrum.react_loop_impl.next_custom_model_fallback",
         lambda current, attempted, **_kwargs: (
             "backup-model" if "backup-model" not in attempted else None
         ),
@@ -3022,7 +3022,7 @@ def test_silent_model_stream_is_interrupted_by_wall_clock_deadline(monkeypatch) 
             )
 
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop._model_iteration_timeout_s",
+        "runtime.core.cerebrum.react_loop_impl._model_iteration_timeout_s",
         lambda config_timeout_s=None: 0.025,
     )
     router = SilentThenConvergingRouter()
@@ -3099,7 +3099,7 @@ def test_repeated_hidden_reasoning_timeout_is_reported_as_failure(monkeypatch) -
             yield ModelStreamEvent(type="thinking_delta", delta="private deliberation")
 
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop._model_iteration_timeout_s",
+        "runtime.core.cerebrum.react_loop_impl._model_iteration_timeout_s",
         lambda config_timeout_s=None: 0.0,
     )
     intent = _intent("perform a long analysis")
@@ -6809,7 +6809,7 @@ def test_forced_convergence_timeout_preserves_public_stage_updates(
             )
 
     monkeypatch.setattr(
-        "runtime.core.cerebrum.react_loop._model_iteration_timeout_s",
+        "runtime.core.cerebrum.react_loop_impl._model_iteration_timeout_s",
         lambda config_timeout_s=None: 0.03,
     )
     stack = _build_stack_with_executor(

@@ -299,7 +299,7 @@ function SurfaceState({
             variant={install || enable || retry ? "outline" : "default"}
             size="sm"
             onClick={() =>
-              navigate("/workspace/agents?surface=chat&tab=plugins")
+              navigate("/workspace/agents?surface=chat&tab=applications")
             }
           >
             {install ? null : <CloudDownloadIcon className="mr-1.5 size-3.5" />}
@@ -608,7 +608,7 @@ export function RemoteWorkbenchSurface({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/workspace/agents?tab=plugins")}
+          onClick={() => navigate("/workspace/agents?tab=applications")}
         >
           返回 HUB
         </Button>

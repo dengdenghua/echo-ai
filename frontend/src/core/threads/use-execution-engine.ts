@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { coderQueryKeys, getCoderModelProfile } from "@/core/coder/api";
 import { apiGet } from "@/core/api/request";
+import { parseCodeBuddyStatus } from "@/core/agents/codebuddy-status";
 import type { EngineCapabilityChecks } from "@/core/agents/engine-capability-checks";
 import { useModels } from "@/core/models/hooks";
 import {
@@ -93,6 +94,12 @@ export function useExecutionEngine({
     enabled,
     staleTime: 30_000,
   });
+  const codebuddy = useQuery({
+    queryKey: ["codebuddy-status", principal],
+    queryFn: async ({ signal }) =>
+      parseCodeBuddyStatus(await apiGet("/api/config/codebuddy/status", { signal })),
+    enabled, staleTime: 30_000,
+  });
   const profile = useQuery({
     queryKey: coderQueryKeys(principal).profile,
     queryFn: ({ signal }) => getCoderModelProfile(signal),
@@ -107,10 +114,11 @@ export function useExecutionEngine({
   const opencodeHasModel = opencodeServesSelection(catalog.models, modelName);
   const codexAvailable = profile.data?.execution_available === true;
   const readiness: EngineReadiness = {
-    known: opencode.isSuccess && !profile.isPending && catalogKnown,
+    known: opencode.isSuccess && !profile.isPending && !codebuddy.isPending && catalogKnown,
     opencodeMissing,
     opencodeReady: opencode.data?.available === true && opencodeHasModel,
     codexReady: codexAvailable,
+    codebuddyReady: codebuddy.data?.available === true,
     echoReady: !catalogKnown || hasAnsweringModel(catalog.models),
   };
   const savedPreference =
@@ -177,12 +185,15 @@ export function useExecutionEngine({
     engine,
     /** Whether the engine this conversation runs on can answer; null while
      * that is still being checked, false when it could not be checked. */
-    engineReady: readiness.known
+    engineReady: engine === "codebuddy" ? (codebuddy.isPending ? null : codebuddy.data?.available === true) : readiness.known
       ? canAnswerOn(engine, readiness)
       : enabled &&
           (opencode.isPending || profile.isPending || catalog.isLoading)
         ? null
         : false,
+    codebuddyAvailable: codebuddy.data?.available === true,
+    codebuddyUnavailableReason: codebuddy.data?.reason ?? null,
+    codebuddyCapabilityChecks: codebuddy.data?.capability_checks,
     codexAvailable,
     /** The model Codex turns run on, as the composer's Codex control shows it. */
     codexModel:
@@ -192,7 +203,7 @@ export function useExecutionEngine({
     opencodeAvailable: opencode.data?.available === true,
     opencodeUnavailableReason: opencode.data?.reason ?? null,
     /** Readiness is still loading — not a failure, so nothing is flagged yet. */
-    engineChecking: profile.isPending || opencode.isPending,
+    engineChecking: profile.isPending || opencode.isPending || (engine === "codebuddy" && codebuddy.isPending),
     codexUnavailableReason:
       profile.data?.execution_unavailable_reason ??
       (profile.isError

@@ -122,7 +122,7 @@ def _build_parser() -> argparse.ArgumentParser:
     codep.add_argument("--model", default=None, help="model for the selected execution engine")
     codep.add_argument(
         "--engine",
-        choices=["auto", "opencode", "codex", "echo"],
+        choices=["auto", "opencode", "codex", "codebuddy", "echo"],
         default="auto",
         help="execution engine (new sessions default to OpenCode)",
     )

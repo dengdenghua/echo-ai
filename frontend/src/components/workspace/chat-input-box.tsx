@@ -144,7 +144,7 @@ export interface ChatInputBoxProps {
   /** Expected execution kernel for this task. Model source remains independently
    * selectable: Echo uses per-thread model_name, Codex uses its scoped
    * server profile. */
-  executionEngine?: "echo" | "codex" | "opencode";
+  executionEngine?: "echo" | "codex" | "opencode" | "codebuddy";
   /** That engine can answer now; null while checking. Hides the first-run line. */
   executionEngineReady?: boolean | null;
   executionEngineControl?: ReactNode;

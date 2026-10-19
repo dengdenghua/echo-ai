@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-import runtime.execution.suckers.kimi_compat_skills as media
+import runtime.execution.suckers.kimi_media_skills as media
 
 
 def _clear_media_keys(monkeypatch) -> None:

@@ -7,7 +7,6 @@ frontend/src/app/desktop/page.tsx	1254
 frontend/src/app/workspace/design/director-stage.tsx	1946
 frontend/src/app/workspace/design/page.tsx	7827
 frontend/src/app/workspace/narrative/page.tsx	1602
-frontend/src/app/workspace/narrative/studio-panels.tsx	1173
 frontend/src/app/workspace/realtime/[thread_id]/page.tsx	1768
 frontend/src/components/browser/assistant-panel.tsx	1868
 frontend/src/components/browser/browser-home.tsx	3210
@@ -17,7 +16,7 @@ frontend/src/components/store/capability-market-panel.test.tsx	1274
 frontend/src/components/store/cloud-skills-panel.tsx	1095
 frontend/src/components/workspace/agent-operator-panel.test.tsx	2045
 frontend/src/components/workspace/agent-workbench-panel.test.tsx	3404
-frontend/src/components/workspace/agents/agent-world-unified.tsx	1042
+frontend/src/components/workspace/agents/agent-world-unified.tsx	1006
 frontend/src/components/workspace/chat-input-box.test.tsx	2319
 frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2210
 frontend/src/components/workspace/coder-engine-control.test.tsx	1262
@@ -27,10 +26,8 @@ frontend/src/components/workspace/messages/message-group.test.tsx	3304
 frontend/src/components/workspace/messages/message-group.tsx	3303
 frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3251
 frontend/src/components/workspace/messages/message-output-summary.test.tsx	1218
-frontend/src/components/workspace/model-picker.tsx	1062
 frontend/src/components/workspace/settings/model-settings-page.test.tsx	1297
 frontend/src/components/workspace/workspace-sidebar.tsx	2792
-frontend/src/core/agents/agent-world-api.ts	1391
 frontend/src/core/messages/utils.test.ts	1335
 frontend/src/core/realtime/client.test.ts	1149
 frontend/src/core/realtime/reducer.test.ts	2042

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
 _LOG = logging.getLogger(__name__)
@@ -50,6 +51,21 @@ def _stub_api_enabled(enabled: bool | None, *, require_auth: bool = False) -> bo
 
 
 class _StubRoute(APIRoute):
+    """A compatibility route that never appears in the published schema.
+
+    FastAPI writes ``/openapi.json`` paths by key, so the last registration for
+    a path wins. This router is included last on purpose (real routes must match
+    first), which used to make the published contract describe the empty shell
+    for the 24 paths that also have a real handler — and made drift undetectable
+    there, since both shapes were untyped ``additionalProperties: true``.
+    Keeping stubs out of the schema leaves the real handler's contract in place
+    and drops the 42 routes that have no implementation at all.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["include_in_schema"] = False
+        super().__init__(*args, **kwargs)
+
     def get_route_handler(self) -> Callable:
         original = super().get_route_handler()
         route_path = self.path
@@ -87,6 +103,21 @@ class _StubRoute(APIRoute):
             return resp
 
         return tagging_handler
+
+
+def _not_implemented(surface: str) -> Any:
+    """A shim must never answer 200 for a surface that does not exist.
+
+    Every other route here returns a structurally valid empty payload, which a
+    client can render as "no data". A payment surface is different: a UI wired to
+    it would report a charge that never happened. Returning a response rather
+    than raising keeps the ``X-Echo-Stub`` markers on the 501 too — an exception
+    leaves the route handler before the tagger can see it.
+    """
+    return JSONResponse(
+        status_code=501,
+        content={"error": f"{surface} is not implemented", "_stub": True},
+    )
 
 
 def create_stub_router(
@@ -230,12 +261,12 @@ def create_stub_router(
         return _envelope([])
 
     @router.post("/api/account/subscribe")
-    def _subscribe(body: dict[str, Any] | None = None) -> dict[str, Any]:
-        return _envelope({"ok": True})
+    def _subscribe(body: dict[str, Any] | None = None) -> Any:
+        return _not_implemented("account subscription")
 
     @router.post("/api/account/cancel")
-    def _cancel(body: dict[str, Any] | None = None) -> dict[str, Any]:
-        return _envelope({"ok": True})
+    def _cancel(body: dict[str, Any] | None = None) -> Any:
+        return _not_implemented("account cancellation")
 
     @router.get("/api/account/usage")
     def _usage() -> dict[str, Any]:

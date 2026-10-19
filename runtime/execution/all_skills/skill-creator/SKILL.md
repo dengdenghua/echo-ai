@@ -5,6 +5,8 @@ description: Create new skills, modify and improve existing skills, and measure 
 
 # Skill Creator
 
+Scope in Echo: skills are reusable instructions and task workflows invoked by AI. Create an independently discoverable SKILL.md with the scripts and resources the workflow needs. For an interactive app users open, use app-creator. For callable tools, connectors or service integrations, use plugin-creator. Do not wrap an ordinary skill in an app or plugin manifest.
+
 A skill for creating new skills and iteratively improving them.
 
 At a high level, the process of creating a skill goes like this:

@@ -199,8 +199,11 @@ def resolve_design_plan(
             # Check only our own known adapter configuration, never execute a
             # registry handler or a generation request during preflight.
             handler = getattr(registry.get(generation), "handler", None)
-            if getattr(handler, "__module__", "") == "runtime.execution.suckers.kimi_compat_skills":
-                from runtime.execution.suckers.kimi_compat_skills import (
+            if getattr(handler, "__module__", "") in {
+                "runtime.execution.suckers.kimi_compat_skills",
+                "runtime.execution.suckers.kimi_media_skills",
+            }:
+                from runtime.execution.suckers.kimi_media_skills import (
                     _bundled_media_configured,
                     _openai_media_config,
                 )

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from runtime.execution.suckers import web_skills_catalog
 from runtime.execution.suckers.registry import SkillRegistry
 from runtime.research.pipeline import (
     register_deep_research_skill,
@@ -293,7 +294,7 @@ class TestResearchSkillRegistration:
                 ]
             ),
         )
-        monkeypatch.setattr(web_skills, "_fetch_url", _fake_fetch())
+        monkeypatch.setattr(web_skills_catalog, "_fetch_url", _fake_fetch())
 
         registry = SkillRegistry()
         n = register_research_skill(registry, router=_router())
@@ -637,7 +638,7 @@ class TestDeepResearchSkill:
                 ]
             ),
         )
-        monkeypatch.setattr(web_skills, "_fetch_url", _fake_fetch())
+        monkeypatch.setattr(web_skills_catalog, "_fetch_url", _fake_fetch())
 
         registry = SkillRegistry()
         n = register_deep_research_skill(registry, router=router)

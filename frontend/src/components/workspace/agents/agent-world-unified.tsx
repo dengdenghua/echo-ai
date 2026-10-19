@@ -1,3 +1,6 @@
+import { CreateAssetButton } from "@/components/store/create-asset-button";
+import { PersonalAppsPanel } from "@/components/store/personal-apps-panel";
+import { creationCopy } from "@/core/i18n/locales/asset-creation";
 import { agentCreationRoute } from "@/core/agents/creation-route";
 import {
   lazy,
@@ -40,7 +43,6 @@ import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
 import { swallow } from "@/core/utils/log";
 import { serviceErrorMessage } from "@/core/utils/service-error";
 import { useI18n } from "@/core/i18n/hooks";
-import { cn } from "@/lib/utils";
 import {
   fetchRuntimePluginStatus,
   installCloudPlugin,
@@ -74,8 +76,6 @@ import {
   workbenchActionErrorMessage,
 } from "@/core/workbench/workbench-permissions";
 import { WORKBENCH_APP_ICONS } from "@/components/workspace/module-icons";
-import { CapabilityMarketPanel } from "@/components/store/capability-market-panel";
-import { DEFAULT_FEATURED_APP_IDS } from "@/components/store/app-marketplace-panel";
 import { A2AAgentsPanel } from "@/components/workspace/a2a-agents-panel";
 import { CloudSkillsPanel } from "@/components/store/cloud-skills-panel";
 import { WorkBuddyCloudStorePanel } from "@/components/store/workbuddy-cloud-store-panel";
@@ -86,6 +86,7 @@ import {
 } from "./workbench-app-dialogs";
 import { hubCopy } from "@/core/i18n/locales/hub";
 import { OnDemandStoreSections } from "./plugin-store-section";
+import { AgentWorldPluginsTab } from "./agent-world-plugins-tab";
 import {
   WorkbenchInstallControl,
   WorkbenchManageMenu,
@@ -478,7 +479,8 @@ export function AgentWorldUnified() {
       params.delete("installed");
       params.delete("view");
       if (section === "agents") params.set("tab", "agents");
-      if (section === "applications") {
+      if (section === "applications") params.set("tab", "applications");
+      if (section === "plugins") {
         params.set("tab", "plugins");
         params.set("view", "featured");
       }
@@ -553,6 +555,9 @@ export function AgentWorldUnified() {
                     className="h-9 px-3 text-ui"
                   >
                     {hub.tabs.applications}
+                  </TabsTrigger>
+                  <TabsTrigger value="plugins" className="h-9 px-3 text-ui">
+                    {creationCopy(locale).plugins}
                   </TabsTrigger>
                   <TabsTrigger value="skills" className="h-9 px-3 text-ui">
                     {hub.tabs.skills}
@@ -702,9 +707,13 @@ export function AgentWorldUnified() {
                   {hub.apps.center}
                 </h2>
                 <div className="mb-6">
-                  <h3 className="mb-2 text-sm font-semibold">
-                    {hub.apps.heading}
-                  </h3>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold">
+                      {hub.apps.heading}
+                    </h3>
+                    <CreateAssetButton kind="app" />
+                  </div>
+                  <PersonalAppsPanel searchQuery={searchQuery} />
                   {workbenchPackageError ? (
                     <div
                       role="alert"
@@ -895,62 +904,17 @@ export function AgentWorldUnified() {
                   </div>
                 </div>
                 <OnDemandStoreSections />
-                <div>
-                  <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold">
-                        {pluginDirectoryView === "featured"
-                          ? hub.plugins.featuredHeading
-                          : hub.plugins.allHeading}
-                      </h3>
-                      <p className="mt-1 text-ui text-muted-foreground">
-                        {pluginDirectoryView === "featured"
-                          ? hub.plugins.featuredHint
-                          : hub.plugins.allHint}
-                      </p>
-                    </div>
-                    <div
-                      role="tablist"
-                      aria-label={hub.plugins.viewLabel}
-                      className="flex w-fit items-center rounded-lg bg-muted/60 p-1"
-                    >
-                      {(
-                        [
-                          ["featured", hub.plugins.featured],
-                          ["all", hub.plugins.all],
-                          ["installed", hub.plugins.installed],
-                        ] as const
-                      ).map(([view, label]) => (
-                        <button
-                          key={view}
-                          type="button"
-                          role="tab"
-                          aria-selected={marketRoute.applicationView === view}
-                          onClick={() => navigateToApplicationView(view)}
-                          className={cn(
-                            "h-7 rounded-md px-3 text-ui transition-colors",
-                            marketRoute.applicationView === view
-                              ? "bg-background font-medium text-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <CapabilityMarketPanel
-                    searchQuery={searchQuery}
-                    view={pluginDirectoryView}
-                    featuredIds={DEFAULT_FEATURED_APP_IDS}
-                    maxItems={
-                      pluginDirectoryView === "featured" ? 7 : undefined
-                    }
-                    showToolbar={false}
-                    compact
-                  />
-                </div>
               </section>
+            </TabsContent>
+
+            <TabsContent value="plugins" className="mt-0">
+              <AgentWorldPluginsTab
+                copy={hub.plugins}
+                view={pluginDirectoryView}
+                activeView={marketRoute.applicationView}
+                searchQuery={searchQuery}
+                onViewChange={navigateToApplicationView}
+              />
             </TabsContent>
 
             <TabsContent value="skills" className="mt-0">

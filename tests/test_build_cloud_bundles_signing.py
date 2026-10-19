@@ -31,7 +31,7 @@ def _load_builder():
 
 
 def test_single_skill_packages_round_trip_without_full_catalog_download(tmp_path, monkeypatch):
-    from runtime.platform.plugins import cloud_catalog
+    from runtime.platform.plugins import _cloud_catalog_support
 
     builder = _load_builder()
     source = tmp_path / "source"
@@ -53,9 +53,9 @@ def test_single_skill_packages_round_trip_without_full_catalog_download(tmp_path
     builder.build_skills(out)
     catalog = CloudCatalog("skills", use_remote=False, use_cache=False)
     catalog._store = json.loads((store / "skill-registry.json").read_text())
-    monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(_cloud_catalog_support, "CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(
-        cloud_catalog,
+        _cloud_catalog_support,
         "fetch_public_https_bytes",
         lambda url, **kw: (out / url.rsplit("/", 1)[1]).read_bytes(),
     )

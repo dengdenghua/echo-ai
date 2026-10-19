@@ -106,13 +106,14 @@ ALL_RULES.append(MyNewRule())
 
 ## 机械门禁与统一入口（`run_gates.py`）
 
-同目录还有九个**机械 ratchet 门禁**（逐文件脚本 + baseline 账本，只拦新增违规、
-不追既有债）：`untracked_source_check` / `god_file_check` / `import_direction_check` /
-`orphan_module_check` / `feature_flag_consumption_check` / `async_lock_check` /
-`async_blocking_check` / `root_hygiene` / `repo_url_check`。
+同目录还有十三个**机械 ratchet 门禁**（逐文件脚本 + baseline 账本，只拦新增违规、
+不追既有债）：`untracked_source_check` / `god_file_check` / `function_length_check` /
+`inline_locale_check` / `sqlite_schema_check` / `raw_fetch_check` /
+`import_direction_check` / `orphan_module_check` / `feature_flag_consumption_check` /
+`async_lock_check` / `async_blocking_check` / `root_hygiene` / `repo_url_check`。
 
 ```bash
-# 一键跑全部九个（与 CI 同参数），出一张汇总表
+# 一键跑全部十三个（与 CI 同参数），出一张汇总表
 python tools/lint/run_gates.py
 
 # 选跑/跳过指定门禁；写 JSON 报告供 CI 消费
@@ -120,6 +121,22 @@ python tools/lint/run_gates.py --only god_file_check,root_hygiene --json report.
 ```
 
 `--json` 输出逐门禁退出码、耗时与输出尾部，适合作为 workflow artifact。
+
+### 本地等绿 = CI 等绿（`run_ci_gates.py`）
+
+`run_gates.py` 只覆盖上面十三个机械门禁，而 `ci.yml` 的 `lint-and-test` job 还跑
+invariant / fixture-visibility / skill 去重 / protocol-drift / exception-audit /
+doc-claims / auth-actor / hardcoded-path / mypy / ruff 等十余道。两边不一致时，
+本地全绿而 CI 红的错觉就这样出现（2026-08 审计里十二条依赖本机状态的测试正是这么活下来的）。
+
+```bash
+# 27 道，等价于 CI 的 lint-and-test job（就是 `make lint` 干的事）
+python tools/lint/run_ci_gates.py
+
+# 跳过慢门禁做快速自查
+python tools/lint/run_ci_gates.py --skip mypy_ratchet,count_tests
+```
+
 
 ### 复用到其他仓库
 

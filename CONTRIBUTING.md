@@ -15,6 +15,7 @@ make test        # 或 python -m pytest tests/ -q
 ## 提交前硬性要求
 
 - [ ] `python -m pytest tests/` 全绿
+- [ ] `make lint` 全绿 —— 等价于 CI 的 `Lint + Test` job，一次跑完 27 道闸门（清单见 `tools/lint/run_ci_gates.py`；只跑机械闸门用 `make lint-fast`）
 - [ ] `python -m tools.lint.invariant_check runtime/ tests/` 0 issue
 - [ ] 新增/修改的逻辑必须带**测试**（unit 或 integration）
 - [ ] 不引入新强依赖（默认只有 `pydantic`；其他必须走 `[project.optional-dependencies]` 软依赖）

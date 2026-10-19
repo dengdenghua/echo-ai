@@ -711,7 +711,7 @@ def test_native_eof_without_done_discards_pending_answer_lane() -> None:
             return_value=[fake_spec],
         ),
         patch(
-            "runtime.core.cerebrum.react_loop.next_custom_model_fallback",
+            "runtime.core.cerebrum.react_loop_impl.next_custom_model_fallback",
             return_value=None,
         ) as fallback,
     ):
@@ -762,7 +762,7 @@ def test_native_done_without_final_discards_pending_answer_lane() -> None:
             return_value=[fake_spec],
         ),
         patch(
-            "runtime.core.cerebrum.react_loop.next_custom_model_fallback",
+            "runtime.core.cerebrum.react_loop_impl.next_custom_model_fallback",
             return_value=None,
         ) as fallback,
     ):

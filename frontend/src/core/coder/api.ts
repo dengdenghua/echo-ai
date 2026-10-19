@@ -418,9 +418,9 @@ export function applyCoderModelProfileBoundary<
 >(
   agentId: string | null | undefined,
   context: T,
-  executionEngine?: "echo" | "codex" | "opencode",
+  executionEngine?: "echo" | "codex" | "opencode" | "codebuddy",
 ): T {
-  if (executionEngine === "opencode") return context;
+  if (executionEngine === "opencode" || executionEngine === "codebuddy") return context;
   if (executionEngine !== "codex" && agentId !== "coder") return context;
   const next = { ...context };
   delete next.model_name;

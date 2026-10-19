@@ -19,7 +19,7 @@ export function FirstModelHint({
   engineReady,
   className,
 }: {
-  executionEngine?: "echo" | "codex" | "opencode";
+  executionEngine?: "echo" | "codex" | "opencode" | "codebuddy";
   /** The selected engine can answer; null while its readiness loads. */
   engineReady?: boolean | null;
   className?: string;
@@ -27,7 +27,7 @@ export function FirstModelHint({
   const { locale } = useI18n();
   const { models, isLoading, error } = useModels();
   // Codex answers with its own signed-in account, outside this catalog.
-  if (isLoading || error || executionEngine === "codex") return null;
+  if (isLoading || error || executionEngine === "codex" || executionEngine === "codebuddy") return null;
   if (engineReady === true || engineReady === null) return null;
   if (hasAnsweringModel(models)) return null;
   const copy = turnFailureCopy(locale);

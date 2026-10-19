@@ -104,9 +104,11 @@ Suckers = skill pool.
 | `echo_skills.py` | ECHO Universe Engine 叙事 Ganglion 接入. |
 | `enterprise_skills.py` | Echo Enterprise 企业服务 Arm 接入. |
 | `ephemeral_agents.py` | Ephemeral sub-agent roles · lightweight personas for one-shot delegation tasks (``researcher`` / ``debugger`` / ``reviewer`` / …). |
+| `ephemeral_agents_registration.py` | Split out of :mod:`ephemeral_agents` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
 | `ephemeral_injection_gate.py` | Prompt-injection taint gate for ephemeral sub-agent tool calls. |
 | `ephemeral_limits.py` | Round, truncation, and model-selection policy for ephemeral agents. |
 | `ephemeral_runner.py` | LLM-backed runner for ephemeral sub-agent roles. |
+| `ephemeral_runner_support.py` | Budget, signature, report, and registry helpers for the ephemeral runner. |
 | `find_capability.py` | Read-only capability fallback; execution stays in the normal tool loop. |
 | `forged_persistence.py` | — |
 | `fs_search_skills.py` | — |
@@ -118,6 +120,7 @@ Suckers = skill pool.
 | `jobs_skills.py` | Model-facing background-job skills (dsh ``tool-jobs`` port). |
 | `kg_skill.py` | — |
 | `kimi_compat_skills.py` | — |
+| `kimi_media_skills.py` | Media generation skills (image / video / speech / sfx) for the kimi compat set. |
 | `layers.py` | — |
 | `loader/md_loader.py` | — |
 | `lsp_skills.py` | LSP (Language Server Protocol) integration skills. |
@@ -141,6 +144,7 @@ Suckers = skill pool.
 | `video_album_skills.py` | Video album skills (local AI video library). |
 | `visual_skills.py` | Small visual entry points; detailed authoring guidance loads only on demand. |
 | `web_skills.py` | — |
+| `web_skills_catalog.py` | Split out of :mod:`web_skills` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
 | `workflow_skill.py` | Model-facing ``workflow`` skill (dsh ``tool-workflow``). |
 | `write_skills.py` | — |
 
@@ -452,15 +456,20 @@ Suckers = skill pool.
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
-| class | `class EphemeralRoleDef` | Everything needed to spin up an ephemeral sub-agent turn. |
 | func | `def get_ephemeral_role_ids()` | Stable view for dispatch lookup. |
 | func | `def get_role_display(role_id)` | Return the built-in role's ``(display_name, description)``, or None. |
-| class | `class EphemeralCall` | Everything the runner needs to execute a role turn. |
 | func | `def set_ephemeral_role_runner(runner)` | Install the runner that executes one ephemeral role turn. |
 | func | `def get_ephemeral_role_runner()` |  |
 | func | `def is_ephemeral_role(agent_id)` | True iff ``agent_id`` refers to an ephemeral role (vs a registered agent directory). |
 | func | `def run_ephemeral_definition(role, user_prompt, session, context, timeout_s)` | Execute one isolated subagent role definition. |
 | func | `def run_ephemeral_role(role_id, user_prompt, session, context, timeout_s)` | Execute one built-in ephemeral role turn. |
+
+### `ephemeral_agents_registration.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class EphemeralRoleDef` | Everything needed to spin up an ephemeral sub-agent turn. |
+| class | `class EphemeralCall` | Everything the runner needs to execute a role turn. |
 
 ### `ephemeral_injection_gate.py`
 

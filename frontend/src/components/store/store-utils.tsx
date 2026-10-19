@@ -1,3 +1,4 @@
+import { creationRoute } from "@/core/i18n/locales/asset-creation";
 import { RefreshCw } from "lucide-react";
 
 import { ErrorState } from "@/components/ui/state";
@@ -352,11 +353,9 @@ export function classifyPluginItem(
 }
 
 export function useOpenCreatePluginChat() {
-  const { t } = useI18n();
+  const { locale } = useI18n();
   return () => {
-    window.location.hash = `/workspace/realtime/new?prompt=${encodeURIComponent(
-      t.storeUtils.createPluginPrompt,
-    )}`;
+    window.location.hash = creationRoute("plugin", locale);
   };
 }
 

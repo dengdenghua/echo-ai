@@ -19,6 +19,7 @@ export interface EngineReadiness {
   opencodeReady: boolean;
   /** Codex is configured and signed in. */
   codexReady: boolean;
+  codebuddyReady?: boolean;
   /** Echo's own catalog lists a model that answers. */
   echoReady: boolean;
 }
@@ -28,6 +29,7 @@ export function canAnswerOn(
   choice: ExecutionEnginePreference,
   readiness: EngineReadiness,
 ): boolean {
+  if (choice === "codebuddy") return readiness.codebuddyReady === true;
   if (choice === "codex") return readiness.codexReady;
   if (choice === "opencode") return readiness.opencodeReady;
   if (choice === "echo") return readiness.echoReady;

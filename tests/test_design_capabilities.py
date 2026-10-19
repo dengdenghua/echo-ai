@@ -152,6 +152,7 @@ def test_generation_without_execution_tool_is_blocked():
 
 def test_generation_configuration_checked_without_calling_provider(monkeypatch):
     from runtime.execution.suckers import kimi_compat_skills as media
+    from runtime.execution.suckers import kimi_media_skills as kimi_media
 
     reg = registry()
     reg.register(
@@ -162,8 +163,8 @@ def test_generation_configuration_checked_without_calling_provider(monkeypatch):
         ),
         replace=True,
     )
-    monkeypatch.setattr(media, "_bundled_media_configured", lambda: False)
-    monkeypatch.setattr(media, "_openai_media_config", lambda: ("https://invalid", ""))
+    monkeypatch.setattr(kimi_media, "_bundled_media_configured", lambda: False)
+    monkeypatch.setattr(kimi_media, "_openai_media_config", lambda: ("https://invalid", ""))
     plan = resolve_design_plan("生成一张海报", context=context(), registry=reg)
     assert not plan["ready"]
     assert "凭据" in plan["blockers"][0]

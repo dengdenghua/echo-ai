@@ -346,7 +346,7 @@ async def _select_and_bind_turn_driver(ctx: _TurnContext) -> None:
         intent=ctx.intent,
         requested_model=ctx.requested_model_before_routing or "auto",
     )
-    if route.engine in {"opencode", "codex"}:
+    if route.engine in {"opencode", "codex", "codebuddy"}:
         ctx.validated = ctx.validated.model_copy(
             update={"model": ctx.requested_model_before_routing}
         )
@@ -418,6 +418,7 @@ async def _handle_turn_driver_error(ctx: _TurnContext, exc: Exception) -> bool:
             else {
                 "codex_app_server": "codex",
                 "opencode_server": "opencode",
+                "codebuddy_cli": "codebuddy",
             }.get(ctx.turn_driver, "echo")
         )
     context = ctx.intent.user_context if isinstance(ctx.intent.user_context, dict) else {}

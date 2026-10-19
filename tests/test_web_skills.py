@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from runtime.execution.suckers import SkillRegistry
+from runtime.execution.suckers import SkillRegistry, web_skills_catalog
 from runtime.execution.suckers.web_skills import (
     _SNIPPET_CAP,
     HTTPX_AVAILABLE,
@@ -98,10 +98,10 @@ def _resolve_to_public_ip(monkeypatch):
     """
     import socket
 
-    import runtime.execution.suckers.web_skills as _web_skills
+    import runtime.execution.suckers.web_skills_catalog as _web_skills_catalog
     import runtime.safety.auth.url_guard as _guard
 
-    monkeypatch.setattr(_web_skills, "_SEARXNG_UNHEALTHY_UNTIL", 0.0)
+    monkeypatch.setattr(_web_skills_catalog, "_SEARXNG_UNHEALTHY_UNTIL", 0.0)
 
     def _fake_getaddrinfo(host, *a, **kw):
         return [
@@ -156,7 +156,9 @@ class TestFetchUrl:
         assert "network down" in result["error"]
 
     def test_retries_transient_tls_eof_before_succeeding(self, monkeypatch):
-        monkeypatch.setattr("runtime.execution.suckers.web_skills.time.sleep", lambda _s: None)
+        monkeypatch.setattr(
+            "runtime.execution.suckers.web_skills_catalog.time.sleep", lambda _s: None
+        )
         client = _FlakyTlsClient()
 
         result = _fetch_url(url="https://example.com/", client=client)
@@ -270,15 +272,13 @@ _DDG_SAMPLE_HTML = """
 class TestDDGSearch:
     @pytest.fixture(autouse=True)
     def _disable_optional_ddgs(self, monkeypatch):
-        import runtime.execution.suckers.web_skills as web_skills
 
-        monkeypatch.setattr(web_skills, "_ddgs_text_search", lambda *_args: None)
+        monkeypatch.setattr(web_skills_catalog, "_ddgs_text_search", lambda *_args: None)
 
     def test_prefers_ddgs_adapter(self, monkeypatch):
-        import runtime.execution.suckers.web_skills as web_skills
 
         monkeypatch.setattr(
-            web_skills,
+            web_skills_catalog,
             "_ddgs_text_search",
             lambda *_args: [
                 {
@@ -298,10 +298,9 @@ class TestDDGSearch:
         assert result["results"][0]["title"] == "DDGS result"
 
     def test_injected_client_does_not_bypass_its_transport(self, monkeypatch):
-        import runtime.execution.suckers.web_skills as web_skills
 
         monkeypatch.setattr(
-            web_skills,
+            web_skills_catalog,
             "_ddgs_text_search",
             lambda *_args: [
                 {
@@ -475,7 +474,6 @@ class TestWebSearchRouting:
         assert ranked == []
 
     def test_empty_default_backend_falls_back_before_relaxing(self, monkeypatch):
-        import runtime.execution.suckers.web_skills as web_skills
 
         monkeypatch.setenv("WEB_SEARCH_BACKEND", "ddg")
         monkeypatch.setenv("SEARXNG_URL", "https://searx.example")
@@ -495,7 +493,7 @@ class TestWebSearchRouting:
                 ],
             }
 
-        monkeypatch.setattr(web_skills, "_dispatch_search", fake_dispatch)
+        monkeypatch.setattr(web_skills_catalog, "_dispatch_search", fake_dispatch)
         result = _web_search(query="Eight Sleep Orion patent complaint", client=_MockClient())
 
         assert result["backend"] == "searxng"
@@ -503,7 +501,6 @@ class TestWebSearchRouting:
         assert result["fallback_reason"] == "empty_results"
 
     def test_low_relevance_default_backend_falls_back(self, monkeypatch):
-        import runtime.execution.suckers.web_skills as web_skills
 
         monkeypatch.setenv("SEARXNG_URL", "https://searx.example")
         monkeypatch.delenv("WEB_SEARCH_BACKEND", raising=False)
@@ -540,7 +537,7 @@ class TestWebSearchRouting:
                 ],
             }
 
-        monkeypatch.setattr(web_skills, "_dispatch_search", fake_dispatch)
+        monkeypatch.setattr(web_skills_catalog, "_dispatch_search", fake_dispatch)
         result = _web_search(
             query="Eight Sleep Orion Longevity patent complaint",
             client=_MockClient(),

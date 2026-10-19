@@ -385,7 +385,7 @@ export function isPrivateAgentGroundingSource(
 
 /** Host-recorded engine binding, never inferred from a persona or model. */
 export interface ExecutionSnapshot {
-  engine: "echo" | "codex" | "opencode";
+  engine: "echo" | "codex" | "opencode" | "codebuddy";
   driver: string;
   reason: string;
   phase: "primary" | "steering" | "verification" | "repair";
@@ -397,7 +397,7 @@ function isExecutionSnapshot(value: unknown): value is ExecutionSnapshot {
     isObjectLike(value) &&
     (value.engine === "echo" ||
       value.engine === "codex" ||
-      value.engine === "opencode") &&
+      value.engine === "opencode" || value.engine === "codebuddy") &&
     typeof value.driver === "string" &&
     typeof value.reason === "string" &&
     ["primary", "steering", "verification", "repair"].includes(

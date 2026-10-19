@@ -33,7 +33,7 @@ def _engine_owns_summary(turns: list[Any]) -> bool:
     for turn in reversed(turns):
         engine = getattr(turn, "execution_engine", None)
         if engine:
-            return engine in {"codex", "opencode"}
+            return engine in {"codex", "opencode", "codebuddy"}
     return False
 
 

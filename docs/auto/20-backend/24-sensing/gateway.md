@@ -310,6 +310,7 @@ tier: "standard"
 | `published_roles.py` | Owner-published role endpoints: stable identities, receiver-owned execution. |
 | `realtime_approval.py` | Approval bridge between the blocking react loop and the async gateway. |
 | `realtime_cerebrum.py` | Cerebrum-backed realtime runtime. |
+| `realtime_codebuddy_backend.py` | Translate an official CodeBuddy session into Echo's ordinary realtime items. |
 | `realtime_codex_backend.py` | Realtime driver for the isolated Codex App Server execution backend. |
 | `realtime_echo.py` | Echo runtime — reference :class:`RealtimeRuntime` implementation. |
 | `realtime_engine_history.py` | Project the authorized Echo journal into an external engine's missing context. |
@@ -327,14 +328,18 @@ tier: "standard"
 | `realtime_project_phase.py` | Activate only the reviewed phase team, after an owner decision. |
 | `realtime_react_policy.py` | Routing policy and event translation for realtime agent streams. |
 | `realtime_react_stream.py` | Single-agent stream drivers for the realtime runtime. |
+| `realtime_react_stream_drive_steps.py` | Split out of :mod:`_realtime_react_stream_drive` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
+| `realtime_react_stream_drive_verify.py` | Split out of :mod:`realtime_react_stream_drive_steps` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
 | `realtime_remote_approval.py` | Route an approval to a message channel only once nobody is at the UI. |
 | `realtime_remote_echo.py` | Run a chat turn on a remote Echo over SSH or WSL (work location ``remote``). |
 | `realtime_team_stream.py` | Multi-agent team-topology stream driver for the realtime runtime. |
 | `realtime_thread_history.py` | Realtime turn ↔ legacy conversation history adapters. |
 | `realtime_thread_ops.py` | Thread maintenance operations for the realtime runtime. |
 | `realtime_turn_input.py` | Turn-input shaping for the realtime runtime. |
+| `realtime_turn_input_helpers.py` | Split out of :mod:`realtime_turn_input` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
 | `realtime_turn_lifecycle.py` | Realtime turn validation, dispatch, resume handling, and finalization. |
 | `realtime_turn_outcome.py` | Turn outcome inspection for the realtime runtime. |
+| `realtime_turn_outcome_verification.py` | Verification evidence helpers for realtime turn outcomes. |
 | `realtime_turn_queue.py` | Async ownership and cancellation boundary for explicit queued turn/start. |
 | `realtime_turn_routing.py` | Turn-routing helpers for the realtime runtime. |
 | `realtime_turn_support.py` | Observable-output, cowork-context, and resume-intent helpers. |
@@ -1665,6 +1670,13 @@ tier: "standard"
 | --- | --- | --- |
 | class | `class CerebrumRuntime` | Realtime runtime backed by the project's ReAct planner. |
 
+### `realtime_codebuddy_backend.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def scope_for_turn(turn)` |  |
+| func | `async def drive_codebuddy(runtime, turn, log, emitter, intent, agent, provider, text)` |  |
+
 ### `realtime_codex_backend.py`
 
 | Kind | Symbol | Doc |
@@ -1699,6 +1711,7 @@ tier: "standard"
 | class | `class NativeExecutionAdapter` |  |
 | class | `class CodexExecutionAdapter` |  |
 | class | `class OpenCodeExecutionAdapter` |  |
+| class | `class CodeBuddyExecutionAdapter` |  |
 | func | `def bind_turn_execution(runtime, turn, log, emitter, provider, agent, route, topology_id)` | Bind an authenticated turn and persist every invocation before dispatch. |
 
 ### `realtime_execution_context.py`
@@ -2224,14 +2237,17 @@ tier: "standard"
 
 ## Who imports this
 
-**20** file(s) reference this package:
+**22** file(s) reference this package:
 
 - **`runtime/_cli_commands.py/`** · 1 file(s)
   - `runtime/_cli_commands.py`
 - **`runtime/cli_serve.py/`** · 1 file(s)
   - `runtime/cli_serve.py`
-- **`runtime/evals/`** · 1 file(s)
+- **`runtime/cli_serve_tasks.py/`** · 1 file(s)
+  - `runtime/cli_serve_tasks.py`
+- **`runtime/evals/`** · 2 file(s)
   - `runtime/evals/multi_agent_benchmark.py`
+  - `runtime/evals/multi_agent_benchmark_scenarios.py`
 - **`runtime/kernel/`** · 1 file(s)
   - `runtime/kernel/kernel.py`
 - **`runtime/platform/`** · 15 file(s)

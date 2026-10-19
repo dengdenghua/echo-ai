@@ -68,6 +68,25 @@ def _mount_owner_admin(app: FastAPI, store: HotspotStore) -> None:
         return {"ok": True}
 
 
+def _model_list_payload(result: object) -> dict[str, object]:
+    """Shape the Codex model list into the OpenAI ``/v1/models`` envelope.
+
+    The app-server payload is untyped JSON, so only a dict carrying a list under
+    ``data`` can be shaped, and only dict entries with a ``model`` key count.
+    Anything else yields an empty list instead of a TypeError deep in the route.
+    """
+    data = result.get("data") if isinstance(result, dict) else None
+    rows = data if isinstance(data, list) else []
+    return {
+        "object": "list",
+        "data": [
+            {"id": m["model"], "object": "model", "owned_by": "openai"}
+            for m in rows
+            if isinstance(m, dict) and m.get("model")
+        ],
+    }
+
+
 def create_hotspot(
     root: Path = ROOT,
     source_home: Path | None = None,
@@ -266,14 +285,7 @@ def create_hotspot(
                 )
             ) as client:
                 result = await client.list_models()
-            return {
-                "object": "list",
-                "data": [
-                    {"id": m["model"], "object": "model", "owned_by": "openai"}
-                    for m in result.get("data", [])
-                    if m.get("model")
-                ],
-            }
+            return _model_list_payload(result)
         except Exception:
             raise HTTPException(502, "无法读取本机 Codex 模型列表") from None
 
@@ -426,7 +438,7 @@ def create_hotspot(
         while True:
             await asyncio.sleep(0.25)
             for member, task in list(active):
-                if not store.active(member):
+                if task is not None and not store.active(member):
                     task.cancel()
             for member, (_, executor) in list(roles.items()):
                 if not store.active(member):
@@ -444,7 +456,8 @@ def create_hotspot(
         with contextlib.suppress(asyncio.CancelledError):
             await app.state.watch
         for _, task in list(active):
-            task.cancel()
+            if task is not None:
+                task.cancel()
         for subapp, executor in roles.values():
             for task in list(executor.running.values()):
                 task.cancel()

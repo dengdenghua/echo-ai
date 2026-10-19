@@ -44,7 +44,7 @@ def create_team_gateway(root=ROOT, *, transport=None):
     admin_key = owner_token(root)
     app = FastAPI(title="Echo Team Gateway", docs_url=None, redoc_url=None)
     app.state.store = store
-    active = {}  # request id -> (member id, upstream task)
+    active: dict[str, tuple[str, asyncio.Task[Any]]] = {}  # request id -> (member, task)
 
     @app.middleware("http")
     async def no_cache(request, call_next):

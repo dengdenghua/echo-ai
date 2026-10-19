@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from runtime.platform.plugins import cloud_catalog
+from runtime.platform.plugins import _cloud_catalog_support
 from runtime.platform.plugins._cloud_catalog_entries import _WORKBENCH_APPS
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
 
@@ -54,7 +54,7 @@ def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCata
     codex_root = tmp_path / "codex-plugins"
     codex_root.mkdir()
     monkeypatch.setenv("ECHO_MARKETPLACE_DEV_SOURCES", "1")
-    monkeypatch.setattr(cloud_catalog, "REPO", tmp_path)
+    monkeypatch.setattr(_cloud_catalog_support, "REPO", tmp_path)
     monkeypatch.setattr(CloudCatalog, "PLUGIN_INSTALL_ROOT", plugin_root)
     monkeypatch.setattr(CloudCatalog, "SKILLS_ROOT", tmp_path / "data" / "skills")
     monkeypatch.setattr(CloudCatalog, "CODEX_CACHE_ROOT", codex_root)
@@ -373,7 +373,7 @@ def test_installed_package_incompatible_with_current_host_is_reported_broken(
     # Product releases do not change the separately versioned host API.
     monkeypatch.setattr(runtime, "__version__", "0.3.0")
     assert catalog.plugin_statuses()["narrative_studio"]["enabled"] is True
-    monkeypatch.setattr(cloud_catalog, "HOST_API_VERSION", "0.3.0")
+    monkeypatch.setattr(_cloud_catalog_support, "HOST_API_VERSION", "0.3.0")
 
     status = catalog.plugin_statuses()["narrative_studio"]
 

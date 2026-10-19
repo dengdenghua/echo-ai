@@ -484,8 +484,8 @@ Self-evolution subsystem — biomimetic alias: *Regeneration*.
   - `runtime/_cli_commands.py`
 - **`runtime/cli_reflect.py/`** · 1 file(s)
   - `runtime/cli_reflect.py`
-- **`runtime/cli_serve.py/`** · 1 file(s)
-  - `runtime/cli_serve.py`
+- **`runtime/cli_serve_tasks.py/`** · 1 file(s)
+  - `runtime/cli_serve_tasks.py`
 - **`runtime/core/`** · 3 file(s)
   - `runtime/core/cerebrum/llm_planner.py`
   - `runtime/core/cerebrum/planner.py`

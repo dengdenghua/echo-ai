@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from runtime.platform.plugins import cloud_catalog, install_errors
+from runtime.platform.plugins import _cloud_catalog_support, cloud_catalog, install_errors
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
 
 
@@ -32,14 +32,14 @@ def test_individual_skill_download_is_verified_and_cached(tmp_path, monkeypatch)
             }
         ]
     }
-    monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(_cloud_catalog_support, "CACHE_DIR", tmp_path / "cache")
     calls = []
 
     def fetch(url, **kwargs):
         calls.append(url)
         return body
 
-    monkeypatch.setattr(cloud_catalog, "fetch_public_https_bytes", fetch)
+    monkeypatch.setattr(_cloud_catalog_support, "fetch_public_https_bytes", fetch)
     monkeypatch.setattr(
         cat, "_archive_path", lambda: pytest.fail("must not download the full archive")
     )
@@ -63,8 +63,8 @@ def test_individual_skill_rejects_hash_mismatch(tmp_path, monkeypatch):
             }
         ]
     }
-    monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(cloud_catalog, "fetch_public_https_bytes", lambda *a, **k: b"bad")
+    monkeypatch.setattr(_cloud_catalog_support, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(_cloud_catalog_support, "fetch_public_https_bytes", lambda *a, **k: b"bad")
     with pytest.raises(ValueError, match="checksum mismatch"):
         cat.install_skill("bad", skills_dir=tmp_path / "installed")
     assert not (tmp_path / "installed/bad").exists()
@@ -265,8 +265,8 @@ class TestArchiveDownload:
             observed["max_bytes"] = max_bytes
             return b"archive"
 
-        monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path)
-        monkeypatch.setattr(cloud_catalog, "fetch_public_https_bytes", _download)
+        monkeypatch.setattr(_cloud_catalog_support, "CACHE_DIR", tmp_path)
+        monkeypatch.setattr(_cloud_catalog_support, "fetch_public_https_bytes", _download)
 
         path = CloudCatalog("plugins", use_remote=False, use_cache=False)._archive_path()
 
@@ -283,8 +283,8 @@ class TestArchiveDownload:
                 "404", request=request, response=httpx.Response(404, request=request)
             )
 
-        monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path)
-        monkeypatch.setattr(cloud_catalog, "fetch_public_https_bytes", _missing)
+        monkeypatch.setattr(_cloud_catalog_support, "CACHE_DIR", tmp_path)
+        monkeypatch.setattr(_cloud_catalog_support, "fetch_public_https_bytes", _missing)
 
         with pytest.raises(cloud_catalog.ContentPackUnavailableError, match="尚未在云端发布"):
             CloudCatalog("plugins", use_remote=False, use_cache=False)._archive_path()

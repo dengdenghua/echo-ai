@@ -10,7 +10,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from runtime.platform.plugins import cloud_catalog
+from runtime.platform.plugins import _cloud_catalog_support
 from runtime.platform.plugins.catalog_provenance import (
     CATALOG_SIGNATURE_SCHEMA,
     canonical_catalog_signature_payload,
@@ -114,9 +114,9 @@ def test_remote_catalog_is_verified_before_cache_or_use(
     production_root = tmp_path / "installed-app"
     mirror = tmp_path / "mirror"
     cache = tmp_path / "cache"
-    monkeypatch.setattr(cloud_catalog, "REPO", production_root)
-    monkeypatch.setattr(cloud_catalog, "LOCAL_MIRROR_DIR", mirror)
-    monkeypatch.setattr(cloud_catalog, "CACHE_DIR", cache)
+    monkeypatch.setattr(_cloud_catalog_support, "REPO", production_root)
+    monkeypatch.setattr(_cloud_catalog_support, "LOCAL_MIRROR_DIR", mirror)
+    monkeypatch.setattr(_cloud_catalog_support, "CACHE_DIR", cache)
 
     def load_remote(name: str):
         if name == "plugin-store.json":
@@ -125,7 +125,7 @@ def test_remote_catalog_is_verified_before_cache_or_use(
             return envelope
         return None
 
-    monkeypatch.setattr(cloud_catalog, "_load_remote", load_remote)
+    monkeypatch.setattr(_cloud_catalog_support, "_load_remote", load_remote)
     instance = CloudCatalog("plugins", trust_store_path=trust_store)
 
     assert instance.items()[0]["plugin"] == "docs"
@@ -134,7 +134,7 @@ def test_remote_catalog_is_verified_before_cache_or_use(
     assert (cache / "cloud-plugin-store.provenance.json").is_file()
 
     # A later offline process may use only the verified pair.
-    monkeypatch.setattr(cloud_catalog, "_load_remote", lambda _name: None)
+    monkeypatch.setattr(_cloud_catalog_support, "_load_remote", lambda _name: None)
     cached = CloudCatalog("plugins", trust_store_path=trust_store)
     assert cached.items()[0]["plugin"] == "docs"
     assert cached.meta()["catalog_trust"]["status"] == "verified"
@@ -146,11 +146,11 @@ def test_unsigned_remote_catalog_fails_closed_without_poisoning_cache(
 ) -> None:
     _private_key, trust_store = _trust_material(tmp_path)
     catalog = {"meta": {}, "items": [{"id": "evil", "plugin": "evil"}]}
-    monkeypatch.setattr(cloud_catalog, "REPO", tmp_path / "installed-app")
-    monkeypatch.setattr(cloud_catalog, "LOCAL_MIRROR_DIR", tmp_path / "mirror")
-    monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(_cloud_catalog_support, "REPO", tmp_path / "installed-app")
+    monkeypatch.setattr(_cloud_catalog_support, "LOCAL_MIRROR_DIR", tmp_path / "mirror")
+    monkeypatch.setattr(_cloud_catalog_support, "CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr(
-        cloud_catalog,
+        _cloud_catalog_support,
         "_load_remote",
         lambda name: catalog if name == "plugin-store.json" else None,
     )
@@ -163,15 +163,15 @@ def test_unsigned_remote_catalog_fails_closed_without_poisoning_cache(
 @pytest.mark.parametrize("update", ["offline", "mismatched_signature", "valid"])
 def test_refresh_preserves_verified_cache_until_valid_update(tmp_path, monkeypatch, update):
     private_key, trust_store = _trust_material(tmp_path)
-    monkeypatch.setattr(cloud_catalog, "REPO", tmp_path / "installed-app")
-    monkeypatch.setattr(cloud_catalog, "LOCAL_MIRROR_DIR", tmp_path / "mirror")
-    monkeypatch.setattr(cloud_catalog, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(_cloud_catalog_support, "REPO", tmp_path / "installed-app")
+    monkeypatch.setattr(_cloud_catalog_support, "LOCAL_MIRROR_DIR", tmp_path / "mirror")
+    monkeypatch.setattr(_cloud_catalog_support, "CACHE_DIR", tmp_path / "cache")
     old = {"meta": {"version": 1}, "skills": [{"name": "example"}]}
     new = {"meta": {"version": 2}, "skills": [{"name": "example"}]}
     catalog_name = "skill-registry.json"
     old_signature = _sign(private_key, old, name=catalog_name)
     remote = {catalog_name: old, "skill-registry.provenance.json": old_signature}
-    monkeypatch.setattr(cloud_catalog, "_load_remote", remote.get)
+    monkeypatch.setattr(_cloud_catalog_support, "_load_remote", remote.get)
     instance = CloudCatalog("skills", trust_store_path=trust_store)
     assert instance.meta()["version"] == 1
     if update == "offline":

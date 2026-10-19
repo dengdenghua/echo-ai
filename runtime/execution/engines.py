@@ -20,6 +20,7 @@ class EngineId(StrEnum):
     ECHO = "echo"
     CODEX = "codex"
     OPENCODE = "opencode"
+    CODEBUDDY = "codebuddy"
 
 
 class ExecutionPhase(StrEnum):
@@ -110,6 +111,14 @@ _CAPABILITIES: Mapping[EngineId, EngineCapabilities] = MappingProxyType(
             free_tier=False,
             max_tools=_MAX_HOST_TOOLS,
             credential_scope="account_token",
+        ),
+        EngineId.CODEBUDDY: EngineCapabilities(
+            tools=True,
+            vision=False,
+            team_orchestration=False,
+            free_tier=False,
+            max_tools=_MAX_HOST_TOOLS,
+            credential_scope="client_identity",
         ),
         EngineId.OPENCODE: EngineCapabilities(
             tools=True,
@@ -210,6 +219,8 @@ class ExecutionRoute:
             return self.driver
         if self.engine is EngineId.CODEX:
             return "codex_app_server"
+        if self.engine is EngineId.CODEBUDDY:
+            return "codebuddy_cli"
         if self.engine is EngineId.OPENCODE:
             return "opencode_server"
         return self.driver if phase is ExecutionPhase.PRIMARY else "react"
@@ -280,11 +291,15 @@ def _resolve_route(
         return ExecutionRoute(orchestration_engine, "swarm_mesh", "explicit_topology")
     if coordinated:
         selected = requested_engine or coordinator_engine
+        if selected is EngineId.CODEBUDDY:
+            return ExecutionRoute(EngineId.CODEBUDDY, "codebuddy_cli", "team_coordinator")
         if selected is EngineId.OPENCODE:
             return ExecutionRoute(EngineId.OPENCODE, "opencode_server", "team_coordinator")
         if selected is EngineId.CODEX:
             return ExecutionRoute(EngineId.CODEX, "codex_app_server", "team_coordinator")
         return ExecutionRoute(EngineId.ECHO, "react", "team_coordinator")
+    if requested_engine is EngineId.CODEBUDDY:
+        return ExecutionRoute(EngineId.CODEBUDDY, "codebuddy_cli", "explicit_engine")
     if requested_engine is EngineId.CODEX:
         return ExecutionRoute(EngineId.CODEX, "codex_app_server", "explicit_engine")
     if requested_engine is EngineId.OPENCODE:

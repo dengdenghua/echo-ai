@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from runtime.platform.plugins import cloud_catalog
+from runtime.platform.plugins import _cloud_catalog_support
 from runtime.platform.plugins._cloud_catalog_entries import _WORKBENCH_APPS
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
 
@@ -50,7 +50,7 @@ def _catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CloudCata
     # Install from the fixture's local sources. Without this opt-in a source
     # checkout downloads the published content pack from GitHub instead.
     monkeypatch.setenv("ECHO_MARKETPLACE_DEV_SOURCES", "1")
-    monkeypatch.setattr(cloud_catalog, "REPO", tmp_path)
+    monkeypatch.setattr(_cloud_catalog_support, "REPO", tmp_path)
     monkeypatch.setattr(CloudCatalog, "PLUGIN_INSTALL_ROOT", plugin_root)
     monkeypatch.setattr(CloudCatalog, "SKILLS_ROOT", tmp_path / "data" / "skills")
     monkeypatch.setattr(CloudCatalog, "CODEX_CACHE_ROOT", tmp_path / "codex-plugins")

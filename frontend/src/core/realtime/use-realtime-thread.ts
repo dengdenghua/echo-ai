@@ -262,7 +262,7 @@ export interface UseRealtimeThreadValue {
     sandboxPolicy?: SandboxPolicy;
     planningMode?: boolean;
     model?: string;
-    executionEngine?: "auto" | "echo" | "codex" | "opencode";
+    executionEngine?: "auto" | "echo" | "codex" | "opencode" | "codebuddy";
     effort?: ReasoningEffort;
     metadata?: Record<string, unknown>;
     /** Optional topology id for callers that explicitly need the

@@ -26,6 +26,7 @@
     "electron": "electron electron/main.cjs",
     "electron:dev": "node scripts/dev-with-agent.mjs --electron",
     "test:dev": "node --test scripts/dev-instance.test.mjs",
+    "test:app-bridge": "node scripts/test-personal-app-bridge.mjs",
     "electron:dev:pet": "node scripts/dev-electron-with-pet.mjs",
     "codex:prepare:win": "node ../extras/desktop/prepare-codex-win.cjs",
     "codex:prepare:mac": "node ../extras/desktop/prepare-codex-mac.cjs",

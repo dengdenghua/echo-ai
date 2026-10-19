@@ -6,6 +6,7 @@
  * live tool events derived from realtime items.
  */
 
+import { executionEnginePreference } from "@/core/realtime/execution-policy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -1731,12 +1732,7 @@ export function useThreadStreamRealtime(
           if (!isCurrentThreadEpoch(deliveryEpoch)) return;
           await startTurn({
             input: text,
-            executionEngine:
-              rawContext.execution_engine_preference === "codex" ||
-              rawContext.execution_engine_preference === "opencode" ||
-              rawContext.execution_engine_preference === "echo"
-                ? rawContext.execution_engine_preference
-                : "auto",
+            executionEngine: executionEnginePreference(rawContext.execution_engine_preference),
             ...(projectCwd ? { cwd: projectCwd } : {}),
             clientItemId: outbound.clientMessageId,
             attachments,

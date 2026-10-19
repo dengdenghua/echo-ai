@@ -71,7 +71,7 @@ def test_journal_is_durable_before_engine_dispatch_and_replays(tmp_path, monkeyp
 @pytest.mark.parametrize(
     "driver,signal", [("project_os", "project_command"), ("group_fanout", "group_fanout")]
 )
-@pytest.mark.parametrize("engine", ["opencode", "codex"])
+@pytest.mark.parametrize("engine", ["opencode", "codex", "codebuddy"])
 @pytest.mark.parametrize("selection", ["requested_engine", "coordinator_engine"])
 def test_host_dispatch_and_model_continuations_share_execution(
     tmp_path, monkeypatch, driver, signal, engine, selection
@@ -98,6 +98,9 @@ def test_host_dispatch_and_model_continuations_share_execution(
         _drive_react=AsyncMock(side_effect=AssertionError("native model invoked")),
     )
     monkeypatch.setattr("runtime.sensing.gateway.realtime_opencode_backend.drive_opencode", record)
+    monkeypatch.setattr(
+        "runtime.sensing.gateway.realtime_codebuddy_backend.drive_codebuddy", record
+    )
     route = select_execution_route(**{selection: EngineId(engine), signal: True})
     execution = bind_turn_execution(
         runtime,
@@ -117,7 +120,15 @@ def test_host_dispatch_and_model_continuations_share_execution(
     asyncio.run(scenario())
     assert (
         drivers
-        == [driver] + ["opencode_server" if engine == "opencode" else "codex_app_server"] * 3
+        == [driver]
+        + [
+            {
+                "opencode": "opencode_server",
+                "codebuddy": "codebuddy_cli",
+                "codex": "codex_app_server",
+            }[engine]
+        ]
+        * 3
     )
     assert all(task is tasks[0] for task in tasks)
     assert tasks[0].execution_engine == engine

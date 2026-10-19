@@ -1,3 +1,6 @@
+vi.mock("@/components/store/personal-apps-panel", () => ({
+  PersonalAppsPanel: () => null,
+}));
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router-dom";
@@ -280,7 +283,7 @@ describe("HUB market shell", () => {
       within(screen.getByTestId("hub-market-navigation"))
         .getAllByRole("tab")
         .map((tab) => tab.textContent?.trim()),
-    ).toEqual(["智能体", "应用", "技能"]);
+    ).toEqual(["智能体", "应用", "插件", "技能"]);
   });
 
   it("keeps primary personas in scenes and aggregates every remote source", async () => {
@@ -363,19 +366,19 @@ describe("HUB market shell", () => {
       applicationView: "all",
     });
     expect(resolveHubMarketRoute("?tab=plugins")).toEqual({
-      section: "applications",
+      section: "plugins",
       applicationView: "featured",
     });
     expect(resolveHubMarketRoute("?tab=plugins&view=featured")).toEqual({
-      section: "applications",
+      section: "plugins",
       applicationView: "featured",
     });
     expect(resolveHubMarketRoute("?tab=plugins&view=all")).toEqual({
-      section: "applications",
+      section: "plugins",
       applicationView: "all",
     });
     expect(resolveHubMarketRoute("?tab=plugins&view=installed")).toEqual({
-      section: "applications",
+      section: "plugins",
       applicationView: "installed",
     });
     expect(resolveHubMarketRoute("?tab=plugins&view=remote")).toEqual({
@@ -409,9 +412,9 @@ describe("HUB market shell", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "应用中心" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "应用" })).toBeVisible();
+      screen.queryByRole("heading", { name: "应用中心" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "生成插件" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "推荐插件" })).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: "从这些能力开始" }),
@@ -428,16 +431,16 @@ describe("HUB market shell", () => {
       }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", {
+      screen.queryByRole("button", {
         name: "设计画布 · 视觉创作、素材编排与设计工作流",
       }),
-    ).toBeVisible();
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "安装模拟炒股" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "从侧栏移除设计画布" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "从侧栏移除设计画布" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "应用范围" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "应用来源" })).toBeNull();
     expect(screen.getByRole("tab", { name: "技能" })).toBeVisible();
@@ -446,11 +449,7 @@ describe("HUB market shell", () => {
       screen.queryByRole("button", { name: "添加", exact: true }),
     ).toBeNull();
     expect(screen.queryByText("创建 AI 成员")).toBeNull();
-    await waitFor(() => {
-      expect(
-        agentWorldApiMocks.fetchRuntimePluginStatuses,
-      ).toHaveBeenCalledTimes(1);
-    });
+    expect(agentWorldApiMocks.fetchRuntimePluginStatuses).not.toHaveBeenCalled();
     expect(agentWorldApiMocks.fetchRuntimePluginStatus).not.toHaveBeenCalled();
   });
 
@@ -497,7 +496,7 @@ describe("HUB market shell", () => {
         <AgentWorldUnified />
       </SidebarProvider>,
       {
-        initialRoute: "/workspace/agents?surface=chat&tab=assets",
+        initialRoute: "/workspace/agents?surface=chat&tab=plugins&view=all",
         locale: "zh-CN",
       },
     );
@@ -534,7 +533,7 @@ describe("HUB market shell", () => {
         <AgentWorldUnified />
       </SidebarProvider>,
       {
-        initialRoute: "/workspace/agents?surface=chat&tab=plugins",
+        initialRoute: "/workspace/agents?surface=chat&tab=applications",
         locale: "zh-CN",
       },
     );
@@ -566,7 +565,7 @@ describe("HUB market shell", () => {
         <AgentWorldUnified />
       </SidebarProvider>,
       {
-        initialRoute: "/workspace/agents?surface=chat&tab=plugins",
+        initialRoute: "/workspace/agents?surface=chat&tab=applications",
         locale: "zh-CN",
       },
     );
@@ -603,7 +602,7 @@ describe("HUB market shell", () => {
         <AgentWorldUnified />
       </SidebarProvider>,
       {
-        initialRoute: "/workspace/agents?surface=chat&tab=plugins",
+        initialRoute: "/workspace/agents?surface=chat&tab=applications",
         locale: "zh-CN",
       },
     );
@@ -649,7 +648,7 @@ describe("HUB market shell", () => {
         <AgentWorldUnified />
       </SidebarProvider>,
       {
-        initialRoute: "/workspace/agents?surface=chat&tab=plugins",
+        initialRoute: "/workspace/agents?surface=chat&tab=applications",
         locale: "zh-CN",
       },
     );
@@ -737,7 +736,7 @@ describe("HUB market shell", () => {
       locale: "zh-CN",
     });
 
-    expect(screen.getByRole("tab", { name: "应用" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "插件" })).toHaveAttribute(
       "aria-selected",
       "true",
     );

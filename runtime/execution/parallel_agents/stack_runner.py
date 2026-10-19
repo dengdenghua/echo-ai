@@ -32,9 +32,18 @@ def member_execution_backend(stack: Any, agent: Any) -> str:
         else ""
     )
     if explicit:
-        if explicit not in {"opencode_server", "codex_app_server", "native", "echo"}:
+        if explicit not in {
+            "opencode_server",
+            "codex_app_server",
+            "codebuddy_cli",
+            "native",
+            "echo",
+        }:
             raise ValueError(f"unsupported member execution backend: {explicit}")
         return "native" if explicit == "echo" else explicit
+    bound = current_execution_request()
+    if bound is not None and bound.task.execution_engine == "codebuddy":
+        return "codebuddy_cli"
     execution = getattr(getattr(stack, "config", None), "execution", None)
     # Legacy embedded hosts have no AgentConfig. Standard application stacks
     # consume the validated default from ExecutionConfig.
@@ -42,6 +51,14 @@ def member_execution_backend(stack: Any, agent: Any) -> str:
     if selected not in {"opencode", "echo"}:
         raise ValueError(f"unsupported default member engine: {selected}")
     return "opencode_server" if selected == "opencode" else "native"
+
+
+def _external_role_runner(backend):
+    if backend == "codebuddy_cli":
+        from runtime.execution.codebuddy_roles import run_role_sync
+    else:
+        from runtime.execution.opencode_roles import run_role_sync
+    return run_role_sync
 
 
 def _run_direct_conversation_reply(
@@ -261,10 +278,10 @@ def make_stack_subagent_runner(
                 model = getattr(agent, "model", None)
 
         backend = member_execution_backend(stack, agent)
-        if backend == "opencode_server":
+        if backend in {"opencode_server", "codebuddy_cli"}:
             if agent is None:
                 raise ValueError("OpenCode member requires a registered role with a tool policy")
-            from runtime.execution.opencode_roles import run_role_sync
+            run_role_sync = _external_role_runner(backend)
             from runtime.safety.approval.cancellation import current_cancellation_token
 
             cancellation = current_cancellation_token()

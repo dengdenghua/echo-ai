@@ -42,7 +42,7 @@ OUT = REPO / "extensions" / "workbuddy-experts" / "storefront" / "data" / "plugi
 # 插件/连接器内容包(发布到 GitHub Release 的单一归档,安装时按 id 解出)。
 CONTENT_PLUGINS_URL = os.environ.get(
     "ECHO_PLUGINS_CONTENT_URL",
-    "https://github.com/dengdenghua/workbuddy-expert-market/releases/download/echo-content/echo-plugins.tar.gz",
+    "https://ai.echo-age.com/marketplace/echo-plugins.tar.gz",
 )
 
 

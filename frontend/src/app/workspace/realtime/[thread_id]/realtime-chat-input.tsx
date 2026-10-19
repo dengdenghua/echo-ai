@@ -284,6 +284,8 @@ function RealtimeExecutionEngineControl({
 }) {
   return (
     <ExecutionEnginePicker
+      codebuddyAvailable={executionSelection.codebuddyAvailable}
+      codebuddyUnavailableReason={executionSelection.codebuddyUnavailableReason}
       value={executionSelection.preference}
       resolvedEngine={selectedExecutionEngine}
       codexCapabilityChecks={executionSelection.codexCapabilityChecks}

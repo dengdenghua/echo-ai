@@ -1,3 +1,4 @@
+import { ComposerModelControl } from "./ComposerModelControl";
 import { getLocalSettings } from "@/core/settings/local";
 import { StreamingSendActions } from "./StreamingSendActions";
 import { queueFollowup } from "@/core/threads/task-interaction";
@@ -54,8 +55,7 @@ import {
   saveComposerDraft,
 } from "@/core/threads/composer-draft";
 import { EvolutionIndicator } from "../evolution-indicator";
-import { ModelPicker, type PickerModel } from "../model-picker";
-import { CoderEngineControl } from "../coder-engine-control";
+import { type PickerModel } from "../model-picker";
 import { PreviewRefreshIndicator } from "../preview-refresh-indicator";
 import { tryLocalSlash } from "../local-slash-dispatch";
 import { useSlashTypeahead } from "../use-slash-typeahead";
@@ -2061,41 +2061,13 @@ export function ChatComposer({
                 aria-hidden="true"
               />
             ) : null}
-            {modelProfileControl && executionEngine !== "opencode" ? (
-              <div className="composer-footer__model min-w-0">
-                <CoderEngineControl
-                  systemModels={pickerModels}
-                  disabled={disabled || status === "streaming"}
-                  executionEngine={executionEngine}
-                  value={modelName}
-                  onChange={onModelChange}
-                  onEffectiveModelChange={onModelSwitchNotice}
-                  reasoningEffort={reasoningEffort}
-                  onReasoningEffortChange={onReasoningEffortChange}
-                />
-              </div>
-            ) : (
-              <div className="composer-footer__model min-w-0">
-                <ModelPicker
-                  models={pickerModels}
-                  engineSource={
-                    executionEngine === "opencode" ? "opencode" : undefined
-                  }
-                  // Pass the raw modelName so the picker sees the "auto"
-                  // sentinel — selectedModel falls back to pickerModels[0]
-                  // when name doesn't match, which would mask the auto state.
-                  value={modelName ?? selectedModel?.name}
-                  onChange={applyNativeModelChange}
-                  reasoningEffort={reasoningEffort}
-                  reasoningEffortDisabled={disabled || status === "streaming"}
-                  onReasoningEffortChange={
-                    executionEngine === "opencode"
-                      ? undefined
-                      : onReasoningEffortChange
-                  }
-                />
-              </div>
-            )}
+            <ComposerModelControl
+              executionEngine={executionEngine} modelProfileControl={modelProfileControl}
+              models={pickerModels} disabled={disabled || status === "streaming"}
+              modelName={modelName} selectedValue={selectedModel?.name} onModelChange={onModelChange}
+              onModelSwitchNotice={onModelSwitchNotice} onNativeModelChange={applyNativeModelChange}
+              reasoningEffort={reasoningEffort} onReasoningEffortChange={onReasoningEffortChange}
+            />
           </div>
           {status === "streaming" && sendableDraftText ? (
             <>

@@ -88,12 +88,15 @@ Native planner exports, loaded only when a caller actually requests them.
 | `react_explicit_reads.py` | Explicit-read goal predicates and bounded read recovery. |
 | `react_final_answer_content_guards.py` | Final-answer content guards (post-step / pre-Final-Answer gates). |
 | `react_final_answer_guards.py` | Final-answer guard plumbing for the ReAct loop. |
+| `react_final_answer_guards_checks.py` | Split out of :mod:`react_final_answer_guards` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
+| `react_final_answer_guards_soft.py` | Split out of :mod:`react_final_answer_guards_checks` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
 | `react_goal_analysis.py` | Goal-intent and evidence-path analysis for ReAct guards. |
 | `react_guard_types.py` | Core types for the ReAct final-answer guard registry. |
 | `react_guards.py` | ReAct trajectory guards: post-step / pre-Final-Answer quality gates. |
 | `react_in_flight_nudges.py` | In-flight nudges for the ReAct main loop (PHASE 6e, first half). |
 | `react_loop.py` | — |
 | `react_loop_controls.py` | Operator controls + run-budget knobs for the ReAct loop. |
+| `react_loop_impl.py` | Split out of :mod:`react_loop` so that module stays under the 1000-line god-file ratchet. Everything here is re-exported by the original module, so import sites do not move. |
 | `react_loop_state.py` | Shared per-turn state for the ReAct main-loop phases. |
 | `react_model_deadlines.py` | Model-call deadline machinery for the ReAct loop. |
 | `react_model_stream.py` | PHASE 6b — LLM call + Final-Answer anchor streaming for the ReAct loop. |
@@ -594,7 +597,7 @@ Native planner exports, loaded only when a caller actually requests them.
 
 ## Who imports this
 
-**73** file(s) reference this package:
+**74** file(s) reference this package:
 
 - **`runtime/cli_code.py/`** · 1 file(s)
   - `runtime/cli_code.py`
@@ -608,10 +611,12 @@ Native planner exports, loaded only when a caller actually requests them.
   - `runtime/cli_run.py`
 - **`runtime/cli_serve.py/`** · 1 file(s)
   - `runtime/cli_serve.py`
+- **`runtime/cli_serve_tasks.py/`** · 1 file(s)
+  - `runtime/cli_serve_tasks.py`
 - **`runtime/core/`** · 1 file(s)
   - `runtime/core/graph_runtime/runtime.py`
 - **`runtime/evals/`** · 1 file(s)
-  - `runtime/evals/multi_agent_benchmark.py`
+  - `runtime/evals/multi_agent_benchmark_scenarios.py`
 - **`runtime/execution/`** · 10 file(s)
   - `runtime/execution/graph_planning.py`
   - `runtime/execution/loops/_controller_attempt.py`

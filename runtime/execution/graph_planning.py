@@ -29,7 +29,7 @@ def plan_external_graph(stack: Any, intent: Any, *, engine: str):
     from runtime.platform.models import BudgetSpec, SkillId, TaskGraph, TaskNode
     from runtime.safety.approval.cancellation import current_cancellation_token
 
-    if engine not in {"opencode", "codex"}:
+    if engine not in {"opencode", "codex", "codebuddy"}:
         raise ValueError("graph planning requires an external engine")
     parent = current_execution_request()
     session = current_session()
@@ -93,7 +93,11 @@ def plan_external_graph(stack: Any, intent: Any, *, engine: str):
         arms=(),
         extra_skills=(),
         capabilities={
-            "execution_backend": "opencode_server" if engine == "opencode" else "codex_app_server"
+            "execution_backend": {
+                "opencode": "opencode_server",
+                "codebuddy": "codebuddy_cli",
+                "codex": "codex_app_server",
+            }[engine]
         },
     )
     goal = intent.normalized_goal or intent.raw or parent.instruction
@@ -126,8 +130,11 @@ def plan_external_graph(stack: Any, intent: Any, *, engine: str):
         if type(output_tokens) is int and output_tokens >= 0:
             planner_usage["output_tokens"] = output_tokens
 
-    if engine == "opencode":
-        from runtime.execution.opencode_roles import run_role_sync
+    if engine in {"opencode", "codebuddy"}:
+        if engine == "codebuddy":
+            from runtime.execution.codebuddy_roles import run_role_sync
+        else:
+            from runtime.execution.opencode_roles import run_role_sync
 
         output = run_role_sync(
             stack,

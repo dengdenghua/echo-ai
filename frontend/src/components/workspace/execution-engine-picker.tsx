@@ -79,6 +79,8 @@ export function ExecutionEnginePicker({
   opencodeUnavailableReason,
   codexCapabilityChecks,
   opencodeCapabilityChecks,
+  codebuddyAvailable = false,
+  codebuddyUnavailableReason,
   disabled,
   checking = false,
 }: {
@@ -93,6 +95,8 @@ export function ExecutionEnginePicker({
   opencodeUnavailableReason?: string | null;
   codexCapabilityChecks?: EngineCapabilityChecks;
   opencodeCapabilityChecks?: EngineCapabilityChecks;
+  codebuddyAvailable?: boolean;
+  codebuddyUnavailableReason?: string | null;
   disabled?: boolean;
   /** Readiness is still loading: no warning dot or reason until it is known. */
   checking?: boolean;
@@ -108,6 +112,7 @@ export function ExecutionEnginePicker({
     echo: copy.legacyNative,
     codex: "Codex",
     opencode: "OpenCode",
+    codebuddy: "CodeBuddy",
   };
   // Auto on Echo's own models (no OpenCode installed yet) reads as "Echo",
   // not as the legacy native mode a stored preference can select.
@@ -127,6 +132,8 @@ export function ExecutionEnginePicker({
     ? null
     : value === "codex"
       ? unavailable
+      : value === "codebuddy" && !codebuddyAvailable
+        ? codebuddyUnavailableReason || copy.codebuddyCheckSetup
       : value === "opencode" && !opencodeAvailable
         ? opencodeUnavailableReason || copy.opencodeCheckSetup
         : null;
@@ -139,9 +146,9 @@ export function ExecutionEnginePicker({
   // stray click (or one meant to pick the engine) only asks.
   const [armedInstall, setArmedInstall] = useState<string | null>(null);
   const installable = (
-    engine: "auto" | "codex" | "opencode",
+    engine: "auto" | "codex" | "opencode" | "codebuddy",
   ): EngineStatus | undefined => {
-    if (engine === "auto") return undefined;
+    if (engine === "auto" || engine === "codebuddy") return undefined;
     if (engine === "codex" ? codexAvailable : opencodeAvailable)
       return undefined;
     const status = engines.data?.engines.find((item) => item.id === engine);
@@ -202,7 +209,7 @@ export function ExecutionEnginePicker({
             {copy.legacyNotice}
           </p>
         ) : null}
-        {(["auto", "opencode", "codex"] as const).map((engine) => {
+        {(["auto", "opencode", "codex", "codebuddy"] as const).map((engine) => {
           const missing = installable(engine);
           return (
             <DropdownMenuItem
@@ -210,7 +217,8 @@ export function ExecutionEnginePicker({
               disabled={
                 !missing &&
                 ((engine === "codex" && !codexSelectable) ||
-                  (engine === "opencode" && !opencodeAvailable))
+                  (engine === "opencode" && !opencodeAvailable) ||
+                  (engine === "codebuddy" && !codebuddyAvailable))
               }
               onSelect={(event) => {
                 if (!missing) return onChange(engine);
@@ -236,6 +244,8 @@ export function ExecutionEnginePicker({
                 <SparklesIcon className="mt-0.5 size-4 shrink-0" />
               ) : engine === "opencode" ? (
                 <OpenCodeIcon className="mt-0.5 size-4 shrink-0" />
+              ) : engine === "codebuddy" ? (
+                <SparklesIcon className="mt-0.5 size-4 shrink-0" />
               ) : (
                 <CodexIcon className="mt-0.5 size-4 shrink-0" />
               )}
@@ -250,6 +260,8 @@ export function ExecutionEnginePicker({
                         ? !opencodeAvailable
                           ? opencodeUnavailableReason || copy.opencodeCheckSetup
                           : copy.opencodeDescription
+                        : engine === "codebuddy"
+                          ? codebuddyAvailable ? copy.codebuddyDescription : codebuddyUnavailableReason || copy.codebuddyCheckSetup
                         : (unavailable ?? copy.codexDescription)}
                 </span>
                 {(engine === "codex" && codexAvailable) ||
@@ -278,10 +290,10 @@ export function ExecutionEnginePicker({
 /** Historical evidence only. Never infer an engine from today's role or setting. */
 export function ExecutionEngineBadge({ engine }: { engine: unknown }) {
   const { locale } = useI18n();
-  if (engine !== "codex" && engine !== "echo" && engine !== "opencode")
+  if (engine !== "codex" && engine !== "echo" && engine !== "opencode" && engine !== "codebuddy")
     return null;
   const name =
-    engine === "opencode" ? "OpenCode" : engine === "codex" ? "Codex" : "Echo";
+    engine === "codebuddy" ? "CodeBuddy" : engine === "opencode" ? "OpenCode" : engine === "codex" ? "Codex" : "Echo";
   const Icon =
     engine === "opencode"
       ? OpenCodeIcon

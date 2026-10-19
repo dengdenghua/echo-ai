@@ -32,7 +32,7 @@ OUT = REPO / "extensions" / "workbuddy-experts" / "storefront" / "data" / "skill
 # Echo 技能内容包(发布到 GitHub Release 的单一归档,安装时按 name 解出)。
 CONTENT_SKILLS_URL = os.environ.get(
     "ECHO_SKILLS_CONTENT_URL",
-    "https://github.com/dengdenghua/workbuddy-expert-market/releases/download/echo-content/echo-skills.tar.gz",
+    "https://ai.echo-age.com/marketplace/echo-skills.tar.gz",
 )
 
 

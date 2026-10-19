@@ -10,7 +10,7 @@ import {
 export function TaskSideQuestion(props: {
   threadId: string;
   model?: string;
-  engine: "echo" | "codex" | "opencode";
+  engine: "echo" | "codex" | "opencode" | "codebuddy";
 }) {
   return <SideQuestion key={props.threadId} {...props} />;
 }
@@ -150,7 +150,7 @@ function SideThread({
   prompt: string;
   source: string;
   model?: string;
-  engine: "echo" | "codex" | "opencode";
+  engine: "echo" | "codex" | "opencode" | "codebuddy";
 }) {
   const context = useMemo(
     () => ({

@@ -14,11 +14,8 @@ import inspect
 import logging
 import os
 import signal
-from collections import deque
 from collections.abc import AsyncIterator, Mapping, Sequence
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, TypeAlias, cast
+from typing import Any, cast
 
 from ._transport import (
     APPROVAL_METHODS,
@@ -41,6 +38,35 @@ from ._transport import (
     validate_method,
     validate_thread_security,
     wait_for_exit,
+)
+from .client_account_api import (
+    account_read as _account_read,
+)
+from .client_account_api import (
+    cancel_login as _cancel_login,
+)
+from .client_account_api import (
+    login_api_key as _login_api_key,
+)
+from .client_account_api import (
+    login_chatgpt as _login_chatgpt,
+)
+from .client_account_api import (
+    logout_account as _logout_account,
+)
+from .client_account_api import (
+    read_account_rate_limits as _read_account_rate_limits,
+)
+from .client_account_api import (
+    read_account_usage as _read_account_usage,
+)
+from .client_support import (
+    CodexAppServerBaseErrors,
+    _CoalescingNotificationQueue,
+    _require_object_result,
+    _State,
+    _StreamItem,
+    _StreamTerminal,
 )
 from .dynamic_tools import (
     DYNAMIC_TOOL_CALL_METHOD,
@@ -68,132 +94,6 @@ from .types import (
 )
 
 _logger = logging.getLogger(__name__)
-
-
-class _State(Enum):
-    NEW = "new"
-    STARTING = "starting"
-    READY = "ready"
-    FAILED = "failed"
-    CLOSING = "closing"
-    CLOSED = "closed"
-
-
-@dataclass(frozen=True, slots=True)
-class _StreamTerminal:
-    error: BaseException | None
-
-
-_StreamItem: TypeAlias = Notification | _StreamTerminal
-
-_COALESCIBLE_DELTA_METHODS = frozenset(
-    {
-        "item/agentMessage/delta",
-        "item/reasoning/textDelta",
-        "item/reasoning/summaryTextDelta",
-        "item/plan/delta",
-        "item/commandExecution/outputDelta",
-        "item/fileChange/outputDelta",
-        "item/process/outputDelta",
-    }
-)
-_REPLACEABLE_SNAPSHOT_METHODS = frozenset({"thread/tokenUsage/updated"})
-_MAX_COALESCED_DELTA_CHARS = 64 * 1024
-
-
-def _notification_stream_key(notification: Notification) -> tuple[object, ...]:
-    params = notification.params
-    return (
-        notification.method,
-        params.get("threadId"),
-        params.get("turnId"),
-        params.get("itemId"),
-        params.get("processId"),
-    )
-
-
-def _coalesce_notifications(
-    previous: _StreamItem,
-    current: _StreamItem,
-) -> Notification | None:
-    """Combine adjacent high-frequency frames without changing event order."""
-
-    if not isinstance(previous, Notification) or not isinstance(current, Notification):
-        return None
-    if _notification_stream_key(previous) != _notification_stream_key(current):
-        return None
-    if current.method in _REPLACEABLE_SNAPSHOT_METHODS:
-        return current
-    if current.method not in _COALESCIBLE_DELTA_METHODS:
-        return None
-    previous_delta = previous.params.get("delta")
-    current_delta = current.params.get("delta")
-    if not isinstance(previous_delta, str) or not isinstance(current_delta, str):
-        return None
-    if len(previous_delta) + len(current_delta) > _MAX_COALESCED_DELTA_CHARS:
-        return None
-    return Notification(
-        current.method,
-        {**previous.params, **current.params, "delta": previous_delta + current_delta},
-    )
-
-
-class _CoalescingNotificationQueue:
-    """Bounded single-consumer queue that compacts adjacent stream deltas.
-
-    App Server can emit hundreds of token or process-output frames between two
-    consumer scheduling opportunities. Counting every frame as a separate
-    queue slot made a healthy turn fail under a harmless burst. Adjacent
-    frames from the same logical stream are losslessly merged while lifecycle
-    and terminal events retain their original ordering and hard bound.
-    """
-
-    def __init__(self, *, maxsize: int) -> None:
-        self._maxsize = maxsize
-        self._items: deque[_StreamItem] = deque()
-        self._ready = asyncio.Event()
-
-    def put_nowait(self, item: _StreamItem) -> None:
-        if isinstance(item, Notification) and item.method in _REPLACEABLE_SNAPSHOT_METHODS:
-            item_key = _notification_stream_key(item)
-            for index in range(len(self._items) - 1, -1, -1):
-                existing = self._items[index]
-                if (
-                    isinstance(existing, Notification)
-                    and _notification_stream_key(existing) == item_key
-                ):
-                    # Usage is a latest-value snapshot, not an ordered delta.
-                    # Replacing it in place keeps telemetry from separating
-                    # otherwise adjacent content frames during a burst.
-                    self._items[index] = item
-                    return
-        if self._items:
-            merged = _coalesce_notifications(self._items[-1], item)
-            if merged is not None:
-                self._items[-1] = merged
-                return
-        if len(self._items) >= self._maxsize:
-            raise asyncio.QueueFull
-        self._items.append(item)
-        self._ready.set()
-
-    def get_nowait(self) -> _StreamItem:
-        if not self._items:
-            raise asyncio.QueueEmpty
-        item = self._items.popleft()
-        if not self._items:
-            self._ready.clear()
-        return item
-
-    async def get(self) -> _StreamItem:
-        while True:
-            try:
-                return self.get_nowait()
-            except asyncio.QueueEmpty:
-                await self._ready.wait()
-
-    def qsize(self) -> int:
-        return len(self._items)
 
 
 class CodexAppServerClient:
@@ -342,117 +242,29 @@ class CodexAppServerClient:
         await self._send_message(message)
 
     async def account_read(
-        self,
-        *,
-        refresh_token: bool = False,
-        timeout_s: float | None = None,
+        self, *, refresh_token: bool = False, timeout_s: float | None = None
     ) -> JsonObject:
-        """Read App Server's current account without exposing stored tokens."""
+        return await _account_read(self, refresh_token=refresh_token, timeout_s=timeout_s)
 
-        result = await self.request(
-            "account/read",
-            {"refreshToken": bool(refresh_token)},
-            timeout_s=timeout_s,
-        )
-        return _require_object_result(result, "account/read")
-
-    async def login_api_key(
-        self,
-        api_key: str,
-        *,
-        timeout_s: float | None = None,
-    ) -> JsonObject:
-        """Hand an OpenAI API key directly to App Server's credential store."""
-
-        if not isinstance(api_key, str) or not api_key.strip() or "\x00" in api_key:
-            raise ConfigurationError("api_key must be a non-empty, NUL-free string")
-        result = await self.request(
-            "account/login/start",
-            {"type": "apiKey", "apiKey": api_key.strip()},
-            timeout_s=timeout_s,
-        )
-        return _require_object_result(result, "account/login/start")
+    async def login_api_key(self, api_key: str, *, timeout_s: float | None = None) -> JsonObject:
+        return await _login_api_key(self, api_key, timeout_s=timeout_s)
 
     async def login_chatgpt(
-        self,
-        *,
-        device_code: bool = False,
-        timeout_s: float | None = None,
+        self, *, device_code: bool = False, timeout_s: float | None = None
     ) -> JsonObject:
-        """Start a managed ChatGPT browser or device-code login flow."""
+        return await _login_chatgpt(self, device_code=device_code, timeout_s=timeout_s)
 
-        params: JsonObject
-        if device_code:
-            params = {"type": "chatgptDeviceCode"}
-        else:
-            params = {
-                "type": "chatgpt",
-                "useHostedLoginSuccessPage": True,
-                "appBrand": "chatgpt",
-            }
-        result = await self.request("account/login/start", params, timeout_s=timeout_s)
-        response = _require_object_result(result, "account/login/start")
-        expected_type = "chatgptDeviceCode" if device_code else "chatgpt"
-        if response.get("type") != expected_type:
-            raise ProtocolError("account/login/start returned an unexpected login type")
-        required = (
-            ("loginId", "verificationUrl", "userCode") if device_code else ("loginId", "authUrl")
-        )
-        if any(
-            not isinstance(response.get(name), str) or not response.get(name) for name in required
-        ):
-            raise ProtocolError("account/login/start returned an incomplete login response")
-        return response
-
-    async def cancel_login(
-        self,
-        login_id: str,
-        *,
-        timeout_s: float | None = None,
-    ) -> JsonObject:
-        """Cancel one managed ChatGPT login generation."""
-
-        validate_identifier(login_id, "login_id")
-        result = await self.request(
-            "account/login/cancel",
-            {"loginId": login_id},
-            timeout_s=timeout_s,
-        )
-        return _require_object_result(result, "account/login/cancel")
+    async def cancel_login(self, login_id: str, *, timeout_s: float | None = None) -> JsonObject:
+        return await _cancel_login(self, login_id, timeout_s=timeout_s)
 
     async def logout_account(self, *, timeout_s: float | None = None) -> JsonObject:
-        """Remove App Server's stored account for this isolated Codex home."""
+        return await _logout_account(self, timeout_s=timeout_s)
 
-        result = await self.request("account/logout", {}, timeout_s=timeout_s)
-        return _require_object_result(result, "account/logout")
+    async def read_account_rate_limits(self, *, timeout_s: float | None = None) -> JsonObject:
+        return await _read_account_rate_limits(self, timeout_s=timeout_s)
 
-    async def read_account_rate_limits(
-        self,
-        *,
-        timeout_s: float | None = None,
-    ) -> JsonObject:
-        """Read ChatGPT quota windows without exposing account credentials."""
-
-        result = await self.request(
-            "account/rateLimits/read",
-            {},
-            timeout_s=timeout_s,
-        )
-        return _require_object_result(result, "account/rateLimits/read")
-
-    async def read_account_usage(
-        self,
-        *,
-        timeout_s: float | None = None,
-    ) -> JsonObject:
-        """Read account-level ChatGPT token activity summaries."""
-
-        result = await self.request(
-            "account/usage/read",
-            {},
-            timeout_s=timeout_s,
-        )
-        return _require_object_result(result, "account/usage/read")
+    async def read_account_usage(self, *, timeout_s: float | None = None) -> JsonObject:
+        return await _read_account_usage(self, timeout_s=timeout_s)
 
     async def list_apps(
         self,
@@ -1172,24 +984,6 @@ class CodexAppServerClient:
             pass
         with contextlib.suppress(ProcessLookupError, OSError):
             process.kill() if hard else process.terminate()
-
-
-def _require_object_result(result: JsonValue, operation: str) -> JsonObject:
-    if not isinstance(result, dict):
-        raise ProtocolError(f"{operation} response must be a JSON object")
-    return cast(JsonObject, result)
-
-
-# Keep isinstance narrow without hiding programming errors behind fail-closed
-# transport wrapping.
-CodexAppServerBaseErrors = (
-    BackpressureError,
-    MessageTooLargeError,
-    ProtocolError,
-    RemoteError,
-    RequestTimeoutError,
-    TransportClosedError,
-)
 
 
 __all__ = ["CodexAppServerClient"]

@@ -18,7 +18,12 @@ async def accept_delivery(
     milestone = (
         project_store.get_milestone(milestone_id) if milestone_id in project.milestone_ids else None
     )
-    tasks = project_store.tasks_for_milestone(milestone.id) if milestone else []
+    if milestone is None:
+        # An unknown milestone id has no deliverables to review, so it lands on
+        # the same message the empty-task branch below emits.
+        await emit("当前阶段尚未完成交付，请先完成任务后再申请验收。")
+        return
+    tasks = project_store.tasks_for_milestone(milestone.id)
     if not tasks or any(t.status != "done" for t in tasks):
         await emit("当前阶段尚未完成交付，请先完成任务后再申请验收。")
         return

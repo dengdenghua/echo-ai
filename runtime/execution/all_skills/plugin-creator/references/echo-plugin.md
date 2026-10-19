@@ -60,4 +60,4 @@ class ExamplePlugin(ModulePlugin):
 
 清单静态检查可使用 `PluginManifest.model_validate(yaml.safe_load(...))`；它不代替 PluginHub 的依赖、能力或生命周期检查。编译入口文件不会执行插件，适合先检查语法。集成验证使用临时 SkillRegistry 和宿主测试上下文，确认技能可调用、注册项可撤销，再走真实安装流程。
 
-若需要前端页面、MCP 服务或可分发工作台包，继续读取该项目的 `workbench_package.py` 和同类型插件的清单，按实际契约添加资源，避免假设每个插件都必须带这些组件。
+用户需要打开页面交互时转用 `app-creator`。插件可提供应用需要调用的能力，但不要通过给插件添加页面来代替独立应用。

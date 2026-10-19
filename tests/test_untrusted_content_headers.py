@@ -18,6 +18,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from runtime.execution.suckers import storage_skills
+from runtime.platform.runtime_policy import deployments as deployments_policy
 from runtime.sensing.gateway import deployments_router
 from runtime.sensing.gateway._untrusted_content import (
     SANDBOX_CSP,
@@ -154,7 +155,7 @@ def deployments_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(deployments_router, "_deployments_root", lambda: root)
+    monkeypatch.setattr(deployments_policy, "deployments_root", lambda: root)
     return root
 
 

@@ -129,7 +129,7 @@ export function buildDesktopApps(
       id: "local-apps",
       name: t.desktop.apps.localApps.name,
       subtitle: t.desktop.apps.localApps.subtitle,
-      route: "/workspace/agents?surface=chat&tab=plugins",
+      route: "/workspace/agents?surface=chat&tab=applications",
       icon: AppWindowIcon,
       placement: "library",
     },

@@ -36,11 +36,12 @@ import {
 } from "@/components/ui/dialog";
 import { emitOpenSettings } from "@/core/events";
 import { useI18n } from "@/core/i18n/hooks";
+import { creationCopy } from "@/core/i18n/locales/asset-creation";
 import { BROWSER_WORKSPACE_ROUTE } from "@/core/workspace/sidebar-routing";
 import { useGlobalShortcuts } from "@/hooks/use-global-shortcuts";
 
 export function CommandPalette() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -111,7 +112,8 @@ export function CommandPalette() {
         to: "/workspace/devices",
         label: "设备互联",
         icon: CableIcon,
-        keywords: "devices phone mobile mirror transfer 手机 同屏 文件 电脑 虚拟",
+        keywords:
+          "devices phone mobile mirror transfer 手机 同屏 文件 电脑 虚拟",
       },
       ...WORKBENCH_BUILTIN_APPS.map((app) => ({
         id: app.id,
@@ -131,7 +133,7 @@ export function CommandPalette() {
       {
         id: "plugins",
         to: "/workspace/agents?surface=chat&tab=plugins",
-        label: `${t.sidebar.navHR} · 应用与插件`,
+        label: `${t.sidebar.navHR} · ${creationCopy(locale).plugins}`,
         icon: BoxesIcon,
         keywords: "skill pack meta workflow template plugin",
       },
@@ -194,7 +196,7 @@ export function CommandPalette() {
         keywords: "browser ai tabs history bookmarks copilot",
       },
     ],
-    [t],
+    [t, locale],
   );
 
   if (!mounted) return null;

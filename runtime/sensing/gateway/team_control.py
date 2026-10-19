@@ -48,7 +48,7 @@ async def ensure_running():
                 stdout=log,
                 stderr=log,
                 stdin=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
                 start_new_session=os.name != "nt",
             )
         for _ in range(40):

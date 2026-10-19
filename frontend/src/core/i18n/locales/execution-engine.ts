@@ -31,6 +31,8 @@ export interface ExecutionEngineCopy {
   legacyNotice: string;
   autoDescription: (current?: string) => string;
   opencodeDescription: string;
+  codebuddyDescription: string;
+  codebuddyCheckSetup: string;
   codexDescription: string;
   executedBy: (engine: string) => string;
   /** The quiet label under an answer, so an engine never reads as a name. */
@@ -48,6 +50,8 @@ export interface ExecutionEngineCopy {
 }
 
 const zhCN: ExecutionEngineCopy = {
+  codebuddyDescription: "沿用本机 CodeBuddy 登录与模型配置，工具与审批由 Echo 管理。",
+  codebuddyCheckSetup: "请先在终端安装 CodeBuddy CLI 并登录。",
   title: "执行引擎",
   auto: "自动",
   legacyNative: "原生兼容模式",
@@ -104,6 +108,8 @@ const zhCN: ExecutionEngineCopy = {
 };
 
 const enUS: ExecutionEngineCopy = {
+  codebuddyDescription: "Use the local CodeBuddy login and models with Echo tools and approvals.",
+  codebuddyCheckSetup: "Install CodeBuddy CLI and sign in from a terminal first.",
   title: "Execution engine",
   auto: "Auto",
   legacyNative: "Legacy native mode",
@@ -167,6 +173,8 @@ const enUS: ExecutionEngineCopy = {
 };
 
 const jaJP: ExecutionEngineCopy = {
+  codebuddyDescription: "ローカルの CodeBuddy アカウントを使用し、ツールと承認は Echo が管理します。",
+  codebuddyCheckSetup: "CodeBuddy CLI をインストールし、ターミナルでログインしてください。",
   title: "実行エンジン",
   auto: "自動",
   legacyNative: "旧ネイティブ互換モード",
@@ -230,6 +238,8 @@ const jaJP: ExecutionEngineCopy = {
 };
 
 const koKR: ExecutionEngineCopy = {
+  codebuddyDescription: "로컬 CodeBuddy 계정을 사용하며 도구와 승인은 Echo에서 관리합니다.",
+  codebuddyCheckSetup: "CodeBuddy CLI를 설치하고 터미널에서 로그인하세요.",
   title: "실행 엔진",
   auto: "자동",
   legacyNative: "기존 네이티브 호환 모드",
@@ -309,6 +319,7 @@ export function engineSelectionFailureMessage(
   reason: string | undefined,
   detail: string,
 ): string {
+  if (engine === "codebuddy") return detail || copy.codebuddyCheckSetup;
   if (engine === "opencode") {
     // OpenCode readiness reasons are already written for people (Chinese).
     return /\p{Script=Han}/u.test(detail) ? detail : copy.turnBlocked.opencode;

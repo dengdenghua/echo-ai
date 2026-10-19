@@ -233,3 +233,36 @@ def test_create_app_respects_real_api_required(
     r = app_client.get("/api/account/profile")
 
     assert r.status_code == 404
+
+
+def test_payment_surfaces_answer_501_instead_of_fake_success(
+    client: TestClient,
+) -> None:
+    """A charge that never happens must not look like it did.
+
+    Every other shim here returns a renderable empty payload; subscription and
+    cancellation are the two where a 200 would let a UI report "subscribed".
+    """
+    for path in ("/api/account/subscribe", "/api/account/cancel"):
+        r = client.post(path, json={"plan_id": "pro"})
+        assert r.status_code == 501, f"{path} answered {r.status_code}"
+        assert "not implemented" in r.json()["error"]
+        assert r.headers["X-Echo-Stub"] == "true"
+
+
+def test_stub_routes_stay_out_of_the_published_schema() -> None:
+    """Stubs must not overwrite the real handler's contract.
+
+    FastAPI writes ``/openapi.json`` paths by key and this router is included
+    last, so a schema-visible stub would replace the documented shape of the 24
+    paths that also have a real implementation.
+    """
+    from runtime.platform.ui.app import create_app
+
+    schema = create_app().openapi()
+    tagged = [
+        path
+        for path, operations in schema["paths"].items()
+        if any("stub" in (operation.get("tags") or []) for operation in operations.values())
+    ]
+    assert tagged == [], f"stub endpoints leaked into the schema: {tagged[:5]}"

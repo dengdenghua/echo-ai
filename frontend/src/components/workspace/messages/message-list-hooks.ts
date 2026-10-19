@@ -277,7 +277,7 @@ export function useShadowReview({
   messageIndexByReference: Map<Message, number>;
   lastMessage: Message | undefined;
   lastMessageIsLoading: boolean;
-  currentAgent?: { execution_engine?: "echo" | "codex" | "opencode" } | null;
+  currentAgent?: { execution_engine?: "echo" | "codex" | "opencode" | "codebuddy" } | null;
   threadId: string;
   project?: string | null;
 }) {

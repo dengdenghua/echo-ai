@@ -70,7 +70,7 @@ class ExecutionTask:
     resources: ExecutionResources
     parent_task_id: str | None = None
     artifacts: ArtifactContract | None = None
-    execution_engine: Literal["echo", "codex", "opencode"] | None = None
+    execution_engine: Literal["echo", "codex", "opencode", "codebuddy"] | None = None
     approval_provider: ApprovalProvider | None = None
     server_auto_approve: bool = False
     authorization_intent: str = ""
@@ -82,7 +82,7 @@ class ExecutionTask:
             raise ValueError("execution requires host task and thread coordinates")
         if bool(self.actor_id) != bool(self.tenant_id):
             raise ValueError("execution principal is incomplete")
-        if self.execution_engine not in {None, "echo", "codex", "opencode"}:
+        if self.execution_engine not in {None, "echo", "codex", "opencode", "codebuddy"}:
             raise ValueError("unknown execution engine")
 
 

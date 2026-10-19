@@ -155,7 +155,7 @@ async def _drive_swarm_mesh(
     elif host_request is not None:
         raise ValueError("mesh execution request has no host session")
     bound_engine = getattr(getattr(turn, "execution", None), "engine", None)
-    if bound_engine in {"opencode", "codex"} and (
+    if bound_engine in {"opencode", "codex", "codebuddy"} and (
         host_request is None or host_request.task.execution_engine != bound_engine
     ):
         raise ValueError("external mesh execution requires its bound host task")
@@ -193,16 +193,7 @@ async def _drive_swarm_mesh(
                 TurnParams(threadId=turn.thread_id, input=[]),  # type: ignore[call-arg]
             )
         engine = getattr(getattr(turn, "execution", None), "engine", "echo")
-        if engine == "opencode":
-            from runtime.sensing.gateway.realtime_opencode_backend import drive_opencode
-
-            await drive_opencode(runtime, turn, log, emitter, intent, agent, provider, text=text)
-        elif engine == "codex":
-            await runtime._drive_codex_app_server(
-                turn, log, emitter, intent, agent, provider, text=text
-            )
-        else:
-            await runtime._drive_react(turn, log, emitter, intent, provider, agent)
+        await _drive_bound_chat(runtime, turn, log, emitter, intent, agent, provider, engine, text)
 
     @contextlib.contextmanager
     def _session():
@@ -308,7 +299,11 @@ async def _drive_swarm_mesh(
     # Explicit sequential execution already determines the route. Do not
     # create a model-generated graph that the team driver will never consume.
     if not forced_off:
-        if host_request is not None and host_request.task.execution_engine in {"opencode", "codex"}:
+        if host_request is not None and host_request.task.execution_engine in {
+            "opencode",
+            "codex",
+            "codebuddy",
+        }:
             # A failed external model call must not acquire a native planner
             # or quietly launch a different plan through the team driver.
             graph = await asyncio.to_thread(_plan)
@@ -355,3 +350,18 @@ async def _drive_swarm_mesh(
             exc,
         )
         await _fallback_to_react()
+
+
+async def _drive_bound_chat(runtime, turn, log, emitter, intent, agent, provider, engine, text):
+    if engine == "codebuddy":
+        from runtime.sensing.gateway.realtime_codebuddy_backend import drive_codebuddy as drive
+    elif engine == "opencode":
+        from runtime.sensing.gateway.realtime_opencode_backend import drive_opencode as drive
+    elif engine == "codex":
+        drive = runtime._drive_codex_app_server
+        await drive(turn, log, emitter, intent, agent, provider, text=text)
+        return
+    else:
+        await runtime._drive_react(turn, log, emitter, intent, provider, agent)
+        return
+    await drive(runtime, turn, log, emitter, intent, agent, provider, text=text)

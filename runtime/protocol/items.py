@@ -581,7 +581,7 @@ class TurnParams(BaseModel):
     model: str | None = None
     # Per-task backend preference; role identity and model selection are
     # independent. "auto" follows host defaults after explicit role routing.
-    execution_engine: Literal["auto", "echo", "codex", "opencode"] = Field(
+    execution_engine: Literal["auto", "echo", "codex", "opencode", "codebuddy"] = Field(
         default="auto", alias="executionEngine"
     )
     effort: Literal["minimal", "low", "medium", "high", "xhigh", "max"] = "medium"
@@ -627,7 +627,7 @@ class ExecutionSnapshot(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    engine: Literal["echo", "codex", "opencode"]
+    engine: Literal["echo", "codex", "opencode", "codebuddy"]
     driver: str
     reason: str
     phase: Literal["primary", "steering", "verification", "repair"]

@@ -8,31 +8,14 @@ import {
 } from "@/core/api/request";
 import { getBackendBaseURL } from "@/core/config";
 import { openSseStream } from "@/core/streaming/sse";
-
-import type {
-  ActiveAlert,
-  AlertRule,
-  MetricsSummary,
-  Span,
-  TelemetryStats,
-  TraceSummary,
-} from "./types";
 import { looseBody } from "@/core/api/response";
-import { isRecord } from "@/core/utils/guards";
+
 import {
   hasDropped,
-  hasSuccess,
-  isActiveAlertList,
-  isAlertRule,
-  isAlertRuleList,
   isEvolutionStatus,
-  isMetricsSummary,
   isReflectionReport,
-  isSpanList,
-  isTelemetryStats,
   isToolEffectAuthorizationResponse,
   isToolEffectsSnapshot,
-  isTraceSummaryList,
 } from "./guards";
 
 /**
@@ -115,103 +98,6 @@ async function globalControlPlane<T>(
   }
 }
 
-export async function getMetrics(): Promise<Record<string, unknown>> {
-  return looseBody(
-    await apiGet("/api/metrics", {
-      errorMessage: failed("Failed to get metrics"),
-    }),
-    isRecord,
-  );
-}
-
-export async function getMetricsSummary(): Promise<MetricsSummary> {
-  return looseBody(
-    await apiGet("/api/metrics/summary", {
-      errorMessage: failed("Failed to get metrics summary"),
-    }),
-    isMetricsSummary,
-  );
-}
-
-export async function getTraces(limit = 100): Promise<TraceSummary[]> {
-  return looseBody(
-    await apiGet("/api/trace/recent", {
-      query: { limit },
-      errorMessage: failed("Failed to get traces"),
-    }),
-    isTraceSummaryList,
-  );
-}
-
-export async function getTrace(traceId: string): Promise<Span[]> {
-  return looseBody(
-    await apiGet("/api/trace/{trace_id}", {
-      path: { trace_id: traceId },
-      errorMessage: failed("Failed to get trace"),
-    }),
-    isSpanList,
-  );
-}
-
-export async function getAlerts(): Promise<ActiveAlert[]> {
-  return looseBody(
-    await apiGet("/api/alerts", {
-      errorMessage: failed("Failed to get alerts"),
-    }),
-    isActiveAlertList,
-  );
-}
-
-export async function getAlertRules(): Promise<AlertRule[]> {
-  return looseBody(
-    await apiGet("/api/alerts/rules", {
-      errorMessage: failed("Failed to get alert rules"),
-    }),
-    isAlertRuleList,
-  );
-}
-
-export async function createAlertRule(rule: AlertRule): Promise<AlertRule> {
-  return looseBody(
-    await apiPost("/api/alerts/rules", {
-      body: rule,
-      errorMessage: detailOr(failed("Failed to create alert rule")),
-    }),
-    isAlertRule,
-  );
-}
-
-export async function deleteAlertRule(
-  name: string,
-): Promise<{ success: boolean; name: string }> {
-  return looseBody(
-    await apiDelete("/api/alerts/rules/{name}", {
-      path: { name },
-      errorMessage: failed("Failed to delete alert rule"),
-    }),
-    hasSuccess,
-  );
-}
-
-export async function getTelemetryStats(): Promise<TelemetryStats> {
-  return looseBody(
-    await apiGet("/api/telemetry/stats", {
-      errorMessage: failed("Failed to get telemetry stats"),
-    }),
-    isTelemetryStats,
-  );
-}
-
-export async function getObservabilityHealth(): Promise<
-  Record<string, unknown>
-> {
-  return looseBody(
-    await apiGet("/api/observability/health", {
-      errorMessage: failed("Failed to get observability health"),
-    }),
-    isRecord,
-  );
-}
 
 export type ToolEffectState =
   | "claimed"

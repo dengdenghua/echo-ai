@@ -39,6 +39,7 @@ const ENGINE_NAMES: Record<ExecutionEngine, string> = {
   echo: "Echo",
   codex: "Codex",
   opencode: "OpenCode",
+  codebuddy: "CodeBuddy",
 };
 
 /** What the page knows about the model context (use-thread-timeline.tsx). */

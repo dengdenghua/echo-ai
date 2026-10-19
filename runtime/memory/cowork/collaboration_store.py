@@ -56,8 +56,8 @@ from runtime.memory.cowork._collaboration_session_writes import (
 from runtime.memory.cowork._collaboration_session_writes import delete_task as _delete_task
 from runtime.memory.cowork._collaboration_session_writes import upsert_task as _upsert_task
 from runtime.memory.cowork._collaboration_transcript_import import import_legacy_room
-from runtime.memory.cowork.collaboration_collectors import (
-    CollaborationCollectorStoreMixin,
+from runtime.memory.cowork.collaboration_collector_tasks import (
+    CollaborationCollectorLifecycleMixin,
 )
 from runtime.memory.cowork.collaboration_deliveries import (
     CollaborationDeliveryStoreMixin,
@@ -396,7 +396,7 @@ def _normalize_task_payload(
 
 
 class CollaborationStore(
-    CollaborationCollectorStoreMixin,
+    CollaborationCollectorLifecycleMixin,
     CollaborationDeliveryStoreMixin,
     CollaborationRunStoreMixin,
     CollaborationContextLifecycleStoreMixin,

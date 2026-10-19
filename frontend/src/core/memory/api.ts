@@ -1,7 +1,6 @@
 import {
   apiDelete,
   apiGet,
-  apiPatch,
   apiPost,
   failureDetail,
   untypedApi,
@@ -117,7 +116,8 @@ export async function createFact(
   request: FactCreateRequest,
 ): Promise<MemoryData> {
   return looseBody(
-    await apiPost("/api/memory/facts", {
+    await untypedApi.post("/api/memory/facts", {
+      reason: "the snapshot declares no request body for POST /api/memory/facts",
       body: request,
       errorMessage: detailOr("Failed to create fact"),
     }),
@@ -144,11 +144,15 @@ export async function updateFact(
   request: FactPatchRequest,
 ): Promise<MemoryData> {
   return looseBody(
-    await apiPatch("/api/memory/facts/{fact_id}", {
-      path: { fact_id: factId },
-      body: request,
-      errorMessage: detailOr("Failed to update fact"),
-    }),
+    await untypedApi.patch(
+      `/api/memory/facts/${encodeURIComponent(factId)}`,
+      {
+        reason:
+          "the snapshot declares no request body for PATCH /api/memory/facts/{fact_id}",
+        body: request,
+        errorMessage: detailOr("Failed to update fact"),
+      },
+    ),
     isMemoryData,
   );
 }
@@ -185,7 +189,8 @@ export async function exportMemory(): Promise<MemoryData> {
 
 export async function importMemory(data: MemoryData): Promise<MemoryData> {
   return looseBody(
-    await apiPost("/api/memory/import", {
+    await untypedApi.post("/api/memory/import", {
+      reason: "the snapshot declares no request body for POST /api/memory/import",
       body: data,
       errorMessage: failed("Failed to import memory"),
     }),

@@ -126,7 +126,7 @@ const zhCN: HubCopy = {
   search: {
     agents: "搜索智能体…",
     skills: "搜索技能名称、用途或标签…",
-    applications: "搜索应用与插件…",
+    applications: "搜索应用…",
     clear: "清空搜索",
   },
   agents: {
@@ -253,7 +253,7 @@ const enUS: HubCopy = {
   search: {
     agents: "Search agents…",
     skills: "Search skills by name, purpose or tag…",
-    applications: "Search apps and plugins…",
+    applications: "Search apps…",
     clear: "Clear search",
   },
   agents: {
@@ -389,7 +389,7 @@ const jaJP: HubCopy = {
   search: {
     agents: "エージェントを検索…",
     skills: "スキル名・用途・タグで検索…",
-    applications: "アプリとプラグインを検索…",
+    applications: "アプリを検索…",
     clear: "検索をクリア",
   },
   agents: {
@@ -528,7 +528,7 @@ const koKR: HubCopy = {
   search: {
     agents: "에이전트 검색…",
     skills: "스킬 이름, 용도 또는 태그로 검색…",
-    applications: "앱과 플러그인 검색…",
+    applications: "앱 검색…",
     clear: "검색 지우기",
   },
   agents: {

@@ -155,6 +155,6 @@ Agent runtime hooks · lifecycle events for the agent loop.
 - **`runtime/sensing/`** · 4 file(s)
   - `runtime/sensing/gateway/_realtime_turn_reporting.py`
   - `runtime/sensing/gateway/_realtime_turn_start_phases.py`
-  - `runtime/sensing/gateway/realtime_turn_outcome.py`
+  - `runtime/sensing/gateway/realtime_turn_outcome_verification.py`
   - `runtime/sensing/model_router/anthropic_router.py`
 

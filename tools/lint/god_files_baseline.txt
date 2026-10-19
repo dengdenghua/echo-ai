@@ -2,39 +2,17 @@
 # Splitting one of these? Remove its line from this file so the
 # audit can lock in your win.
 
-runtime/cli_serve.py	1030
 runtime/core/cerebrum/_react_execution_phase6d.py	1448
-runtime/core/cerebrum/react_final_answer_guards.py	1207
-runtime/core/cerebrum/react_loop.py	1119
-runtime/core/cerebrum/react_model_stream.py	1165
-runtime/evals/multi_agent_benchmark.py	1494
-runtime/execution/codex_backend/client.py	1195
 runtime/execution/codex_backend/responses_proxy.py	1468
-runtime/execution/subagents/candidate_patch.py	1247
 runtime/execution/subagents/sessions.py	1419
-runtime/execution/suckers/ephemeral_agents.py	1187
-runtime/execution/suckers/ephemeral_runner.py	1279
-runtime/execution/suckers/kimi_compat_skills.py	1218
-runtime/execution/suckers/web_skills.py	1278
 runtime/execution/tool_engine/executor.py	1257
-runtime/memory/cowork/collaboration_collectors.py	1245
 runtime/memory/cowork/collaboration_store.py	1478
-runtime/memory/cowork/context_steward.py	1082
-runtime/memory/cowork/group_store.py	1102
-runtime/memory/journal/journal.py	1865
-runtime/platform/capabilities/capability_registry.py	1030
 runtime/platform/plugins/bundled/narrative_studio/store.py	1774
 runtime/platform/plugins/bundled/paper_trading/__init__.py	1526
-runtime/platform/plugins/bundled/paper_trading/quote_hub.py	1238
-runtime/platform/plugins/cloud_catalog.py	3088
 runtime/platform/plugins/plugin_hub.py	1404
 runtime/platform/ui/browser_router.py	1277
-runtime/safety/sandboxing/sandbox.py	1288
-runtime/sensing/gateway/_realtime_react_stream_drive.py	1141
 runtime/sensing/gateway/_team_stream_group_fanout.py	1794
 runtime/sensing/gateway/agent_world_router.py	1287
-runtime/sensing/gateway/design_studio_router.py	1558
 runtime/sensing/gateway/realtime_event_bridge.py	1516
-runtime/sensing/gateway/realtime_turn_input.py	1110
-runtime/sensing/gateway/realtime_turn_outcome.py	1070
-runtime/sensing/model_router/openai_router.py	1276
+runtime/sensing/gateway/design_studio_router.py	1558
+runtime/core/cerebrum/react_model_stream.py	1165

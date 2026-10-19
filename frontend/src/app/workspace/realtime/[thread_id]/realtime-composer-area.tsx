@@ -50,7 +50,7 @@ export interface RealtimeComposerAreaProps {
   replyTarget: CoworkRoomMessage | null;
   setReplyTarget: StateSetter<CoworkRoomMessage | null>;
   modelName: string | undefined;
-  selectedExecutionEngine: "echo" | "codex" | "opencode";
+  selectedExecutionEngine: "echo" | "codex" | "opencode" | "codebuddy";
   isStopping: boolean;
   handleSubmit: (message: { text: string }) => void | boolean;
   /** The composer itself (see RealtimeChatInput). */

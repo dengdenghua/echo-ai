@@ -13,7 +13,11 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from runtime.platform.plugins import cloud_catalog
+from runtime.platform.plugins import _cloud_catalog_install as _cc_install
+from runtime.platform.plugins import _cloud_catalog_skills as _cc_skills
+from runtime.platform.plugins import _cloud_catalog_support, cloud_catalog
+from runtime.platform.plugins import _cloud_catalog_transactions as _cc_transactions
+from runtime.platform.plugins import _cloud_catalog_validation as _cc_validation
 from runtime.platform.plugins.cloud_catalog import CloudCatalog
 from runtime.platform.plugins.marketplace_package import (
     CODEX_SIGNATURE_RELATIVE_PATH,
@@ -148,7 +152,7 @@ def _catalog(
     plugin_root = tmp_path / "installed"
     codex_cache = tmp_path / "codex-cache"
     codex_cache.mkdir(exist_ok=True)
-    monkeypatch.setattr(cloud_catalog, "REPO", packaged_root)
+    monkeypatch.setattr(_cloud_catalog_support, "REPO", packaged_root)
     monkeypatch.setattr(CloudCatalog, "PLUGIN_INSTALL_ROOT", plugin_root)
     monkeypatch.setattr(CloudCatalog, "SKILLS_ROOT", tmp_path / "skills")
     monkeypatch.setattr(CloudCatalog, "CODEX_CACHE_ROOT", codex_cache)
@@ -651,7 +655,8 @@ def test_marketplace_install_restores_everything_when_state_commit_fails(
             raise OSError("simulated state commit failure")
         return original_atomic_write(path, payload, **kwargs)
 
-    monkeypatch.setattr(cloud_catalog, "atomic_write_json", fail_state_commit)
+    for _mod in (_cc_skills, _cc_install, _cc_transactions, _cc_validation):
+        monkeypatch.setattr(_mod, "atomic_write_json", fail_state_commit)
 
     with pytest.raises(OSError, match="simulated state commit failure"):
         catalog.install_plugin("documents", plugin_kind=kind)

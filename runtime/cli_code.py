@@ -24,6 +24,20 @@ PERMISSION_MODES = ("default", "acceptEdits", "bypassPermissions", "plan")
 OUTPUT_FORMATS = ("text", "json", "stream-json")
 
 
+def _external_runner(engine):
+    if engine == "codebuddy":
+        from runtime.cli_codebuddy import run_cli_codebuddy
+
+        return run_cli_codebuddy
+    if engine == "opencode":
+        from runtime.cli_opencode import run_cli_opencode
+
+        return run_cli_opencode
+    from runtime.cli_codex import run_cli_codex
+
+    return run_cli_codex
+
+
 @dataclass(slots=True)
 class _CliCodeAgent:
     agent_id: str = "echo-cli"
@@ -102,10 +116,10 @@ def run_code_command(args: Any, *, color: bool = True) -> int:  # noqa: ARG001
             else session_record.get("execution_engine")
             or ("echo" if session_record else "opencode")
         )
-    if engine not in {"echo", "opencode", "codex"}:
+    if engine not in {"echo", "opencode", "codex", "codebuddy"}:
         print("Unsupported saved execution engine.", file=sys.stderr)
         return 2
-    if engine in {"opencode", "codex"}:
+    if engine in {"opencode", "codex", "codebuddy"}:
         model = (
             getattr(args, "model", None)
             or (
@@ -119,14 +133,14 @@ def run_code_command(args: Any, *, color: bool = True) -> int:  # noqa: ARG001
         model = _resolve_model(
             args,
             session_record
-            if session_record.get("execution_engine") not in {"opencode", "codex"}
+            if session_record.get("execution_engine") not in {"opencode", "codex", "codebuddy"}
             else {},
         )
     thread_id = str(session_record.get("thread_id") or f"cli-{session_id}")
     history = list(session_record.get("messages") or [])
     history.append({"role": "user", "content": prompt, "ts": _now()})
 
-    if engine in {"opencode", "codex"}:
+    if engine in {"opencode", "codex", "codebuddy"}:
         from runtime.cli_execution import build_cli_tool_stack
 
         stack = build_cli_tool_stack()
@@ -197,11 +211,8 @@ def run_code_command(args: Any, *, color: bool = True) -> int:  # noqa: ARG001
         elif output_format == "text" and not getattr(args, "print", False):
             _render_text_event(event, text_buffer)
 
-    if engine in {"opencode", "codex"}:
-        if engine == "opencode":
-            from runtime.cli_opencode import run_cli_opencode as run_external
-        else:
-            from runtime.cli_codex import run_cli_codex as run_external
+    if engine in {"opencode", "codex", "codebuddy"}:
+        run_external = _external_runner(engine)
 
         try:
             result = run_external(

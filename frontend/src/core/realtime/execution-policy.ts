@@ -6,7 +6,7 @@ export type ExecutionEnginePreference = "auto" | ExecutionEngine;
 export function executionEnginePreference(
   value: unknown,
 ): ExecutionEnginePreference {
-  return value === "codex" || value === "echo" || value === "opencode"
+  return value === "codex" || value === "echo" || value === "opencode" || value === "codebuddy"
     ? value
     : "auto";
 }

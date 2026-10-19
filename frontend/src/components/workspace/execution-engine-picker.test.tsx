@@ -130,7 +130,7 @@ it("shows a selected unavailable OpenCode reason and keeps alternate engines rea
   expect(onChange).toHaveBeenCalledWith("codex");
 });
 
-it("offers two engines and Auto, without creating new native selections", async () => {
+it("offers three engines and Auto, without creating new native selections", async () => {
   const user = userEvent.setup();
   const onChange = vi.fn();
   renderWithProviders(
@@ -154,7 +154,7 @@ it("offers two engines and Auto, without creating new native selections", async 
   expect(
     screen.getByRole("menuitem", { name: /Codex.*Connect a Codex account/ }),
   ).toHaveAttribute("aria-disabled", "true");
-  expect(screen.getAllByRole("menuitem")).toHaveLength(3);
+  expect(screen.getAllByRole("menuitem")).toHaveLength(4);
   expect(screen.queryByRole("menuitem", { name: /Echo/ })).toBeNull();
   await user.click(
     screen.getByRole("menuitem", { name: /OpenCode.*OpenCode identity/ }),
@@ -243,4 +243,24 @@ it("does not flag an engine as broken while its readiness is still loading", () 
   const trigger = screen.getByTestId("execution-engine-trigger");
   expect(trigger).toHaveAttribute("aria-label", "Execution engine: Codex");
   expect(trigger.querySelector(".bg-destructive")).toBeNull();
+});
+
+
+it("selects a local CodeBuddy engine and preserves its history badge", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  renderWithProviders(<ExecutionEnginePicker value="auto" codexAvailable codebuddyAvailable onChange={onChange} />);
+  await user.click(screen.getByRole("button", { name: /Execution engine:/ }));
+  await user.click(screen.getByRole("menuitem", { name: /CodeBuddy/ }));
+  expect(onChange).toHaveBeenCalledWith("codebuddy");
+});
+
+it("explains a missing CodeBuddy CLI without starting an unrelated download", async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<ExecutionEnginePicker value="codebuddy" codexAvailable onChange={vi.fn()}
+    codebuddyUnavailableReason="Install CodeBuddy CLI and sign in" />);
+  expect(screen.getByRole("button", { name: /CodeBuddy.*unavailable/i })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /CodeBuddy/ }));
+  expect(screen.getByRole("menuitem", { name: /CodeBuddy/ })).toHaveAttribute("aria-disabled", "true");
+  expect(apiPost).not.toHaveBeenCalled();
 });

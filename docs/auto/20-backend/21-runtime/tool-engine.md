@@ -284,7 +284,7 @@ Tool contracts are available without constructing the executor import graph.
 
 ## Who imports this
 
-**36** file(s) reference this package:
+**37** file(s) reference this package:
 
 - **`runtime/cli_core.py/`** · 1 file(s)
   - `runtime/cli_core.py`
@@ -299,13 +299,13 @@ Tool contracts are available without constructing the executor import graph.
   - `runtime/core/cerebrum/design_capabilities.py`
   - `runtime/core/cerebrum/react_action_outcomes.py`
   - _… and 3 more_
-- **`runtime/execution/`** · 12 file(s)
+- **`runtime/execution/`** · 13 file(s)
+  - `runtime/execution/codebuddy_roles.py`
   - `runtime/execution/codex_backend/dynamic_tools.py`
   - `runtime/execution/codex_backend/role_context.py`
   - `runtime/execution/graph_planning.py`
   - `runtime/execution/opencode_roles.py`
-  - `runtime/execution/subagents/bridge.py`
-  - _… and 7 more_
+  - _… and 8 more_
 - **`runtime/platform/`** · 1 file(s)
   - `runtime/platform/config/builder.py`
 - **`runtime/safety/`** · 2 file(s)
