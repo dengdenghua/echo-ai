@@ -68,7 +68,7 @@ def test_memory_scheduler_keeps_real_deterministic_buckets(tmp_path, monkeypatch
 def test_disabled_jobs_do_not_construct_model_components(tmp_path, monkeypatch):
     from runtime.cli_serve import maybe_setup_prompt_evolution
     from runtime.safety.evolution.auto_trigger import AutoTriggerConfig, EvolutionAutoTrigger
-    from runtime.safety.experiments.scheduler import CamouflageConfig, CamouflageScheduler
+    from runtime.safety.evolution.experiment_scheduler import CamouflageConfig, CamouflageScheduler
 
     class Host:
         config = AgentConfig()

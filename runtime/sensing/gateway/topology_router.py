@@ -38,13 +38,13 @@ from runtime.safety.evolution.subagent_policy import evaluate_agent_policy
 from runtime.safety.evolution.subagent_team_promotion import (
     merged_topology_proposals,
 )
-from runtime.safety.organization import TeamTopology
-from runtime.safety.organization.evolver import Proposal
-from runtime.safety.organization.forge import (
+from runtime.safety.evolution.topology_evolver import Proposal
+from runtime.safety.evolution.topology_forge import (
     TopologyForge,
     load_registry,
     save_registry,
 )
+from runtime.safety.organization import TeamTopology
 from runtime.safety.organization.performance_log import read_runs
 from runtime.safety.organization.promotion_lift import (
     compute_topology_promotion_lift,

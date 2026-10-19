@@ -52,7 +52,7 @@ from runtime.platform.models import (
     TrajectoryOutcome,
     new_id,
 )
-from runtime.safety.recovery.skill_forge import (
+from runtime.safety.evolution.skill_forge import (
     ForgeConfig,
     ForgedSkillCandidate,
     SkillForge,

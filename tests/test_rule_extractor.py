@@ -16,7 +16,7 @@ from runtime.platform.models import (
     Trajectory,
     TrajectoryOutcome,
 )
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     ExtractorConfig,
     LearnedRule,
     RuleExtractor,

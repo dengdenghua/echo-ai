@@ -31,7 +31,7 @@ from runtime.platform.models import (
     Trajectory,
     TrajectoryOutcome,
 )
-from runtime.safety.recovery import RewriteProposal
+from runtime.safety.evolution import RewriteProposal
 
 # ═══════════════════════════════════════════════════════════
 # Implementation note.

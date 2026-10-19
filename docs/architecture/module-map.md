@@ -37,7 +37,7 @@ old name.
 | `journal/` | `runtime/memory/journal/` |
 | `immunity/` (trust engine) | `runtime/safety/auth/` |
 | `invariants/` | `runtime/safety/invariants/` |
-| `regeneration/` (recovery) | `runtime/safety/recovery/` |
+| Self-evolution (learning / regeneration / prompt experiments) | `runtime/safety/evolution/` |
 | `chromatophores/` | `runtime/safety/chromatophores/` |
 | `channels/` | `runtime/adapters/channels/` |
 | `integrations/` | `runtime/adapters/integrations/` |

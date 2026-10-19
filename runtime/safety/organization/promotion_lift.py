@@ -12,7 +12,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from runtime.safety.organization.forge import load_registry
+from runtime.safety.evolution.topology_forge import load_registry
 from runtime.safety.organization.performance_log import read_runs
 from runtime.safety.organization.topology import TeamTopology
 

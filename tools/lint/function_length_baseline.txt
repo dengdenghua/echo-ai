@@ -44,7 +44,7 @@ runtime/sensing/gateway/a2a_router.py::create_a2a_router	490
 runtime/sensing/gateway/openai_gateway_router.py::create_openai_router	477
 runtime/sensing/gateway/workspace_api_router.py::create_workspace_api_router	447
 runtime/cli_serve.py::run_serve	457
-runtime/platform/ui/_app_stack.py::wire_stack	396
+runtime/platform/ui/_app_stack.py::wire_stack	395
 runtime/sensing/gateway/_observability_kg.py::register_kg_endpoints	459
 runtime/execution/agents/group_fanout.py::run_group_fanout	446
 runtime/sensing/gateway/_observability_journal.py::register_journal_endpoints	427
@@ -61,7 +61,7 @@ runtime/sensing/gateway/realtime_project_initiation.py::initiate_project	388
 runtime/sensing/gateway/_realtime_react_stream_apply.py::_apply_react_event	385
 runtime/sensing/gateway/codex_hotspot.py::create_hotspot	384
 runtime/platform/ui/_reflex_admin_stats.py::register_reflex_stats_endpoints	383
-runtime/safety/recovery/scheduler.py::RegenerationScheduler._tick_once	378
+runtime/safety/evolution/learning_scheduler.py::RegenerationScheduler._tick_once	378
 runtime/sensing/gateway/registry_consumer_router.py::create_registry_consumer_router	371
 runtime/platform/plugins/bundled/narrative_studio/__init__.py::NarrativeStudioPlugin.register_routes	370
 runtime/platform/process/streaming.py::stream_run	366
@@ -92,14 +92,14 @@ runtime/memory/cowork/context_steward.py::plan_group_context	305
 runtime/sensing/gateway/task_runs_router.py::create_task_runs_router.api_task_run_resume_execution	304
 runtime/safety/evolution/behavioral_surpass_evidence.py::compute_behavioral_surpass_evidence	302
 runtime/platform/plugins/bundled/director_stage/scene_store.py::_apply	296
-runtime/memory/learning/deep_evolution.py::deep_evolve	294
+runtime/safety/evolution/deep_evolution.py::deep_evolve	294
 runtime/sensing/gateway/connector_router.py::create_connector_router	294
 runtime/execution/suckers/_delegation_skills_pipeline.py::_run_pipeline	286
 runtime/platform/ui/_reflex_admin_gepa_variants.py::register_gepa_variants	284
 runtime/sensing/gateway/memory_router.py::create_memory_router	283
 runtime/adapters/integrations/local_auth/router.py::create_local_auth_router	212
 runtime/sensing/gateway/openai_gateway_router.py::create_openai_router._chat_completions_impl	281
-runtime/safety/recovery/gepa_bridge.py::record_winner_proposal_and_canary	280
+runtime/safety/evolution/gepa_bridge.py::record_winner_proposal_and_canary	280
 runtime/platform/ui/_reflex_admin_gepa_apply.py::register_gepa_apply	279
 runtime/platform/plugins/cloud_catalog.py::CloudCatalog.plugin_statuses	277
 runtime/sensing/gateway/_config_endpoints_local_models.py::_register_local_models	277

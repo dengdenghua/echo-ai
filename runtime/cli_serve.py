@@ -194,7 +194,7 @@ def maybe_setup_prompt_evolution(
         print(_yellow(color, "prompt A/B needs LLMPlanner · skipping"))
         return None, 0
 
-    from runtime.safety.experiments import (
+    from runtime.safety.evolution import (
         EvolutionPolicy,
         PromptEvolver,
         PromptMutator,
@@ -242,7 +242,7 @@ def register_intel_task(
     stack: Any,
 ) -> int:
     """Register one static IntelSourceConfig item with the scheduler."""
-    from runtime.safety.recovery import IntelCollector, IntelSource
+    from runtime.safety.evolution import IntelCollector, IntelSource
 
     if not stack.registry.has("web_search"):
         return 0
@@ -542,7 +542,7 @@ def register_reflection_tasks(
         count += 1
 
     def _forge() -> None:
-        from runtime.safety.recovery import ForgeConfig, SkillForge
+        from runtime.safety.evolution import ForgeConfig, SkillForge
 
         SkillForge(
             journal=stack.journal,

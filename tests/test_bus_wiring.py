@@ -214,7 +214,7 @@ class TestForgeTriggersEvent:
         from runtime.memory.journal import JSONLJournal
         from runtime.platform.models import Budget, BudgetLimits
         from runtime.safety.auth import TrustEngine
-        from runtime.safety.recovery import ForgeConfig, SkillForge
+        from runtime.safety.evolution import ForgeConfig, SkillForge
 
         bus = TypedEventBus()
         events: list[SkillRegistered] = []

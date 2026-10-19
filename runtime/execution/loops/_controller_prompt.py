@@ -7,16 +7,16 @@ from runtime.execution.loops._controller_helpers import (
     _attempt_exception_repairable,
     _verifier_feedback,
 )
-from runtime.execution.loops.learning import (
-    build_loop_repair_candidate_spec,
-    build_loop_run_review,
-)
 from runtime.execution.loops.models import LoopRun, LoopRunStatus
 from runtime.execution.loops.recovery import build_loop_run_resume_prompt
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
 from runtime.safety.evolution.candidate_registry import (
     CandidateRegistry,
     CandidateRegistryError,
+)
+from runtime.safety.evolution.loop_learning import (
+    build_loop_repair_candidate_spec,
+    build_loop_run_review,
 )
 
 

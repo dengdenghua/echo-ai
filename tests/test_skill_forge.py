@@ -18,14 +18,14 @@ from runtime.platform.models import (
     Trajectory,
     TrajectoryOutcome,
 )
-from runtime.safety.evolution.candidate_registry import CandidateRegistry, CandidateStatus
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     ForgeConfig,
     SkillForge,
     UnsafeSkillPromotionError,
     pattern_signature,
 )
-from runtime.safety.recovery.skill_forge import _default_name_for
+from runtime.safety.evolution.candidate_registry import CandidateRegistry, CandidateStatus
+from runtime.safety.evolution.skill_forge import _default_name_for
 
 # ═══════════════════════════════════════════════════════════
 # fixtures

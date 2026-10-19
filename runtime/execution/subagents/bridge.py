@@ -1424,7 +1424,7 @@ def call_subagent(
                             )
                         _session_store.mark_reports_delivered(_active_session["session_id"])
         try:
-            from runtime.memory.learning.subagent_review import (
+            from runtime.safety.evolution.subagent_review import (
                 queue_subagent_review_candidate,
             )
 

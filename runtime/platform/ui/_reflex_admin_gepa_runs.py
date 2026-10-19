@@ -36,7 +36,7 @@ def register_gepa_runs(_reflex_admin: Any, *, stack: Any) -> None:
         import csv
         import io
 
-        from runtime.safety.recovery.gepa_runs import get_default_store
+        from runtime.safety.evolution.gepa_runs import get_default_store
 
         store = get_default_store()
         runs = store.list_recent(limit=200)
@@ -64,7 +64,7 @@ def register_gepa_runs(_reflex_admin: Any, *, stack: Any) -> None:
         )
         from datetime import datetime
 
-        from runtime.safety.recovery.gepa_runs import enrich_run_records
+        from runtime.safety.evolution.gepa_runs import enrich_run_records
 
         for r in enrich_run_records(runs):
             w.writerow(
@@ -106,7 +106,7 @@ def register_gepa_runs(_reflex_admin: Any, *, stack: Any) -> None:
         import io
         from datetime import datetime
 
-        from runtime.safety.recovery.gepa_addendum_store import list_all
+        from runtime.safety.evolution.gepa_addendum_store import list_all
 
         buf = io.StringIO()
         w = csv.writer(buf)
@@ -153,7 +153,7 @@ def register_gepa_runs(_reflex_admin: Any, *, stack: Any) -> None:
         content preview is. Backs the panel's "Addendums by
         recipe" sub-card.
         """
-        from runtime.safety.recovery.gepa_addendum_store import list_all
+        from runtime.safety.evolution.gepa_addendum_store import list_all
 
         return {"addendums": list_all(), "source": "gepa"}
 
@@ -162,7 +162,7 @@ def register_gepa_runs(_reflex_admin: Any, *, stack: Any) -> None:
         """List recent GEPA runs (manual + auto), newest first.
         Each entry includes the trigger, the best candidate's
         id+score+rationale, and whether it's been applied."""
-        from runtime.safety.recovery.gepa_runs import (
+        from runtime.safety.evolution.gepa_runs import (
             enrich_run_records,
             get_default_store,
         )

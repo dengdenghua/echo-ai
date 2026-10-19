@@ -8,7 +8,7 @@ from runtime.sensing.gateway.evolution_ops import recipe_forge as rf
 
 
 def test_applied_snapshot_missing_and_present(tmp_path: Path, monkeypatch) -> None:
-    import runtime.safety.recovery.gepa_addendum_store as addendum
+    import runtime.safety.evolution.gepa_addendum_store as addendum
 
     missing = tmp_path / "none.json"
     monkeypatch.setattr(addendum, "legacy_global_path", lambda: missing)
@@ -25,7 +25,7 @@ def test_applied_snapshot_missing_and_present(tmp_path: Path, monkeypatch) -> No
 
 
 def test_runs_snapshot(monkeypatch) -> None:
-    import runtime.safety.recovery.gepa_runs as runs
+    import runtime.safety.evolution.gepa_runs as runs
 
     class _FakeStore:
         def list_recent(self, *, limit):
@@ -39,8 +39,8 @@ def test_runs_snapshot(monkeypatch) -> None:
 
 
 def test_addendums_and_recipes_snapshot(monkeypatch) -> None:
-    import runtime.safety.recovery.gepa_addendum_store as addendum
-    import runtime.safety.recovery.gepa_variants as variants
+    import runtime.safety.evolution.gepa_addendum_store as addendum
+    import runtime.safety.evolution.gepa_variants as variants
 
     monkeypatch.setattr(addendum, "list_all", lambda: ["a1"])
     monkeypatch.setattr(variants, "list_all_manifests", lambda: [{"id": "m1"}])
@@ -49,7 +49,7 @@ def test_addendums_and_recipes_snapshot(monkeypatch) -> None:
 
 
 def test_auto_tick_status_and_error_paths(monkeypatch) -> None:
-    import runtime.safety.recovery.forge_auto_tick as fat
+    import runtime.safety.evolution.forge_auto_tick as fat
 
     monkeypatch.setattr(fat, "get_status", lambda: {"enabled": True, "interval_hours": 24})
     out = rf._forge_auto_tick_status()
@@ -66,7 +66,7 @@ def test_auto_tick_status_and_error_paths(monkeypatch) -> None:
         raise ImportError("no module")
 
     monkeypatch.setattr(
-        __import__("runtime.safety.recovery.gepa_addendum_store", fromlist=["legacy_global_path"]),
+        __import__("runtime.safety.evolution.gepa_addendum_store", fromlist=["legacy_global_path"]),
         "legacy_global_path",
         _boom,
     )

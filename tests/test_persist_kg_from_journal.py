@@ -16,7 +16,7 @@ from uuid import uuid4
 from runtime.memory.journal import InMemoryJournal
 from runtime.memory.knowledge_graph.sqlite_kg import SqliteKnowledgeGraph
 from runtime.platform.models import ArmId, TaskId, Trajectory, TrajectoryOutcome
-from runtime.safety.recovery import persist_kg_from_journal
+from runtime.safety.evolution import persist_kg_from_journal
 
 
 def _journal_with_success() -> InMemoryJournal:

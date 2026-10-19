@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from runtime.safety.recovery.gepa_optimizer import PromptCandidate
-from runtime.safety.recovery.native_llm_replay import replay_llm_candidates
-from runtime.safety.recovery.native_turn_replay import TurnReplayCase
+from runtime.safety.evolution.gepa_optimizer import PromptCandidate
+from runtime.safety.evolution.native_llm_replay import replay_llm_candidates
+from runtime.safety.evolution.native_turn_replay import TurnReplayCase
 from runtime.sensing.model_router.models import ModelResponse, ToolCall
 
 

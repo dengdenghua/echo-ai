@@ -248,23 +248,22 @@ tier: "core"
   - `runtime/execution/subagents/sessions.py`
   - `runtime/execution/suckers/_ephemeral_events.py`
   - _… and 7 more_
-- **`runtime/memory/`** · 5 file(s)
+- **`runtime/memory/`** · 4 file(s)
   - `runtime/memory/goals/projection.py`
   - `runtime/memory/goals/service.py`
   - `runtime/memory/hemolymph/composer.py`
-  - `runtime/memory/learning/promotion_applier.py`
   - `runtime/memory/runtime_state/hub.py`
 - **`runtime/platform/`** · 3 file(s)
   - `runtime/platform/config/builder.py`
   - `runtime/platform/ui/app.py`
   - `runtime/platform/ui/state.py`
-- **`runtime/safety/`** · 9 file(s)
-  - `runtime/safety/hooks/external_bridge.py`
-  - `runtime/safety/recovery/intel_collector.py`
-  - `runtime/safety/recovery/kg_updater.py`
-  - `runtime/safety/recovery/memory_consolidator.py`
-  - `runtime/safety/recovery/recipe_evaluator.py`
-  - _… and 4 more_
+- **`runtime/safety/`** · 10 file(s)
+  - `runtime/safety/evolution/intel_collector.py`
+  - `runtime/safety/evolution/kg_updater.py`
+  - `runtime/safety/evolution/memory_consolidator.py`
+  - `runtime/safety/evolution/promotion_applier.py`
+  - `runtime/safety/evolution/recipe_evaluator.py`
+  - _… and 5 more_
 - **`runtime/sensing/`** · 23 file(s)
   - `runtime/sensing/gateway/_evolution_ops_learning_endpoints.py`
   - `runtime/sensing/gateway/_observability_auth.py`

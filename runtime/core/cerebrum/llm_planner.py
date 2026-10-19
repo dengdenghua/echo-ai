@@ -162,7 +162,7 @@ class LLMPlanner:
         self._plan_usage_local.last_plan_usage = dict(value or {})
 
     def update_learned_rules(self, rules: list, *, max_total_chars: int = 2000) -> None:
-        from runtime.safety.recovery import format_rules_for_prompt
+        from runtime.safety.evolution import format_rules_for_prompt
 
         self.learned_rules_section = format_rules_for_prompt(rules, max_total_chars=max_total_chars)
         self._rules_updated_count += 1
@@ -181,7 +181,7 @@ class LLMPlanner:
         min_hits: int = 3,
         max_rules: int = 30,
     ) -> int:
-        from runtime.safety.recovery import ExtractorConfig, RuleExtractor
+        from runtime.safety.evolution import ExtractorConfig, RuleExtractor
 
         extractor = RuleExtractor(
             journal=journal,
@@ -192,7 +192,7 @@ class LLMPlanner:
         return len(report.rules_produced)
 
     def update_learned_memories(self, memories: list, *, max_total_chars: int = 2000) -> None:
-        from runtime.safety.recovery import format_memories_for_prompt
+        from runtime.safety.evolution import format_memories_for_prompt
 
         self.learned_memories_section = format_memories_for_prompt(
             memories, max_total_chars=max_total_chars
@@ -207,7 +207,7 @@ class LLMPlanner:
         self._autosave_memories()
 
     def learn_memories_from_journal(self, journal: Journal) -> int:
-        from runtime.safety.recovery import MemoryConsolidator
+        from runtime.safety.evolution import MemoryConsolidator
 
         report = MemoryConsolidator(journal).consolidate()
         self.update_learned_memories(report.memories_produced)
@@ -243,7 +243,7 @@ class LLMPlanner:
         return kg.count()
 
     def learn_kg_from_journal(self, journal: Journal, *, max_triples: int | None = None) -> int:
-        from runtime.safety.recovery import KGUpdater
+        from runtime.safety.evolution import KGUpdater
 
         if max_triples is not None:
             self.kg_max_triples = max_triples
@@ -286,7 +286,7 @@ class LLMPlanner:
             return ""
 
     def assess_recipe_from_journal(self, journal: Journal) -> Any:
-        from runtime.safety.recovery import RecipeEvaluator
+        from runtime.safety.evolution import RecipeEvaluator
 
         report = RecipeEvaluator(journal).evaluate()
         my_hash = self.recipe_hash()
@@ -363,7 +363,7 @@ class LLMPlanner:
         #      (recipe_hash() doesn't include the addendum), so
         #      there's no chicken-and-egg cycle.
         try:
-            from runtime.safety.recovery.gepa_addendum_store import (
+            from runtime.safety.evolution.gepa_addendum_store import (
                 load_for_recipe,
                 load_global,
             )
@@ -419,7 +419,7 @@ class LLMPlanner:
                 # this recipe, A/B-split traffic with a sticky conversation
                 # bucket. Otherwise fall back to the single-file addendum.
                 try:
-                    from runtime.safety.recovery.gepa_variants import (
+                    from runtime.safety.evolution.gepa_variants import (
                         select_variant,
                     )
 
@@ -450,7 +450,7 @@ class LLMPlanner:
         if recipe_warning:
             base_prompt = base_prompt + "\n\n" + recipe_warning
 
-        from runtime.safety.recovery.tenant_scope import trusted_scope_from_user_context
+        from runtime.safety.evolution.tenant_scope import trusted_scope_from_user_context
 
         memory_scope = trusted_scope_from_user_context(intent.user_context)
         packet = self.composer.compose(

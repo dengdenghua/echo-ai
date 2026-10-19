@@ -2486,7 +2486,7 @@ def test_team_subagent_lifecycle_maps_to_first_class_item(
             )
 
     monkeypatch.setattr(
-        "runtime.safety.organization.forge.load_registry",
+        "runtime.safety.evolution.topology_forge.load_registry",
         lambda: {"test_topology": topology},
     )
     monkeypatch.setattr(

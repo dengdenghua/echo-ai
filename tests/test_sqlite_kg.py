@@ -216,7 +216,7 @@ class TestParityWithInMemory:
             Trajectory,
             TrajectoryOutcome,
         )
-        from runtime.safety.recovery import KGUpdater
+        from runtime.safety.evolution import KGUpdater
 
         j = InMemoryJournal()
         call = ToolCall(caller="arms/x", sucker_id="list_cwd", args={"path": "."})

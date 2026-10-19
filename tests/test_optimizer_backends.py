@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime.safety.recovery import gepa_bridge
-from runtime.safety.recovery.optimizer_backends import (
+from runtime.safety.evolution import gepa_bridge
+from runtime.safety.evolution.optimizer_backends import (
     OptimizerRunConfig,
     available_optimizer_backends,
     get_optimizer_backend,

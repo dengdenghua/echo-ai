@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from runtime.safety.recovery.external_importers import (
+from runtime.safety.evolution.external_importers import (
     build_external_session_dataset,
     collect_external_session_failures,
     discover_external_session_roots,
@@ -67,7 +67,7 @@ def test_source_name_prefers_filename_over_ancestor_dir() -> None:
     """
     from pathlib import Path
 
-    from runtime.safety.recovery.external_importers import _source_name
+    from runtime.safety.evolution.external_importers import _source_name
 
     # Synthetic absolute paths — a real tmp_path may itself sit under a
     # vendor-ish scratch dir (e.g. /private/tmp/claude-501), which is exactly

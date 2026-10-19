@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from runtime.memory.learning.review_queue import ReviewQueue
+from runtime.safety.evolution.review_queue import ReviewQueue
 from scripts import production_readiness_gate as gate
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

@@ -112,8 +112,8 @@ CHECKS: tuple[RepoContextCheck, ...] = (
         id="memory_context_carryover",
         title="Memory context carryover",
         paths=(
-            "runtime/memory/learning/experience_ledger.py",
-            "runtime/memory/learning/promotion_applier.py",
+            "runtime/safety/evolution/experience_ledger.py",
+            "runtime/safety/evolution/promotion_applier.py",
             "runtime/sensing/gateway/agent_trace_router.py",
             "tests/test_agent_trace_router.py",
         ),

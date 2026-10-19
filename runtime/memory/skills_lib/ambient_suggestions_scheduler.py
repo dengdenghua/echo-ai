@@ -3,8 +3,8 @@ Ambient Suggestions Scheduler · periodically regenerate suggestions
 for active agents.
 
 Mirrors the lifecycle pattern of
-``runtime.safety.recovery.scheduler.RegenerationScheduler`` and
-``runtime.safety.experiments.scheduler.CamouflageScheduler``: a single
+``runtime.safety.evolution.learning_scheduler.RegenerationScheduler`` and
+``runtime.safety.evolution.experiment_scheduler.CamouflageScheduler``: a single
 daemon thread, ``threading.Event`` cancellable sleep, thread-safe
 singleton, and per-tick error isolation.
 

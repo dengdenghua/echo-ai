@@ -20,8 +20,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.process.paths import app_paths
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 from ._recipes_api import (
     _provided_evidence_from_api_check,

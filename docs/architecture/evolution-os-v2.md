@@ -2,6 +2,37 @@
 
 状态：已落地核心闭环 · 2026-08-25
 
+## 统一模块与生命周期
+
+自进化的唯一实现归属是 `runtime/safety/evolution/`。经验收集与召回、回合评分、
+SOUL 反思、GEPA/Prompt 优化、技能与团队拓扑提案、候选验证、影子评审、灰度发布、
+结果归因和回滚都在此目录。旧的 learning、recovery、experiments 实现目录已移除，
+调用方直接导入统一模块；通用记忆、执行器和网关保留各自的存储或传输职责。
+
+应用通过 `get_evolution_service()` 管理启动、模型路由、Agent 注册表绑定及关闭，
+只注册一个 `self-evolution` 关闭处理器。内部工作任务保留各自的执行间隔，
+共享原有队列、候选注册表、审计与灰度记录；迁移不复制历史数据，不扩大自动发布权限。
+任务结束后的经验入队和周期回归判断也由此模块实现，网关只转交运行事实。
+
+`evolution.enabled` 是后台自进化与自动经验收集的总开关，可通过
+`ECHO_FF_EVOLUTION_ENABLED=0` 在启动时关闭后台任务。原有子功能开关、后台模型预算策略、
+默认 dry-run、租户隔离和晋升门槛继续有效。关闭学习不取消执行中的任务，也不绕过
+已部署候选的结果记账和回滚保护。手动离线评估仍可调用同目录的算法 API。
+
+主要迁移路径：
+
+| 原归属 | 统一归属 |
+|---|---|
+| 经验队列、评分、深度反思 | `runtime.safety.evolution.review_queue` / `turn_scoring` / `deep_evolution` |
+| 规则提取、GEPA、技能锻造 | `runtime.safety.evolution.rule_extractor` / `gepa_bridge` / `skill_forge` |
+| Prompt A/B 与变异 | `runtime.safety.evolution.prompt_optimizer` / `prompt_evolver` |
+| 团队演化与晋升 | `runtime.safety.evolution.topology_evolver` / `topology_forge` |
+| SOUL 教训与回退 | `runtime.safety.evolution.soul_actions` |
+| 宿主启动与终态经验接入 | `runtime.safety.evolution.service` / `turn_learning` |
+
+`tests/test_unified_evolution.py` 校验旧实现目录不再增长、运行代码不再导入旧路径，
+并覆盖统一启动、总开关、部分启动失败回收、并行关闭和唯一关闭处理器。
+
 ## 引擎身份边界
 
 Echo-Agent 的正式双引擎只有两套：

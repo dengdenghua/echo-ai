@@ -13,8 +13,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.process.paths import app_paths, project_root
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 _SCHEMA = "echo.subagent_fitness.v1"
 _STATUS_VALUE = {

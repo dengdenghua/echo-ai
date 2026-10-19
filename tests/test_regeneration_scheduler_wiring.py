@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from runtime.platform.ui import _app_stack
-from runtime.safety.recovery.scheduler import RegenerationScheduler
+from runtime.safety.evolution.learning_scheduler import RegenerationScheduler
 
 
 def test_regeneration_scheduler_config_pins_output_to_app_data_dir(

@@ -21,7 +21,7 @@ from runtime.platform.models import (
     default_source,
     now_utc,
 )
-from runtime.safety.recovery import KGUpdater
+from runtime.safety.evolution import KGUpdater
 
 
 def _src(name: str = "test", stype: str = "tool") -> Source:
@@ -396,7 +396,7 @@ class TestKGUpdater:
 class TestIntelToKG:
     def test_full_intel_kg_pipeline(self):
         from runtime.execution.suckers import Skill, SkillRegistry
-        from runtime.safety.recovery import IntelCollector, IntelSource
+        from runtime.safety.evolution import IntelCollector, IntelSource
 
         r = SkillRegistry()
         r.register(

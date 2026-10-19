@@ -1,4 +1,4 @@
-"""Tests for runtime.memory.learning.soul_holdout + deep_evolve gate."""
+"""Tests for runtime.safety.evolution.soul_holdout + deep_evolve gate."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from runtime.memory import soul_holdout as sh
-from runtime.memory.learning.soul_holdout import (
+from runtime.safety.evolution.soul_holdout import (
     GatePolicy,
     HoldoutEntry,
     HoldoutResult,
@@ -383,7 +383,7 @@ def test_deep_evolve_refuses_on_holdout_regression(
         apply_spy.append(("revert", kw))
         return {"ok": True}
 
-    import runtime.execution.suckers.memory_skills as mskills
+    import runtime.safety.evolution.soul_actions as mskills
 
     monkeypatch.setattr(mskills, "_update_soul", stub_update_soul)
     monkeypatch.setattr(mskills, "_revert_soul", stub_revert_soul)

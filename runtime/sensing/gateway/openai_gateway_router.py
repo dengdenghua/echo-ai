@@ -52,7 +52,7 @@ except ImportError:  # pragma: no cover
 
 from runtime.platform.models import ParsedIntent
 from runtime.platform.models.llm import default_reasoning_effort
-from runtime.safety.recovery.tenant_scope import (
+from runtime.safety.evolution.tenant_scope import (
     AUTHORITATIVE_SCOPE_CONTEXT_KEY,
     authoritative_scope_context,
 )

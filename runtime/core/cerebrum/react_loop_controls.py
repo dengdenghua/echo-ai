@@ -21,7 +21,7 @@ from runtime.core.cerebrum.react_context import (
     context_budget_tokens_for_model,
 )
 from runtime.core.cerebrum.react_types import _DEFAULT_REACT_RECIPES, ReActRecipe
-from runtime.safety.experiments.variant import ABSplitter
+from runtime.safety.evolution.variant import ABSplitter
 
 _logger = logging.getLogger(__name__)
 
@@ -347,7 +347,7 @@ _REACT_SPLITTER: ABSplitter | None = None
 
 
 def _build_default_splitter() -> ABSplitter:
-    from runtime.safety.experiments.variant import ABSplitter, Variant
+    from runtime.safety.evolution.variant import ABSplitter, Variant
 
     return ABSplitter(
         [Variant(name=r.name, payload=r, weight=1.0) for r in _DEFAULT_REACT_RECIPES],

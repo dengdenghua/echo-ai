@@ -32,10 +32,10 @@ from runtime.execution.loops.verifiers import (
     build_default_loop_verifier_registry,
 )
 from runtime.memory.diagnostics.trace_store import AgentTraceStore
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.process.task_supervisor import TaskRunStatus, TaskSupervisor
 from runtime.platform.runtime_policy.workspaces import WorkspaceManager
 from runtime.safety.approval.cancellation import CancellationToken
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 
 class LoopController(

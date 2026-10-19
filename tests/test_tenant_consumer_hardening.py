@@ -22,21 +22,21 @@ from runtime.platform.models.execution import ExecutionStatus
 from runtime.platform.models.llm import ModelRequest, ModelResponse, ModelRouter
 from runtime.protocol.items import TurnParams
 from runtime.safety.auth.scope import TenantScope
+from runtime.safety.evolution.evolution_dataset import EvolutionDatasetBuilder
+from runtime.safety.evolution.kg_updater import KGUpdater
+from runtime.safety.evolution.prompt_mutator import PromptMutator
+from runtime.safety.evolution.prompt_optimizer import PromptVariant
 from runtime.safety.evolution.proposal_ledger import ProposalLedger
-from runtime.safety.experiments.prompt_mutator import PromptMutator
-from runtime.safety.experiments.prompt_optimizer import PromptVariant
-from runtime.safety.recovery.evolution_dataset import EvolutionDatasetBuilder
-from runtime.safety.recovery.kg_updater import KGUpdater
-from runtime.safety.recovery.recipe_evaluator import (
+from runtime.safety.evolution.recipe_evaluator import (
     RecipeEvaluator,
     RecipeEvaluatorConfig,
 )
-from runtime.safety.recovery.tenant_scope import (
+from runtime.safety.evolution.tenant_scope import (
     AUTHORITATIVE_SCOPE_CONTEXT_KEY,
     authoritative_scope_context,
     trusted_scope_from_user_context,
 )
-from runtime.safety.recovery.variant_evaluator import collect_variant_stats
+from runtime.safety.evolution.variant_evaluator import collect_variant_stats
 from runtime.sensing.gateway.realtime_turn_input import _build_intent
 
 TENANT_A = TenantScope(tenant_id="tenant-a", actor_id="alice")

@@ -20,11 +20,11 @@ from runtime.execution.suckers.computer_use_record import (
     record_successful_loop,
 )
 from runtime.memory.journal import InMemoryJournal
-from runtime.memory.learning.review_queue import ReviewQueue
+from runtime.safety.evolution import ForgeConfig, SkillForge
 from runtime.safety.evolution.browser_desktop_repair_recipes import (
     compute_browser_desktop_repair_recipes,
 )
-from runtime.safety.recovery import ForgeConfig, SkillForge
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 
 def _success(actions: list[dict[str, Any]]) -> dict[str, Any]:

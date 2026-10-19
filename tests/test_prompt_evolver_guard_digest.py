@@ -14,12 +14,12 @@ from runtime.safety.evolution.guard_telemetry import (
     GuardTelemetry,
     default_guard_digest_provider,
 )
-from runtime.safety.experiments.prompt_evolver import PromptEvolver
-from runtime.safety.experiments.prompt_mutator import (
+from runtime.safety.evolution.prompt_evolver import PromptEvolver
+from runtime.safety.evolution.prompt_mutator import (
     _build_user_prompt,
     _render_guard_digest_for_prompt,
 )
-from runtime.safety.experiments.prompt_optimizer import PromptVariant
+from runtime.safety.evolution.prompt_optimizer import PromptVariant
 
 
 def _variant(name: str = "v1", suffix: str = "") -> PromptVariant:
@@ -176,7 +176,7 @@ class TestEvolverFetchDigest:
         ev.optimizer = _FakeOptimizer()  # type: ignore[assignment]
         ev.mutator = _FakeMutator()  # type: ignore[assignment]
         ev.history = []
-        from runtime.safety.experiments.prompt_evolver import EvolutionPolicy
+        from runtime.safety.evolution.prompt_evolver import EvolutionPolicy
 
         ev.policy = EvolutionPolicy()
         ev._guard_digest_provider = provider

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from runtime.safety.auth.scope import TenantScope
-from runtime.safety.recovery.tenant_scope import read_learning_events
+from runtime.safety.evolution.tenant_scope import read_learning_events
 
 from .utils import (
     _as_dt,
@@ -26,7 +26,7 @@ def _skill_forge_candidates(
     if journal is None or registry is None:
         return []
     try:
-        from runtime.safety.recovery.skill_forge import SkillForge
+        from runtime.safety.evolution.skill_forge import SkillForge
 
         candidates = SkillForge(
             journal=journal,

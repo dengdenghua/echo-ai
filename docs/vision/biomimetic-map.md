@@ -25,10 +25,10 @@
 | Ink Sac | `runtime/safety/budget_breaker/` | Three-state circuit breaker | **Implemented** |
 | Immunity | `runtime/safety/auth/` | Trust engine + attack memory + adaptive immunity (single file) | **Partial** |
 | Hearts | `runtime/core/hearts/` | Coordinator + etcd/redis backends (distributed lock only) | **Partial** |
-| Genome | `runtime/safety/recovery/genome_registry.py` | Version registry (single file, no evolution loop) | **Partial** |
+| Genome | `runtime/safety/evolution/genome_registry.py` | Version registry (single file, no evolution loop) | **Partial** |
 | Hemolymph | `runtime/memory/hemolymph/composer.py` | Context composer (single file) | **Implemented** |
-| Camouflage | `runtime/safety/experiments/` | A/B scheduler + prompt evolver + auto-retire | **Implemented** |
-| Regeneration | `runtime/safety/recovery/` + `runtime/memory/learning/` | Skill forge + rule extractor + turn scoring + deep evolution | **Implemented** |
+| Camouflage | `runtime/safety/evolution/` | A/B scheduler + prompt evolver + auto-retire | **Implemented** |
+| Regeneration | `runtime/safety/evolution/` + `runtime/safety/evolution/` | Skill forge + rule extractor + turn scoring + deep evolution | **Implemented** |
 
 ---
 
@@ -146,7 +146,7 @@
 | `url_guard.py` | URL safety checking |
 | `tool_guardrails.py` | Tool-level guardrails |
 
-### Regeneration → `runtime/safety/recovery/` + `runtime/memory/learning/`
+### Regeneration → `runtime/safety/evolution/` + `runtime/safety/evolution/`
 
 **recovery/**:
 

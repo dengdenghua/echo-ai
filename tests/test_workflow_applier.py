@@ -18,7 +18,7 @@ from runtime.platform.models import (
     Trajectory,
     TrajectoryOutcome,
 )
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     RewriteProposal,
     apply_proposals_to_rules,
 )

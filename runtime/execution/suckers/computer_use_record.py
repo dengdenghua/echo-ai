@@ -161,8 +161,8 @@ def record_failed_loop(loop_result: Any, *, review_queue_path: Any = None) -> An
     reason = str(loop_result.get("reason") or "")[:300]
 
     try:
-        from runtime.memory.learning.review_queue import ReviewQueue
         from runtime.platform.process.paths import app_paths
+        from runtime.safety.evolution.review_queue import ReviewQueue
 
         fingerprint = f"culoop:{status}:{last_kind}:{new_id().hex[:12]}"
         queue = ReviewQueue(

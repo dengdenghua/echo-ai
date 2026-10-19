@@ -108,7 +108,7 @@ def _minimal_planner(
 
 
 def _seeded_journal_with_failures():
-    from runtime.safety.recovery import RuleExtractor  # noqa: F401 · ensure import
+    from runtime.safety.evolution import RuleExtractor  # noqa: F401 · ensure import
 
     j = InMemoryJournal()
 

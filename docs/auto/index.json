@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "generated_at": "2026-10-19T06:51:11+00:00",
+  "generated_at": "2026-10-19T06:52:22+00:00",
   "files_analyzed": 37,
   "tree": [
     {
@@ -395,12 +395,27 @@
     },
     {
       "from": "20-backend/22-safety/recovery.md",
+      "to": "20-backend/22-safety/validation.md",
+      "type": "imports"
+    },
+    {
+      "from": "20-backend/22-safety/recovery.md",
+      "to": "20-backend/23-memory/hemolymph.md",
+      "type": "imports"
+    },
+    {
+      "from": "20-backend/22-safety/recovery.md",
       "to": "20-backend/23-memory/journal.md",
       "type": "imports"
     },
     {
       "from": "20-backend/22-safety/validation.md",
       "to": "20-backend/21-runtime/cerebrum.md",
+      "type": "imports"
+    },
+    {
+      "from": "20-backend/22-safety/validation.md",
+      "to": "20-backend/22-safety/recovery.md",
       "type": "imports"
     },
     {

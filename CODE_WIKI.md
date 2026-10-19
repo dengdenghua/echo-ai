@@ -194,8 +194,8 @@ runtime/
 | **Eyes（眼）** | 模型路由器（历史命名，见 sensing） | `runtime/sensing/` |
 | **Chromatophores（色素细胞）** | 信号总线 + 仲裁 | `runtime/safety/chromatophores/` |
 | **Genome（基因组）** | 记忆存储 | `runtime/memory/` |
-| **Regeneration（再生）** | 进化循环（学习/锻造） | `runtime/memory/learning/` + `runtime/safety/recovery/` |
-| **Camouflage（伪装）** | 策略选择器（A/B 实验） | `runtime/safety/experiments/` |
+| **Regeneration（再生）** | 进化循环（学习/锻造） | `runtime/safety/evolution/` + `runtime/safety/evolution/` |
+| **Camouflage（伪装）** | 策略选择器（A/B 实验） | `runtime/safety/evolution/` |
 | **SpinalCord（脊髓）** | 反射层（绕过 LLM 的快速响应） | `runtime/core/nerves/reflex/` |
 
 ---

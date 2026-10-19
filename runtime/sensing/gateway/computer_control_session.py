@@ -14,8 +14,8 @@ import time
 import uuid
 from typing import Any
 
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.process.paths import app_paths
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 from .computer_lease import _lease_from_body, _public_lease
 from .computer_router_state import _PENDING_TTL_SECONDS, ComputerRouterState
