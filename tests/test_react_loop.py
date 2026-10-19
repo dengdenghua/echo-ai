@@ -8066,7 +8066,7 @@ def test_react_triggers_memory_consolidation_on_success() -> None:
 def test_memory_consolidator_picks_up_react_trajectories_end_to_end() -> None:
     """Implementation note."""
     from runtime.memory.journal import InMemoryJournal
-    from runtime.safety.recovery import MemoryConsolidator
+    from runtime.safety.evolution import MemoryConsolidator
 
     real_journal = InMemoryJournal()
     mem_records: list = []
@@ -8219,7 +8219,7 @@ def test_record_unknown_variant_is_silent() -> None:
 def test_rule_extractor_picks_up_react_failures_end_to_end() -> None:
     """Implementation note."""
     from runtime.memory.journal import InMemoryJournal
-    from runtime.safety.recovery import ExtractorConfig, RuleExtractor
+    from runtime.safety.evolution import ExtractorConfig, RuleExtractor
 
     # Implementation note.
     stack = _build_stack_with_executor(_ScriptedRouter([]))

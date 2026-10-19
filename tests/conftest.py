@@ -354,14 +354,15 @@ def _reset_singletons() -> None:
     # (module_path, attr) tuples — imported lazily so a missing
     # optional dep on the import chain doesn't break the fixture.
     _SINGLETONS = (  # noqa: N806
+        ("runtime.safety.evolution.service", "EvolutionService"),
         ("runtime.platform.process.eventbus", "EventBus"),
         ("runtime.platform.process.state", "StateStore"),
         ("runtime.platform.plugins.plugin_loader", "PluginLoader"),
         ("runtime.platform.budget.usage_pricing", "UsagePricing"),
         ("runtime.safety.evolution.auto_trigger", "EvolutionAutoTrigger"),
         ("runtime.memory.skills_lib.ambient_suggestions_scheduler", "AmbientScheduler"),
-        ("runtime.safety.experiments.scheduler", "CamouflageScheduler"),
-        ("runtime.safety.recovery.scheduler", "RegenerationScheduler"),
+        ("runtime.safety.evolution.experiment_scheduler", "CamouflageScheduler"),
+        ("runtime.safety.evolution.learning_scheduler", "RegenerationScheduler"),
     )
     for mod_path, cls_name in _SINGLETONS:
         try:

@@ -65,8 +65,8 @@ make test        # 或 python -m pytest tests/ -q
 | HA 调度 / 心跳 | `runtime/core/hearts/` | 心脏 |
 | 长时记忆 / checkpoint | `runtime/memory/journal/` | 基因组（genome） |
 | 每轮上下文流 | `runtime/memory/hemolymph/` | 血淋巴 |
-| 策略 A/B / 灰度 | `runtime/safety/experiments/` | 拟态（camouflage） |
-| 反思 / 自进化 | `runtime/safety/recovery/` | 再生（regeneration） |
+| 策略 A/B / 灰度 | `runtime/safety/evolution/` | 拟态（camouflage） |
+| 反思 / 自进化 | `runtime/safety/evolution/` | 再生（regeneration） |
 
 > 部分早期章鱼名已改为功能名（括号内为历史助记名）。权威的器官名 ↔ 包路径
 > 映射见 [docs/architecture/module-map.md](docs/architecture/module-map.md)。
@@ -84,7 +84,7 @@ PR 描述和 commit message 里**用工程名**（"fix planner fallback"而非"f
 ## 贡献方向
 
 - 🟢 低门槛：加 Skill（见 [`suckers/builtins.py`](runtime/execution/suckers/builtins.py)）、加 skill tests、修文档
-- 🟡 中门槛：新 ModelRouter provider（[`model_router/`](runtime/sensing/model_router/)）、新 reflection producer（[`recovery/`](runtime/safety/recovery/)）
+- 🟡 中门槛：新 ModelRouter provider（[`model_router/`](runtime/sensing/model_router/)）、新 reflection producer（[`recovery/`](runtime/safety/evolution/)）
 - 🔴 高门槛：改 ToolExecutor / GraphRuntime / 不变量系统 —— 请先开 issue 讨论
 
 ## 明确"想要你做"的题目（good first / help wanted）

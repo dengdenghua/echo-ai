@@ -135,7 +135,7 @@ def run_kg(
 ) -> int:
     from runtime.memory.journal import JSONLJournal
     from runtime.memory.knowledge_graph import KnowledgeGraph
-    from runtime.safety.recovery import KGUpdater
+    from runtime.safety.evolution import KGUpdater
 
     c = _Colors(color)
     if not from_journal.exists():

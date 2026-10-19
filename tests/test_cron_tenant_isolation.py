@@ -35,7 +35,7 @@ from runtime.execution.suckers.cron_skills import (
 from runtime.platform.process.session import Session, current_session, session_scope
 from runtime.safety.auth.identity import Identity, IdentityStore
 from runtime.safety.auth.scope import TenantScope
-from runtime.safety.recovery.tenant_scope import (
+from runtime.safety.evolution.tenant_scope import (
     AUTHORITATIVE_SCOPE_CONTEXT_KEY,
     authoritative_scope_context,
 )

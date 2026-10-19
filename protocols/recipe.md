@@ -1,7 +1,7 @@
 ---
 implementation_status: implemented
 implemented_in:
-  - runtime/safety/recovery/recipe_evaluator.py
+  - runtime/safety/evolution/recipe_evaluator.py
 last_verified: 2026-06-25
 ---
 

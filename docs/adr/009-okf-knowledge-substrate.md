@@ -187,7 +187,7 @@ Phased, with the cheapest validation first:
   with no LLM call; a model error degrades the same way. Pinned by
   `tests/test_wiki_qa.py`.
 - **Dream cycle — already exists, not a gap.** echo's `RegenerationScheduler`
-  (`runtime/safety/recovery/scheduler.py`, ~600s loop) already extracts learned
+  (`runtime/safety/evolution/learning_scheduler.py`, ~600s loop) already extracts learned
   rules from the journal and runs `MemoryConsolidator` / SkillForge / KG-updater
   — the autonomous-consolidation role gbrain's dream cycle plays. We do not
   duplicate it.

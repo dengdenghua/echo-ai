@@ -61,7 +61,7 @@ _未引用代码路径_
 - `docs/architecture*`
 - `docs/auto`
 - `docs/auto/`
-- `runtime/safety/recovery/scheduler.py`
+- `runtime/safety/evolution/learning_scheduler.py`
 - `scripts/gen_wiki.py`
 - `tests/test_auto_docs_fresh.py`
 - `tests/test_repo_context.py`
@@ -142,8 +142,8 @@ _未引用代码路径_
 - `runtime/safety/chromatophores/boids.py` ← [010-swarm-resource-contention](../../adr/010-swarm-resource-contention.md)
 - `runtime/safety/constitution/gate.py` ← [008-constitution-profiles](../../adr/008-constitution-profiles.md)
 - `runtime/safety/constitution/profiles.py` ← [008-constitution-profiles](../../adr/008-constitution-profiles.md)
+- `runtime/safety/evolution/learning_scheduler.py` ← [009-okf-knowledge-substrate](../../adr/009-okf-knowledge-substrate.md)
 - `runtime/safety/hooks/{events,registry,runner}.py` ← [006-lifecycle-hooks](../../adr/006-lifecycle-hooks.md)
-- `runtime/safety/recovery/scheduler.py` ← [009-okf-knowledge-substrate](../../adr/009-okf-knowledge-substrate.md)
 - `runtime/sensing/model_router/selector.py` ← [012-composition-layer](../../adr/012-composition-layer.md)
 - `runtime/tentacle/` ← [011-echo-mobile](../../adr/011-echo-mobile.md)
 - `scripts/gen_wiki.py` ← [009-okf-knowledge-substrate](../../adr/009-okf-knowledge-substrate.md)

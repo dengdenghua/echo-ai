@@ -337,7 +337,7 @@ class GraphRuntime:
             )
             self.journal.write_trajectory(traj, actor=actor)
             try:
-                from runtime.safety.recovery.gepa_bridge import (
+                from runtime.safety.evolution.gepa_bridge import (
                     record_winner_canary_outcome,
                 )
 

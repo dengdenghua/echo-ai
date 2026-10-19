@@ -8,7 +8,7 @@ import pytest
 
 from runtime.execution.suckers import Skill, SkillRegistry
 from runtime.memory.journal import InMemoryJournal
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     CollectorConfig,
     IntelCollector,
     IntelSource,
@@ -229,7 +229,7 @@ class TestTrajectoryOutput:
 class TestDownstreamCompat:
     def test_rule_extractor_reads_intel_trajectories(self, mock_registry, journal):
         """Implementation note."""
-        from runtime.safety.recovery import RuleExtractor
+        from runtime.safety.evolution import RuleExtractor
 
         sources = [IntelSource(source_id="x", query="q")]
         IntelCollector(sources, journal, mock_registry).run_once()
@@ -242,7 +242,7 @@ class TestDownstreamCompat:
 
     def test_failed_intel_produces_rules(self, journal):
         """Implementation note."""
-        from runtime.safety.recovery import ExtractorConfig, RuleExtractor
+        from runtime.safety.evolution import ExtractorConfig, RuleExtractor
 
         r = SkillRegistry()
         r.register(

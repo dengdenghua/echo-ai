@@ -91,13 +91,13 @@ def _register_system(router: Any, ctx: _AgentsCtx, auth: _AuthActions) -> None:
         _auth(request)  # AUTH-OK: actor-agnostic — regeneration scheduler status is server-global
         out: dict[str, Any] = {}
         try:
-            from runtime.safety.recovery.scheduler import get_scheduler
+            from runtime.safety.evolution.learning_scheduler import get_scheduler
 
             out["scheduler"] = get_scheduler().status()
         except (ImportError, AttributeError):
             out["scheduler"] = {"running": False, "error": "module load failed"}
         try:
-            from runtime.safety.experiments.scheduler import (
+            from runtime.safety.evolution.experiment_scheduler import (
                 get_camouflage_scheduler,
             )
 

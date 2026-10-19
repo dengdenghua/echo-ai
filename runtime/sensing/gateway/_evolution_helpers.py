@@ -196,11 +196,11 @@ def _scorecard_gap_text(row: dict[str, Any], *, reason: str) -> str:
 
 def _queue_agent_scorecard_gaps_impl(body: Any) -> dict[str, Any]:
     try:
-        from runtime.memory.learning.review_queue import ReviewQueue
         from runtime.platform.process.paths import app_paths
         from runtime.safety.evolution.agent_competitor_scorecard import (
             compute_agent_competitor_scorecard,
         )
+        from runtime.safety.evolution.review_queue import ReviewQueue
 
         body = body or ScorecardGapQueueBody()
         report = compute_agent_competitor_scorecard(

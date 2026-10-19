@@ -18,12 +18,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from runtime.safety.experiments.prompt_evolver import (
+from runtime.safety.evolution.prompt_evolver import (
     EvolutionPolicy,
     EvolutionStep,
     PromptEvolver,
 )
-from runtime.safety.experiments.prompt_optimizer import PromptVariant
+from runtime.safety.evolution.prompt_optimizer import PromptVariant
 
 
 def _evolver(

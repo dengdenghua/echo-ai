@@ -21,7 +21,7 @@ from runtime.platform.models import (
     Trajectory,
     TrajectoryOutcome,
 )
-from runtime.safety.recovery import LearnedRule
+from runtime.safety.evolution import LearnedRule
 from runtime.sensing.model_router import MockModelRouter
 
 
@@ -310,7 +310,7 @@ class TestMemoryInjection:
         router = MockModelRouter(response=json.dumps({"reasoning": "r", "nodes": []}))
         planner = LLMPlanner(router=router, registry=registry, composer=composer)
 
-        from runtime.safety.recovery import MemoryConsolidator
+        from runtime.safety.evolution import MemoryConsolidator
 
         report = MemoryConsolidator(_populate_successful_journal()).consolidate()
         assert report.memories_produced  # sanity

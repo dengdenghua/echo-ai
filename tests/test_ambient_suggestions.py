@@ -323,7 +323,7 @@ def test_generate_merges_llm_output(
         {"model": "mock/cheap", "input_tokens": 100, "output_tokens": 50},
     )
     with patch(
-        "runtime.memory.learning.deep_evolution._llm_call_json",
+        "runtime.safety.evolution.deep_evolution._llm_call_json",
         return_value=fake_llm,
     ):
         result = amb.generate_suggestions(
@@ -358,7 +358,7 @@ def test_generate_uses_requested_locale_in_prompt_and_bucket(
         {"model": "mock/cheap"},
     )
     with patch(
-        "runtime.memory.learning.deep_evolution._llm_call_json",
+        "runtime.safety.evolution.deep_evolution._llm_call_json",
         return_value=fake_llm,
     ) as llm:
         result = amb.generate_suggestions(
@@ -381,7 +381,7 @@ def test_generate_handles_llm_failure(
     scored_turns: str,
 ) -> None:
     with patch(
-        "runtime.memory.learning.deep_evolution._llm_call_json",
+        "runtime.safety.evolution.deep_evolution._llm_call_json",
         return_value=(None, {"error": "router not wired"}),
     ):
         result = amb.generate_suggestions(
@@ -409,7 +409,7 @@ def test_generate_skips_candidates_missing_title_or_prompt(
         {"model": "mock/cheap"},
     )
     with patch(
-        "runtime.memory.learning.deep_evolution._llm_call_json",
+        "runtime.safety.evolution.deep_evolution._llm_call_json",
         return_value=fake_llm,
     ):
         result = amb.generate_suggestions(

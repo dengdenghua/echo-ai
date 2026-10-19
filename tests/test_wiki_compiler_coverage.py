@@ -125,7 +125,7 @@ def test_compile_kg_failure(tmp_path) -> None:
 
 
 def test_compile_from_journal_degrades(monkeypatch, tmp_path) -> None:
-    import runtime.safety.recovery as rec
+    import runtime.safety.evolution as rec
 
     class _Boom:
         def __init__(self, *a, **kw):
@@ -182,7 +182,7 @@ def test_compile_from_journal_with_stubs(monkeypatch, tmp_path) -> None:
             return _recipe_report()
 
     import runtime.memory.knowledge_graph as kg_mod
-    import runtime.safety.recovery as rec
+    import runtime.safety.evolution as rec
 
     monkeypatch.setattr(rec, "RuleExtractor", _RuleExtractor)
     monkeypatch.setattr(rec, "MemoryConsolidator", _MemoryConsolidator)

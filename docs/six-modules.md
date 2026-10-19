@@ -151,13 +151,13 @@
 
 | 信号 | 去向 | 实现位置 |
 |---|---|---|
-| 新 skill 候选 | 模块 3 | `runtime/safety/recovery/skill_forge.py` ✅ |
-| workflow 改写建议 | 模块 2 | `runtime/safety/recovery/workflow_rewriter.py` ✅ |
-| KG 新增三元组 | 模块 4 | `runtime/safety/recovery/kg_updater.py` ✅ |
-| 记忆巩固指令 | 模块 5 | `runtime/safety/recovery/memory_consolidator.py` ✅ |
-| 上下文配方打分 | 模块 6 | `runtime/safety/recovery/recipe_evaluator.py` ✅ |
+| 新 skill 候选 | 模块 3 | `runtime/safety/evolution/skill_forge.py` ✅ |
+| workflow 改写建议 | 模块 2 | `runtime/safety/evolution/workflow_rewriter.py` ✅ |
+| KG 新增三元组 | 模块 4 | `runtime/safety/evolution/kg_updater.py` ✅ |
+| 记忆巩固指令 | 模块 5 | `runtime/safety/evolution/memory_consolidator.py` ✅ |
+| 上下文配方打分 | 模块 6 | `runtime/safety/evolution/recipe_evaluator.py` ✅ |
 
-**现状**：五条信号全部已实装，由 `runtime/safety/recovery/scheduler.py` 的
+**现状**：五条信号全部已实装，由 `runtime/safety/evolution/learning_scheduler.py` 的
 `RegenerationScheduler._tick_once()` 离线调度（每模块一个 tick，原子写
 `learned_*.json`）。逐模块的实装状态与代码证据见
 [implementation-status.md](implementation-status.md)。

@@ -8,8 +8,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from runtime.execution.suckers import computer_macos, computer_skills, computer_uia_skills
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.safety.auth import Identity, IdentityStore
+from runtime.safety.evolution.review_queue import ReviewQueue
 from runtime.safety.replay.browser_desktop_replay import computer_activity_replay_identity
 from runtime.sensing.gateway.computer_router import create_computer_router
 from runtime.sensing.gateway.control_sessions_router import create_control_sessions_router

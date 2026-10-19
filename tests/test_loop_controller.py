@@ -7,7 +7,6 @@ import pytest
 
 from runtime.core.cerebrum.react_types import ReActResult
 from runtime.execution.loops.controller import LoopController
-from runtime.execution.loops.learning import build_loop_repair_candidate_spec
 from runtime.execution.loops.models import (
     LoopAttempt,
     LoopMode,
@@ -25,13 +24,14 @@ from runtime.execution.loops.replay import (
 )
 from runtime.execution.loops.store import LoopRunStore
 from runtime.memory.diagnostics.trace_store import AgentTraceStore
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.process.session import current_session
 from runtime.platform.process.task_supervisor import TaskRunStatus, TaskSupervisor
 from runtime.platform.runtime_policy.workspaces import WorkspaceManager
 from runtime.safety.approval.cancellation import CancellationSource
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
 from runtime.safety.evolution.candidate_registry import CandidateRegistry, CandidateStatus
+from runtime.safety.evolution.loop_learning import build_loop_repair_candidate_spec
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 
 class _StubVerifierRegistry:

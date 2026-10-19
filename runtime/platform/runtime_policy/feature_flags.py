@@ -328,6 +328,11 @@ _BUILTIN: list[FlagSpec] = [
     ),
     # ─── Self-evolution ────────────────────────────────────
     FlagSpec(
+        name="evolution.enabled",
+        default=True,
+        description="Enable the unified self-evolution lifecycle and automatic experience capture.",
+    ),
+    FlagSpec(
         name="memory.auto_review",
         default=True,
         description="Queue evidence-derived terminal task reviews as pending learning candidates.",

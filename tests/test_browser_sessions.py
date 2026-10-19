@@ -3,9 +3,9 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.runtime_policy.browser_sessions import BrowserSessionCenter
 from runtime.platform.ui.browser_router import create_browser_router
+from runtime.safety.evolution.review_queue import ReviewQueue
 from runtime.safety.replay.browser_desktop_replay import browser_session_replay_identity
 
 

@@ -5,9 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime.memory.learning import deep_evolution
-from runtime.memory.learning.turn_scoring import TurnScore
 from runtime.safety.auth.scope import TenantScope
+from runtime.safety.evolution import deep_evolution
+from runtime.safety.evolution.turn_scoring import TurnScore
 
 
 def test_legacy_direct_apply_is_disabled_before_router_or_mutation(
@@ -98,7 +98,7 @@ def test_deep_reflect_reads_soul_from_configured_agent_assets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from runtime.execution.agents import loader
-    from runtime.memory.learning import turn_scoring
+    from runtime.safety.evolution import turn_scoring
 
     agents_root = tmp_path / "configured-agents"
     soul = agents_root / "coder" / "agent-core" / "SOUL.md"

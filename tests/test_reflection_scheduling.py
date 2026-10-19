@@ -216,7 +216,7 @@ class TestLoopIncludesSkillForge:
     def test_loop_mentions_forge_in_output(self, tmp_path: Path, capsys):
         """Implementation note."""
         from runtime.cli import run_loop
-        from runtime.safety.recovery import skill_forge as sf_module
+        from runtime.safety.evolution import skill_forge as sf_module
 
         real_forge_class = sf_module.SkillForge
         call_count = [0]
@@ -226,7 +226,7 @@ class TestLoopIncludesSkillForge:
                 call_count[0] += 1
                 return super().run()
 
-        import runtime.safety.recovery as reg_module
+        import runtime.safety.evolution as reg_module
 
         original_export = reg_module.SkillForge
         reg_module.SkillForge = _SpyForge  # type: ignore[misc]

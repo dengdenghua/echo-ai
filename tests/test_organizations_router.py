@@ -12,13 +12,13 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from runtime.safety.evolution.subagent_policy import SubagentPolicyStore  # noqa: E402
+from runtime.safety.evolution.topology_forge import save_registry  # noqa: E402
 from runtime.safety.organization import (  # noqa: E402
     AgentSpec,
     CoordinationProtocol,
     Role,
     TeamTopology,
 )
-from runtime.safety.organization.forge import save_registry  # noqa: E402
 from runtime.sensing.gateway.topology_router import (  # noqa: E402
     create_topology_router,
 )
@@ -147,7 +147,7 @@ def test_list_proposals_includes_strong_subagent_promotion(
     client: TestClient,
     tmp_path: Path,
 ) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     base = TeamTopology(
         name="orig",
@@ -197,7 +197,7 @@ def test_promote_strong_subagent_live_proposal(
     client: TestClient,
     tmp_path: Path,
 ) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     base = TeamTopology(
         name="orig",

@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from runtime.safety.evolution.topology_forge import load_registry, save_registry
 from runtime.safety.organization.builtin_topologies import (
     BUILTIN_TOPOLOGIES,
     seed_builtin_topologies,
     upgrade_present_builtin_topologies,
 )
-from runtime.safety.organization.forge import load_registry, save_registry
 from runtime.safety.organization.topology import (
     AgentSpec,
     CoordinationProtocol,
@@ -140,7 +140,7 @@ def test_load_registry_seeds_on_fresh_data_dir(
 ) -> None:
     """An empty data_dir should load with the four built-ins seeded."""
     from runtime.platform import paths as paths_module
-    from runtime.safety.organization import forge as forge_module
+    from runtime.safety.evolution import topology_forge as forge_module
 
     fake = paths_module.AppPaths(tmp_path, tmp_path)
     monkeypatch.setattr(forge_module, "app_paths", lambda: fake)

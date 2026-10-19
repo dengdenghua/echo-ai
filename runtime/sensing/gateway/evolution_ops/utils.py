@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from runtime.safety.auth.scope import TenantScope
-from runtime.safety.recovery.tenant_scope import (
+from runtime.safety.evolution.tenant_scope import (
     read_learning_events,
     read_learning_journal,
 )
@@ -428,7 +428,7 @@ def _learned_section_counts(planner: Any) -> dict[str, int]:
 def _knowledge_graph_overview(journal: Any) -> dict[str, int]:
     try:
         from runtime.memory.knowledge_graph import KnowledgeGraph
-        from runtime.safety.recovery import KGUpdater
+        from runtime.safety.evolution import KGUpdater
 
         kg = KnowledgeGraph()
         KGUpdater(journal, kg).update()

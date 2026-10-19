@@ -418,8 +418,8 @@ def mount_routers_a(
             LoopRunDispatcher,
             LoopRunStore,
         )
-        from runtime.memory.learning.review_queue import ReviewQueue
         from runtime.platform.runtime_policy.workspaces import WorkspaceManager
+        from runtime.safety.evolution.review_queue import ReviewQueue
         from runtime.sensing.gateway.loop_router import create_loop_router
 
         _loop_workspace_root = ctx.thread_workspace_root or (app_paths().data_dir / "workspaces")

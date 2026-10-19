@@ -7,10 +7,10 @@ from types import SimpleNamespace
 import pytest
 
 from runtime.memory.diagnostics.trace_store import AgentTraceStore
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.protocol import Turn, TurnParams, TurnStatus
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
-from runtime.sensing.gateway import _realtime_turn_learning as learning
+from runtime.safety.evolution import turn_learning as learning
+from runtime.safety.evolution.review_queue import ReviewQueue
 from runtime.sensing.gateway.realtime_turn_outcome import _record_task_run_finished
 
 

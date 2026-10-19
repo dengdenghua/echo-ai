@@ -16,7 +16,7 @@ from runtime.platform.models import (
     TrajectoryOutcome,
     now_utc,
 )
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     ConsolidatedMemory,
     ConsolidatorConfig,
     MemoryConsolidator,
@@ -330,7 +330,7 @@ class TestFormatForPrompt:
 class TestReflectionIntegration:
     def test_memory_complements_rule(self, journal_mixed):
         """Implementation note."""
-        from runtime.safety.recovery import RuleExtractor
+        from runtime.safety.evolution import RuleExtractor
 
         memories = MemoryConsolidator(journal_mixed).consolidate().memories_produced
         # Run RuleExtractor for its side effect on the journal; its

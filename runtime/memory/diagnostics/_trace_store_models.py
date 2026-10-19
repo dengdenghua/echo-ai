@@ -352,7 +352,6 @@ def _task_run_review_from_loop_checkpoint(
     run: dict[str, Any],
     checkpoint: dict[str, Any],
 ) -> dict[str, Any]:
-    from runtime.execution.loops.learning import build_loop_run_review
     from runtime.execution.loops.models import (
         LoopAttempt,
         LoopMode,
@@ -362,6 +361,7 @@ def _task_run_review_from_loop_checkpoint(
         VerifierFinding,
         VerifierResult,
     )
+    from runtime.safety.evolution.loop_learning import build_loop_run_review
 
     state = checkpoint.get("state") if isinstance(checkpoint.get("state"), dict) else {}
     raw_status = _clean_str(state.get("current_phase")) or _clean_str(run.get("status")) or "failed"

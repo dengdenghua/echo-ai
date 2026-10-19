@@ -10,19 +10,19 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime.memory.learning import turn_scoring
-from runtime.memory.learning.deep_evolution import _record_deep_evolve_candidate
-from runtime.memory.learning.turn_scoring import TurnScore
 from runtime.platform.models import ParsedIntent
 from runtime.platform.process.session import Session
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
+from runtime.safety.evolution import turn_scoring
+from runtime.safety.evolution.deep_evolution import _record_deep_evolve_candidate
 from runtime.safety.evolution.drift_monitor import DriftConfig, DriftMonitor
 from runtime.safety.evolution.fitness import FitnessConfig, compute_fitness, compute_l1
-from runtime.safety.recovery.tenant_scope import (
+from runtime.safety.evolution.tenant_scope import (
     AUTHORITATIVE_SCOPE_CONTEXT_KEY,
     authoritative_scope_context,
     trusted_scope_from_session,
 )
+from runtime.safety.evolution.turn_scoring import TurnScore
 
 TENANT_A = TenantScope("tenant-a-sensitive", "alice-sensitive")
 TENANT_B = TenantScope("tenant-b-sensitive", "bob-sensitive")
@@ -38,8 +38,8 @@ def _multiprocess_score_writer(
 ) -> None:
     """Spawn-safe worker used to exercise the real file transaction."""
 
-    from runtime.memory.learning import turn_scoring as child_scoring
     from runtime.safety.auth.scope import TenantScope as ChildTenantScope
+    from runtime.safety.evolution import turn_scoring as child_scoring
 
     child_scoring._project_root = lambda: Path(root)  # type: ignore[assignment]
     scope = ChildTenantScope(tenant_id, actor_id)
@@ -60,8 +60,8 @@ def _multiprocess_same_turn_writer(
     tenant_id: str,
     actor_id: str,
 ) -> None:
-    from runtime.memory.learning import turn_scoring as child_scoring
     from runtime.safety.auth.scope import TenantScope as ChildTenantScope
+    from runtime.safety.evolution import turn_scoring as child_scoring
 
     child_scoring._project_root = lambda: Path(root)  # type: ignore[assignment]
     path = child_scoring.record_turn_score(
@@ -635,7 +635,7 @@ def test_drift_baseline_survives_restart_and_is_exact_scope(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import runtime.memory.learning.turn_scoring as scoring
+    import runtime.safety.evolution.turn_scoring as scoring
 
     state_dir = tmp_path / "drift-state"
     config = DriftConfig(score_drop_threshold=0.15, state_dir=str(state_dir))
@@ -759,7 +759,7 @@ def test_cross_tenant_drift_view_never_persists_a_baseline(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import runtime.memory.learning.turn_scoring as scoring
+    import runtime.safety.evolution.turn_scoring as scoring
 
     monkeypatch.setattr(scoring, "read_recent_scores", lambda *_a, **_kw: _scores(0.8))
     monitor = DriftMonitor(
@@ -824,7 +824,7 @@ def test_deep_evolution_candidate_registry_is_tenant_partitioned(
 def test_deep_reflect_and_evolve_read_only_the_supplied_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from runtime.memory.learning import deep_evolution
+    from runtime.safety.evolution import deep_evolution
 
     captured: list[TenantScope | None] = []
 

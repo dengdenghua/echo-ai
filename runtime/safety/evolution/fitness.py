@@ -7,14 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from runtime.memory.learning.turn_scoring import (
-    analyze_soul_impact,
-    read_recent_scores,
-)
 from runtime.platform.io import read_json_with_backup
 from runtime.platform.process.paths import app_paths
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
 from runtime.safety.evolution.governance_audit import promotion_audit_signals
+from runtime.safety.evolution.turn_scoring import (
+    analyze_soul_impact,
+    read_recent_scores,
+)
 
 _LOG = logging.getLogger("echo.evolution.fitness")
 

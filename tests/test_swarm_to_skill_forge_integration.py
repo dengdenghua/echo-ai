@@ -22,7 +22,7 @@ from runtime.platform.models import (
 )
 from runtime.safety.auth import TrustEngine
 from runtime.safety.chromatophores import BoidsArbitrator, SignalBus
-from runtime.safety.recovery.skill_forge import ForgeConfig, SkillForge
+from runtime.safety.evolution.skill_forge import ForgeConfig, SkillForge
 
 # ═══════════════════════════════════════════════════════════
 # Fixtures

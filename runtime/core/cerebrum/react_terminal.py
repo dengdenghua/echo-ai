@@ -397,7 +397,7 @@ def _finalize_react_turn(
         disposition=disposition,
     )
     try:
-        from runtime.safety.experiments.scheduler import (
+        from runtime.safety.evolution.experiment_scheduler import (
             get_camouflage_scheduler,
         )
 

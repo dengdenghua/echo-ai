@@ -20,7 +20,7 @@ from uuid import UUID
 from runtime.platform.models import ParsedIntent, TaskId
 from runtime.protocol import TurnParams
 from runtime.safety.auth.scope import TenantScope
-from runtime.safety.recovery.tenant_scope import (
+from runtime.safety.evolution.tenant_scope import (
     AUTHORITATIVE_SCOPE_CONTEXT_KEY,
     authoritative_scope_context,
 )

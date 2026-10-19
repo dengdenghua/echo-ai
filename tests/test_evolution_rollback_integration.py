@@ -191,7 +191,7 @@ class TestCanaryLedgerIntegration:
 
 class TestDriftToRollbackPipeline:
     def test_score_regression_triggers_drift_detection(self, tmp_path):
-        from runtime.memory.learning.turn_scoring import TurnScore
+        from runtime.safety.evolution.turn_scoring import TurnScore
 
         monitor = DriftMonitor("test_agent", DriftConfig(score_drop_threshold=0.15))
         monitor._baseline_score = 0.85
@@ -212,7 +212,7 @@ class TestDriftToRollbackPipeline:
             patch.object(monitor, "_check_soul_drift", return_value=None),
             patch.object(monitor, "_check_genome_drift", return_value=None),
             patch(
-                "runtime.memory.learning.turn_scoring.read_recent_scores",
+                "runtime.safety.evolution.turn_scoring.read_recent_scores",
                 return_value=declining_scores,
             ),
         ):
@@ -223,7 +223,7 @@ class TestDriftToRollbackPipeline:
         assert "score_regression" in kinds
 
     def test_drift_with_critical_severity(self, tmp_path):
-        from runtime.memory.learning.turn_scoring import TurnScore
+        from runtime.safety.evolution.turn_scoring import TurnScore
 
         monitor = DriftMonitor("test_agent", DriftConfig(score_drop_threshold=0.15))
         monitor._baseline_score = 0.90
@@ -244,7 +244,7 @@ class TestDriftToRollbackPipeline:
             patch.object(monitor, "_check_soul_drift", return_value=None),
             patch.object(monitor, "_check_genome_drift", return_value=None),
             patch(
-                "runtime.memory.learning.turn_scoring.read_recent_scores",
+                "runtime.safety.evolution.turn_scoring.read_recent_scores",
                 return_value=crashed_scores,
             ),
         ):

@@ -41,7 +41,7 @@ from runtime.execution.cron_store import (
 )
 from runtime.platform.process.paths import app_paths
 from runtime.safety.auth.scope import TenantScope
-from runtime.safety.recovery.tenant_scope import trusted_scope_from_user_context
+from runtime.safety.evolution.tenant_scope import trusted_scope_from_user_context
 
 from .registry import Skill, SkillRegistry
 from .testing import SkillExpect, SkillTestCase

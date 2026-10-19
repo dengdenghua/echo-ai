@@ -107,7 +107,7 @@ Beak 每次 `execute_step` 都会经过这 3 个关卡：
 | 老路径（物理位置） | 新路径（概念归属） |
 |---|---|
 | `runtime.sensing.normalize.*` | `runtime.core.nerves.sensors.*` |
-| `runtime.safety.experiments.*` | `runtime.safety.recovery.camouflage.*` |
+| `runtime.safety.evolution.*` | `runtime.safety.evolution.camouflage.*` |
 
 新代码优先用新路径 · 老代码保持可用（shim 100% 向后兼容）。
 

@@ -12,7 +12,7 @@ from runtime.execution.suckers import (
     load_forged_skills_from_dir,
 )
 from runtime.execution.suckers.builtins import register_all
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     ForgeConfig,
     ForgedSkillCandidate,
     SkillForge,
@@ -290,7 +290,7 @@ class TestRestartScenario:
         reg1 = SkillRegistry()
         register_all(reg1)
         from runtime.memory.journal import InMemoryJournal
-        from runtime.safety.recovery.skill_forge import (
+        from runtime.safety.evolution.skill_forge import (
             SkillForge as SF,  # noqa: N817 — local acronym alias
         )
 
@@ -487,7 +487,7 @@ def test_inprocess_forge_composite_holds_risky_subskill_for_approval() -> None:
     """The in-process forge twin uses the same inner-dispatch pipeline."""
     from runtime.execution.suckers.registry import Skill
     from runtime.memory.journal import InMemoryJournal
-    from runtime.safety.recovery.skill_forge import SkillForge
+    from runtime.safety.evolution.skill_forge import SkillForge
 
     ran = {"shell": False}
 
@@ -634,7 +634,7 @@ def test_inprocess_forge_composite_blocks_risky_subskill_under_taint() -> None:
     a freshly-forged-but-not-yet-persisted composite."""
     from runtime.execution.suckers.registry import Skill, SkillRegistry
     from runtime.memory.journal import InMemoryJournal
-    from runtime.safety.recovery.skill_forge import SkillForge
+    from runtime.safety.evolution.skill_forge import SkillForge
     from runtime.safety.validation.prompt_injection import (
         mark_injection_taint,
         reset_injection_taint,

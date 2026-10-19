@@ -310,7 +310,7 @@ Tool contracts are available without constructing the executor import graph.
   - `runtime/platform/config/builder.py`
 - **`runtime/safety/`** · 2 file(s)
   - `runtime/safety/auth/path_guard.py`
-  - `runtime/safety/recovery/skill_forge.py`
+  - `runtime/safety/evolution/skill_forge.py`
 - **`runtime/sensing/`** · 10 file(s)
   - `runtime/sensing/gateway/_observability_rollback_panels.py`
   - `runtime/sensing/gateway/_realtime_react_stream_helpers.py`

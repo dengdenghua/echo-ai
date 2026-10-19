@@ -632,9 +632,9 @@ Native planner exports, loaded only when a caller actually requests them.
   - `runtime/platform/ui/_reflex_admin_gepa_apply.py`
   - `runtime/platform/ui/_reflex_admin_gepa_run.py`
 - **`runtime/safety/`** · 4 file(s)
-  - `runtime/safety/experiments/prompt_optimizer.py`
-  - `runtime/safety/recovery/gepa_bridge.py`
-  - `runtime/safety/recovery/workflow_applier.py`
+  - `runtime/safety/evolution/gepa_bridge.py`
+  - `runtime/safety/evolution/prompt_optimizer.py`
+  - `runtime/safety/evolution/workflow_applier.py`
   - `runtime/safety/validation/trust_signal.py`
 - **`runtime/sensing/`** · 39 file(s)
   - `runtime/sensing/gateway/_agents_endpoints.py`

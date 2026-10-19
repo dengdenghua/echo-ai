@@ -1,9 +1,8 @@
 """Registrar for memory_skills · extracted from memory_skills.py.
 
-Contains only ``register_memory_skills``.  All handler functions and
-path helpers remain in ``memory_skills`` (they must stay there because
-tests patch ``memory_skills._PROJECT_ROOT`` etc. via monkeypatch and
-expect the handlers to see the patched values at call time).
+Contains only ``register_memory_skills``. Generic memory handlers remain
+in ``memory_skills``; self-evolution handlers are implemented by
+``runtime.safety.evolution.soul_actions`` and registered here as tools.
 
 Import order: ``memory_skills`` defines all handlers first, THEN imports
 ``register_memory_skills`` from this submodule at the bottom of the file.

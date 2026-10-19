@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from runtime.safety.recovery.native_turn_replay import (
+from runtime.safety.evolution.native_turn_replay import (
     TurnReplayCase,
     replay_turn_candidates,
 )

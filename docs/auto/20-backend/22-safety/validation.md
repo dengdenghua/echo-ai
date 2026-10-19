@@ -163,8 +163,8 @@ tier: "core"
   - `runtime/memory/threads/llm_summariser.py`
 - **`runtime/safety/`** · 4 file(s)
   - `runtime/safety/approval/approval_gate.py`
+  - `runtime/safety/evolution/prompt_evolver.py`
   - `runtime/safety/evolution/weekly_report.py`
-  - `runtime/safety/experiments/prompt_evolver.py`
   - `runtime/safety/governance/execution_policy.py`
 - **`runtime/sensing/`** · 2 file(s)
   - `runtime/sensing/gateway/_config_endpoints_security.py`
