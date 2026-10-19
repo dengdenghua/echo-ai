@@ -332,10 +332,14 @@ def stream_run(
             result=result,
         )
 
+    from runtime.safety.sandboxing.execution_mode import (
+        command_process_backend,
+    )
+    from runtime.safety.sandboxing.execution_mode import (
+        command_sandbox_required as process_sandbox_required,
+    )
     from runtime.safety.sandboxing.sandbox import (
         SandboxViolation,
-        effective_process_sandbox_mode,
-        process_sandbox_required,
     )
 
     # High-risk callers (shell, git, quality checks and verification) opt in
@@ -357,7 +361,6 @@ def stream_run(
     if sandbox_dir is not None:
         from runtime.safety.sandboxing.sandbox import (
             SandboxPolicy,
-            resolved_process_backend,
         )
 
         sandbox_root = Path(sandbox_dir).expanduser().resolve()
@@ -413,10 +416,7 @@ def stream_run(
             # Preserve the zero-argument seam used by embedders/tests when no
             # deployment override is configured.  Commercial/explicit modes
             # go through the mode-aware selector so they cannot downgrade.
-            if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get("ECHO_DEPLOYMENT_MODE"):
-                choice = resolved_process_backend(effective_process_sandbox_mode())
-            else:
-                choice = resolved_process_backend()
+            choice = command_process_backend()
             if getattr(choice, "needs_approval", False):
                 # A hard sandbox was requested but is not available on this
                 # host. Do not silently run unconfined: when an approval

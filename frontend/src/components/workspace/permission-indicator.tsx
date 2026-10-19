@@ -9,6 +9,7 @@ import {
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { PermissionMode } from "@/core/permissions";
 import { useI18n } from "@/core/i18n/hooks";
+import { isolatedExecutionCopy } from "@/core/i18n/locales/isolated-execution";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const MODE_ICONS = {
+  autoSandbox: ShieldCheckIcon,
   default: ShieldQuestionIcon,
   acceptEdits: ShieldCheckIcon,
   bypassPermissions: ShieldAlertIcon,
@@ -27,6 +29,7 @@ const MODE_ICONS = {
 };
 
 const PERMISSION_OPTIONS: PermissionMode[] = [
+  "autoSandbox",
   "default",
   "acceptEdits",
   "bypassPermissions",
@@ -50,10 +53,11 @@ export function PermissionIndicator({
   className,
   compact = false,
 }: PermissionIndicatorProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { confirm, confirmDialog } = useConfirmDialog();
   const labels: Record<PermissionMode, { label: string; description: string }> =
     {
+      autoSandbox: isolatedExecutionCopy(locale),
       default: {
         label: t.chatInputBox.permissionModeDefault,
         description: t.chatInputBox.permissionModeDefaultDesc,
@@ -105,20 +109,32 @@ export function PermissionIndicator({
                 ? "h-[42px] rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground sm:h-8"
                 : compact
                   ? "h-[42px] rounded-lg px-1.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground sm:h-8"
-                  : cn("h-[42px] min-w-[42px] justify-center rounded-lg px-2.5 sm:h-8 sm:min-w-0", PERMISSION_TRIGGER_TONE),
+                  : cn(
+                      "h-[42px] min-w-[42px] justify-center rounded-lg px-2.5 sm:h-8 sm:min-w-0",
+                      PERMISSION_TRIGGER_TONE,
+                    ),
               className,
             )}
             title={`${controlLabel}: ${current.description}`}
             aria-label={`${controlLabel}: ${current.label}`}
           >
-            <CurrentIcon aria-hidden="true" className={cn("size-3.5 shrink-0", isBypassMode ? "text-warning" : "opacity-75")} />
+            <CurrentIcon
+              aria-hidden="true"
+              className={cn(
+                "size-3.5 shrink-0",
+                isBypassMode ? "text-warning" : "opacity-75",
+              )}
+            />
             {/* Phones keep the composer toolbar on one row: the icon carries the
                 mode (named for screen readers), except the full-access warning. */}
             <span className={cn(!isBypassMode && "max-sm:hidden")}>
               {current.label}
             </span>
             <ChevronDownIcon
-              className={cn("size-3 opacity-35", !isBypassMode && "max-sm:hidden")}
+              className={cn(
+                "size-3 opacity-35",
+                !isBypassMode && "max-sm:hidden",
+              )}
             />
           </button>
         </DropdownMenuTrigger>
@@ -131,10 +147,7 @@ export function PermissionIndicator({
           <DropdownMenuLabel className="text-ui text-muted-foreground">
             {controlLabel}
           </DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={mode}
-            onValueChange={handleModeChange}
-          >
+          <DropdownMenuRadioGroup value={mode} onValueChange={handleModeChange}>
             {options.map((option) => {
               const OptionIcon = MODE_ICONS[option];
               const item = labels[option];
@@ -150,7 +163,10 @@ export function PermissionIndicator({
                   )}
                   aria-label={`${item.label}: ${item.description}`}
                 >
-                  <OptionIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                  <OptionIcon
+                    aria-hidden="true"
+                    className="mt-0.5 size-4 shrink-0"
+                  />
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5 text-ui font-medium leading-5">
                       {item.label}

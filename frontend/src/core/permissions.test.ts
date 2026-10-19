@@ -132,3 +132,15 @@ describe("permissionRuntimeConfig", () => {
     expect(normalizePermissionMode("full")).toBe("bypassPermissions");
   });
 });
+
+it("combines automatic approval with a bounded workspace sandbox", () => {
+  const config = permissionRuntimeConfig("autoSandbox", "common");
+  expect(config.approvalPolicy).toBe("never");
+  expect(config.sandboxPolicy).toEqual({
+    type: "workspaceWrite",
+    networkAccess: false,
+    egressAllowCommon: true,
+  });
+  expect(config.execution_environment).toBe("sandbox");
+  expect(normalizePermissionMode("autoSandbox")).toBe("autoSandbox");
+});

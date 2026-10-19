@@ -323,6 +323,7 @@ tier: "standard"
 | `realtime_gateway.py` | Realtime gateway — JSON-RPC 2.0 over WebSocket. |
 | `realtime_interrupt_control.py` | Authoritative cross-worker interrupt control for realtime turns. |
 | `realtime_opencode_backend.py` | Translate an official OpenCode session into Echo's ordinary realtime items. |
+| `realtime_permission_context.py` | Canonicalize approval and filesystem boundaries independently. |
 | `realtime_preparation.py` | Role preparation before starting an engine; ownership comes from validated TurnParams. |
 | `realtime_project_acceptance.py` | Review actual deliverables before advancing an owner-gated milestone. |
 | `realtime_project_initiation.py` | Owner-approved staffing before a chat becomes a managed project. |
@@ -1755,6 +1756,12 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def scope_for_turn(turn)` |  |
 | func | `async def drive_opencode(runtime, turn, log, emitter, intent, agent, provider, text)` |  |
+
+### `realtime_permission_context.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def canonical_permission_context(context_payload, approval_policy)` |  |
 
 ### `realtime_preparation.py`
 

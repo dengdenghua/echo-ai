@@ -253,6 +253,19 @@ def _sandbox_mode(
     )
 
 
+def _sandbox_for_approval(
+    context: Mapping[str, Any], parent: Mapping[str, Any] | None, auto_approve: bool
+) -> CodexSandboxMode:
+    mode = _sandbox_mode(context, trusted_parent_metadata=parent)
+    if (
+        auto_approve is True
+        and mode == "workspace-write"
+        and context.get("permission_mode") != "autoSandbox"
+    ):
+        return "danger-full-access"
+    return mode
+
+
 def _timeout_s(context: Mapping[str, Any]) -> float:
     raw = context.get("timeout_s") or os.environ.get("ECHO_CODEX_APP_SERVER_TIMEOUT")
     try:
@@ -534,12 +547,11 @@ def build_codex_role_request(
     )
     auth_home = None if profile.proxy_required else find_auth_home()
     connector_instructions = _CONNECTOR_BRIDGE if requested_app_id else ""
-    resolved_sandbox_mode = _sandbox_mode(
+    resolved_sandbox_mode = _sandbox_for_approval(
         {**ctx, "workspace_path": str(workspace)},
-        trusted_parent_metadata=parent_meta,
+        parent_meta,
+        server_auto_approve,
     )
-    if server_auto_approve is True and resolved_sandbox_mode == "workspace-write":
-        resolved_sandbox_mode = "danger-full-access"
     # Windows cannot reliably run native Codex shell tools with our named
     # profile's non-escalatable state-directory deny. Keep execution inside
     # the Echo broker, which owns the same grants as the OpenCode integration.

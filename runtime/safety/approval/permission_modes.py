@@ -16,6 +16,8 @@ ApprovalReviewer = Literal["user", "auto_review"]
 def canonical_permission_mode(value: object) -> str:
     raw = str(value or "").strip().replace("_", "-").casefold()
     compact = raw.replace("-", "")
+    if compact == "autosandbox":
+        return "autoSandbox"
     if compact in {"acceptedits", "autoreview", "approveforme"}:
         return "acceptEdits"
     if compact in {"bypasspermissions", "bypass", "yolo", "full", "fullaccess"}:

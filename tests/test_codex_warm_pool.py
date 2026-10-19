@@ -197,3 +197,66 @@ def test_chat_turns_sharing_a_home_take_turns_to_start() -> None:
         chat_warm.release_startup(lock)
 
     asyncio.run(scenario())
+
+
+@pytest.mark.asyncio
+async def test_model_switch_releases_idle_writer_before_first_resume(tmp_path):
+    closed = []
+
+    class Client:
+        ready = True
+        _echo_writer_threads = {"same-inner-thread"}
+
+        async def close(self):
+            closed.append("closed")
+
+    old = Client()
+    new = Client()
+    owner = SimpleNamespace(cleanup=lambda: closed.append("cleaned"))
+    entry = warm_pool.WarmProcess(
+        "old-model",
+        cast(Any, old),
+        warm_pool.TurnHandlers(),
+        owner,
+        asyncio.get_running_loop(),
+        in_use=False,
+    )
+    warm_pool._pool["old-model"] = entry
+
+    async def resume():
+        assert closed == ["closed", "cleaned"]
+        return "same-inner-thread"
+
+    result = await warm_pool.restore_writer(
+        new, SimpleNamespace(inner_thread_id="same-inner-thread"), resume
+    )
+    assert result == "same-inner-thread"
+    assert not warm_pool._pool
+    assert "same-inner-thread" in new._echo_writer_threads
+
+
+@pytest.mark.asyncio
+async def test_model_switch_never_terminates_an_active_writer(tmp_path):
+    closed = []
+    old = SimpleNamespace(
+        _echo_writer_threads={"same-inner-thread"}, close=lambda: closed.append(True)
+    )
+    entry = warm_pool.WarmProcess(
+        "busy",
+        cast(Any, old),
+        warm_pool.TurnHandlers(),
+        None,
+        asyncio.get_running_loop(),
+        in_use=True,
+    )
+    warm_pool._pool["busy"] = entry
+
+    async def resume():
+        raise AssertionError("must not start a concurrent turn")
+
+    with pytest.raises(RuntimeError, match="active turn"):
+        await warm_pool.restore_writer(
+            object(), SimpleNamespace(inner_thread_id="same-inner-thread"), resume
+        )
+    assert not closed
+    assert warm_pool._pool["busy"] is entry

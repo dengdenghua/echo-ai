@@ -99,7 +99,7 @@ async def stream_role(
         auto_approve = bool(
             task.server_auto_approve
             and task.permissions.approval_policy == "never"
-            and task.permissions.permission_mode == "bypassPermissions"
+            and task.permissions.permission_mode in {"bypassPermissions", "autoSandbox"}
         )
         provider = task.approval_provider
         if (

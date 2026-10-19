@@ -213,3 +213,16 @@ it("toggles the guardian independent review switch and persists it", () => {
   expect(screen.queryByLabelText(/Review model/)).not.toBeInTheDocument();
   expect(getLocalSettings().context.guardian_review_enabled).toBe(false);
 });
+
+it("persists automatic execution without enabling full access", () => {
+  window.localStorage.clear();
+  renderWithProviders(<SandboxSettingsPage />);
+  fireEvent.click(
+    screen.getByRole("button", { name: /^Automatic \(isolated\)/ }),
+  );
+  const { context } = getLocalSettings();
+  expect(context.permission_mode).toBe("autoSandbox");
+  expect(context.approval_policy).toBe("never");
+  expect(context.sandbox_mode).toBe("sandbox");
+  expect(context.execution_environment).toBe("sandbox");
+});

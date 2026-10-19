@@ -264,6 +264,8 @@ def _path_is_same_or_under(path: Path, root: Path) -> bool:
 
 def _normalize_permission_mode(value: Any) -> str:
     raw = str(value or "default").strip().lower()
+    if raw in {"autosandbox", "auto-sandbox"}:
+        return "autoSandbox"
     if raw in {"acceptedits", "accept-edits"}:
         return "acceptEdits"
     if raw in {
@@ -283,7 +285,7 @@ def _normalize_approval_policy(value: Any, *, permission_mode: str) -> str:
     raw = str(value or "").strip()
     if raw in {"never", "on-request", "untrusted"}:
         return raw
-    if permission_mode == "bypassPermissions":
+    if permission_mode in {"bypassPermissions", "autoSandbox"}:
         return "never"
     return "on-request"
 
@@ -625,6 +627,11 @@ def resolve_execution_scope(session: Session | None) -> ExecutionScope:
             host_workspace,
             *tuple(root for root in readable_roots if root != host_workspace),
         )
+        if permission_mode == "autoSandbox" and write_scope.mode != "plan":
+            writable_roots = (
+                host_workspace,
+                *tuple(root for root in writable_roots if root != host_workspace),
+            )
 
     # Uploaded attachments are a separate, server-owned read domain.  The
     # gateway derives these roots from WorkspaceManager rather than trusting
@@ -673,7 +680,7 @@ def resolve_execution_scope(session: Session | None) -> ExecutionScope:
             if filesystem_root not in writable_roots:
                 writable_roots = (*writable_roots, filesystem_root)
 
-    if permission_mode == "bypassPermissions" or execution_environment == "local":
+    if permission_mode in {"bypassPermissions", "autoSandbox"} or execution_environment == "local":
         shell_policy = "allow"
         network_policy = "allow"
         browser_policy = "allow"

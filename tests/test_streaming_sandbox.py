@@ -158,6 +158,7 @@ def test_stream_run_strict_mode_rejects_without_hard_backend(
     monkeypatch.setattr(sandbox_mod.BubblewrapBackend, "available", staticmethod(lambda: False))
     monkeypatch.setattr(sandbox_mod.LandlockBackend, "available", staticmethod(lambda: False))
     monkeypatch.setattr(sandbox_mod.SeatbeltBackend, "available", staticmethod(lambda: False))
+    monkeypatch.setattr(sandbox_mod.WindowsMXCBackend, "available", staticmethod(lambda: False))
 
     result = stream_run(
         [sys.executable, "-c", "print('should not run')"],
@@ -200,6 +201,7 @@ def test_commercial_mode_cannot_downgrade_to_soft_backend(
     monkeypatch.setattr(sandbox_mod.BubblewrapBackend, "available", staticmethod(lambda: False))
     monkeypatch.setattr(sandbox_mod.LandlockBackend, "available", staticmethod(lambda: False))
     monkeypatch.setattr(sandbox_mod.SeatbeltBackend, "available", staticmethod(lambda: False))
+    monkeypatch.setattr(sandbox_mod.WindowsMXCBackend, "available", staticmethod(lambda: False))
 
     result = stream_run(
         [sys.executable, "-c", "print('must not run')"],

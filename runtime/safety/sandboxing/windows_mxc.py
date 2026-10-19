@@ -58,6 +58,11 @@ class WindowsMXCBackend:
         if executable is None:
             raise SandboxViolation("Windows MXC needs Echo's verified Codex engine")
         workspace = policy.workspace.expanduser().resolve()
+        if workspace == Path(workspace.anchor):
+            raise SandboxViolation(
+                "Windows MXC needs a task workspace, not a filesystem root; "
+                "run from the current task workspace instead of a drive root"
+            )
         run_cwd = cwd.expanduser().resolve()
         if not run_cwd.is_relative_to(workspace):
             raise SandboxViolation("Windows MXC cwd escapes the workspace")

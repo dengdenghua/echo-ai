@@ -1,4 +1,5 @@
 export type PermissionMode =
+  | "autoSandbox"
   | "default"
   | "acceptEdits"
   | "bypassPermissions"
@@ -43,6 +44,8 @@ export interface PermissionRuntimeConfig {
 export function normalizePermissionMode(value: unknown): PermissionMode {
   const raw = typeof value === "string" ? value.trim() : "";
   const normalized = raw.toLowerCase();
+  if (normalized === "autosandbox" || normalized === "auto-sandbox")
+    return "autoSandbox";
   if (normalized === "acceptedits" || normalized === "accept-edits") {
     return "acceptEdits";
   }
@@ -110,6 +113,17 @@ export function permissionRuntimeConfig(
       sandboxPolicy: sandboxPolicy("dangerFullAccess"),
       execution_environment: "local",
       sandbox_mode: "full",
+      planningMode: false,
+    };
+  }
+  if (mode === "autoSandbox") {
+    return {
+      mode,
+      approvalPolicy: "never",
+      approvalReviewer: "user",
+      sandboxPolicy: sandboxPolicy("workspaceWrite"),
+      execution_environment: "sandbox",
+      sandbox_mode: "sandbox",
       planningMode: false,
     };
   }

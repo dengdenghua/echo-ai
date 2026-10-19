@@ -7,7 +7,6 @@ Contains ``exec_shell`` / ``background_exec`` / ``read_background_output`` /
 from __future__ import annotations
 
 import contextlib
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -445,7 +444,9 @@ def _background_exec(
             "argv": argv,
         }
 
-    from runtime.safety.sandboxing.sandbox import process_sandbox_required
+    from runtime.safety.sandboxing.execution_mode import (
+        command_sandbox_required as process_sandbox_required,
+    )
 
     if sandbox_dir is None and process_sandbox_required():
         from runtime.platform.process.streaming import execution_policy_snapshot
@@ -495,11 +496,10 @@ def _background_exec(
     env_mode = "custom" if env is not None else "inherit"
     if sandbox_dir is not None:
         from runtime.platform.process.streaming import _sandbox_extra_env
+        from runtime.safety.sandboxing.execution_mode import command_process_backend
         from runtime.safety.sandboxing.sandbox import (
             SandboxPolicy,
             SandboxViolation,
-            effective_process_sandbox_mode,
-            resolved_process_backend,
         )
 
         sandbox_root = Path(sandbox_dir).expanduser().resolve()
@@ -519,10 +519,7 @@ def _background_exec(
         run_env = policy.env_for()
         env_mode = "allowlist"
         try:
-            if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get("ECHO_DEPLOYMENT_MODE"):
-                choice = resolved_process_backend(effective_process_sandbox_mode())
-            else:
-                choice = resolved_process_backend()
+            choice = command_process_backend()
             argv, run_env, transformed_cwd = choice.backend.transform(
                 list(argv),
                 run_env,

@@ -346,7 +346,11 @@ class CodexExecutionSession:
                 context,
                 authority=_SERVER_AUTHORITY,
             )
-            inner_thread_id = await self._restore_or_create_thread(context, binding)
+            inner_thread_id = await warm_pool.restore_writer(
+                self._require_client(),
+                binding,
+                lambda: self._restore_or_create_thread(context, binding),
+            )
             self._inner_thread_id = inner_thread_id
             chat_warm.release_startup(self._startup_lock)
             self._startup_lock = None
@@ -362,9 +366,7 @@ class CodexExecutionSession:
             if self.request.effort is not None:
                 turn_params["effort"] = self.request.effort
 
-            # Setting this immediately before invoking turn/start is
-            # deliberate: after this point a lost/malformed response cannot
-            # prove that the model did not run or tools did not execute.
+            # After turn/start, a lost response cannot prove no tools ran.
             self._turn_started = True
             prompt = (
                 self.request.fresh_thread_prompt
@@ -421,10 +423,8 @@ class CodexExecutionSession:
 
         process_backend = self._effective_process_backend()
         tenant_id = _principal_scoped_tenant(self.request.tenant_id, self.request.principal_id)
-        # Keep tool-free conversations in a separate private state namespace.
-        # Resuming a task after a chat reply must not retain the earlier empty
-        # execution-environment selection. v2: a principal's chat turns share
-        # one CODEX_HOME (chat_warm), so v1 bindings point at threads it lacks.
+        # Tool-free chats use separate state and a principal-shared CODEX_HOME.
+        # v2 bindings exclude old homes that cannot contain these threads.
         realm_id = (
             self.request.realm_id + "/codex-tool-free-v2"
             if self.request.tool_free

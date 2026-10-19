@@ -130,6 +130,7 @@ Suckers = skill pool.
 | `memory_skills.py` | memory_skills · per-agent long-term memory / user-profile / diary skills. |
 | `notebook_skills.py` | — |
 | `plan_mode.py` | — |
+| `plugin_references.py` | Read bounded documentation from an enabled plugin, never arbitrary host files. |
 | `rate_limit.py` | Per-skill rate limiter — runaway-loop protection for LLM agents. |
 | `reach_skills.py` | — |
 | `registry.py` | — |
@@ -629,6 +630,12 @@ Suckers = skill pool.
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def register_plan_mode_skill(registry)` | Add ``exit_plan_mode`` to the given SkillRegistry. |
+
+### `plugin_references.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def read_plugin_reference(skill_dir, plugin_id, reference, offset, limit)` |  |
 
 ### `rate_limit.py`
 

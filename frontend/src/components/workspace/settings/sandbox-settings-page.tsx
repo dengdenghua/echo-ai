@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 
 import { useI18n } from "@/core/i18n/hooks";
+import { isolatedExecutionCopy } from "@/core/i18n/locales/isolated-execution";
 import { useLocalSettings } from "@/core/settings";
 import {
   normalizeNetworkAccess,
@@ -55,13 +56,23 @@ const PRESET_EGRESS_DOMAINS: readonly string[] = [
 ];
 
 type ExecutionEnvironment = "sandbox" | "local";
-type SandboxPermissionMode = "default" | "acceptEdits" | "bypassPermissions";
+type SandboxPermissionMode =
+  | "default"
+  | "acceptEdits"
+  | "bypassPermissions"
+  | "autoSandbox";
 type NetworkTier = "deny" | "common" | "full";
 
 export default function SandboxSettingsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [settings, setSettings] = useLocalSettings();
-  const copy = t.sandboxSettings;
+  const copy = {
+    ...t.sandboxSettings,
+    permission: {
+      ...t.sandboxSettings.permission,
+      autoSandbox: isolatedExecutionCopy(locale),
+    },
+  };
 
   const context = settings.context;
   const permission = normalizePermissionMode(context.permission_mode);
@@ -107,7 +118,8 @@ export default function SandboxSettingsPage() {
         setSettings("context", {
           ...context,
           permission_mode: next,
-          approval_policy: fullAccess ? "never" : "on-request",
+          approval_policy:
+            fullAccess || next === "autoSandbox" ? "never" : "on-request",
           approvals_reviewer: next === "acceptEdits" ? "auto_review" : "user",
           ...(fullAccess
             ? {
@@ -198,43 +210,48 @@ export default function SandboxSettingsPage() {
             {copy.permissionDesc}
           </p>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {(["default", "acceptEdits", "bypassPermissions"] as const).map(
-              (id) => {
-                const active = permission === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => applyPermission(id)}
-                    disabled={active}
-                    aria-pressed={active}
-                    className={cn(
-                      "flex flex-col gap-2 rounded-lg border p-4 text-left transition",
-                      active
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/40"
-                        : "border-border-default hover:border-primary/40",
-                      id === "bypassPermissions" &&
-                        !active &&
-                        "text-warning/90 hover:text-warning",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">
-                        {copy.permission[id].label}
+            {(
+              [
+                "autoSandbox",
+                "default",
+                "acceptEdits",
+                "bypassPermissions",
+              ] as const
+            ).map((id) => {
+              const active = permission === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => applyPermission(id)}
+                  disabled={active}
+                  aria-pressed={active}
+                  className={cn(
+                    "flex flex-col gap-2 rounded-lg border p-4 text-left transition",
+                    active
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/40"
+                      : "border-border-default hover:border-primary/40",
+                    id === "bypassPermissions" &&
+                      !active &&
+                      "text-warning/90 hover:text-warning",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">
+                      {copy.permission[id].label}
+                    </span>
+                    {active && (
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                        {copy.activeTag}
                       </span>
-                      {active && (
-                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-                          {copy.activeTag}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs leading-snug text-muted-foreground">
-                      {copy.permission[id].description}
-                    </p>
-                  </button>
-                );
-              },
-            )}
+                    )}
+                  </div>
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    {copy.permission[id].description}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         </div>
 

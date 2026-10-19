@@ -10,6 +10,7 @@ import {
 import { getBackendBaseURL } from "@/core/config";
 import { withAgentAvatarVersion } from "@/core/agents/avatar";
 import { useI18n } from "@/core/i18n/hooks";
+import { isolatedExecutionCopy } from "@/core/i18n/locales/isolated-execution";
 import { memberAvatarsCopy } from "@/core/i18n/locales/member-avatars";
 import type { Agent } from "@/core/agents/types";
 import {
@@ -448,7 +449,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
     contextActions,
   } = props;
 
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const location = useLocation();
   const searchParams = useMemo(
     () => new URLSearchParams(location.search),
@@ -458,11 +459,10 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   const parentThreadId = searchParams.get("parent_thread_id") || undefined;
   const agentParam = searchParams.get("agent") || undefined;
 
-  // ── Status strip derived values ──────────────────────────────
   const resolvedPermissionMode = normalizePermissionMode(permissionMode);
   const hasWorkDir = Boolean(workDir?.trim());
   const isProjectMode = mode === "code" && !!workDir?.trim();
-  const permissionLabel =
+  const permissionLabel = resolvedPermissionMode === "autoSandbox" ? isolatedExecutionCopy(locale).label :
     resolvedPermissionMode === "bypassPermissions"
       ? t.chatInputBox.permissionFullAccess
       : resolvedPermissionMode === "acceptEdits"

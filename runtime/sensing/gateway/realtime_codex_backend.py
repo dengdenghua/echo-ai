@@ -259,7 +259,11 @@ def _request_for_turn(
                 else None
             ),
         )
-        if server_auto_approve and resolved_sandbox_mode == "workspace-write":
+        if (
+            server_auto_approve
+            and resolved_sandbox_mode == "workspace-write"
+            and context.get("permission_mode") != "autoSandbox"
+        ):
             resolved_sandbox_mode = "danger-full-access"
         from runtime.safety.approval.permission_modes import approval_reviewer_for_mode
 

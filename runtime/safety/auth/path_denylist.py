@@ -212,7 +212,7 @@ def pop_turn_denylist(token: object) -> None:
 # ── Match decision ────────────────────────────────────────────
 
 
-def is_blocked(resolved: str | Path) -> tuple[bool, str | None]:
+def is_blocked(resolved: str | Path, *, include_defaults: bool = True) -> tuple[bool, str | None]:
     """Whether a *resolved* (canonical absolute) path is blocked.
 
     Returns ``(True, prefix)`` when blocked, ``(False, None)``
@@ -231,7 +231,11 @@ def is_blocked(resolved: str | Path) -> tuple[bool, str | None]:
     target_norm = os.path.normcase(target)
 
     candidates: list[str] = []
-    candidates.extend(_DEFAULT_DENIES)
+    if include_defaults:
+        from .workspace_access import is_current_managed_workspace_path
+
+        own_workspace = is_current_managed_workspace_path(resolved)
+        candidates.extend(raw for raw in _DEFAULT_DENIES if raw != "%APPDATA%" or not own_workspace)
     candidates.extend(_load_user_denylist())
     candidates.extend(_TURN_DENYLIST.get())
 

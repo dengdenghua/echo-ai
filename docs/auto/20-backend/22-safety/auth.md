@@ -70,6 +70,7 @@ tier: "core"
 | `url_guard.py` | — |
 | `websocket.py` | Shared browser-safe WebSocket bearer-token transport helpers. |
 | `websocket_auth.py` | One handshake gate for every WebSocket endpoint. |
+| `workspace_access.py` | Recognize the server-owned task directory inside desktop application state. |
 
 ## Key classes & functions
 
@@ -159,7 +160,7 @@ tier: "core"
 | func | `def remove_user_denylist_entry(path)` | Remove a path; returns the new list. |
 | func | `def push_turn_denylist(extra)` | Add extra denied paths for the duration of a context. |
 | func | `def pop_turn_denylist(token)` |  |
-| func | `def is_blocked(resolved)` | Whether a *resolved* (canonical absolute) path is blocked. |
+| func | `def is_blocked(resolved, include_defaults)` | Whether a *resolved* (canonical absolute) path is blocked. |
 
 ### `path_guard.py`
 
@@ -252,10 +253,16 @@ tier: "core"
 | func | `async def refuse_websocket(websocket, reason)` | Close a not-yet-accepted handshake with the shared policy code. |
 | func | `async def authenticate_websocket(websocket, config, credential, roles)` | Authenticate a handshake before ``accept()``; ``None`` means refused. |
 
+### `workspace_access.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def is_current_managed_workspace_path(path)` |  |
+
 
 ## Who imports this
 
-**235** file(s) reference this package:
+**236** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -277,13 +284,13 @@ tier: "core"
   - `runtime/core/nerves/reflex/actions.py`
   - `runtime/core/nerves/reflex/broadcast.py`
   - `runtime/core/nerves/reflex/tiers.py`
-- **`runtime/execution/`** · 33 file(s)
+- **`runtime/execution/`** · 34 file(s)
   - `runtime/execution/codebuddy_roles.py`
   - `runtime/execution/codex_backend/_account_catalog.py`
   - `runtime/execution/codex_backend/account.py`
   - `runtime/execution/codex_backend/model_profile.py`
   - `runtime/execution/codex_backend/role_runner.py`
-  - _… and 28 more_
+  - _… and 29 more_
 - **`runtime/memory/`** · 17 file(s)
   - `runtime/memory/diagnostics/_trace_store_replay_storage.py`
   - `runtime/memory/diagnostics/_trace_store_storage.py`

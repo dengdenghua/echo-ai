@@ -190,15 +190,31 @@ def _make_codex_plugin_handler(
 ):
     base_handler = _make_prompt_handler(skill_dir, action_name, body, allowed_tools)
 
-    def _handler(**kw: Any) -> dict[str, Any]:
+    def _handler(
+        reference: str = "", offset: int = 0, limit: int = 200, **kw: Any
+    ) -> dict[str, Any]:
+        if reference:
+            from .plugin_references import read_plugin_reference
+
+            return read_plugin_reference(skill_dir, plugin_id, reference, offset, limit)
         result = base_handler(**kw)
         if isinstance(result, dict):
+            for resource in result.get("resources", []):
+                if str(resource.get("path", "")).startswith("references/"):
+                    resource.pop("abs_path", None)
+                    resource["read_args"] = {"reference": resource["path"]}
             result.update(
                 {
                     "plugin": plugin_id,
                     "plugin_root": str(plugin_dir.resolve()),
                     "plugin_skill": plugin_skill_name,
                     "action": action_name,
+                    "reference_guidance": (
+                        "Read listed references through this same plugin action with "
+                        "args={reference:'references/name.md',offset:0,limit:200}. "
+                        "Do not use read_file on plugin paths inside AppData. "
+                        "Run sandbox commands in the task workspace, never a drive root."
+                    ),
                 }
             )
         return result

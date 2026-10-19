@@ -109,10 +109,17 @@ describe("<PermissionIndicator />", () => {
   });
 
   it("keeps discussion outside the permissions menu", async () => {
-    renderWithProviders(<PermissionIndicator mode="default" onModeChange={vi.fn()} />);
+    renderWithProviders(
+      <PermissionIndicator mode="default" onModeChange={vi.fn()} />,
+    );
     openPermissionMenu(screen.getByTestId("permission-mode-trigger"));
     await screen.findByTestId("permission-mode-option-default");
-    expect(screen.getAllByRole("menuitemradio")).toHaveLength(3);
-    expect(screen.queryByTestId("execution-mode-option-discussion")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("menuitemradio")).toHaveLength(4);
+    expect(
+      screen.getByTestId("permission-mode-option-autoSandbox"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("execution-mode-option-discussion"),
+    ).not.toBeInTheDocument();
   });
 });

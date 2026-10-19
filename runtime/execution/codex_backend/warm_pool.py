@@ -203,6 +203,29 @@ async def retire(entry: WarmProcess) -> None:
         _logger.debug("warm Codex process cleanup failed", exc_info=True)
 
 
+async def restore_writer(client: Any, binding: Any, restore: Any) -> str:
+    """Release only an idle writer of this exact inner thread before resuming it."""
+    thread_id = getattr(binding, "inner_thread_id", None)
+    if thread_id:
+        for entry in list(_pool.values()):
+            if entry.client is client or thread_id not in getattr(
+                entry.client, "_echo_writer_threads", ()
+            ):
+                continue
+            if entry.in_use:
+                raise RuntimeError(
+                    "Codex conversation still has an active turn; wait for it to finish"
+                )
+            discard(entry)
+            if entry.idle_handle is not None:
+                entry.idle_handle.cancel()
+                entry.idle_handle = None
+            await retire(entry)
+    inner_id = await restore()
+    client._echo_writer_threads = {*getattr(client, "_echo_writer_threads", ()), inner_id}
+    return inner_id
+
+
 __all__ = [
     "IDLE_SECONDS",
     "MAX_WARM",
