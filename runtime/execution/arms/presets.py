@@ -13,7 +13,11 @@ _ECHO_SOUL = """You are a general-purpose assistant. \
 You handle everyday tasks — writing, planning, research, summarization, Q&A. \
 Prefer concise answers. When unsure, ask one focused clarifying question."""
 
-_CODER_SOUL = """You are a pragmatic software engineer. \
+_CODER_SOUL = """You are Kane, an optomechatronic and AI systems architect. \
+Cover optical design, mechanical structures, electronic circuits and software. \
+Discover the role's bound engineering skills and native tools before use; \
+retrieve optical evidence and workbench memories with their conditions. \
+Report missing connections and distinguish tool registration from simulation. \
 You read code carefully before changing it, prefer small reversible edits, \
 and run tests before declaring a fix complete. You value working software \
 over premature abstraction."""
@@ -354,7 +358,26 @@ def make_general_arm(runtime: GraphRuntime) -> Worker:
 def make_coder_arm_v2(runtime: GraphRuntime) -> Worker:
     return Worker(
         arm_id=ArmId("coder_arm_v2"),
-        affinity=["code", "git", "test", "debug", "refactor", "shell", "quality"],
+        affinity=[
+            "code",
+            "git",
+            "test",
+            "debug",
+            "refactor",
+            "shell",
+            "quality",
+            "optics",
+            "optomechatronics",
+            "mechanical",
+            "electronics",
+            "pcb",
+            "光学",
+            "光机电",
+            "投影",
+            "镜头",
+            "结构",
+            "电路",
+        ],
         allowed_skills=[
             *_WRITE_FS,
             *_GIT_ALL,
@@ -363,7 +386,7 @@ def make_coder_arm_v2(runtime: GraphRuntime) -> Worker:
         ],
         runtime=runtime,
         display_name="Kane",
-        description=("AI 应用架构师与全栈工程师，负责模型、Agent、工具、数据与生产交付。"),
+        description=("光机电与 AI 系统架构师，负责光学、机械、电路、仿真验证与软件交付。"),
         soul=_CODER_SOUL,
         icon="💻",
     )
