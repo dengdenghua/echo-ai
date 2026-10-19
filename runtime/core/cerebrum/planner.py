@@ -157,7 +157,7 @@ class StaticPlanner:
         approver: str | None = None,
         bypass_cooldown: bool = False,
     ) -> ApplyResult:
-        from runtime.safety.recovery import apply_proposals_to_rules
+        from runtime.safety.evolution import apply_proposals_to_rules
 
         # Gene-lock gate · workflow rewrites mutate the planner's rule
         # set, which decides which skills run for every future intent
@@ -182,7 +182,7 @@ class StaticPlanner:
                 bypass_cooldown=bypass_cooldown,
             )
         except LockViolation:
-            from runtime.safety.recovery.workflow_applier import (
+            from runtime.safety.evolution.workflow_applier import (
                 ApplyOutcome,
                 ApplyResult,
             )
@@ -237,7 +237,7 @@ class StaticPlanner:
         min_confidence: float = 0.7,
         min_severity: str = "mid",
     ) -> ApplyResult:
-        from runtime.safety.recovery import WorkflowRewriter
+        from runtime.safety.evolution import WorkflowRewriter
 
         report = WorkflowRewriter(journal).analyze(rules=self.rules)
         return self.apply_rewrite_proposals(
@@ -248,7 +248,7 @@ class StaticPlanner:
 
 
 if TYPE_CHECKING:
-    from runtime.safety.recovery import ApplyResult
+    from runtime.safety.evolution import ApplyResult
 
 
 def _render_intent_placeholders(value: Any, intent: ParsedIntent) -> Any:

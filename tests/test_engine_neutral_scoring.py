@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
-from runtime.memory.learning import turn_scoring
 from runtime.protocol import (
     AgentMessageItem,
     CommandExecutionItem,
@@ -13,6 +12,7 @@ from runtime.protocol import (
     TurnStatus,
 )
 from runtime.safety.auth.scope import TenantScope
+from runtime.safety.evolution import turn_scoring
 from runtime.sensing.gateway import _tool_bridge_scoring as bridge_scoring
 
 

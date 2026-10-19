@@ -14,8 +14,8 @@ from typing import Any
 
 from runtime.safety.evolution.subagent_fitness import compute_subagent_fitness
 from runtime.safety.evolution.subagent_policy import evaluate_agent_policy
-from runtime.safety.organization.evolver import Proposal
-from runtime.safety.organization.forge import load_registry
+from runtime.safety.evolution.topology_evolver import Proposal
+from runtime.safety.evolution.topology_forge import load_registry
 from runtime.safety.organization.promotion_lift import compute_topology_promotion_lift
 from runtime.safety.organization.topology import Role, TeamTopology
 

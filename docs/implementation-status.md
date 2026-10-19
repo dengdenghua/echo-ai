@@ -33,8 +33,8 @@
 
 | 机制 | 状态 | 证据 |
 |---|---|---|
-| 反思闭环（turn scoring → deep reflection → deep evolve） | **已接线** | `runtime/memory/learning/`（turn_scoring、deep_evolution、review_queue、promotion_applier） |
-| Camouflage 提示词 A/B 与变体晋升 | **已接线** | `runtime/safety/experiments/scheduler.py`；状态持久化于 `data/camouflage_*.{yaml,json}` |
+| 反思闭环（turn scoring → deep reflection → deep evolve） | **已接线** | `runtime/safety/evolution/`（turn_scoring、deep_evolution、review_queue、promotion_applier） |
+| Camouflage 提示词 A/B 与变体晋升 | **已接线** | `runtime/safety/evolution/experiment_scheduler.py`；状态持久化于 `data/camouflage_*.{yaml,json}` |
 | Fitness 五层 + 漂移一票否决 | **已接线** | `runtime/safety/evolution/fitness.py`、`drift_monitor.py` |
 | 写后自动诊断（代码模式快检注入观察） | **已接线** | `runtime/core/cerebrum/react_execution.py` 的 `_run_auto_diagnostics`（注意：检查器缺失时跳过，不报假阳性） |
 

@@ -28,7 +28,7 @@ def current_capability_scope() -> TenantScope | None:
     if explicit is not _UNSET:
         return explicit if isinstance(explicit, TenantScope) else None
     from runtime.platform.process.session import current_session
-    from runtime.safety.recovery.tenant_scope import trusted_scope_from_session
+    from runtime.safety.evolution.tenant_scope import trusted_scope_from_session
 
     return trusted_scope_from_session(current_session())
 

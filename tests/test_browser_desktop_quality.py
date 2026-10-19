@@ -6,7 +6,6 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.safety.evolution.automation_radar import compute_automation_radar
 from runtime.safety.evolution.browser_desktop_quality import (
     RELAY_BACKGROUND_PATH,
@@ -14,6 +13,7 @@ from runtime.safety.evolution.browser_desktop_quality import (
     _relay_manifest_findings,
     compute_browser_desktop_quality,
 )
+from runtime.safety.evolution.review_queue import ReviewQueue
 from runtime.sensing.gateway.evolution_router import create_evolution_router
 
 _LOOPBACK_CSP = (

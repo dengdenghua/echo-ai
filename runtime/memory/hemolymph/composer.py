@@ -24,7 +24,7 @@ from runtime.platform.models import (
     TaskGraph,
 )
 from runtime.safety.auth.scope import TenantScope
-from runtime.safety.recovery.tenant_scope import read_learning_events
+from runtime.safety.evolution.tenant_scope import read_learning_events
 
 # ── Compose telemetry ring buffer ─────────────────────────
 # Each ``compose()`` call records a small snapshot here so the

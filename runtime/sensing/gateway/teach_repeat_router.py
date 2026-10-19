@@ -268,8 +268,8 @@ def create_teach_repeat_router(
         # quarantines macros over dangerous primitives for human approval.
         try:
             from runtime.memory.journal.journal import TrajectoryEvent
-            from runtime.safety.recovery.skill_forge import SkillForge
-            from runtime.safety.recovery.tenant_scope import read_learning_events
+            from runtime.safety.evolution.skill_forge import SkillForge
+            from runtime.safety.evolution.tenant_scope import read_learning_events
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(503, f"forge unavailable: {exc}") from exc
 

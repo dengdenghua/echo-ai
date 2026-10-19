@@ -120,7 +120,7 @@ def queue_verifier_drift_backlog(
             },
         }
 
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     queue = ReviewQueue(
         Path(review_queue_path) if review_queue_path is not None else app_paths().review_queue_path,

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from runtime.safety.recovery.evolution_dataset import (
+from runtime.safety.evolution.evolution_dataset import (
     EvolutionDataset,
     EvolutionExample,
 )
-from runtime.safety.recovery.gepa_optimizer import PromptCandidate
-from runtime.safety.recovery.native_replay import (
+from runtime.safety.evolution.gepa_optimizer import PromptCandidate
+from runtime.safety.evolution.native_replay import (
     build_replay_cases,
     replay_candidates,
 )

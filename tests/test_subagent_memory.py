@@ -142,8 +142,8 @@ def test_subagent_memory_is_scoped_by_role() -> None:
 
 
 def test_subagent_output_can_be_queued_as_trace_linked_review_candidate(tmp_path) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
-    from runtime.memory.learning.subagent_review import queue_subagent_review_candidate
+    from runtime.safety.evolution.review_queue import ReviewQueue
+    from runtime.safety.evolution.subagent_review import queue_subagent_review_candidate
 
     path = tmp_path / "review_queue.json"
     result = queue_subagent_review_candidate(
@@ -182,8 +182,8 @@ def test_subagent_output_can_be_queued_as_trace_linked_review_candidate(tmp_path
 def test_call_subagent_queues_review_candidate_when_trace_context_exists(tmp_path) -> None:
     from runtime.execution.subagents import bridge
     from runtime.execution.suckers import ephemeral_agents
-    from runtime.memory.learning.review_queue import ReviewQueue
     from runtime.platform.process.session import Session
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     path = tmp_path / "review_queue.json"
 
@@ -215,7 +215,7 @@ def test_call_subagent_queues_review_candidate_when_trace_context_exists(tmp_pat
 
 
 def test_subagent_review_candidate_requires_trace_anchor(tmp_path) -> None:
-    from runtime.memory.learning.subagent_review import queue_subagent_review_candidate
+    from runtime.safety.evolution.subagent_review import queue_subagent_review_candidate
 
     result = queue_subagent_review_candidate(
         agent_id="researcher",

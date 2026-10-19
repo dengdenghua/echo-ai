@@ -171,7 +171,7 @@ def test_create_app_lifespan_exit_stops_every_scheduler_and_watcher(
 ) -> None:
     from runtime.execution.agents import AgentRegistry
     from runtime.platform.ui.app import create_app
-    from runtime.safety.experiments.scheduler import CamouflageScheduler
+    from runtime.safety.evolution.experiment_scheduler import CamouflageScheduler
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("ECHO_HOME", str(tmp_path / "home"))

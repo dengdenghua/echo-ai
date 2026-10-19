@@ -39,7 +39,7 @@ def register_gepa_run(_reflex_admin: Any, *, stack: Any) -> None:
         import os
 
         try:
-            from runtime.safety.recovery.optimizer_backends import (
+            from runtime.safety.evolution.optimizer_backends import (
                 OptimizerRunConfig,
                 optimize_with_backend,
             )
@@ -91,7 +91,7 @@ def register_gepa_run(_reflex_admin: Any, *, stack: Any) -> None:
             # operator to see "I tried it, here's why it didn't
             # produce anything".
             try:
-                from runtime.safety.recovery.gepa_runs import (
+                from runtime.safety.evolution.gepa_runs import (
                     get_default_store,
                     record_from_result,
                 )
@@ -169,7 +169,7 @@ def register_gepa_run(_reflex_admin: Any, *, stack: Any) -> None:
             from runtime.core.cerebrum.llm_planner import (
                 _load_planner_prompt,
             )
-            from runtime.safety.recovery.gepa_bridge import (
+            from runtime.safety.evolution.gepa_bridge import (
                 propose_for_losing_recipes,
             )
 

@@ -537,8 +537,8 @@ def generate_suggestions(
     Caller is responsible for feature-flag gating. Raises nothing;
     all failure modes come back in the dict.
     """
-    from runtime.memory.learning.deep_evolution import _llm_call_json
-    from runtime.memory.learning.turn_scoring import read_recent_scores
+    from runtime.safety.evolution.deep_evolution import _llm_call_json
+    from runtime.safety.evolution.turn_scoring import read_recent_scores
 
     base = base_dir or _default_base_dir()
     proj = str(Path(project_root).resolve())

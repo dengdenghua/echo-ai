@@ -1015,9 +1015,9 @@ def generate_all() -> tuple[dict[str, str], DocNode]:
         ),
         (
             "22-safety/recovery.md",
-            "Safety · Recovery",
-            "runtime/safety/recovery",
-            "MemoryConsolidator · SkillForge · KG updater · 从 trajectory 反哺记忆 / 技能 / 图谱。",
+            "Safety · Unified Self-evolution",
+            "runtime/safety/evolution",
+            "统一经验、评分、反思、Prompt / Skill / 团队优化，以及候选验证、灰度与回滚。",
         ),
         (
             "23-memory/journal.md",

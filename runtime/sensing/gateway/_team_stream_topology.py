@@ -102,8 +102,8 @@ async def _drive_team_topology(
         append_governance_audit_event,
     )
     from runtime.safety.evolution.subagent_policy import evaluate_agent_policy
+    from runtime.safety.evolution.topology_forge import load_registry
     from runtime.safety.organization import TeamTopology
-    from runtime.safety.organization.forge import load_registry
     from runtime.safety.organization.performance_log import record_run
     from runtime.safety.organization.team_runner import (
         TeamRunner,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from runtime.safety.recovery.gepa_optimizer import PromptCandidate
-from runtime.safety.recovery.native_turn_replay import (
+from runtime.safety.evolution.gepa_optimizer import PromptCandidate
+from runtime.safety.evolution.native_turn_replay import (
     TurnReplayCase,
     build_turn_replay_cases,
     replay_turn_candidates,

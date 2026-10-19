@@ -774,7 +774,7 @@ tier: "standard"
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def record_finished_trace(runtime, turn, status, reason, agent_id, engine, scope)` | Persist the terminal fact before deriving any learning from it. |
-| func | `def queue_finished_turn_review(runtime, turn, status, scope)` | Reuse evidence-derived reviews; never invent or automatically activate lessons. |
+| func | `def queue_finished_turn_review(*args, **kwargs)` | Transport compatibility adapter; learning belongs to self-evolution. |
 
 ### `_remote_backend_lifetime.py`
 

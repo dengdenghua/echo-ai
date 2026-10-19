@@ -70,7 +70,7 @@ def _run_evidence_method_contracts() -> list[dict[str, Any]]:
     checks.extend(
         _class_method_contracts(
             "ExperienceLedger",
-            "runtime.memory.learning.experience_ledger",
+            "runtime.safety.evolution.experience_ledger",
             "ExperienceLedger",
             [
                 "add_from_task_run_review",
@@ -84,7 +84,7 @@ def _run_evidence_method_contracts() -> list[dict[str, Any]]:
     checks.extend(
         _class_method_contracts(
             "ReviewQueue",
-            "runtime.memory.learning.review_queue",
+            "runtime.safety.evolution.review_queue",
             "ReviewQueue",
             [
                 "add_from_task_run_review",
@@ -97,7 +97,7 @@ def _run_evidence_method_contracts() -> list[dict[str, Any]]:
     checks.extend(
         _class_method_contracts(
             "PromotionApplier",
-            "runtime.memory.learning.promotion_applier",
+            "runtime.safety.evolution.promotion_applier",
             "PromotionApplier",
             [
                 "plan",

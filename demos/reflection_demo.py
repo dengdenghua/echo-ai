@@ -21,7 +21,7 @@ from runtime.platform.models import (
     BudgetLimits,
 )
 from runtime.safety.auth import TrustEngine
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     ConsolidatorConfig,
     ExtractorConfig,
     ForgeConfig,

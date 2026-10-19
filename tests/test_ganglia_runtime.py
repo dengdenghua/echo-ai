@@ -21,7 +21,7 @@ from runtime.platform.models import (
 )
 from runtime.safety.auth import TrustEngine
 from runtime.safety.evolution.canary import CanaryConfig, CanaryManager
-from runtime.safety.recovery.gepa_bridge import (
+from runtime.safety.evolution.gepa_bridge import (
     mark_winner_proposal_applied,
     record_winner_proposal_and_canary,
 )

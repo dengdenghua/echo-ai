@@ -76,33 +76,14 @@ def mount_agents(
             pass
     ctx.agent_registry = agent_registry
 
-    # Regeneration starts during ``wire_stack`` but this compatibility loader
-    # runs afterwards. Rebind so fitness/drift always resolve against the
-    # actual runtime registry, never ``stack.config.name``.
+    # The unified subsystem owns every worker's authoritative agent identity.
     if stack is not None:
         try:
-            from runtime.safety.recovery.scheduler import get_scheduler
+            from runtime.safety.evolution.service import get_evolution_service
 
-            get_scheduler().bind_agent_registry(agent_registry)
+            get_evolution_service().bind_agent_registry(agent_registry)
         except (ImportError, AttributeError, TypeError) as exc:
-            logging.getLogger(__name__).debug(
-                "regeneration agent registry bind skipped: %s",
-                exc,
-            )
-
-    # ``wire_stack`` runs before this fallback loader.  Rebind the evolution
-    # trigger after mounting so create_app(stack=..., agent_registry=None)
-    # still evaluates the actual registered agents instead of the app name.
-    if stack is not None and getattr(stack, "is_llm_planner", False):
-        try:
-            from runtime.safety.evolution.auto_trigger import get_auto_trigger
-
-            get_auto_trigger().bind_agent_registry(agent_registry)
-        except (ImportError, AttributeError, TypeError) as exc:
-            logging.getLogger(__name__).debug(
-                "evolution agent registry bind skipped: %s",
-                exc,
-            )
+            logging.getLogger(__name__).debug("evolution registry bind skipped: %s", exc)
 
     if agent_registry is not None:
         from runtime.sensing.gateway.agents_router import create_agents_router

@@ -8,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from runtime.memory.learning.turn_scoring import is_safe_agent_id
 from runtime.platform.io import (
     JsonMutation,
     TransactionalFileError,
@@ -17,6 +16,7 @@ from runtime.platform.io import (
 )
 from runtime.platform.process.paths import app_paths
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
+from runtime.safety.evolution.turn_scoring import is_safe_agent_id
 
 _LOG = logging.getLogger("echo.evolution.drift_monitor")
 _DRIFT_STATE_SCHEMA = "echo.evolution.drift_state.v1"
@@ -332,11 +332,11 @@ class DriftMonitor:
 
     def _check_genome_drift(self, now: str) -> DriftEvent | None:
         try:
-            from runtime.safety.recovery.genome_registry import GenomeRegistry
+            from runtime.safety.evolution.genome_registry import GenomeRegistry
 
             registry = GenomeRegistry(
                 config=__import__(
-                    "runtime.safety.recovery.genome_registry",
+                    "runtime.safety.evolution.genome_registry",
                     fromlist=["GenomeRegistryConfig"],
                 ).GenomeRegistryConfig(genome_dir=self.config.genome_dir),
             )
@@ -363,7 +363,7 @@ class DriftMonitor:
         return None
 
     def _check_score_drift(self, now: str) -> DriftEvent | None:
-        from runtime.memory.learning.turn_scoring import read_recent_scores
+        from runtime.safety.evolution.turn_scoring import read_recent_scores
 
         scores = read_recent_scores(
             self.agent_id,

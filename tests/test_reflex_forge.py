@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from runtime.safety.recovery.evolution_router import EvolutionRouter
-from runtime.safety.recovery.reflex_forge import (
+from runtime.safety.evolution.forge_router import EvolutionRouter
+from runtime.safety.evolution.reflex_forge import (
     ForgedReflexCandidate,
     ReflexForge,
     ReflexForgeConfig,

@@ -242,7 +242,7 @@ def test_missing_topology_recovers_with_bound_external_model(monkeypatch, engine
     from runtime.sensing.gateway._team_stream_topology import _drive_team_topology
     from tests.test_drive_swarm_mesh import _Emitter, _Log
 
-    monkeypatch.setattr("runtime.safety.organization.forge.load_registry", lambda: {})
+    monkeypatch.setattr("runtime.safety.evolution.topology_forge.load_registry", lambda: {})
     monkeypatch.setattr(
         "runtime.sensing.gateway._team_stream_topology.GatewayApprovalProvider",
         lambda *a, **kw: object(),

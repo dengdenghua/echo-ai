@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from runtime.safety.experiments import ABSplitter, Variant
+from runtime.safety.evolution import ABSplitter, Variant
 
 # ═══════════════════════════════════════════════════════════
 # Implementation note.

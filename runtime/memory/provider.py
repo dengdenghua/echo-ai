@@ -24,7 +24,7 @@ Contract notes
   removed) rather than pretending deletion happened.
 * ``reflect`` is the learning hook (review/promote). The journal adapter
   returns ``[]`` because the learning loop lives in
-  ``runtime.memory.learning``; a provider backed by the ledger can honour it.
+  ``runtime.safety.evolution``; a provider backed by the ledger can honour it.
 * ``scope`` is an opaque tenant/visibility token passed straight through to
   the implementation (the journal expects ``TenantScope``).
 """
@@ -114,7 +114,7 @@ class JournalMemoryProvider:
         return 0
 
     def reflect(self, trigger: str, *, scope: Any = None) -> list[Any]:
-        # Learning lives in runtime.memory.learning (experience_ledger /
+        # Learning lives in runtime.safety.evolution (experience_ledger /
         # review_queue / promotion_applier). A provider that wraps the
         # ledger can override this; the journal itself has no loop.
         return []

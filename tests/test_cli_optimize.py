@@ -194,7 +194,7 @@ class TestVariantsFromYaml:
 class TestExport:
     def test_export_yaml_is_reloadable(self, tmp_path: Path):
         from runtime.cli import run_optimize
-        from runtime.safety.experiments import load_variants_from_yaml
+        from runtime.safety.evolution import load_variants_from_yaml
 
         cfg = _write_llm_cfg(tmp_path)
         export_path = tmp_path / "winners.yaml"

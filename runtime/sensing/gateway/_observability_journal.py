@@ -271,7 +271,7 @@ def register_journal_endpoints(router: Any, ctx: ObservabilityContext) -> None:
         # Lazy imports · these pull in heavier analysis code that
         # doesn't need to be at module-load time.
         from runtime.memory.knowledge_graph import KnowledgeGraph
-        from runtime.safety.recovery import (
+        from runtime.safety.evolution import (
             KGUpdater,
             MemoryConsolidator,
             RecipeEvaluator,

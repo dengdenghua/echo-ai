@@ -5,9 +5,6 @@ from uuid import uuid4
 from runtime.execution.suckers import Skill, SkillRegistry
 from runtime.memory.journal import InMemoryJournal, journal_context
 from runtime.memory.knowledge_graph import KnowledgeGraph
-from runtime.memory.learning.experience_ledger import ExperienceLedger
-from runtime.memory.learning.promotion_applier import PromotionApplier
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.models import (
     ArmId,
     ExecutionResult,
@@ -18,20 +15,23 @@ from runtime.platform.models import (
     TrajectoryOutcome,
 )
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
-from runtime.safety.evolution.proposal_ledger import ProposalLedger
-from runtime.safety.recovery.kg_updater import KGUpdater
-from runtime.safety.recovery.memory_consolidator import (
+from runtime.safety.evolution.experience_ledger import ExperienceLedger
+from runtime.safety.evolution.kg_updater import KGUpdater
+from runtime.safety.evolution.memory_consolidator import (
     ConsolidatorConfig,
     MemoryConsolidator,
 )
-from runtime.safety.recovery.recipe_evaluator import (
+from runtime.safety.evolution.promotion_applier import PromotionApplier
+from runtime.safety.evolution.proposal_ledger import ProposalLedger
+from runtime.safety.evolution.recipe_evaluator import (
     RecipeEvaluator,
     RecipeEvaluatorConfig,
 )
-from runtime.safety.recovery.rule_extractor import ExtractorConfig, RuleExtractor
-from runtime.safety.recovery.skill_forge import ForgeConfig, SkillForge
-from runtime.safety.recovery.variant_evaluator import collect_variant_stats
-from runtime.safety.recovery.workflow_rewriter import RewriterConfig, WorkflowRewriter
+from runtime.safety.evolution.review_queue import ReviewQueue
+from runtime.safety.evolution.rule_extractor import ExtractorConfig, RuleExtractor
+from runtime.safety.evolution.skill_forge import ForgeConfig, SkillForge
+from runtime.safety.evolution.variant_evaluator import collect_variant_stats
+from runtime.safety.evolution.workflow_rewriter import RewriterConfig, WorkflowRewriter
 
 TENANT_A = TenantScope(tenant_id="tenant-a", actor_id="alice")
 TENANT_B = TenantScope(tenant_id="tenant-b", actor_id="bob")

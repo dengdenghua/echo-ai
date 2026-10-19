@@ -23,7 +23,7 @@ from typing import Any
 
 from runtime.execution.cron_store import cron_job_effective_scope
 from runtime.platform.process.session import Session
-from runtime.safety.recovery.tenant_scope import (
+from runtime.safety.evolution.tenant_scope import (
     AUTHORITATIVE_SCOPE_CONTEXT_KEY,
     authoritative_scope_context,
 )

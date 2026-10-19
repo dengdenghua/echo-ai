@@ -182,8 +182,8 @@ def queue_repair_route_promotion_candidates(
             },
         }
 
-    from runtime.memory.learning.review_queue import ReviewQueue
     from runtime.platform.process.paths import app_paths
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     queue = ReviewQueue(
         Path(review_queue_path) if review_queue_path is not None else app_paths().review_queue_path,
@@ -399,8 +399,8 @@ def _repair_route_governance(
     review_queue_path: str | Path | None,
 ) -> dict[str, dict[str, Any]]:
     try:
-        from runtime.memory.learning.review_queue import ReviewQueue
         from runtime.platform.process.paths import app_paths
+        from runtime.safety.evolution.review_queue import ReviewQueue
 
         queue = ReviewQueue(
             Path(review_queue_path)

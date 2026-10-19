@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from runtime.memory.learning.experience_ledger import ExperienceLedger
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
+from runtime.safety.evolution.experience_ledger import ExperienceLedger
 from runtime.safety.evolution.proposal_ledger import ProposalLedger, ProposalStatus
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 
 def _scope(tenant: str, actor: str, *, cross_tenant: bool = False) -> TenantScope:

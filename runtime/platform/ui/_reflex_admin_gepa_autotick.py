@@ -22,7 +22,7 @@ def register_gepa_autotick(_reflex_admin: Any, *, stack: Any) -> None:
     and bind the scheduler to the stack at boot time."""
 
     try:
-        from runtime.safety.recovery import forge_auto_tick
+        from runtime.safety.evolution import forge_auto_tick
 
         forge_auto_tick.bind_stack(stack)
         # Boot-time opt-in · the ECHO_FORGE_AUTO_PROMOTE_
@@ -40,7 +40,7 @@ def register_gepa_autotick(_reflex_admin: Any, *, stack: Any) -> None:
 
     @_reflex_admin.get("/api/evolution/gepa/auto-tick/status")
     def _gepa_auto_tick_status() -> dict:
-        from runtime.safety.recovery import forge_auto_tick
+        from runtime.safety.evolution import forge_auto_tick
 
         return {**forge_auto_tick.get_status(), "source": "gepa"}
 
@@ -60,8 +60,8 @@ def register_gepa_autotick(_reflex_admin: Any, *, stack: Any) -> None:
         any of them requires an ``X-Human-Approver`` header
         (prod mode) or emits a warning (dev mode).
         """
+        from runtime.safety.evolution import forge_auto_tick
         from runtime.safety.gene_locks import LockViolation, check_monotonic
-        from runtime.safety.recovery import forge_auto_tick
 
         # Read current thresholds to compute direction.
         status = forge_auto_tick.get_status()
@@ -98,7 +98,7 @@ def register_gepa_autotick(_reflex_admin: Any, *, stack: Any) -> None:
     def _gepa_auto_tick_disable() -> dict:
         """Signal the scheduler to stop. Returns immediately ·
         thread exits on its next stop-event check (≤ 5 s)."""
-        from runtime.safety.recovery import forge_auto_tick
+        from runtime.safety.evolution import forge_auto_tick
 
         return {**forge_auto_tick.disable(), "source": "gepa"}
 
@@ -115,7 +115,7 @@ def register_gepa_autotick(_reflex_admin: Any, *, stack: Any) -> None:
         with many recipes."""
         from dataclasses import asdict
 
-        from runtime.safety.recovery import forge_auto_tick
+        from runtime.safety.evolution import forge_auto_tick
 
         tr = forge_auto_tick.run_tick(
             apply=apply,

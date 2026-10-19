@@ -55,7 +55,7 @@ def _register_skill_approval_routes(router: APIRouter, d: EvolutionOpsDeps) -> N
 
         try:
             from runtime.execution.suckers import SkillTestsFailed
-            from runtime.safety.recovery.skill_forge import SkillForge
+            from runtime.safety.evolution.skill_forge import SkillForge
         except Exception as exc:  # noqa: BLE001
             return {
                 "ok": False,

@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from runtime.memory.hemolymph import embedding_backend as eb
-from runtime.memory.learning.experience_ledger import ExperienceLedger
+from runtime.safety.evolution.experience_ledger import ExperienceLedger
 
 # Opaque, mutually disjoint markers (no shared alphanumeric fragments).
 REC_MARK = "zqxalpha"
