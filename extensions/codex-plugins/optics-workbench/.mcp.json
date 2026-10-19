@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "optics_workbench": {
+      "command": "python",
+      "args": [
+        "-m",
+        "optics_workbench.mcp_server"
+      ],
+      "cwd": ".",
+      "startup_timeout_sec": 120,
+      "tool_timeout_sec": 120
+    }
+  }
+}

@@ -1,4 +1,4 @@
-"""Install the four user-owned CAD plugins into a local Echo deployment.
+"""Install the user's five CAD controls and two engineering skill toolboxes.
 
 The explicit --apply switch authorizes local MCP launch, inventory approval,
 plugin upgrades and startup configuration. No CAD tool is invoked.
@@ -24,7 +24,10 @@ PLUGINS = {
     "kicad-control": "kicad",
     "solidworks-control": "solidworks_local",
     "zemax-control": "zemax",
+    "lighttools-control": "lighttools",
 }
+SKILL_PLUGINS = ("projection-optics", "lens-toolkit")
+ALL_PLUGINS = (*PLUGINS, *SKILL_PLUGINS)
 
 
 def echo_entry(name: str, config: dict[str, Any]) -> dict[str, Any]:
@@ -42,7 +45,7 @@ def echo_entry(name: str, config: dict[str, Any]) -> dict[str, Any]:
 
 
 def merge_config(config: dict[str, Any], entries: list[dict[str, Any]]) -> dict[str, Any]:
-    """Keep unrelated servers and add only the four selected trust sources."""
+    """Keep unrelated servers and add only the selected trust sources."""
     result = dict(config)
     managed = {entry["name"] for entry in entries}
     result["mcp_servers"] = [
@@ -104,10 +107,18 @@ def install(
             mcp = json.loads((candidate / ".mcp.json").read_text("utf-8"))
             local = mcp["mcpServers"][server]
             target = plugin_root / plugin_id
-            if plugin_id == "zemax-control":
+            if plugin_id in {"zemax-control", "lighttools-control"}:
+                interpreter = (
+                    zemax_python
+                    if plugin_id == "zemax-control"
+                    else runtime_home / "runtimes/lighttools-control/Scripts/python.exe"
+                )
+                runner = (
+                    "scripts/run_server.py" if plugin_id == "zemax-control" else "run_server.py"
+                )
                 local.update(
-                    command=str(zemax_python),
-                    args=[str(target / "scripts/run_server.py")],
+                    command=str(interpreter),
+                    args=[str(target / runner)],
                     cwd=str(target),
                 )
             entry = echo_entry(server, local)
@@ -116,8 +127,8 @@ def install(
                 raise ValueError(f"Missing MCP interpreter: {entry['command']}")
             (candidate / ".mcp.json").write_text(json.dumps(mcp, indent=2) + "\n", "utf-8")
             probe = dict(entry)
-            if plugin_id == "zemax-control":
-                probe.update(args=[str(candidate / "scripts/run_server.py")], cwd=str(candidate))
+            if plugin_id in {"zemax-control", "lighttools-control"}:
+                probe.update(args=[str(candidate / runner)], cwd=str(candidate))
             client = PersistentStdioMCPClient(
                 MCPServerConfig.model_validate(probe),
                 connect_timeout_ms=entry["connect_timeout_ms"],
@@ -131,15 +142,21 @@ def install(
             entries.append(entry)
             print(f"{plugin_id}: discovered {len(inventories[server])} tools", flush=True)
 
+        for plugin_id in SKILL_PLUGINS:
+            shutil.copytree(
+                ROOT / "extensions/codex-plugins" / plugin_id,
+                staging / plugin_id,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
         proposed = merge_config(raw, entries)
         load_from_dict(proposed)
         candidates = {p["id"]: p for p in discover_codex_plugins([staging])}
-        for plugin_id in PLUGINS:
+        for plugin_id in ALL_PLUGINS:
             if not candidates[plugin_id]["smoke"]["ok"]:
                 raise ValueError(f"Plugin smoke failed: {plugin_id}")
-        # Preflight all four before making any installation changes.
+        # Preflight all packages before making any installation changes.
         installed = {p["id"]: p for p in discover_codex_plugins([plugin_root])}
-        for plugin_id in PLUGINS:
+        for plugin_id in ALL_PLUGINS:
             old = installed.get(plugin_id)
             new = candidates[plugin_id]
             if old and old["version"] == new["version"]:
@@ -148,7 +165,7 @@ def install(
                     raise ValueError(
                         f"Changed installed package requires a version bump: {plugin_id}"
                     )
-        for plugin_id in PLUGINS:
+        for plugin_id in ALL_PLUGINS:
             old = installed.get(plugin_id)
             if old and old["version"] == candidates[plugin_id]["version"]:
                 continue
@@ -176,7 +193,7 @@ def install(
             client.close()
 
     capabilities = CapabilityRegistry()
-    for plugin_id in PLUGINS:
+    for plugin_id in ALL_PLUGINS:
         item = capabilities.get(plugin_id)
         if item is None:
             raise RuntimeError(f"Installed plugin not discoverable: {plugin_id}")
@@ -220,7 +237,7 @@ def main() -> None:
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     if not args.apply:
-        parser.error("Pass --apply to install and approve the four local CAD MCP inventories")
+        parser.error("Pass --apply to install and approve the local engineering packages")
     echo_home = args.echo_home.resolve() if args.echo_home else None
     runtime_home = echo_home or Path(os.environ.get("ECHO_HOME") or Path.home() / ".echo")
     zemax_python = args.zemax_python or runtime_home / "runtimes/zemax-control/Scripts/python.exe"

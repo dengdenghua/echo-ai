@@ -47,6 +47,7 @@ tier: "standard"
 | `_computer_observe_routes.py` | Status, activity, screenshot, and UIA observation routes for computer automation. |
 | `_computer_plan_routes.py` | Preview, plan, ground, and vision routes for computer automation. |
 | `_config_endpoints.py` | Endpoint handlers for the config router. |
+| `_config_endpoints_codebuddy.py` | Local CodeBuddy account helpers; the official CLI owns credentials. |
 | `_config_endpoints_codex.py` | Principal-scoped Coder/Codex account and model control endpoints. |
 | `_config_endpoints_codex_prewarm.py` | ``POST /api/codex/prewarm``: warm the App Server for the next Codex chat reply. |
 | `_config_endpoints_custom_models.py` | Custom-model lifecycle endpoints for the config router. |

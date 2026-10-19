@@ -1,0 +1,4 @@
+interface:
+  display_name: "光学知识与个人记忆"
+  short_description: "带来源与适用条件的光学学习沉淀、记忆检索与迁移"
+  default_prompt: "使用 $optical-knowledge-memory 续接当前光学学习，同步图谱、个人记忆、专题技能和便携包，保留来源与验证缺口。"

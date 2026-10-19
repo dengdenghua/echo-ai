@@ -1,6 +1,6 @@
-# Zemax Control for Echo
+# Zemax Control for Codex
 
-本地 Echo 插件：Skill + 32 个 MCP 工具，通过官方 ZOS-API 操作 OpticStudio。
+本地 Codex 插件：Skill + 32 个 MCP 工具，通过官方 ZOS-API 操作 OpticStudio。
 
 ## 使用
 
@@ -14,13 +14,20 @@ MCP 启动和工具发现不需要 Zemax；实际建模、分析和优化需要�
 
 ## 本机运行环境
 
-由 Echo 仓库 `tools/install_personal_cad_plugins.py` 安装。服务器与技能位于
-`<ECHO_HOME>/data/plugins/codex/zemax-control`；独立 Python 环境位于
-`<ECHO_HOME>/runtimes/zemax-control`，无需 Codex 安装目录。
+独立 Python 环境：`C:\Users\Administrator\.codex\runtimes\zemax-control`。
+`.mcp.json` 使用本机绝对路径，服务器代码来自此插件的源目录。
+移动目录或分享给另一台机器后，需要重新配置运行环境，不能直接复用这些路径。
 
-先创建该 Python 环境，再用 uv 或 pip 安装本包 `requirements-lock.txt`。
-源包的 `.mcp.json` 是相对路径模板，安装器会生成本机绝对路径并保留 600 秒工具超时。
-实际命令、回滚和验收方法见 Echo 仓库 `docs/guide/personal-cad-plugins.md`。
+在安装了 Python 的目标 Windows 机器上：
+
+```powershell
+python -m venv "$env:USERPROFILE\.codex\runtimes\zemax-control"
+& "$env:USERPROFILE\.codex\runtimes\zemax-control\Scripts\python.exe" -m pip install -r requirements-lock.txt
+& "$env:USERPROFILE\.codex\runtimes\zemax-control\Scripts\python.exe" scripts/configure.py
+```
+
+如果注册表未登记 Zemax 数据目录，可向 configure.py 添加 `--zemax-root '实际数据目录'`。
+配置完成后从个人插件市场重新安装插件，并在新任务中使用。
 
 ## 能力与限制
 

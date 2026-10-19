@@ -1,6 +1,6 @@
 {
   "name": "blender-control",
-  "version": "0.1.0+echo.20260925",
+  "version": "0.1.0+echo.20261019.1",
   "description": "本机 Blender 自动化：场景检查、对象定位、装配编辑、截图、渲染和格式导出。",
   "author": {
     "name": "Local developer"

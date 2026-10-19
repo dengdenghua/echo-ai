@@ -51,4 +51,4 @@ description: Create, inspect, and edit KiCad schematics and PCBs on this Windows
 
 ## Echo integration
 
-In Echo, discover the registered tools with `search_capabilities` before use. The MCP tool names carry the `mcp_kicad_` prefix; all arguments and operating rules above still apply. Read this skill and its references before changing a document.
+In Echo, discover the registered tools before use. MCP names carry the `mcp_kicad_` prefix. Read this skill and its references before changing a document; the tool schemas and operation rules above still apply.

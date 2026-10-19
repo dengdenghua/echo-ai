@@ -360,6 +360,7 @@ def _load_selected_plugin_actions(
     *,
     goal: str,
     context: Mapping[str, Any],
+    role_skills: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     """Load only prompt actions from explicitly selected Codex plugins.
 
@@ -369,7 +370,17 @@ def _load_selected_plugin_actions(
     can become an allowlist grant.
     """
 
-    selected = _selected_plugin_ids(goal, context)
+    explicit = _selected_plugin_ids(goal, context)
+    # Role-owned plugin actions are also explicit bindings. Loading their package
+    # must not grant its other actions; only user-selected packages grant siblings.
+    bound = tuple(
+        dict.fromkeys(
+            name.split("__", 1)[0]
+            for name in role_skills
+            if "__" in name and _SAFE_PLUGIN_ID.fullmatch(name.split("__", 1)[0])
+        )
+    )
+    selected = tuple(dict.fromkeys((*explicit, *bound)))[:_MAX_SELECTED_PLUGINS]
     if not selected:
         return ()
     try:
@@ -391,6 +402,8 @@ def _load_selected_plugin_actions(
             continue
         expected_source = f"plugin://{load.plugin_id}/"
         for action in (*load.loaded_actions, *load.already_registered):
+            if load.plugin_id not in explicit and action not in role_skills:
+                continue
             if action in actions:
                 continue
             try:
@@ -514,6 +527,7 @@ class HostToolBroker:
                 registry,
                 goal=goal,
                 context=self._context,
+                role_skills=tuple(coerce_skill_names(getattr(agent, "extra_skills", ()))),
             )
             if plugin_actions:
                 existing_grants = coerce_skill_names(self._context.get("extra_tool_allowlist"))

@@ -1,0 +1,4 @@
+interface:
+  display_name: "投影光机系统设计"
+  short_description: "建立投影光机系统预算和器件接口，按需要组合独立设计技能"
+  default_prompt: "使用 $projection-system-design，处理当前光学任务并给出适用条件、计算或验证依据。"

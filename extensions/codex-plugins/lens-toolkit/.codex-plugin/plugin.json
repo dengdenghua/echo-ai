@@ -1,0 +1,13 @@
+{
+  "name": "lens-toolkit",
+  "version": "0.1.0+echo.20261019",
+  "description": "Source-backed lens evidence search, patent resource research and reproducible prescription handoff.",
+  "skills": "./skills/",
+  "requires_local_executor": true,
+  "interface": {
+    "displayName": "镜头知识与处方工具箱",
+    "shortDescription": "检索镜头证据、专利案例，准备保留指纹的处方副本",
+    "developerName": "Personal",
+    "category": "Productivity"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "lighttools": {
+      "command": "python",
+      "args": [
+        "run_server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "OSG_LICENSE_FILE",
+        "SNPSLMD_LICENSE_FILE",
+        "LM_LICENSE_FILE"
+      ],
+      "env": {
+        "LIGHTTOOLS_HOME": "C:\\Program Files\\Optical Research Associates\\LightTools 2026",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONUTF8": "1"
+      },
+      "startup_timeout_sec": 30,
+      "tool_timeout_sec": 120
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "solidworks-control",
-  "version": "0.2.0+echo.20260925",
+  "version": "0.2.0+echo.20261019.1",
   "description": "本机 SolidWorks 自动化：声明式建模、文档检查、装配组件、截图、CAD 导出与串行任务控制。",
   "author": {
     "name": "Local developer"

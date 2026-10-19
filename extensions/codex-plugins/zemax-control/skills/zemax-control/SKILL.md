@@ -23,6 +23,10 @@ Set or inspect aperture, fields, wavelengths, materials and units before evaluat
 
 Release only variables relevant to the design, configure the merit function and manufacturing constraints, record a baseline, then optimize. Recheck image quality across all requested fields and wavelengths; a lower merit value alone does not establish that specifications are met. Use analysis tools to obtain actual results and report assumptions and unverified requirements.
 
+`zemax_optimize` supports local native counts 1/5/10/50 or 0 for automatic; other counts are rejected instead of silently becoming one cycle. `timeout_seconds` defaults to 60 and is capped at 300. Check `completed` and `timed_out`: timeout requests native cancellation and retains partial changes. Save stage checkpoints explicitly. Native COM/.NET hangs can outlast this API timeout; a transport timeout is not evidence that optimization stopped. A still-running tool blocks subsequent guarded operations; inspect its state rather than retrying or killing unrelated application processes.
+
+After replacing glass or changing the prism path, invalidate earlier image-quality results. Recheck the requested frequency, sagittal/tangential curves and worst field independently of merit improvement before transferring a candidate into the assembled model.
+
 The bundled upstream tools cover LDE edits, spot RMS, analysis series, optimization, MCE, TDE, batch rays and NSC detector data. Discover tool schemas before calling them. For missing API operations, `zemax_eval` executes Python with `TheSystem`, `TheApplication`, `ZOSAPI`, and `z`; assign a JSON-serializable value to `result`. Use it only within the current task. It is arbitrary local Python execution, not a sandbox. Verify uncertain API members using installed version documentation.
 
 Save final lens files to an explicit absolute output path and verify their existence. Return actual analyses and paths; distinguish protocol-level validation from real optical validation. Do not describe upstream author test claims as tests performed on this machine.
@@ -33,4 +37,4 @@ Read [references.md](references.md) for official docs and source provenance. Plu
 
 ## Echo integration
 
-In Echo, discover the registered tools with `search_capabilities` before use. The MCP tool names carry the `mcp_zemax_` prefix; all arguments and operating rules above still apply. Read this skill and its references before changing a document.
+In Echo, discover the registered tools before use. MCP names carry the `mcp_zemax_` prefix. Read this skill and its references before changing a document; the tool schemas and operation rules above still apply.

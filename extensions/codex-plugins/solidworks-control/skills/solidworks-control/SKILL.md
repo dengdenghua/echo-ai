@@ -5,7 +5,44 @@ description: Control this Windows machine's SolidWorks session through the bundl
 
 # SolidWorks 本地控制
 
+## Optional isolated-instance mode (installed 2026-10-15)
+
+The user requested and validated opt-in parallel SolidWorks instances. See
+[parallel runtime instructions](D:/AI/SolidWorksMCP/PARALLEL.md) before using
+`sw_parallel_*` or `parallel_cli.py`. Those tools bind an exact ROT PID plus
+creation time, reserve disjoint workspaces, and serialize within each instance.
+Two registered instances can work concurrently. The pool holds the legacy queue
+barrier until all its sessions are released; legacy jobs must finish first.
+
+The single-instance admission and machine-wide serialization rules below remain
+the default for legacy `sw_*` tools and existing custom COM scripts. For the new
+parallel entry point, use its explicit-identity admission gate instead; numerical
+memory limits are unchanged and all SW processes count toward them. Never bypass
+either gate or use `GetActiveObject` inside a purported parallel custom script.
+Old scripts do not gain concurrency automatically. Flow, global settings and
+neutral import remain on the exclusive legacy path. No force termination is
+permitted. Normal ExitApp is limited to an empty instance created by the pool.
+
 ## Connect and identify the document
+
+- Before COM work, run the shared performance gate using
+  `D:\AI\SolidWorksMCP\.venv\Scripts\python.exe` and
+  `C:\Users\Administrator\.codex\skills\solidworks-agentic-automation\scripts\sw_performance.py`.
+  Read the shared [performance recycling rules](C:/Users/Administrator/.codex/skills/solidworks-agentic-automation/references/performance-recycling.md).
+  Stop new loads/rebuilds/exports on a blocked gate. It is safe to inspect OS metrics
+  while a CAD job runs; do not run an additional COM session probe then.
+- Keep at most two task-owned independent windows and recycle each completed case
+  before opening the next revision. Loaded assembly dependencies are counted
+  separately. Use the shared scoped recycler inside the serialized CAD job;
+  check child dirty flags and saved checkpoints, not just the assembly save flag.
+  `sw_close_clean` alone is insufficient to establish that an assembly's children
+  are safe to close. Never discard old/other-task unsaved models to reclaim RAM.
+- Recheck child save flags after the LAST review/rebuild, even when the assembly
+  is already saved. Use the shared post-review checkpoint sequence before recycling.
+- Label presented screenshots with revision, view and candidate/verified status.
+  Keep baseline/older views on the left and newer views on the right; distinguish
+  trial branches from the selected native deliverable. Verify appearance from the
+  saved native view, not only from successful material-property API calls.
 
 - Read `sw_health` first: it reports SW/importer/solver processes and the job lock without
   touching COM, so it stays safe during a long import or solve.
@@ -110,6 +147,7 @@ If a conversation has not loaded the plugin MCP yet, the CLI fallback is:
 
 Pass parameters as a UTF-8 JSON file with `--args-file` and poll with `status --job-id ID`.
 Upstream projects this work was compared against: [references/upstream-research.md](references/upstream-research.md).
+
 ## Echo integration
 
-In Echo, discover the registered tools with `search_capabilities` before use. The MCP tool names carry the `mcp_solidworks_local_` prefix; all arguments and operating rules above still apply. Read this skill and its references before changing a document.
+In Echo, discover the registered tools before use. MCP names carry the `mcp_solidworks_local_` prefix. Read this skill and its references before changing a document; the tool schemas and operation rules above still apply.

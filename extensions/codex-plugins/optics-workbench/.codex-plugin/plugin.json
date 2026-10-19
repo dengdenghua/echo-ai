@@ -1,0 +1,16 @@
+{
+  "name": "optics-workbench",
+  "version": "0.4.0+echo.20261019.1",
+  "description": "Local optical evidence graph, personal engineering memory and parameter prototypes. Private data configured separately.",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "光学工作台",
+    "shortDescription": "个人光学图谱、工程记忆与参数原型",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "projection-optics",
+  "version": "0.3.1",
+  "description": "Independent projection-optics design skills with evidence graph and personal-memory maintenance workflows.",
+  "keywords": [
+    "optics",
+    "projection",
+    "source-architecture",
+    "collimator",
+    "etendue",
+    "skills"
+  ]
+}

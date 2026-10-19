@@ -1,0 +1,4 @@
+interface:
+  display_name: "光学验证与公差"
+  short_description: "建立设计验收矩阵，验证采样、公差和热态，并区分仿真与实测"
+  default_prompt: "使用 $optical-design-verification，处理当前光学任务并给出适用条件、计算或验证依据。"

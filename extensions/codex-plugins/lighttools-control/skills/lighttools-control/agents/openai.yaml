@@ -1,0 +1,6 @@
+interface:
+  display_name: "LightTools Control"
+  short_description: "Control LightTools models, ray tracing, and receiver data"
+  default_prompt: "Use $lighttools-control:lighttools-control to inspect my LightTools model and complete the requested optical modeling or analysis."
+policy:
+  allow_implicit_invocation: true

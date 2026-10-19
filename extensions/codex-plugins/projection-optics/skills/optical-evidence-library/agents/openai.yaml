@@ -1,0 +1,4 @@
+interface:
+  display_name: "光学资料与模型检索"
+  short_description: "按需检索私人光学资料和模型，保留页码、单元格与验证范围"
+  default_prompt: "使用 $optical-evidence-library，处理当前光学任务并给出适用条件、计算或验证依据。"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "投影棱镜与合光设计"
+  short_description: "定义棱镜端口与三维法向，检查全光锥临界角、膜系和空气隙"
+  default_prompt: "使用 $projection-prism-design，处理当前光学任务并给出适用条件、计算或验证依据。"

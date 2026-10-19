@@ -1,0 +1,4 @@
+interface:
+  display_name: "复眼与匀光设计"
+  short_description: "设计复眼单元与双阵列共轭，核对面角接受、匀光和装配误差"
+  default_prompt: "使用 $flyeye-design，处理当前光学任务并给出适用条件、计算或验证依据。"
