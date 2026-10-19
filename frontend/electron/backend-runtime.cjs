@@ -16,6 +16,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const { requirePackagedOpenCode } = require("./opencode-runtime.cjs");
+const { terminateBackendChild } = require("./backend-process.cjs");
 
 const PACKAGED_CODEX_VERSION = "0.162.0";
 const IS_WINDOWS = process.platform === "win32";
@@ -774,7 +775,7 @@ function killBackend() {
   const child = backendChild;
   backendChild = null;
   try {
-    child.kill();
+    terminateBackendChild(child);
   } catch (err) {
     console.warn("[echo] backend kill failed:", err.message);
   }
