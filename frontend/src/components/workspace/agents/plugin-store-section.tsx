@@ -67,6 +67,13 @@ const PLUGIN_ICONS: Record<string, LucideIcon> = {
 const ACTION_BUTTON =
   "absolute right-2 top-1/2 flex h-7 -translate-y-1/2 items-center gap-1 px-2 text-micro font-medium";
 
+// Retired store entries remain manageable for existing installations.
+const RETIRED_STORE_PLUGINS = new Set([
+  "mx2025_viewer",
+  "paper_trading_replica",
+  "whale_eye",
+]);
+
 function pluginTitle(plugin: HubPluginInfo, copy: PluginStoreCopy): string {
   return (
     copy.plugins[plugin.id]?.name ||
@@ -212,7 +219,11 @@ export function PluginStoreSection() {
     onError: (failure) => toast.error(workbenchActionErrorMessage(failure)),
     onSettled: () => client.invalidateQueries({ queryKey: ["plugins", "hub"] }),
   });
-  const optional = plugins.filter((plugin) => plugin.optional === true);
+  const optional = plugins.filter(
+    (plugin) =>
+      plugin.optional === true &&
+      !(plugin.installed === false && RETIRED_STORE_PLUGINS.has(plugin.id)),
+  );
   if (!error && optional.length === 0) return null;
   return (
     <div className="mb-6" data-testid="plugin-store">
