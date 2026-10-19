@@ -1067,7 +1067,9 @@ def test_versioned_feature_is_locked_only_where_the_executable_defines_it(
     from runtime.execution.codex_backend import executable_policy as policy_module
 
     supported: dict[str, frozenset[str] | None] = {
-        "new-codex": frozenset({"apps", "api_key_model_discovery"}),
+        "new-codex": frozenset(
+            {"apps", "api_key_model_discovery", "api_key_cyber_access_programs"}
+        ),
         "old-codex": frozenset({"apps"}),
     }
     monkeypatch.setattr(
@@ -1087,6 +1089,7 @@ def test_versioned_feature_is_locked_only_where_the_executable_defines_it(
     )
     newer_features = _config(newer)["features"]
     assert newer_features["api_key_model_discovery"] is False  # type: ignore[index]
+    assert newer_features["api_key_cyber_access_programs"] is False  # type: ignore[index]
     newer.validate_effective_config({"config": _config(newer)})
 
     # An older build would reject the unknown key under --strict-config.
@@ -1100,6 +1103,7 @@ def test_versioned_feature_is_locked_only_where_the_executable_defines_it(
             codex_executable=executable,
         )
         assert "api_key_model_discovery" not in _config(older)["features"]  # type: ignore[operator]
+        assert "api_key_cyber_access_programs" not in _config(older)["features"]  # type: ignore[operator]
 
     # If detection missed it and the build enables it by default, fail closed.
     drifted = copy.deepcopy(_config(older))

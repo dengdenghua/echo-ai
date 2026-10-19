@@ -43,6 +43,7 @@ LOCKED_OFF_FEATURES = (
 # ``features.<name>`` key under --strict-config. If one is enabled but was not
 # written, validate_effective_config still rejects it as unknown.
 VERSIONED_LOCKED_OFF_FEATURES = (
+    "api_key_cyber_access_programs",
     "api_key_model_discovery",
     "skill_mcp_dependency_install",
     "skill_search",

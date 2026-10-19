@@ -363,6 +363,19 @@ def test_terminal_error_fails_without_retry() -> None:
     ]
 
 
+def test_revoked_routing_auth_has_actionable_status_and_terminal_message() -> None:
+    error = {"codexErrorInfo": "other", "message": "workspace routing discovery unauthorized (401)"}
+    state = CodexEventState()
+    pending = translate_notification(_notification("error", error=error, willRetry=True), state)
+    assert pending[0]["type"] == "commentary_delta"
+    assert "重新授权" in pending[0]["delta"]
+    failed = translate_notification(_notification("error", error=error, willRetry=False), state)
+    assert failed[0]["type"] == "react_error"
+    assert "HTTP 401" in failed[0]["message"]
+    assert "重新授权" in failed[0]["message"]
+    assert "codexErrorInfo" not in failed[0]["message"]
+
+
 @pytest.mark.parametrize("public_message", [MODEL_UNAVAILABLE_MESSAGE, OPENCODE_REQUIRED_MESSAGE])
 def test_model_error_and_completion_have_plain_public_message(public_message) -> None:
     wrapped = {

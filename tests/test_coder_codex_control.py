@@ -649,8 +649,16 @@ async def test_shared_principal_never_inherits_host_chatgpt_login(tmp_path: Path
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "routing_error",
+    [
+        "workspace routing discovery failed",
+        "workspace routing discovery unauthorized (401)",
+    ],
+)
 async def test_revoked_chatgpt_credential_is_quarantined_and_reported_as_signed_out(
     tmp_path: Path,
+    routing_error: str,
 ) -> None:
     """A provider-revoked token must not turn into an opaque account/read 503.
 
@@ -662,9 +670,7 @@ async def test_revoked_chatgpt_credential_is_quarantined_and_reported_as_signed_
     retired and the principal is reported as plainly signed out.
     """
 
-    factory = _ControlFactory(
-        account_read_error=RemoteError(-32603, "workspace routing discovery failed")
-    )
+    factory = _ControlFactory(account_read_error=RemoteError(-32603, routing_error))
     service = CodexAccountService(
         tmp_path / "state",
         command=_FAKE_COMMAND,

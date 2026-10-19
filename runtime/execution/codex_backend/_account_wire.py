@@ -23,7 +23,13 @@ def _is_unusable_account_error(exc: BaseException) -> bool:
     return (
         isinstance(exc, RemoteError)
         and exc.code == -32603
-        and "workspace routing discovery failed" in exc.message.casefold()
+        and any(
+            marker in exc.message.casefold()
+            for marker in (
+                "workspace routing discovery failed",
+                "workspace routing discovery unauthorized (401)",
+            )
+        )
     )
 
 

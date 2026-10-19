@@ -29,6 +29,18 @@ from .types import JsonObject, Notification
 
 _MAX_PREVIEW_CHARS = 8_000
 _MAX_ERROR_CHARS = 4_000
+_ACCOUNT_RECONNECT_MESSAGE = "Codex 登录凭据已失效，请在“模型与账号”中重新授权（HTTP 401）。"
+
+
+def _account_rejected(value: Any) -> bool:
+    detail = _text(value, limit=_MAX_ERROR_CHARS).casefold()
+    return "workspace routing discovery unauthorized (401)" in detail or "token_revoked" in detail
+
+
+def _retry_status(params: JsonObject) -> str:
+    if _account_rejected(params.get("error") or params.get("message")):
+        return "Codex 登录验证未通过，正在尝试恢复；若仍失败，请在“模型与账号”中重新授权。"
+    return "当前模型服务遇到暂时性错误，正在自动重试。"
 
 
 def _provider_error_message(value: Any) -> str | None:
@@ -54,6 +66,8 @@ def _provider_error_message(value: Any) -> str | None:
 
 
 def _public_error_text(value: Any) -> str:
+    if _account_rejected(value):
+        return _ACCOUNT_RECONNECT_MESSAGE
     detail = _text(value, limit=_MAX_ERROR_CHARS)
     if TOOL_CATALOG_ERROR in detail or TOOL_CATALOG_MESSAGE in detail:
         return TOOL_CATALOG_MESSAGE
@@ -464,7 +478,7 @@ def _translate_notification(
             return [
                 {
                     "type": "commentary_delta",
-                    "delta": "当前模型服务遇到暂时性错误，正在自动重试。",
+                    "delta": _retry_status(params),
                     "public_status": True,
                     "start_new_segment": True,
                 }
