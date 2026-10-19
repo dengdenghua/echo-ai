@@ -144,7 +144,7 @@ export function ChatComposer({
   permissionMode,
   reasoningEffort,
   modelProfileControl = false,
-  executionEngine = "echo",
+  executionEngine = "echo", onExecutionEngineChange,
   executionEngineControl,
   onPermissionModeChange,
   onReasoningEffortChange,
@@ -2061,7 +2061,7 @@ export function ChatComposer({
                 aria-hidden="true"
               />
             ) : null}
-            <ComposerModelControl
+            <ComposerModelControl key={threadId} onExecutionEngineChange={onExecutionEngineChange}
               executionEngine={executionEngine} modelProfileControl={modelProfileControl}
               models={pickerModels} disabled={disabled || status === "streaming"}
               modelName={modelName} selectedValue={selectedModel?.name} onModelChange={onModelChange}

@@ -7,7 +7,9 @@ as the existing OpenCode integration.
 Install the CLI with `npm install -g @tencent-ai/codebuddy-code`, then run
 `codebuddy --setting-sources local` (or `codebuddy.cmd` in PowerShell), complete
 `/login`, and choose the Chinese site. In Echo,
-select **CodeBuddy** from the conversation's execution engine menu. The model
+select a **CodeBuddy 官方积分** model from the conversation's unified model menu.
+The selection binds the engine and model together. Codex, OpenCode and configured
+API models appear in that same menu with their account/billing source. The model
 menu uses the installed CLI's advertised official models, excluding custom-local
 models. **Auto** follows the official CLI default. Explicit model selections are stored as `codebuddy/<model-id>`.
 

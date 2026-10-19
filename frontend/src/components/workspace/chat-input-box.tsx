@@ -145,6 +145,8 @@ export interface ChatInputBoxProps {
    * selectable: Echo uses per-thread model_name, Codex uses its scoped
    * server profile. */
   executionEngine?: "echo" | "codex" | "opencode" | "codebuddy";
+  /** A unified model pick binds both model and execution engine. */
+  onExecutionEngineChange?: (engine: "echo" | "codex" | "opencode" | "codebuddy") => void;
   /** That engine can answer now; null while checking. Hides the first-run line. */
   executionEngineReady?: boolean | null;
   executionEngineControl?: ReactNode;

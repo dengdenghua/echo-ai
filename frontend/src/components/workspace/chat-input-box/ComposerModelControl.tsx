@@ -2,10 +2,12 @@ import type { ChatInputBoxProps } from "../chat-input-box";
 import { CodeBuddyModelControl } from "../codebuddy-model-control";
 import { CoderEngineControl } from "../coder-engine-control";
 import { ModelPicker, type PickerModel } from "../model-picker";
+import { UnifiedModelControl } from "../unified-model-control";
 
 type Props = Pick<
   ChatInputBoxProps,
   | "executionEngine"
+  | "onExecutionEngineChange"
   | "modelProfileControl"
   | "modelName"
   | "onModelChange"
@@ -21,6 +23,7 @@ type Props = Pick<
 
 export function ComposerModelControl({
   executionEngine,
+  onExecutionEngineChange,
   modelProfileControl,
   modelName,
   onModelChange,
@@ -32,6 +35,19 @@ export function ComposerModelControl({
   selectedValue,
   onNativeModelChange,
 }: Props) {
+  if (onExecutionEngineChange)
+    return (
+      <UnifiedModelControl
+        models={models}
+        engine={executionEngine ?? "echo"}
+        value={modelName}
+        disabled={disabled}
+        onEngineChange={onExecutionEngineChange}
+        onChange={onModelChange}
+        reasoningEffort={reasoningEffort}
+        onReasoningEffortChange={onReasoningEffortChange}
+      />
+    );
   return executionEngine === "codebuddy" ? (
     <CodeBuddyModelControl
       value={modelName}

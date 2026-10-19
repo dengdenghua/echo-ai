@@ -2,7 +2,6 @@ import {
   ChatInputBox,
   type ChatInputBoxProps,
 } from "@/components/workspace/chat-input-box";
-import { ExecutionEnginePicker } from "@/components/workspace/execution-engine-picker";
 import type { AgentModeName } from "@/components/workspace/mode-selector";
 import type { resolveGroupProjectCapabilityAction } from "@/components/workspace/realtime/group-project-capability";
 import {
@@ -171,16 +170,8 @@ export function RealtimeChatInput({
       // native roles serialize the thread's model source.
       modelProfileControl={!embeddedDesignChat}
       executionEngine={selectedExecutionEngine}
+      onExecutionEngineChange={!embeddedDesignChat ? executionSelection.setPreference : undefined}
       executionEngineReady={executionSelection.engineReady}
-      executionEngineControl={
-        !embeddedDesignChat ? (
-          <RealtimeExecutionEngineControl
-            executionSelection={executionSelection}
-            selectedExecutionEngine={selectedExecutionEngine}
-            disabled={thread.isLoading}
-          />
-        ) : undefined
-      }
       threadId={threadId}
       draftStorageKey={isNewThread ? (welcomeTeamId ? `team:${welcomeTeamId}` : "__new__") : threadId}
       isGroupConversation={isGroupConversation}
@@ -269,42 +260,6 @@ export function RealtimeChatInput({
           ? "border-border-subtle bg-card/90 shadow-none"
           : undefined
       }
-    />
-  );
-}
-
-function RealtimeExecutionEngineControl({
-  executionSelection,
-  selectedExecutionEngine,
-  disabled,
-}: {
-  executionSelection: ExecutionSelection;
-  selectedExecutionEngine: ExecutionSelection["engine"];
-  disabled: boolean;
-}) {
-  return (
-    <ExecutionEnginePicker
-      codebuddyAvailable={executionSelection.codebuddyAvailable}
-      codebuddyUnavailableReason={executionSelection.codebuddyUnavailableReason}
-      value={executionSelection.preference}
-      resolvedEngine={selectedExecutionEngine}
-      codexCapabilityChecks={executionSelection.codexCapabilityChecks}
-      opencodeCapabilityChecks={executionSelection.opencodeCapabilityChecks}
-      onChange={executionSelection.setPreference}
-      codexAvailable={
-        executionSelection.codexAvailable
-      }
-      opencodeAvailable={
-        executionSelection.opencodeAvailable
-      }
-      opencodeUnavailableReason={
-        executionSelection.opencodeUnavailableReason
-      }
-      unavailableReason={
-        executionSelection.codexUnavailableReason
-      }
-      disabled={disabled}
-      checking={executionSelection.engineChecking}
     />
   );
 }

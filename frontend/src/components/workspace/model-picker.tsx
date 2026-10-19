@@ -372,6 +372,10 @@ export interface ModelPickerProps {
   /** Render prop for a custom trigger. */
   renderTrigger?: (selected: PickerModel | undefined) => ReactNode;
   showSettingsLink?: boolean;
+  showSources?: boolean;
+  showAutoOption?: boolean;
+  footer?: ReactNode;
+  disabled?: boolean;
   engineSource?: "opencode";
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -386,6 +390,10 @@ export function ModelPicker({
   onReasoningEffortChange,
   renderTrigger,
   showSettingsLink = true,
+  showSources = false,
+  showAutoOption = true,
+  footer,
+  disabled,
   engineSource,
   open: controlledOpen,
   onOpenChange,
@@ -604,6 +612,8 @@ export function ModelPicker({
             <span aria-hidden="true" className="text-muted-foreground">
               {m.entry_id === "opencode-go" ? "Go" : "Zen"}
             </span>
+          ) : showSources ? (
+            <span className="max-w-28 truncate text-xs text-muted-foreground">{m.source_display_name}</span>
           ) : undefined
         }
         onSelect={() => handleSelect(selectKey)}
@@ -623,6 +633,7 @@ export function ModelPicker({
         "focus-visible:ring-2 focus-visible:ring-ring/50",
       )}
       aria-label={t.modelPicker.selectModel}
+      disabled={disabled}
       title={
         selectedIsFree
           ? `${selectedDisplayLabel} · ${t.modelPicker.freeBadge}`
@@ -778,7 +789,7 @@ export function ModelPicker({
           </div>
         )}
         {/* Echo routing is not a concrete OpenCode provider model. */}
-        {!engineSource && (
+        {!engineSource && showAutoOption && (
           <div className="p-1 pb-0">
             <PickerRow
               label={
@@ -908,6 +919,7 @@ export function ModelPicker({
               </button>
             </div>
           )}
+          {footer}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
