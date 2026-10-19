@@ -1,7 +1,7 @@
 ---
 implementation_status: implemented
 implemented_in:
-  - runtime/safety/recovery/memory_consolidator.py
+  - runtime/safety/evolution/memory_consolidator.py
 last_verified: 2026-06-25
 ---
 

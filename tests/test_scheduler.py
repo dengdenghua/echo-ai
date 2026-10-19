@@ -318,7 +318,7 @@ class TestIntegrationPatterns:
     def test_schedules_learn_from_journal_pattern(self):
         """Implementation note."""
         from runtime.memory.journal import InMemoryJournal
-        from runtime.safety.recovery import RuleExtractor
+        from runtime.safety.evolution import RuleExtractor
 
         journal = InMemoryJournal()
         call_count = [0]

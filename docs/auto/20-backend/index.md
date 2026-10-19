@@ -33,31 +33,31 @@ graph LR
   adapters[adapters]
   platform[platform]
   sensing -- 227 --> platform
-  sensing -- 180 --> safety
+  sensing -- 181 --> safety
   execution -- 172 --> platform
-  sensing -- 138 --> execution
-  sensing -- 131 --> memory
-  safety -- 102 --> platform
-  execution -- 97 --> safety
-  memory -- 87 --> platform
-  sensing -- 68 --> protocol
+  sensing -- 137 --> execution
+  sensing -- 126 --> memory
+  safety -- 116 --> platform
+  execution -- 102 --> safety
+  memory -- 77 --> platform
+  sensing -- 69 --> protocol
   core -- 60 --> platform
   platform -- 56 --> execution
-  platform -- 56 --> safety
+  platform -- 55 --> safety
   sensing -- 54 --> projectos
   sensing -- 46 --> core
-  execution -- 40 --> memory
   sensing -- 38 --> adapters
-  core -- 34 --> safety
+  execution -- 35 --> memory
+  core -- 31 --> safety
   core -- 29 --> execution
-  memory -- 26 --> safety
   platform -- 24 --> sensing
-  safety -- 22 --> memory
   execution -- 21 --> core
-  platform -- 18 --> memory
+  memory -- 19 --> safety
   sensing -- 18 --> workspace
   projectos -- 17 --> platform
-  safety -- 15 --> execution
+  safety -- 17 --> execution
+  safety -- 16 --> memory
+  platform -- 15 --> memory
   core -- 14 --> memory
   safety -- 14 --> adapters
   adapters -- 13 --> platform
@@ -65,9 +65,9 @@ graph LR
   platform -- 13 --> core
   projectos -- 13 --> safety
   adapters -- 11 --> safety
-  memory -- 10 --> execution
   tentacle -- 10 --> platform
   execution -- 9 --> adapters
+  memory -- 8 --> execution
   projectos -- 8 --> execution
   memory -- 7 --> protocol
   safety -- 7 --> core
@@ -76,7 +76,6 @@ graph LR
   platform -- 6 --> projectos
   _cli_commands.py -- 5 --> memory
   cli_serve.py -- 5 --> adapters
-  cli_serve.py -- 5 --> safety
   core -- 5 --> adapters
   memory -- 5 --> core
   platform -- 5 --> tentacle
@@ -93,6 +92,7 @@ graph LR
   cli_reflect.py -- 3 --> platform
   cli_run.py -- 3 --> platform
   cli_serve.py -- 3 --> execution
+  cli_serve.py -- 3 --> safety
   evals -- 3 --> execution
   execution -- 3 --> sensing
   platform -- 3 --> cli

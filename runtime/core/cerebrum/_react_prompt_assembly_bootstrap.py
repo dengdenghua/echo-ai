@@ -177,7 +177,7 @@ def _resolve_turn_bootstrap(
     _camouflage_variant_name = "baseline"
     _camouflage_suffix = ""
     try:
-        from runtime.safety.experiments.scheduler import (
+        from runtime.safety.evolution.experiment_scheduler import (
             get_camouflage_scheduler,
         )
 

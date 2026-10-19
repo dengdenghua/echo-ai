@@ -102,7 +102,7 @@ def test_custom_deep_research_roles_are_virtualized():
 
 
 def _seed_subagent_reviews(path, *, role: str, statuses: list[str]) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     queue = ReviewQueue(path)
     for idx, status in enumerate(statuses):

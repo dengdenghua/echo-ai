@@ -531,7 +531,7 @@ def _browser_replay_trends(
     review_queue_path: str | Path | None,
 ) -> dict[str, Any]:
     try:
-        from runtime.memory.learning.review_queue import ReviewQueue
+        from runtime.safety.evolution.review_queue import ReviewQueue
 
         queue = ReviewQueue(
             Path(review_queue_path)

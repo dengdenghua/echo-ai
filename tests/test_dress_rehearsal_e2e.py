@@ -139,7 +139,7 @@ class TestSuspectAgentPath:
         digest = empty_sink.digest()
         score = compute_guard_trust_score(digest)
 
-        from runtime.safety.experiments.prompt_evolver import (
+        from runtime.safety.evolution.prompt_evolver import (
             EvolutionPolicy,
             PromptEvolver,
         )
@@ -217,7 +217,7 @@ class TestFullChainIntegration:
         assert verdict.action == "allow"
 
         # Step 6: evolver consults trust signal too.
-        from runtime.safety.experiments.prompt_evolver import (
+        from runtime.safety.evolution.prompt_evolver import (
             EvolutionPolicy,
             PromptEvolver,
         )

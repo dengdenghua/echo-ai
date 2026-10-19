@@ -1,8 +1,8 @@
 ---
 implementation_status: implemented
 implemented_in:
-  - runtime/safety/recovery/genome_registry.py
-  - runtime/safety/experiments/prompt_evolver.py
+  - runtime/safety/evolution/genome_registry.py
+  - runtime/safety/evolution/prompt_evolver.py
 last_verified: 2026-06-25
 ---
 
@@ -18,8 +18,8 @@ last_verified: 2026-06-25
 
 > 本文档描述的进化机制（Mutator / Crossover / Selector）在当前代码中由两个独立模块实现：
 >
-> - **Genome Registry**（`runtime/safety/recovery/genome_registry.py`）：版本化 JSON 快照存储，支持 commit / rollback / diff。**不包含**进化算法。
-> - **Prompt Evolver**（`runtime/safety/experiments/prompt_evolver.py`）：实际的进化引擎，实现变异（mutation）、交叉（crossover）、Pareto 前沿选择和淘汰逻辑，操作对象为 prompt 变体。
+> - **Genome Registry**（`runtime/safety/evolution/genome_registry.py`）：版本化 JSON 快照存储，支持 commit / rollback / diff。**不包含**进化算法。
+> - **Prompt Evolver**（`runtime/safety/evolution/prompt_evolver.py`）：实际的进化引擎，实现变异（mutation）、交叉（crossover）、Pareto 前沿选择和淘汰逻辑，操作对象为 prompt 变体。
 >
 > Registry 是"被进化的配置"的持久层，Evolver 是"执行进化"的计算层。两者协作但职责不同。
 

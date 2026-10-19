@@ -7,7 +7,6 @@ import time
 import zlib
 from pathlib import Path
 
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.safety.evolution.browser_desktop_repair_recipes import (
     QUEUE_SCHEMA,
     RECIPE_SCHEMA,
@@ -22,6 +21,7 @@ from runtime.safety.evolution.browser_desktop_repair_recipes import (
     rerun_browser_desktop_repair_recipe_batch,
     rerun_browser_desktop_repair_recipe_evidence,
 )
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 
 def test_browser_desktop_repair_recipes_cluster_pixel_cases(tmp_path: Path) -> None:

@@ -18,7 +18,7 @@ from runtime.platform.models import (
     Trajectory,
     TrajectoryOutcome,
 )
-from runtime.safety.experiments import (
+from runtime.safety.evolution import (
     EvolutionPolicy,
     PromptEvolver,
     PromptMutator,
@@ -142,7 +142,7 @@ def _seed_winning(stack, recipe_hash: str, n: int = 10):
 
 class TestRichFailureSamples:
     def test_user_prompt_includes_skill_and_args(self, stack):
-        from runtime.safety.experiments.prompt_optimizer import PromptVariant as V
+        from runtime.safety.evolution.prompt_optimizer import PromptVariant as V
 
         _seed_failed_trajectories(stack, "some_recipe", n=2)
         router = _ProgrammableRouter(["<suffix>check file size before edit</suffix>"])
@@ -167,7 +167,7 @@ class TestRichFailureSamples:
         assert "step[0]" in user_msg
 
     def test_system_prompt_guides_specific_not_generic(self, stack):
-        from runtime.safety.experiments.prompt_optimizer import PromptVariant as V
+        from runtime.safety.evolution.prompt_optimizer import PromptVariant as V
 
         _seed_failed_trajectories(stack, "r", n=1)
         router = _ProgrammableRouter(["<suffix>ok</suffix>"])
@@ -178,7 +178,7 @@ class TestRichFailureSamples:
         assert "observed failures" in sys_msg or "speculate" in sys_msg
 
     def test_swarm_aggregate_deduplicates_same_failed_task(self, stack):
-        from runtime.safety.experiments.prompt_optimizer import PromptVariant as V
+        from runtime.safety.evolution.prompt_optimizer import PromptVariant as V
 
         task_id = TaskId(uuid4())
         call = ToolCall(caller="arms/a", sucker_id="edit_file", args={"path": "/tmp/x"})
@@ -227,7 +227,7 @@ class TestRichFailureSamples:
         assert user_msg.count("## task") == 1
 
     def test_recipe_filter_keeps_only_base_variant_failures(self, stack):
-        from runtime.safety.experiments.prompt_optimizer import PromptVariant as V
+        from runtime.safety.evolution.prompt_optimizer import PromptVariant as V
 
         _seed_failed_trajectories(stack, "target_recipe", n=2)
         _seed_failed_trajectories(stack, "other_recipe", n=3)

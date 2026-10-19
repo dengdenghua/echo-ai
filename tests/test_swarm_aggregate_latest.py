@@ -82,7 +82,7 @@ def _write_two_aggregates(journal):
 class TestConsolidatorNewest:
     def test_picks_latest_swarm_aggregate(self):
         from runtime.memory.journal import InMemoryJournal
-        from runtime.safety.recovery.memory_consolidator import (
+        from runtime.safety.evolution.memory_consolidator import (
             MemoryConsolidator,
         )
 

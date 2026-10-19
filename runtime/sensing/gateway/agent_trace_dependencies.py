@@ -8,12 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from runtime.memory.diagnostics.trace_store import AgentTraceStore
-from runtime.memory.learning.experience_ledger import ExperienceLedger
-from runtime.memory.learning.promotion_applier import PromotionApplier
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.process.paths import app_paths
 from runtime.safety.auth.scope import TenantScope, tenant_scoped_path
+from runtime.safety.evolution.experience_ledger import ExperienceLedger
+from runtime.safety.evolution.promotion_applier import PromotionApplier
 from runtime.safety.evolution.proposal_ledger import ProposalLedger
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 _STORE_LOCK = threading.Lock()
 _STORE_INSTANCE: AgentTraceStore | None = None

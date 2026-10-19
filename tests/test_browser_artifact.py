@@ -121,7 +121,7 @@ def test_screenshot_artifact_includes_replay_gate_case_for_blank_pixels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from runtime.execution.suckers import browser_act_skills as bas
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     monkeypatch.setattr(bas, "_artifacts_root", lambda: tmp_path / "artifacts")
     monkeypatch.setenv("ECHO_DATA_DIR", str(tmp_path / "data"))

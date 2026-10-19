@@ -30,7 +30,7 @@ class WikiCompiler:
         self._dir = Path(os.path.expanduser(output_dir))
 
     def compile_from_journal(self, journal: Any) -> WikiIndex:
-        from runtime.safety.recovery import (
+        from runtime.safety.evolution import (
             KGUpdater,
             MemoryConsolidator,
             RecipeEvaluator,

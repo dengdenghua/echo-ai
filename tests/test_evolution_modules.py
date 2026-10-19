@@ -28,17 +28,17 @@ from runtime.safety.evolution.fitness import (
     compute_governance_fitness,
     compute_l1,
 )
+from runtime.safety.evolution.gepa_runs import (
+    GepaRunRecord,
+    enrich_run_records,
+    record_from_result,
+)
 from runtime.safety.evolution.proposal_ledger import (
     ProposalLedger,
     ProposalStatus,
 )
 from runtime.safety.evolution.strategy import (
     StrategyEngine,
-)
-from runtime.safety.recovery.gepa_runs import (
-    GepaRunRecord,
-    enrich_run_records,
-    record_from_result,
 )
 
 # ═══════════════════════════════════════════════════════════
@@ -115,7 +115,7 @@ class TestComputeL1:
             assert l1.trend == "stable"
 
     def test_all_success(self):
-        from runtime.memory.learning.turn_scoring import TurnScore
+        from runtime.safety.evolution.turn_scoring import TurnScore
 
         scores = [
             TurnScore(ts="t", agent_id="a", score=1.0, reason="success", soul_hash="abc", rounds=3)
@@ -189,14 +189,14 @@ class TestGovernanceFitness:
         assert "1 blocked replay override(s)" in risk.reasons
 
     def test_governance_audit_event_round_trips(self, tmp_path):
-        from runtime.memory.learning.experience_ledger import ExperienceLedger
-        from runtime.memory.learning.promotion_applier import PromotionApplier
-        from runtime.memory.learning.review_queue import ReviewQueue
+        from runtime.safety.evolution.experience_ledger import ExperienceLedger
         from runtime.safety.evolution.governance_audit import (
             append_governance_audit_event,
             verify_governance_audit_chain,
         )
+        from runtime.safety.evolution.promotion_applier import PromotionApplier
         from runtime.safety.evolution.proposal_ledger import ProposalLedger
+        from runtime.safety.evolution.review_queue import ReviewQueue
 
         audit_path = tmp_path / "promotion_audit.json"
 
@@ -1235,7 +1235,7 @@ class TestSubagentFitness:
         assert report["top_risks"] == []
 
     def test_scores_roles_from_subagent_review_items(self, tmp_path):
-        from runtime.memory.learning.review_queue import ReviewQueue
+        from runtime.safety.evolution.review_queue import ReviewQueue
         from runtime.safety.evolution.subagent_fitness import (
             compute_subagent_fitness,
         )
@@ -1343,7 +1343,7 @@ class TestSubagentFitness:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
-        from runtime.memory.learning.review_queue import ReviewQueue
+        from runtime.safety.evolution.review_queue import ReviewQueue
         from runtime.sensing.gateway.evolution_router import create_evolution_router
 
         data_dir = tmp_path / "data"
@@ -1395,7 +1395,7 @@ class TestSubagentRouting:
         assert decision.reason == "subagent fitness routing disabled"
 
     def test_blocks_retire_candidate_for_high_risk(self, tmp_path):
-        from runtime.memory.learning.review_queue import ReviewQueue
+        from runtime.safety.evolution.review_queue import ReviewQueue
         from runtime.safety.evolution.subagent_routing import decide_subagent_route
 
         path = tmp_path / "review_queue.json"

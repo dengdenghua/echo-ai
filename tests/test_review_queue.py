@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.io.atomic import _cross_process_lock
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 
 def _review(task_id: str = "turn-1") -> dict:
@@ -216,7 +216,7 @@ def test_review_queue_write_lock_serializes_cross_process_writers(tmp_path: Path
     done = tmp_path / "child-done"
     script = f"""
 from pathlib import Path
-from runtime.memory.learning.review_queue import ReviewQueue
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 Path({str(started)!r}).write_text("started", encoding="utf-8")
 ReviewQueue({str(path)!r}).upsert_item(

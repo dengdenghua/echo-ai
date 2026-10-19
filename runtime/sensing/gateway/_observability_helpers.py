@@ -88,7 +88,7 @@ def _skill_forge_stub(
     *,
     scope: Any = None,
 ) -> dict[str, Any]:
-    from runtime.safety.recovery import ForgeConfig, SkillForge
+    from runtime.safety.evolution import ForgeConfig, SkillForge
 
     result = SkillForge(
         journal,

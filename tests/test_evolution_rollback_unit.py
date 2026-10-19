@@ -279,7 +279,7 @@ class TestDriftMonitorTriggers:
             assert report.has_drift is False
 
     def test_score_regression_detected(self):
-        from runtime.memory.learning.turn_scoring import TurnScore
+        from runtime.safety.evolution.turn_scoring import TurnScore
 
         monitor = DriftMonitor("test_agent")
         monitor._baseline_score = 0.85
@@ -293,7 +293,7 @@ class TestDriftMonitorTriggers:
             patch.object(monitor, "_check_soul_drift", return_value=None),
             patch.object(monitor, "_check_genome_drift", return_value=None),
             patch(
-                "runtime.memory.learning.turn_scoring.read_recent_scores",
+                "runtime.safety.evolution.turn_scoring.read_recent_scores",
                 return_value=declining_scores,
             ),
         ):
@@ -303,7 +303,7 @@ class TestDriftMonitorTriggers:
             assert "score_regression" in kinds
 
     def test_severity_critical_on_large_drop(self):
-        from runtime.memory.learning.turn_scoring import TurnScore
+        from runtime.safety.evolution.turn_scoring import TurnScore
 
         monitor = DriftMonitor("test_agent")
         monitor._baseline_score = 0.90
@@ -317,7 +317,7 @@ class TestDriftMonitorTriggers:
             patch.object(monitor, "_check_soul_drift", return_value=None),
             patch.object(monitor, "_check_genome_drift", return_value=None),
             patch(
-                "runtime.memory.learning.turn_scoring.read_recent_scores",
+                "runtime.safety.evolution.turn_scoring.read_recent_scores",
                 return_value=crashed_scores,
             ),
         ):
@@ -369,7 +369,7 @@ class TestFitnessVerdict:
                 assert report.verdict == "critical"
 
     def test_regressing_trend(self):
-        from runtime.memory.learning.turn_scoring import TurnScore
+        from runtime.safety.evolution.turn_scoring import TurnScore
 
         first_half = [
             TurnScore(ts="t", agent_id="a", score=0.9, reason="ok", soul_hash="h", rounds=3)

@@ -1,8 +1,8 @@
 ---
 implementation_status: implemented
 implemented_in:
-  - runtime/safety/recovery/workflow_rewriter.py
-  - runtime/safety/recovery/workflow_applier.py
+  - runtime/safety/evolution/workflow_rewriter.py
+  - runtime/safety/evolution/workflow_applier.py
 last_verified: 2026-06-25
 ---
 

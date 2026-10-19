@@ -113,7 +113,7 @@ class TestLedgerFailureScenarios:
 
 class TestDriftFailureScenarios:
     def test_rapid_score_fluctuation(self):
-        from runtime.memory.learning.turn_scoring import TurnScore
+        from runtime.safety.evolution.turn_scoring import TurnScore
 
         monitor = DriftMonitor("fluctuation_agent", DriftConfig(score_drop_threshold=0.15))
         monitor._baseline_score = 0.80
@@ -136,7 +136,7 @@ class TestDriftFailureScenarios:
                 patch.object(monitor, "_check_soul_drift", return_value=None),
                 patch.object(monitor, "_check_genome_drift", return_value=None),
                 patch(
-                    "runtime.memory.learning.turn_scoring.read_recent_scores",
+                    "runtime.safety.evolution.turn_scoring.read_recent_scores",
                     return_value=scores,
                 ),
             ):
@@ -151,7 +151,7 @@ class TestDriftFailureScenarios:
         assert drift_count >= 2
 
     def test_score_recovery_after_drift(self):
-        from runtime.memory.learning.turn_scoring import TurnScore
+        from runtime.safety.evolution.turn_scoring import TurnScore
 
         monitor = DriftMonitor("recovery_agent", DriftConfig(score_drop_threshold=0.15))
         monitor._baseline_score = 0.85
@@ -171,7 +171,7 @@ class TestDriftFailureScenarios:
             patch.object(monitor, "_check_soul_drift", return_value=None),
             patch.object(monitor, "_check_genome_drift", return_value=None),
             patch(
-                "runtime.memory.learning.turn_scoring.read_recent_scores",
+                "runtime.safety.evolution.turn_scoring.read_recent_scores",
                 return_value=low_scores,
             ),
         ):
@@ -194,7 +194,7 @@ class TestDriftFailureScenarios:
             patch.object(monitor, "_check_soul_drift", return_value=None),
             patch.object(monitor, "_check_genome_drift", return_value=None),
             patch(
-                "runtime.memory.learning.turn_scoring.read_recent_scores",
+                "runtime.safety.evolution.turn_scoring.read_recent_scores",
                 return_value=recovered_scores,
             ),
         ):
@@ -205,7 +205,7 @@ class TestDriftFailureScenarios:
             patch.object(monitor, "_check_soul_drift", return_value=None),
             patch.object(monitor, "_check_genome_drift", return_value=None),
             patch(
-                "runtime.memory.learning.turn_scoring.read_recent_scores",
+                "runtime.safety.evolution.turn_scoring.read_recent_scores",
                 return_value=recovered_scores,
             ),
         ):

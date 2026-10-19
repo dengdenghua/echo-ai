@@ -26,7 +26,7 @@ def register_gepa_variants(_reflex_admin: Any, *, stack: Any) -> None:
         recipe; the operator drills into a specific recipe to
         see per-variant stats via /variants/<id>/stats.
         """
-        from runtime.safety.recovery.gepa_variants import (
+        from runtime.safety.evolution.gepa_variants import (
             list_all_manifests,
         )
 
@@ -36,7 +36,7 @@ def register_gepa_variants(_reflex_admin: Any, *, stack: Any) -> None:
     def _gepa_variants_stats(recipe_id: str) -> dict:
         from dataclasses import asdict
 
-        from runtime.safety.recovery.variant_evaluator import (
+        from runtime.safety.evolution.variant_evaluator import (
             collect_variant_stats,
         )
 
@@ -74,11 +74,11 @@ def register_gepa_variants(_reflex_admin: Any, *, stack: Any) -> None:
         is auto-committed via ``set_weights`` · with
         ``apply=false`` (default) it's returned for the
         operator to review and apply manually."""
-        from runtime.safety.recovery.gepa_variants import (
+        from runtime.safety.evolution.gepa_variants import (
             list_variants,
             set_weights,
         )
-        from runtime.safety.recovery.variant_evaluator import (
+        from runtime.safety.evolution.variant_evaluator import (
             collect_variant_stats,
             propose_weights,
         )
@@ -151,7 +151,7 @@ def register_gepa_variants(_reflex_admin: Any, *, stack: Any) -> None:
         """List all variants for a recipe + their weights +
         content previews. Returns ``manifest_present: false``
         when the recipe is in single-file mode (no manifest)."""
-        from runtime.safety.recovery.gepa_variants import list_variants
+        from runtime.safety.evolution.gepa_variants import list_variants
 
         return {**list_variants(recipe_id), "source": "gepa"}
 
@@ -173,11 +173,11 @@ def register_gepa_variants(_reflex_admin: Any, *, stack: Any) -> None:
         unlisted ones keep their current weight. Pass
         ``default_weight`` to also tune the control-group share.
         Returns the updated manifest summary."""
-        from runtime.safety.gene_locks import MutationKind, record_mutation
-        from runtime.safety.recovery.gepa_variants import (
+        from runtime.safety.evolution.gepa_variants import (
             list_variants,
             set_weights,
         )
+        from runtime.safety.gene_locks import MutationKind, record_mutation
 
         # Gene-lock gate · weight changes are high-risk (live
         # traffic impact) so they go through the QUORUM soft-
@@ -238,8 +238,8 @@ def register_gepa_variants(_reflex_admin: Any, *, stack: Any) -> None:
         When the last variant of a recipe is removed AND
         default_weight is 0, the entire manifest file is
         dropped too · planner falls back to single-file mode."""
+        from runtime.safety.evolution.gepa_variants import remove_variant
         from runtime.safety.gene_locks import MutationKind, record_mutation
-        from runtime.safety.recovery.gepa_variants import remove_variant
 
         _gate = gate_forge_mutation(
             MutationKind.DELETE_ADDENDUM,

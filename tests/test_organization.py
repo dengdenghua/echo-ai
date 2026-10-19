@@ -7,18 +7,18 @@ from typing import Any
 
 import pytest
 
+from runtime.safety.evolution.topology_evolver import TopologyEvolver
+from runtime.safety.evolution.topology_forge import (
+    PromoteResult,
+    TopologyForge,
+    load_registry,
+    save_registry,
+)
 from runtime.safety.organization import (
     AgentSpec,
     CoordinationProtocol,
     Role,
     TeamTopology,
-)
-from runtime.safety.organization.evolver import TopologyEvolver
-from runtime.safety.organization.forge import (
-    PromoteResult,
-    TopologyForge,
-    load_registry,
-    save_registry,
 )
 from runtime.safety.organization.performance_log import (
     read_runs,
@@ -311,7 +311,7 @@ def test_team_runner_continues_after_advisory_critic_error() -> None:
 
 
 def test_team_runner_blocks_retired_subagent_for_high_risk_task(tmp_path: Path) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     path = tmp_path / "review_queue.json"
     _seed_subagent_reviews(
@@ -351,7 +351,7 @@ def test_team_runner_blocks_retired_subagent_for_high_risk_task(tmp_path: Path) 
 
 
 def test_strong_subagent_generates_team_promotion_proposal(tmp_path: Path) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
     from runtime.safety.evolution.subagent_team_promotion import (
         build_subagent_team_promotion_proposals,
     )
@@ -387,7 +387,7 @@ def test_strong_subagent_generates_team_promotion_proposal(tmp_path: Path) -> No
 
 
 def test_retired_strong_subagent_is_not_promoted_to_team(tmp_path: Path) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
     from runtime.safety.evolution.subagent_policy import SubagentPolicyStore
     from runtime.safety.evolution.subagent_team_promotion import (
         build_subagent_team_promotion_proposals,
@@ -550,7 +550,7 @@ def test_merged_topology_proposals_rank_by_historical_lift() -> None:
 def test_team_runner_allows_retired_subagent_for_low_risk_with_warning(
     tmp_path: Path,
 ) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     path = tmp_path / "review_queue.json"
     _seed_subagent_reviews(
@@ -897,7 +897,7 @@ def test_forge_swap_promotes_and_writes_registry(tmp_path: Path) -> None:
     reg_path = tmp_path / "registry.json"
     save_registry({base.fingerprint: base}, path=reg_path)
 
-    from runtime.safety.organization.evolver import Proposal
+    from runtime.safety.evolution.topology_evolver import Proposal
 
     forge = TopologyForge(registry_path=reg_path)
     result: PromoteResult = forge.promote(
@@ -928,7 +928,7 @@ def test_forge_rejects_unknown_proposal_kind(tmp_path: Path) -> None:
     reg_path = tmp_path / "r.json"
     save_registry({base.fingerprint: base}, path=reg_path)
 
-    from runtime.safety.organization.evolver import Proposal
+    from runtime.safety.evolution.topology_evolver import Proposal
 
     forge = TopologyForge(registry_path=reg_path)
     result = forge.promote(
@@ -946,7 +946,7 @@ def test_forge_rejects_unknown_proposal_kind(tmp_path: Path) -> None:
 
 def test_forge_rejects_missing_base(tmp_path: Path) -> None:
     forge = TopologyForge(registry_path=tmp_path / "empty.json")
-    from runtime.safety.organization.evolver import Proposal
+    from runtime.safety.evolution.topology_evolver import Proposal
 
     result = forge.promote(
         Proposal(
@@ -963,7 +963,7 @@ def test_forge_rejects_missing_base(tmp_path: Path) -> None:
 
 def test_forge_rejects_operator_retired_agent(tmp_path: Path) -> None:
     from runtime.safety.evolution.subagent_policy import SubagentPolicyStore
-    from runtime.safety.organization.evolver import Proposal
+    from runtime.safety.evolution.topology_evolver import Proposal
 
     base = TeamTopology(
         name="orig",

@@ -212,7 +212,7 @@ def _try_real_research_swarm(kw: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(topic, str) or not topic.strip():
         return None
     try:
-        from runtime.safety.organization.forge import load_registry
+        from runtime.safety.evolution.topology_forge import load_registry
         from runtime.safety.organization.team_runner import TeamRunner
     except ImportError:
         return None

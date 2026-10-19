@@ -94,7 +94,7 @@ def register_gepa_apply(_reflex_admin: Any, *, stack: Any) -> None:
                 and isinstance(variant_id, str)
                 and variant_id.strip()
             ):
-                from runtime.safety.recovery.gepa_variants import (
+                from runtime.safety.evolution.gepa_variants import (
                     add_variant,
                 )
 
@@ -114,7 +114,7 @@ def register_gepa_apply(_reflex_admin: Any, *, stack: Any) -> None:
                 # Let the variants module compute the canonical
                 # on-disk path so the rebrand doesn't leak
                 # through hardcoded directory names.
-                from runtime.safety.recovery.gepa_variants import (
+                from runtime.safety.evolution.gepa_variants import (
                     variant_path as _variant_path,
                 )
 
@@ -123,7 +123,7 @@ def register_gepa_apply(_reflex_admin: Any, *, stack: Any) -> None:
             elif isinstance(target_recipe_id, str) and target_recipe_id.strip():
                 # Per-recipe path · isolates the addendum to
                 # turns whose planner recipe_hash matches.
-                from runtime.safety.recovery.gepa_addendum_store import (
+                from runtime.safety.evolution.gepa_addendum_store import (
                     save_for_recipe,
                 )
 
@@ -134,7 +134,7 @@ def register_gepa_apply(_reflex_admin: Any, *, stack: Any) -> None:
                 # store helper so the path name tracks the
                 # current branding (and auto-migrates from
                 # any pre-rebrand filename).
-                from runtime.safety.recovery.gepa_addendum_store import (
+                from runtime.safety.evolution.gepa_addendum_store import (
                     legacy_global_path,
                 )
 
@@ -146,7 +146,7 @@ def register_gepa_apply(_reflex_admin: Any, *, stack: Any) -> None:
             applied_flag = False
             if isinstance(run_ts_raw, (int, float)):
                 try:
-                    from runtime.safety.recovery.gepa_runs import (
+                    from runtime.safety.evolution.gepa_runs import (
                         get_default_store,
                     )
 
@@ -163,7 +163,7 @@ def register_gepa_apply(_reflex_admin: Any, *, stack: Any) -> None:
                 winner_payload = {}
             winner_applied = {"ok": False, "skipped": True, "reason": "no_winner_payload"}
             with contextlib.suppress(ImportError, OSError, TypeError, ValueError):
-                from runtime.safety.recovery.gepa_bridge import (
+                from runtime.safety.evolution.gepa_bridge import (
                     mark_winner_proposal_applied,
                 )
 
@@ -212,7 +212,7 @@ def register_gepa_apply(_reflex_admin: Any, *, stack: Any) -> None:
         """Read back the currently-applied GEPA addendum (if any)
         so the operator can see what's live without grepping
         the data dir."""
-        from runtime.safety.recovery.gepa_addendum_store import (
+        from runtime.safety.evolution.gepa_addendum_store import (
             legacy_global_path,
         )
 
@@ -260,7 +260,7 @@ def register_gepa_apply(_reflex_admin: Any, *, stack: Any) -> None:
         if not _gate.get("ok"):
             return _gate
         try:
-            from runtime.safety.recovery.gepa_addendum_store import (
+            from runtime.safety.evolution.gepa_addendum_store import (
                 delete_for_recipe,
                 legacy_global_path,
             )

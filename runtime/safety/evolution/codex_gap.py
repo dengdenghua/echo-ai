@@ -229,7 +229,7 @@ CAPABILITIES: tuple[GapCapability, ...] = (
             "runtime/sensing/gateway/subagents_router.py",
             "runtime/sensing/gateway/parallel_agents_router.py",
             "runtime/execution/subagents/bridge.py",
-            "runtime/memory/learning/subagent_review.py",
+            "runtime/safety/evolution/subagent_review.py",
             "runtime/safety/evolution/subagent_fitness.py",
             "runtime/safety/evolution/subagent_routing.py",
             "runtime/safety/evolution/subagent_team_promotion.py",
@@ -315,7 +315,7 @@ CAPABILITIES: tuple[GapCapability, ...] = (
         why="Codex enterprise has analytics and compliance exports; Echo needs local, operator-grade audit trails.",
         target_score=0.95,
         implementation_paths=(
-            "runtime/memory/learning/promotion_applier.py",
+            "runtime/safety/evolution/promotion_applier.py",
             "runtime/safety/evolution/fitness.py",
             "runtime/safety/evolution/governance_audit.py",
             "runtime/safety/audit/audit_chain.py",
@@ -360,10 +360,10 @@ CAPABILITIES: tuple[GapCapability, ...] = (
         why="This is where Echo can beat task-local agents: experience survives and changes future behavior.",
         target_score=0.95,
         implementation_paths=(
-            "runtime/memory/learning/experience_ledger.py",
-            "runtime/memory/learning/review_queue.py",
-            "runtime/memory/learning/subagent_review.py",
-            "runtime/memory/learning/turn_scoring.py",
+            "runtime/safety/evolution/experience_ledger.py",
+            "runtime/safety/evolution/review_queue.py",
+            "runtime/safety/evolution/subagent_review.py",
+            "runtime/safety/evolution/turn_scoring.py",
             "runtime/memory/hemolymph/composer.py",
         ),
         test_paths=(

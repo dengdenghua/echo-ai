@@ -124,7 +124,7 @@ _REQUIRED_RUNTIME_WHEEL_FILES = {
     "runtime/sensing/gateway/thread_access.py",
     "runtime/sensing/gateway/thread_workspace.py",
     "runtime/safety/evolution/candidate_registry.py",
-    "runtime/safety/recovery/tenant_scope.py",
+    "runtime/safety/evolution/tenant_scope.py",
 }
 
 _REQUIRED_BUNDLED_WHEEL_FILES = {

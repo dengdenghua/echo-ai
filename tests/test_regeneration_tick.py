@@ -32,7 +32,7 @@ from typing import Any
 
 import pytest
 
-from runtime.safety.recovery.scheduler import (
+from runtime.safety.evolution.learning_scheduler import (
     RegenerationScheduler,
     SchedulerConfig,
 )
@@ -121,7 +121,7 @@ class _FakeGepaModule:
 
 
 class _FakeForgeAutoTick(_FakeGepaModule):
-    """Alias used in scheduler.py: `from runtime.safety.recovery import forge_auto_tick as _fat`."""
+    """Alias used in scheduler.py: `from runtime.safety.evolution import forge_auto_tick as _fat`."""
 
 
 class _FakeRegistry:
@@ -288,40 +288,40 @@ def patched_stages(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     }
 
     # RuleExtractor
-    fake_re_mod = types.ModuleType("runtime.safety.recovery.rule_extractor")
+    fake_re_mod = types.ModuleType("runtime.safety.evolution.rule_extractor")
     fake_re_mod.RuleExtractor = _FakeRuleExtractor  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.rule_extractor", fake_re_mod)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.rule_extractor", fake_re_mod)
 
     # MemoryConsolidator
-    fake_mc_mod = types.ModuleType("runtime.safety.recovery.memory_consolidator")
+    fake_mc_mod = types.ModuleType("runtime.safety.evolution.memory_consolidator")
     fake_mc_mod.MemoryConsolidator = _FakeMemoryConsolidator  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.memory_consolidator", fake_mc_mod)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.memory_consolidator", fake_mc_mod)
 
     # WorkflowRewriter
-    fake_wr_mod = types.ModuleType("runtime.safety.recovery.workflow_rewriter")
+    fake_wr_mod = types.ModuleType("runtime.safety.evolution.workflow_rewriter")
     fake_wr_mod.WorkflowRewriter = _FakeWorkflowRewriter  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.workflow_rewriter", fake_wr_mod)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.workflow_rewriter", fake_wr_mod)
 
     # RecipeEvaluator
-    fake_re_eval = types.ModuleType("runtime.safety.recovery.recipe_evaluator")
+    fake_re_eval = types.ModuleType("runtime.safety.evolution.recipe_evaluator")
     fake_re_eval.RecipeEvaluator = _FakeRecipeEvaluator  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.recipe_evaluator", fake_re_eval)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.recipe_evaluator", fake_re_eval)
 
     # forge_auto_tick (GEPA)
-    fake_fat = types.ModuleType("runtime.safety.recovery.forge_auto_tick")
+    fake_fat = types.ModuleType("runtime.safety.evolution.forge_auto_tick")
     fake_fat.bind_stack = _FakeForgeAutoTick.bind_stack  # type: ignore[attr-defined]
     fake_fat.run_tick = _FakeForgeAutoTick.run_tick  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.forge_auto_tick", fake_fat)
-    # `from runtime.safety.recovery import forge_auto_tick` resolves via the
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.forge_auto_tick", fake_fat)
+    # `from runtime.safety.evolution import forge_auto_tick` resolves via the
     # package object's attribute first, bypassing sys.modules once any prior
     # test imported the real submodule. Patch the attribute too so the fake
     # wins regardless of import order in full-suite runs.
-    import runtime.safety.recovery as _recovery_pkg
+    import runtime.safety.evolution as _recovery_pkg
 
     monkeypatch.setattr(_recovery_pkg, "forge_auto_tick", fake_fat, raising=False)
 
     # SkillForge — leave registry in place so the stage runs the happy path
-    fake_sf = types.ModuleType("runtime.safety.recovery.skill_forge")
+    fake_sf = types.ModuleType("runtime.safety.evolution.skill_forge")
 
     class _FakeSkillForgeResult:
         promoted: list[str] = []
@@ -344,10 +344,10 @@ def patched_stages(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
             return _FakeSkillForgeResult()
 
     fake_sf.SkillForge = _FakeSkillForge  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.skill_forge", fake_sf)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.skill_forge", fake_sf)
 
     # TopologyEvolver
-    fake_org_evolver = types.ModuleType("runtime.safety.organization.evolver")
+    fake_org_evolver = types.ModuleType("runtime.safety.evolution.topology_evolver")
 
     class _FakeTopologyReport:
         proposals: list[Any] = []
@@ -361,11 +361,11 @@ def patched_stages(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
             return _FakeTopologyReport()
 
     fake_org_evolver.TopologyEvolver = _FakeTopologyEvolver  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.organization.evolver", fake_org_evolver)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.topology_evolver", fake_org_evolver)
 
-    fake_org_forge = types.ModuleType("runtime.safety.organization.forge")
+    fake_org_forge = types.ModuleType("runtime.safety.evolution.topology_forge")
     fake_org_forge.load_registry = lambda: object()  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.organization.forge", fake_org_forge)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.topology_forge", fake_org_forge)
 
     # Evolution fitness
     fake_fit = types.ModuleType("runtime.safety.evolution.fitness")
@@ -607,9 +607,9 @@ def test_tick_once_stage_failure_does_not_short_circuit(
         def extract(self):  # noqa: ANN201
             raise RuntimeError("simulated stage-1 failure")
 
-    fake_re_mod = types.ModuleType("runtime.safety.recovery.rule_extractor")
+    fake_re_mod = types.ModuleType("runtime.safety.evolution.rule_extractor")
     fake_re_mod.RuleExtractor = _ExplodingRuleExtractor  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.rule_extractor", fake_re_mod)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.rule_extractor", fake_re_mod)
 
     isolated_scheduler._tick_once()
 
@@ -767,9 +767,9 @@ def test_tick_once_records_stage_error_type_in_summary(
         def run(self):  # noqa: ANN201
             raise ValueError("duplicate name")
 
-    fake_sf = types.ModuleType("runtime.safety.recovery.skill_forge")
+    fake_sf = types.ModuleType("runtime.safety.evolution.skill_forge")
     fake_sf.SkillForge = _ExplodingSkillForge  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.skill_forge", fake_sf)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.skill_forge", fake_sf)
 
     isolated_scheduler._tick_once()
 
@@ -794,9 +794,9 @@ def test_tick_once_legacy_skill_forge_fails_closed(
         def run(self):  # noqa: ANN201
             raise AssertionError("legacy direct-promotion path must not run")
 
-    fake_sf = types.ModuleType("runtime.safety.recovery.skill_forge")
+    fake_sf = types.ModuleType("runtime.safety.evolution.skill_forge")
     fake_sf.SkillForge = _LegacySkillForge  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "runtime.safety.recovery.skill_forge", fake_sf)
+    monkeypatch.setitem(sys.modules, "runtime.safety.evolution.skill_forge", fake_sf)
 
     isolated_scheduler._tick_once()
 

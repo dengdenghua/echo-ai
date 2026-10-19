@@ -172,12 +172,18 @@ def test_mcp_connection_reexport_preserves_identity_and_secret_redaction():
 @pytest.mark.parametrize(
     "alias,module",
     [
-        ("trace_store", "diagnostics.trace_store"),
-        ("deep_evolution", "learning.deep_evolution"),
-        ("blackboard", "runtime_state.blackboard"),
-        ("skill_library", "skills_lib.skill_library"),
-        ("user_store", "users.user_store"),
-        ("diagnostics", "diagnostics"),
+        ("trace_store", "runtime.memory.diagnostics.trace_store"),
+        ("deep_evolution", "runtime.safety.evolution.deep_evolution"),
+        ("experience_ledger", "runtime.safety.evolution.experience_ledger"),
+        ("promotion_applier", "runtime.safety.evolution.promotion_applier"),
+        ("review_queue", "runtime.safety.evolution.review_queue"),
+        ("soul_holdout", "runtime.safety.evolution.soul_holdout"),
+        ("turn_scoring", "runtime.safety.evolution.turn_scoring"),
+        ("learning", "runtime.safety.evolution"),
+        ("blackboard", "runtime.memory.runtime_state.blackboard"),
+        ("skill_library", "runtime.memory.skills_lib.skill_library"),
+        ("user_store", "runtime.memory.users.user_store"),
+        ("diagnostics", "runtime.memory.diagnostics"),
     ],
 )
 def test_memory_legacy_module_exports_preserve_identity(alias, module):
@@ -186,7 +192,7 @@ def test_memory_legacy_module_exports_preserve_identity(alias, module):
     import runtime.memory as memory
 
     assert alias in dir(memory)
-    assert getattr(memory, alias) is importlib.import_module(f"runtime.memory.{module}")
+    assert getattr(memory, alias) is importlib.import_module(module)
 
 
 @pytest.mark.parametrize("configured", [False, True])

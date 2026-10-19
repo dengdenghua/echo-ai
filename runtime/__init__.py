@@ -9,7 +9,7 @@ Subpackages are physically organized under 7 semantic groups:
     execution/ agents arms tool_engine suckers parallel_agents swarm
     sensing/   model_router gateway server normalize
     memory/    journal hemolymph knowledge_graph threads
-    safety/    auth budget_breaker validation recovery experiments
+    safety/    auth budget_breaker validation evolution
                chromatophores invariants
     adapters/  channels integrations mcp_client scheduler instrumentation
     platform/  config models ui i18n
@@ -49,8 +49,9 @@ _LAZY_EXPORTS = {
     "auth": "runtime.safety.auth",
     "budget_breaker": "runtime.safety.budget_breaker",
     "invariants": "runtime.safety.invariants",
-    "recovery": "runtime.safety.recovery",
-    "experiments": "runtime.safety.experiments",
+    "recovery": "runtime.safety.evolution",
+    "experiments": "runtime.safety.evolution",
+    "evolution": "runtime.safety.evolution",
     "chromatophores": "runtime.safety.chromatophores",
     # adapters
     "channels": "runtime.adapters.channels",
@@ -110,6 +111,7 @@ __all__ = [
     "invariants",
     "recovery",
     "experiments",
+    "evolution",
     "chromatophores",
     # adapters
     "channels",

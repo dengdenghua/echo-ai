@@ -91,7 +91,7 @@ def _has_score_history(
     """Check one already-validated id without enumerating an agents directory."""
 
     try:
-        from runtime.memory.learning.turn_scoring import read_recent_scores
+        from runtime.safety.evolution.turn_scoring import read_recent_scores
 
         if scope is None:
             return bool(read_recent_scores(agent_id, limit=1))
@@ -542,7 +542,7 @@ class EvolutionAutoTrigger:
             return
         if drift_kind == "genome_change":
             try:
-                from runtime.safety.recovery.genome_registry import GenomeRegistry
+                from runtime.safety.evolution.genome_registry import GenomeRegistry
 
                 registry = GenomeRegistry()
                 latest = registry.latest_version()
@@ -567,7 +567,7 @@ class EvolutionAutoTrigger:
 
         if drift_kind == "soul_change":
             try:
-                from runtime.execution.suckers.memory_skills import _revert_soul
+                from runtime.safety.evolution.soul_actions import _revert_soul
 
                 _revert_soul(steps_back=1, reason="auto-rollback: critical soul drift")
                 _LOG.info("auto-reverted SOUL.md by 1 step")
@@ -581,7 +581,7 @@ class EvolutionAutoTrigger:
         scope: TenantScope | None = None,
     ) -> None:
         try:
-            from runtime.memory.learning.deep_evolution import deep_evolve
+            from runtime.safety.evolution.deep_evolution import deep_evolve
 
             kwargs: dict[str, Any] = {
                 "agent_id": agent_id,
@@ -687,7 +687,7 @@ class EvolutionAutoTrigger:
                 continue
             if event.kind == "genome_change" and event.severity == "critical":
                 try:
-                    from runtime.safety.recovery.genome_registry import GenomeRegistry
+                    from runtime.safety.evolution.genome_registry import GenomeRegistry
 
                     registry = GenomeRegistry()
                     latest = registry.latest_version()
@@ -699,7 +699,7 @@ class EvolutionAutoTrigger:
 
             if event.kind == "soul_change" and event.severity == "critical":
                 try:
-                    from runtime.execution.suckers.memory_skills import _revert_soul
+                    from runtime.safety.evolution.soul_actions import _revert_soul
 
                     _revert_soul(steps_back=1, reason="auto-rollback: critical soul drift")
                     _LOG.info("auto-reverted SOUL.md by 1 step")

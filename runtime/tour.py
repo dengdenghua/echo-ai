@@ -182,7 +182,7 @@ def _ch_hearts(color: bool) -> None:
 
 
 def _ch_camouflage(color: bool) -> None:
-    from runtime.safety.experiments import ABSplitter, Variant
+    from runtime.safety.evolution import ABSplitter, Variant
 
     splitter = ABSplitter(
         [

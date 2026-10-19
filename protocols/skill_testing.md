@@ -2,7 +2,7 @@
 implementation_status: implemented
 implemented_in:
   - runtime/execution/suckers/testing.py
-  - runtime/safety/recovery/skill_forge.py
+  - runtime/safety/evolution/skill_forge.py
 last_verified: 2026-06-25
 ---
 

@@ -220,7 +220,7 @@ SafeRmConfig(
 
 #### 6.1 Experience Ledger（经验账本）
 ```python
-# runtime/memory/learning/experience_ledger.py (37KB)
+# runtime/safety/evolution/experience_ledger.py (37KB)
 ```
 
 **功能**:
@@ -238,14 +238,14 @@ SafeRmConfig(
 
 #### 6.2 Deep Evolution（深度进化）
 ```python
-# runtime/memory/learning/deep_evolution.py (21KB)
+# runtime/safety/evolution/deep_evolution.py (21KB)
 ```
 
 **三层架构**:
 
 **B1 - 零成本启发式评分**:
 ```python
-# runtime/execution/loops/learning.py
+# runtime/safety/evolution/loop_learning.py
 # turn_scoring.py: 启发式打分
 # SOUL hash change 检测
 ```
@@ -281,13 +281,13 @@ def deep_evolve(
 
 #### 6.3 Promotion Applier（提升应用器）
 ```python
-# runtime/memory/learning/promotion_applier.py (25KB)
+# runtime/safety/evolution/promotion_applier.py (25KB)
 # 将经验课程提升到 SOUL / 项目记忆
 ```
 
 #### 6.4 Review Queue（评审队列）
 ```python
-# runtime/memory/learning/review_queue.py (27KB)
+# runtime/safety/evolution/review_queue.py (27KB)
 # 管理待评审的任务
 ```
 

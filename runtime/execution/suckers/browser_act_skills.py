@@ -420,8 +420,8 @@ def _queue_pixel_replay_gate_case(
     replay_gate_case: dict[str, Any],
 ) -> dict[str, Any] | None:
     try:
-        from runtime.memory.learning.review_queue import ReviewQueue
         from runtime.platform.process.paths import app_paths
+        from runtime.safety.evolution.review_queue import ReviewQueue
 
         artifact = (
             replay_gate_case.get("artifact")

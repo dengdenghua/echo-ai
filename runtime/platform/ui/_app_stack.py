@@ -2,8 +2,8 @@
 
 Extracted from ``app.py`` during the god-file reduction (§2.1 of the
 navigation map). Wires the execution stack onto the shared journal,
-starts the optional regeneration / camouflage / auto-trigger
-schedulers (and stops them on shutdown), registers ephemeral subagent runners, loads the
+starts the unified self-evolution service (and stops it on shutdown),
+registers ephemeral subagent runners, loads the
 project-scoped subagent registry, and builds the thread store + cowork
 runtime.
 """
@@ -24,88 +24,25 @@ from ._app_context import AppContext
 
 
 def _regeneration_scheduler_config() -> Any:
-    """Build scheduler config with a cwd-independent runtime data root."""
+    from runtime.safety.evolution.service import learning_config
 
-    from runtime.safety.recovery.scheduler import SchedulerConfig
-
-    return SchedulerConfig(
-        interval_sec=max(60, int(feature_flags.value("regeneration.interval_sec", 600))),
-        initial_delay_sec=30,
-        output_dir=str(app_paths().data_dir),
-        enabled=feature_flags.is_on("regeneration.enabled"),
-    )
+    return learning_config()
 
 
 def _start_background_schedulers(ctx: AppContext, *, agent_registry: Any) -> None:
-    """Start the regeneration + camouflage schedulers; stop both on shutdown.
+    from runtime.safety.evolution.service import get_evolution_service
 
-    Each stop is registered before its start so a start that raises half-way
-    still has its thread reaped when the app shuts down.
-    """
-    stack = ctx.stack
-    try:
-        from runtime.safety.recovery.scheduler import get_scheduler
-
-        regeneration = get_scheduler()
-        stop_on_shutdown(ctx.app, "regeneration-scheduler", regeneration.stop)
-        regeneration.start(
-            stack,
-            config=_regeneration_scheduler_config(),
-            agent_registry=agent_registry,
-        )
-    except Exception as exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "regeneration scheduler failed to start: %s",
-            exc,
-        )
-
-    # ─── Camouflage scheduler · LLM-driven prompt evolution (opt-in) ──
-    try:
-        from runtime.safety.experiments.scheduler import (
-            CamouflageConfig,
-            get_camouflage_scheduler,
-        )
-
-        cam_cfg = CamouflageConfig(
-            enabled=feature_flags.is_on("camouflage.enabled"),
-            interval_sec=max(60, int(feature_flags.value("camouflage.interval_sec", 600))),
-            initial_delay_sec=60,
-        )
-        camouflage = get_camouflage_scheduler()
-        stop_on_shutdown(ctx.app, "camouflage-scheduler", camouflage.stop)
-        camouflage.start(stack, config=cam_cfg)
-    except Exception as exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning(
-            "camouflage scheduler failed to start: %s",
-            exc,
-        )
+    service = get_evolution_service()
+    stop_on_shutdown(ctx.app, "self-evolution", service.stop)
+    service.start(ctx.stack, agent_registry=agent_registry)
 
 
 def _start_evolution_auto_trigger(app: Any, stack: Any, *, agent_registry: Any) -> None:
-    """Start the fitness-driven self-evolution trigger; stop it on shutdown."""
-    try:
-        from runtime.safety.evolution.auto_trigger import (
-            AutoTriggerConfig,
-            get_auto_trigger,
-        )
+    from runtime.safety.evolution.service import get_evolution_service
 
-        trigger = get_auto_trigger()
-        stop_on_shutdown(app, "evolution-auto-trigger", trigger.stop)
-        # Honour the evolution.auto_trigger flag (default True =
-        # current behaviour) instead of a hardcoded enabled=True,
-        # so the registered flag actually controls the trigger.
-        trigger.start(
-            stack,
-            AutoTriggerConfig(
-                enabled=feature_flags.is_on("evolution.auto_trigger"),
-            ),
-            agent_registry=agent_registry,
-        )
-    except Exception as _at_exc:
-        logging.getLogger(__name__).debug(
-            "evolution auto-trigger not started: %s",
-            _at_exc,
-        )
+    service = get_evolution_service()
+    stop_on_shutdown(app, "self-evolution", service.stop)
+    service.start_models(stack, agent_registry=agent_registry)
 
 
 def wire_stack(
@@ -186,12 +123,12 @@ def wire_stack(
                     # works · these are LLM-as-judge calls so any
                     # provider that supports basic chat is fine.
                     try:
-                        from runtime.memory.learning.deep_evolution import (
-                            set_evolve_router,
-                        )
+                        from runtime.safety.evolution.service import get_evolution_service
 
-                        set_evolve_router(
-                            auxiliary_router,
+                        get_evolution_service().start_models(
+                            stack,
+                            agent_registry=agent_registry,
+                            router=auxiliary_router,
                             default_model=default_model,
                         )
                     except (
@@ -200,7 +137,6 @@ def wire_stack(
                         TypeError,
                     ):  # best-effort · deep_reflect / deep_evolve will return clean error
                         pass
-                    _start_evolution_auto_trigger(app, stack, agent_registry=agent_registry)
                     # Same router for the Kimi-style skill library
                     # (learn_skill_from_text / apply_skill).
                     try:

@@ -211,7 +211,7 @@ def test_repair_route_quality_counts_review_queue_governance(
     assert route["governance"]["status"] == "pending"
     assert pending["promotion_candidates"][0]["status"] == "operator_review_pending"
 
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     ReviewQueue(review_queue_path).decide(
         queued["items"][0]["id"],

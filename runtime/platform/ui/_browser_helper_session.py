@@ -17,13 +17,13 @@ from fastapi import HTTPException
 from runtime.execution.suckers.browser_launch import (
     launch_persistent_chromium,
 )
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.platform.process.paths import app_paths
 from runtime.platform.ui._browser_helper_profile import (
     mark_session_active,
     mark_session_closed,
     secure_profile_dir,
 )
+from runtime.safety.evolution.review_queue import ReviewQueue
 from runtime.safety.replay.browser_desktop_replay import browser_session_replay_identity
 
 

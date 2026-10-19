@@ -579,7 +579,6 @@ def _forged_skill_promotion_client(
 
     from runtime.execution.suckers import Skill, SkillRegistry
     from runtime.memory.journal import InMemoryJournal
-    from runtime.memory.learning.review_queue import ReviewQueue
     from runtime.platform.models import (
         ArmId,
         ExecutionResult,
@@ -589,6 +588,7 @@ def _forged_skill_promotion_client(
         Trajectory,
         TrajectoryOutcome,
     )
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     journal = InMemoryJournal()
     registry = SkillRegistry()
@@ -792,7 +792,7 @@ def test_trace_review_queue_promotion_apply_requires_replay_gate_or_override(
 def test_policy_review_promotion_cannot_override_missing_replay_evidence(
     tmp_path: Path,
 ) -> None:
-    from runtime.memory.learning.review_queue import ReviewQueue
+    from runtime.safety.evolution.review_queue import ReviewQueue
 
     store = AgentTraceStore(tmp_path / "agent_trace.sqlite")
     review_queue_path = tmp_path / "review_queue.json"

@@ -4,13 +4,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from runtime.memory.control_sessions import ControlSessionStore
-from runtime.memory.learning.review_queue import ReviewQueue
 from runtime.safety.approval.approval_policy_store import load_policy
 from runtime.safety.evolution.kimi_swarm_load_test import (
     KimiSwarmLoadTestConfig,
     build_kimi_swarm_resume_plan,
     run_kimi_swarm_load_test,
 )
+from runtime.safety.evolution.review_queue import ReviewQueue
 from runtime.sensing.gateway.evolution_router import create_evolution_router
 from runtime.sensing.model_router.models import ModelRequest, ModelResponse
 

@@ -39,7 +39,7 @@ def _empty_forge_run(
 
 def _forge_applied_snapshot() -> dict[str, Any]:
     try:
-        from runtime.safety.recovery.gepa_addendum_store import legacy_global_path
+        from runtime.safety.evolution.gepa_addendum_store import legacy_global_path
 
         target = legacy_global_path()
         if not target.is_file():
@@ -71,7 +71,7 @@ def _forge_applied_snapshot() -> dict[str, Any]:
 
 def _forge_runs_snapshot(*, limit: int) -> dict[str, Any]:
     try:
-        from runtime.safety.recovery.gepa_runs import (
+        from runtime.safety.evolution.gepa_runs import (
             enrich_run_records,
             get_default_store,
         )
@@ -97,7 +97,7 @@ def _forge_runs_snapshot(*, limit: int) -> dict[str, Any]:
 
 def _forge_addendums_snapshot() -> dict[str, Any]:
     try:
-        from runtime.safety.recovery.gepa_addendum_store import list_all
+        from runtime.safety.evolution.gepa_addendum_store import list_all
 
         return {"addendums": list_all(), "source": "gepa"}
     except (OSError, ImportError, AttributeError, TypeError) as exc:
@@ -110,7 +110,7 @@ def _forge_addendums_snapshot() -> dict[str, Any]:
 
 def _forge_recipes_snapshot() -> dict[str, Any]:
     try:
-        from runtime.safety.recovery.gepa_variants import list_all_manifests
+        from runtime.safety.evolution.gepa_variants import list_all_manifests
 
         return {"recipes": list_all_manifests(), "source": "gepa"}
     except (OSError, ImportError, AttributeError, TypeError) as exc:
@@ -123,7 +123,7 @@ def _forge_recipes_snapshot() -> dict[str, Any]:
 
 def _forge_auto_tick_status() -> dict[str, Any]:
     try:
-        from runtime.safety.recovery import forge_auto_tick
+        from runtime.safety.evolution import forge_auto_tick
 
         return {**forge_auto_tick.get_status(), "source": "gepa"}
     except (OSError, ImportError, AttributeError, TypeError) as exc:
@@ -153,8 +153,8 @@ def _forge_auto_tick_enable(
             "error": "journal is required for RecipeForge auto-tick",
         }
     try:
+        from runtime.safety.evolution import forge_auto_tick
         from runtime.safety.gene_locks import LockViolation, check_monotonic
-        from runtime.safety.recovery import forge_auto_tick
 
         status = forge_auto_tick.get_status()
         warnings: list[str] = []
@@ -195,7 +195,7 @@ def _forge_auto_tick_enable(
 
 def _forge_auto_tick_disable() -> dict[str, Any]:
     try:
-        from runtime.safety.recovery import forge_auto_tick
+        from runtime.safety.evolution import forge_auto_tick
 
         return {**forge_auto_tick.disable(), "source": "gepa"}
     except (OSError, ImportError, AttributeError, TypeError) as exc:
@@ -217,7 +217,7 @@ def _forge_auto_tick_run_now(
     try:
         from dataclasses import asdict
 
-        from runtime.safety.recovery import forge_auto_tick
+        from runtime.safety.evolution import forge_auto_tick
 
         tick = forge_auto_tick.run_tick(
             apply=apply,
@@ -349,11 +349,11 @@ def _forge_run_optimizer(
             error="RecipeForge optimizer is not configured: planner.router missing.",
         )
     try:
-        from runtime.safety.recovery.gepa_runs import (
+        from runtime.safety.evolution.gepa_runs import (
             get_default_store,
             record_from_result,
         )
-        from runtime.safety.recovery.optimizer_backends import (
+        from runtime.safety.evolution.optimizer_backends import (
             OptimizerRunConfig,
             optimize_with_backend,
         )
@@ -414,7 +414,7 @@ def _forge_auto_propose(
     if router is None:
         return {"ok": False, "error": "planner.router missing", "source": "gepa"}
     try:
-        from runtime.safety.recovery.gepa_bridge import propose_for_losing_recipes
+        from runtime.safety.evolution.gepa_bridge import propose_for_losing_recipes
 
         results = propose_for_losing_recipes(
             journal=journal,
@@ -506,7 +506,7 @@ def _forge_apply_candidate(body: dict[str, Any], *, approver: str | None) -> dic
             and isinstance(variant_id, str)
             and variant_id.strip()
         ):
-            from runtime.safety.recovery.gepa_variants import (
+            from runtime.safety.evolution.gepa_variants import (
                 add_variant,
                 variant_path,
             )
@@ -527,14 +527,14 @@ def _forge_apply_candidate(body: dict[str, Any], *, approver: str | None) -> dic
             target = variant_path(target_recipe_id, variant_id)
             scope = "variant"
         elif isinstance(target_recipe_id, str) and target_recipe_id.strip():
-            from runtime.safety.recovery.gepa_addendum_store import save_for_recipe
+            from runtime.safety.evolution.gepa_addendum_store import save_for_recipe
 
             target = save_for_recipe(target_recipe_id, section)
             scope = "per_recipe"
             variant_id = None
         else:
             from runtime.core.cerebrum.prompt_persistence import dump_section
-            from runtime.safety.recovery.gepa_addendum_store import legacy_global_path
+            from runtime.safety.evolution.gepa_addendum_store import legacy_global_path
 
             target = legacy_global_path()
             dump_section(target, section, label="forge")
@@ -545,7 +545,7 @@ def _forge_apply_candidate(body: dict[str, Any], *, approver: str | None) -> dic
         applied_flag = False
         if isinstance(run_ts_raw, (int, float)):
             try:
-                from runtime.safety.recovery.gepa_runs import get_default_store
+                from runtime.safety.evolution.gepa_runs import get_default_store
 
                 applied_flag = get_default_store().mark_applied(ts=float(run_ts_raw))
             except (OSError, ImportError, AttributeError, TypeError):  # noqa: BLE001 — applied-flag update best-effort; not on critical path
@@ -555,7 +555,7 @@ def _forge_apply_candidate(body: dict[str, Any], *, approver: str | None) -> dic
             winner_payload = {}
         winner_applied = {"ok": False, "skipped": True, "reason": "no_winner_payload"}
         with contextlib.suppress(OSError, ImportError, AttributeError, TypeError, ValueError):
-            from runtime.safety.recovery.gepa_bridge import mark_winner_proposal_applied
+            from runtime.safety.evolution.gepa_bridge import mark_winner_proposal_applied
 
             winner_applied = mark_winner_proposal_applied(
                 recipe_id=target_recipe_id
@@ -611,7 +611,7 @@ def _forge_delete_addendum(recipe_id: str, *, approver: str | None) -> dict[str,
     if not gate.get("ok"):
         return {**gate, "source": "gepa"}
     try:
-        from runtime.safety.recovery.gepa_addendum_store import (
+        from runtime.safety.evolution.gepa_addendum_store import (
             delete_for_recipe,
             legacy_global_path,
         )
@@ -643,7 +643,7 @@ def _forge_variant_stats(*, journal: Any, recipe_id: str) -> dict[str, Any]:
     try:
         from dataclasses import asdict
 
-        from runtime.safety.recovery.variant_evaluator import collect_variant_stats
+        from runtime.safety.evolution.variant_evaluator import collect_variant_stats
 
         comps = collect_variant_stats(journal, base_recipe_id=recipe_id)
         if not comps:
@@ -695,8 +695,8 @@ def _forge_auto_promote(
     apply: bool,
 ) -> dict[str, Any]:
     try:
-        from runtime.safety.recovery.gepa_variants import list_variants, set_weights
-        from runtime.safety.recovery.variant_evaluator import (
+        from runtime.safety.evolution.gepa_variants import list_variants, set_weights
+        from runtime.safety.evolution.variant_evaluator import (
             collect_variant_stats,
             propose_weights,
         )
@@ -765,7 +765,7 @@ def _forge_auto_promote(
 
 def _forge_variants_snapshot(recipe_id: str) -> dict[str, Any]:
     try:
-        from runtime.safety.recovery.gepa_variants import list_variants
+        from runtime.safety.evolution.gepa_variants import list_variants
 
         return {**list_variants(recipe_id), "source": "gepa"}
     except (OSError, ImportError, AttributeError, TypeError) as exc:
@@ -800,7 +800,7 @@ def _forge_variant_weights(
     if not gate.get("ok"):
         return {**gate, "source": "gepa"}
     try:
-        from runtime.safety.recovery.gepa_variants import list_variants, set_weights
+        from runtime.safety.evolution.gepa_variants import list_variants, set_weights
 
         weights = body.get("weights") or {}
         if not isinstance(weights, dict):
@@ -866,7 +866,7 @@ def _forge_delete_variant(
     if not gate.get("ok"):
         return {**gate, "source": "gepa"}
     try:
-        from runtime.safety.recovery.gepa_variants import remove_variant
+        from runtime.safety.evolution.gepa_variants import remove_variant
 
         removed = remove_variant(recipe_id, variant_id)
         with contextlib.suppress(OSError, ImportError, AttributeError, TypeError):
@@ -894,7 +894,7 @@ def _forge_runs_csv_rows() -> list[list[Any]]:
     try:
         from datetime import datetime as _datetime
 
-        from runtime.safety.recovery.gepa_runs import enrich_run_records, get_default_store
+        from runtime.safety.evolution.gepa_runs import enrich_run_records, get_default_store
 
         rows: list[list[Any]] = []
         for run in enrich_run_records(get_default_store().list_recent(limit=200)):
@@ -927,7 +927,7 @@ def _forge_addendums_csv_rows() -> list[list[Any]]:
     try:
         from datetime import datetime as _datetime
 
-        from runtime.safety.recovery.gepa_addendum_store import list_all
+        from runtime.safety.evolution.gepa_addendum_store import list_all
 
         rows: list[list[Any]] = []
         for addendum in list_all():

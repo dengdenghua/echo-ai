@@ -351,7 +351,7 @@ def test_mount_agents_rebinds_registry_created_by_compatibility_loader(
     regeneration_rebound: list[Any] = []
     fake_trigger = SimpleNamespace(bind_agent_registry=auto_rebound.append)
     fake_scheduler = SimpleNamespace(bind_agent_registry=regeneration_rebound.append)
-    from runtime.safety.recovery import scheduler
+    from runtime.safety.evolution import learning_scheduler as scheduler
 
     monkeypatch.setattr(base, "AgentRegistry", _AutoRegistry)
     monkeypatch.setattr(

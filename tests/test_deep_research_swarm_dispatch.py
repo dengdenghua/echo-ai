@@ -44,7 +44,7 @@ def test_accepts_topic_under_alias_keys() -> None:
 
     ms.__dict__.get("load_registry")  # likely not directly importable here
     # Patch via the import path used inside the helper.
-    import runtime.safety.organization.forge as forge
+    import runtime.safety.evolution.topology_forge as forge
 
     monkey_orig = forge.load_registry
 
@@ -62,7 +62,7 @@ def test_accepts_topic_under_alias_keys() -> None:
 def test_falls_back_when_topology_missing() -> None:
     """Empty registry → None so caller falls back to legacy
     instructions handler. Pin: never raise on missing topology."""
-    import runtime.safety.organization.forge as forge
+    import runtime.safety.evolution.topology_forge as forge
 
     orig = forge.load_registry
 
@@ -81,7 +81,7 @@ def test_returns_structured_result_on_success() -> None:
     """When TeamRunner succeeds, return a structured dict with the
     final report and per-role outputs — NOT the legacy
     instructions-only payload."""
-    import runtime.safety.organization.forge as forge
+    import runtime.safety.evolution.topology_forge as forge
 
     # Stub topology
     class _StubTopology:
@@ -141,7 +141,7 @@ def test_returns_error_envelope_on_runner_crash() -> None:
     """When TeamRunner.run raises, return a structured error so the
     model sees a clear failure rather than silently falling back to
     legacy instructions (which would let the bug return)."""
-    import runtime.safety.organization.forge as forge
+    import runtime.safety.evolution.topology_forge as forge
     import runtime.safety.organization.team_runner as tr
 
     class _StubTopology:

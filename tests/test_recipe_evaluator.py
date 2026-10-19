@@ -12,7 +12,7 @@ from runtime.platform.models import (
     Trajectory,
     TrajectoryOutcome,
 )
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     RecipeEvaluator,
     RecipeEvaluatorConfig,
     format_recipe_report,
@@ -252,7 +252,7 @@ class TestLLMPlannerRecipeHash:
         from runtime.core.cerebrum import LLMPlanner
         from runtime.execution.suckers import Skill, SkillRegistry
         from runtime.memory.hemolymph import ContextComposer
-        from runtime.safety.recovery import LearnedRule
+        from runtime.safety.evolution import LearnedRule
         from runtime.sensing.model_router import MockModelRouter
 
         r = SkillRegistry()

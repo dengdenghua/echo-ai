@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from runtime.memory.learning.experience_ledger import ExperienceLedger
-from runtime.memory.learning.promotion_applier import PromotionApplier
-from runtime.memory.learning.review_queue import ReviewQueue
+from runtime.safety.evolution.experience_ledger import ExperienceLedger
+from runtime.safety.evolution.promotion_applier import PromotionApplier
 from runtime.safety.evolution.proposal_ledger import ProposalLedger
+from runtime.safety.evolution.review_queue import ReviewQueue
 
 
 def _review(task_id: str = "turn-1") -> dict:

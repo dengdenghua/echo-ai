@@ -295,7 +295,7 @@ print(f"success={trajectory.outcome.success}  steps={trajectory.step_count}")
 
 ```python
 from runtime.memory.journal import JSONLJournal
-from runtime.safety.recovery import (
+from runtime.safety.evolution import (
     RuleExtractor, format_rules_for_prompt,
 )
 

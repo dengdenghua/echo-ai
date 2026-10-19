@@ -26,7 +26,7 @@ def run_reflect(
     from runtime.execution.suckers import SkillRegistry
     from runtime.execution.suckers.builtins import register_all
     from runtime.memory.knowledge_graph import KnowledgeGraph
-    from runtime.safety.recovery import (
+    from runtime.safety.evolution import (
         ForgeConfig,
         KGUpdater,
         MemoryConsolidator,
@@ -134,7 +134,7 @@ def run_reflect(
             print(c.dim("      " + text.replace("\n", "\n      ")))
 
     if "recipe" not in skip:
-        from runtime.safety.recovery import RecipeEvaluator, format_recipe_report
+        from runtime.safety.evolution import RecipeEvaluator, format_recipe_report
 
         rc_report = RecipeEvaluator(journal).evaluate()
         best = rc_report.best
@@ -166,7 +166,7 @@ def run_intel(
 ) -> int:
     from runtime.execution.suckers import SkillRegistry
     from runtime.execution.suckers.builtins import register_all
-    from runtime.safety.recovery import IntelCollector, IntelSource
+    from runtime.safety.evolution import IntelCollector, IntelSource
 
     c = _Colors(color)
     print(c.bold(_("cli.intel.title", n=len(queries))))
@@ -276,7 +276,7 @@ def run_loop(
                 f"  {c.dim(_('cli.loop.rewrite_label'))} · {_('cli.loop.rewrite_info', applied=rw.applied_count, skipped=rw.skipped_count, rules=len(stack.planner.rules))}"
             )
 
-        from runtime.safety.recovery import ForgeConfig, SkillForge
+        from runtime.safety.evolution import ForgeConfig, SkillForge
 
         forge = SkillForge(
             journal=stack.journal,
@@ -371,7 +371,7 @@ def run_optimize(
     from runtime.core.cerebrum import LLMPlanner
     from runtime.platform.config import ConfigLoadError, build_from_config, load_from_yaml
     from runtime.platform.models import ArmId, Budget, BudgetLimits, ParsedIntent
-    from runtime.safety.experiments import (
+    from runtime.safety.evolution import (
         EvolutionPolicy,
         PromptEvolver,
         PromptMutator,

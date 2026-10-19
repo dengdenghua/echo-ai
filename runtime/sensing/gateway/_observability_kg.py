@@ -69,7 +69,7 @@ def register_kg_endpoints(router: Any, ctx: ObservabilityContext) -> None:
         force_sync: bool = False,
     ) -> tuple[Any, bool, Any]:
         from runtime.memory.knowledge_graph import KnowledgeGraph, SqliteKnowledgeGraph
-        from runtime.safety.recovery import KGUpdater
+        from runtime.safety.evolution import KGUpdater
 
         persistent = True
         kg: KnowledgeGraph

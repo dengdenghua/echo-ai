@@ -443,7 +443,7 @@ def register_rollback_panels_endpoints(router: Any, ctx: ObservabilityContext) -
         kg_size = 0
         try:
             from runtime.memory.knowledge_graph import KnowledgeGraph
-            from runtime.safety.recovery import KGUpdater
+            from runtime.safety.evolution import KGUpdater
 
             kg = KnowledgeGraph()
             KGUpdater(journal, kg, scope=scope).update()

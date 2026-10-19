@@ -255,7 +255,7 @@ tier: "core"
 
 ## Who imports this
 
-**220** file(s) reference this package:
+**222** file(s) reference this package:
 
 - **`runtime/adapters/`** · 6 file(s)
   - `runtime/adapters/integrations/local_auth/router.py`
@@ -284,13 +284,13 @@ tier: "core"
   - `runtime/execution/cron_context.py`
   - `runtime/execution/cron_executor.py`
   - _… and 25 more_
-- **`runtime/memory/`** · 14 file(s)
+- **`runtime/memory/`** · 8 file(s)
   - `runtime/memory/diagnostics/_trace_store_replay_storage.py`
   - `runtime/memory/diagnostics/_trace_store_storage.py`
   - `runtime/memory/hemolymph/composer.py`
   - `runtime/memory/journal/_journal_base.py`
   - `runtime/memory/journal/journal.py`
-  - _… and 9 more_
+  - _… and 3 more_
 - **`runtime/platform/`** · 25 file(s)
   - `runtime/platform/capabilities/permission_grants.py`
   - `runtime/platform/capabilities/service.py`
@@ -305,20 +305,20 @@ tier: "core"
   - `runtime/projectos/_store_thread_bindings.py`
   - `runtime/projectos/engine.py`
   - _… and 2 more_
-- **`runtime/safety/`** · 22 file(s)
+- **`runtime/safety/`** · 29 file(s)
+  - `runtime/safety/evolution/_gepa_failures.py`
   - `runtime/safety/evolution/auto_trigger.py`
   - `runtime/safety/evolution/candidate_registry.py`
+  - `runtime/safety/evolution/deep_evolution.py`
   - `runtime/safety/evolution/drift_monitor.py`
-  - `runtime/safety/evolution/fitness.py`
-  - `runtime/safety/evolution/proposal_ledger.py`
-  - _… and 17 more_
-- **`runtime/sensing/`** · 102 file(s)
+  - _… and 24 more_
+- **`runtime/sensing/`** · 103 file(s)
   - `runtime/sensing/gateway/_agent_trace_router_stores.py`
   - `runtime/sensing/gateway/_agents_endpoints.py`
   - `runtime/sensing/gateway/_config_endpoints.py`
   - `runtime/sensing/gateway/_config_endpoints_codex.py`
   - `runtime/sensing/gateway/_config_endpoints_local_models.py`
-  - _… and 97 more_
+  - _… and 98 more_
 - **`runtime/tentacle/`** · 3 file(s)
   - `runtime/tentacle/coordinator.py`
   - `runtime/tentacle/dashboard.py`
