@@ -241,7 +241,9 @@ def _native_tool_calls_missing_required_args(tool_calls: Any) -> list[str]:
     for call in tool_calls or []:
         name = str(getattr(call, "name", "") or "").strip()
         value = getattr(call, "input", None)
-        if name and name not in allow_empty and not value:
+        if name and (
+            getattr(call, "arguments_error", None) or (name not in allow_empty and not value)
+        ):
             missing.append(name)
     return missing
 

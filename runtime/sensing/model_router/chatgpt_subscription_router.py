@@ -51,6 +51,7 @@ from runtime.platform.models.llm import (
 from runtime.platform.process.session import current_session
 from runtime.safety.auth.scope import TenantScope
 
+from ._response_parsers import tool_call_from_arguments
 from .models import DEFAULT_USER_AGENT, LLMResponseFormatError
 from .provider import Provider, ProviderCapabilities
 
@@ -660,15 +661,10 @@ def _tool_call_from_output(
     if not isinstance(wire_name, str) or not wire_name:
         return None
     name = (local_name_by_wire_name or {}).get(wire_name, wire_name)
-    arguments = raw.get("arguments", "{}")
-    try:
-        parsed = json.loads(arguments) if isinstance(arguments, str) else arguments
-    except json.JSONDecodeError:
-        parsed = {"input": arguments}
-    return ToolCall(
-        id=str(raw.get("call_id") or raw.get("id") or f"call_{uuid4().hex}"),
+    return tool_call_from_arguments(
+        call_id=str(raw.get("call_id") or raw.get("id") or f"call_{uuid4().hex}"),
         name=name,
-        input=parsed if isinstance(parsed, dict) else {"input": parsed},
+        value=raw.get("arguments"),
     )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from typing import Any
 
+from ._tool_bridge_context_budget import NativeContextBudgetError, fit_native_request
 from ._tool_bridge_loop_context import _NativeLoopContext, _NativeLoopDirective
 
 
@@ -81,6 +82,13 @@ def _reserve_model_round(
     ctx: _NativeLoopContext,
 ) -> Generator[tuple[str, Any, Any], None, _NativeLoopDirective]:
     from runtime.sensing.gateway import _tool_bridge_loop as bridge
+
+    try:
+        ctx.req = fit_native_request(ctx.req)
+    except NativeContextBudgetError as exc:
+        ctx._finalize_native_trajectory(success=False, disposition="failed")
+        yield ("error", {"kind": "context_budget_exceeded", "message": str(exc)}, None)
+        return _NativeLoopDirective.TERMINAL
 
     try:
         ctx._round_model_reservation = ctx._reserve_native_model_budget(ctx.req)

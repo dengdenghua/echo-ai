@@ -176,6 +176,7 @@ tier: "standard"
 | `_thread_state_deps.py` | Shared state and access helpers for the thread-state router. |
 | `_thread_state_endpoints.py` | Thread CRUD, search, feedback, and history endpoints for the thread router. |
 | `_thread_state_search_projection.py` | Search projection helpers for the thread-state HTTP router. |
+| `_tool_bridge_context_budget.py` | Bound native requests without separating tool calls from their results. |
 | `_tool_bridge_exec.py` | Tool execution + semantic error + XML recovery helpers. |
 | `_tool_bridge_loop.py` | The native agentic tool loop (``stream_agentic_fallback``). |
 | `_tool_bridge_loop_batch.py` | Execute native tool batches with original context and cancellation scope. |
@@ -933,6 +934,14 @@ tier: "standard"
 | --- | --- | --- |
 | func | `def search_select_fields(payload)` | Return the public and authorization-safe internal field selections. |
 | func | `def project_visible_search_page(visible, select, offset, limit, require_auth)` | Paginate visible threads and apply the exact caller projection. |
+
+### `_tool_bridge_context_budget.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| class | `class NativeContextBudgetError(ValueError)` | Essential instructions, schemas or latest evidence exceed the budget. |
+| func | `def estimate_native_request_tokens(request)` |  |
+| func | `def fit_native_request(request)` | Compact complete old exchanges or reject before any provider call. |
 
 ### `_tool_bridge_loop.py`
 

@@ -16,6 +16,7 @@ from runtime.platform.models.model_capabilities import (
 )
 from runtime.platform.models.provider_errors import ModelProviderHTTPError
 
+from ._response_parsers import tool_call_from_arguments
 from .custom_model_flags import (
     custom_model_entry_for,
     custom_model_supports_thinking,
@@ -43,7 +44,6 @@ from .openai_compat_providers import (
     extract_openai_compat_reasoning,
     extract_openai_compat_usage,
     normalize_openai_compat_payload,
-    parse_tool_call_arguments,
     plan_openai_compat_retries,
     resolve_openai_compat_profile,
     split_inline_reasoning,
@@ -777,10 +777,9 @@ class OpenAIModelRouter(Provider, ModelRouter):
             ]
 
         Returns a list of ``ToolCall`` · empty when the model
-        didn't invoke any functions. JSON argument parsing is
-        permissive: a malformed ``arguments`` string yields an
-        empty dict rather than raising, so the agentic loop can
-        surface the error back to the model instead of 500-ing."""
+        didn't invoke any functions. Invalid arguments retain the call id
+        and a protocol error so the executor can return a matching error
+        result without invoking the handler."""
         from .models import ToolCall
 
         choices = data.get("choices") or []
@@ -797,25 +796,21 @@ class OpenAIModelRouter(Provider, ModelRouter):
                 continue
             fn = call.get("function") or {}
             name = fn.get("name") or ""
-            args_raw = fn.get("arguments") or ""
-            args = parse_tool_call_arguments(args_raw)
             out.append(
-                ToolCall(
-                    id=str(call.get("id") or ""),
+                tool_call_from_arguments(
+                    call_id=str(call.get("id") or ""),
                     name=str(name),
-                    input=args if isinstance(args, dict) else {},
+                    value=fn.get("arguments"),
                 )
             )
         legacy_call = msg.get("function_call")
         if isinstance(legacy_call, dict):
             name = legacy_call.get("name") or ""
-            args_raw = legacy_call.get("arguments") or ""
-            args = parse_tool_call_arguments(args_raw)
             out.append(
-                ToolCall(
-                    id=str(legacy_call.get("id") or "function_call_0"),
+                tool_call_from_arguments(
+                    call_id=str(legacy_call.get("id") or "function_call_0"),
                     name=str(name),
-                    input=args if isinstance(args, dict) else {},
+                    value=legacy_call.get("arguments"),
                 )
             )
         return out

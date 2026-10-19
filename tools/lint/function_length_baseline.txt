@@ -6,7 +6,7 @@ runtime/execution/subagents/bridge.py::call_subagent	1537
 runtime/platform/ui/browser_router.py::create_browser_router	1179
 runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	972
 runtime/tentacle/dashboard.py::create_tentacle_router	978
-runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	997
+runtime/execution/tool_engine/executor.py::ToolExecutor.execute_step	988
 runtime/sensing/gateway/agent_world_router.py::create_agent_world_router	966
 runtime/core/cerebrum/react_model_stream.py::_phase_6b_model_stream	946
 runtime/sensing/gateway/computer_router.py::create_computer_router	269
@@ -83,8 +83,8 @@ runtime/sensing/gateway/team_gateway.py::create_team_gateway	328
 runtime/core/cerebrum/_react_execution_dispatch.py::_execute_action_via_beak	303
 runtime/cli.py::_main	312
 runtime/sensing/gateway/_config_endpoints_codex.py::_register_coder_codex	311
-runtime/sensing/model_router/anthropic_router.py::AnthropicModelRouter.call_stream	310
-runtime/sensing/model_router/openai_compat_stream.py::iter_openai_sse	310
+runtime/sensing/model_router/anthropic_router.py::AnthropicModelRouter.call_stream	305
+runtime/sensing/model_router/openai_compat_stream.py::iter_openai_sse	306
 runtime/sensing/gateway/_realtime_cerebrum_requests.py::_handle_request	308
 runtime/execution/suckers/_delegation_skills_orchestration.py::_run_orchestration	306
 runtime/sensing/gateway/realtime_turn_input.py::_build_intent	306
@@ -170,7 +170,6 @@ runtime/sensing/gateway/team_invitations_router.py::register_team_invitation_rou
 runtime/adapters/integrations/oct/router_account.py::create_account_router	205
 runtime/adapters/integrations/oct/router_auth.py::create_auth_router	205
 runtime/platform/plugins/plugin_hub.py::PluginHub.load	205
-runtime/sensing/model_router/anthropic_router.py::AnthropicModelRouter.call	204
 runtime/execution/suckers/web_skills.py::_web_fetch	202
 runtime/sensing/gateway/topology_router.py::create_topology_router	202
 runtime/execution/suckers/kimi_compat_skills.py::register_kimi_compat_skills	201

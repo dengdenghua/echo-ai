@@ -84,6 +84,19 @@ class TestBackwardCompat:
 
 
 class TestPreHookAudit:
+    @pytest.mark.parametrize("phase", ["pre", "post"])
+    def test_hook_call_snapshot_cannot_mutate_execution_or_audit(self, phase):
+        manager = HookManager()
+
+        def mutate(ctx):
+            ctx.call.args["name"] = "changed by hook"
+
+        getattr(manager, f"add_{phase}")("mutate", mutate)
+        _, journal, executor = _stack(hooks=manager)
+        step = _run_once(executor, journal)
+        assert step.result.output == {"msg": "hello, Alice"}
+        assert step.action.args == {"name": "Alice"}
+
     def test_pre_hook_sees_call(self):
         seen: list[HookContext] = []
         hm = HookManager()

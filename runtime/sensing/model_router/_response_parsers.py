@@ -16,6 +16,10 @@ import json
 import re
 from typing import Any
 
+from runtime.platform.models.llm import ToolCall
+
+_ARGUMENT_ERROR = "malformed tool arguments: expected a complete object"
+
 
 def extract_openai_compat_reasoning(message: dict[str, Any]) -> str:
     pieces: list[str] = []
@@ -79,14 +83,18 @@ _XML_PARAMETER_NAME_RE = re.compile(
 
 def _xml_parameter_arguments(text: str) -> dict[str, Any]:
     parsed: dict[str, Any] = {}
+    # Never recover a partial call (e.g. one complete parameter followed by
+    # a truncated second parameter) as an executable subset of its input.
+    if not _XML_PARAMETER_RE.search(text) or _XML_PARAMETER_RE.sub("", text).strip():
+        raise ValueError(_ARGUMENT_ERROR)
     for match in _XML_PARAMETER_RE.finditer(text):
         attrs = match.group("attrs") or ""
         name_match = _XML_PARAMETER_NAME_RE.search(attrs)
         if name_match is None:
-            continue
+            raise ValueError(_ARGUMENT_ERROR)
         name = html.unescape(name_match.group("name")).strip()
         if not name:
-            continue
+            raise ValueError(_ARGUMENT_ERROR)
         raw = html.unescape(match.group("value") or "").strip()
         if re.search(r"\bstring\s*=\s*(['\"])true\1", attrs, re.IGNORECASE):
             parsed[name] = raw
@@ -124,21 +132,23 @@ def _normalize_tool_argument_mapping(parsed: dict[str, Any]) -> dict[str, Any]:
 
 
 def parse_tool_call_arguments(value: Any) -> dict[str, Any]:
+    """Decode supported object formats; malformed input must never become {}."""
     if isinstance(value, dict):
         return _normalize_tool_argument_mapping(value)
     if value is None:
-        return {}
+        raise ValueError(_ARGUMENT_ERROR)
     text = value if isinstance(value, str) else str(value)
     text = text.strip()
     if not text:
-        return {}
+        raise ValueError(_ARGUMENT_ERROR)
 
     parsed: Any
     try:
         parsed = json.loads(text)
         if isinstance(parsed, str):
             parsed = json.loads(parsed)
-        return _normalize_tool_argument_mapping(parsed) if isinstance(parsed, dict) else {}
+        if isinstance(parsed, dict):
+            return _normalize_tool_argument_mapping(parsed)
     except (
         TypeError,
         ValueError,
@@ -148,9 +158,20 @@ def parse_tool_call_arguments(value: Any) -> dict[str, Any]:
 
     try:
         parsed = ast.literal_eval(text)
-        return _normalize_tool_argument_mapping(parsed) if isinstance(parsed, dict) else {}
-    except (SyntaxError, ValueError, TypeError):
-        return _xml_parameter_arguments(text)
+        if isinstance(parsed, dict):
+            return _normalize_tool_argument_mapping(parsed)
+    except (SyntaxError, ValueError, TypeError):  # noqa: BLE001 — try strict XML after invalid literal
+        pass
+    return _xml_parameter_arguments(text)
+
+
+def tool_call_from_arguments(*, call_id: str, name: str, value: Any) -> ToolCall:
+    """Keep call identity for a protocol error without granting an invocation."""
+    try:
+        arguments = parse_tool_call_arguments(value)
+    except ValueError:
+        return ToolCall(id=call_id, name=name, arguments_error=_ARGUMENT_ERROR)
+    return ToolCall(id=call_id, name=name, input=arguments)
 
 
 def _render_reasoning_value(value: Any) -> str:

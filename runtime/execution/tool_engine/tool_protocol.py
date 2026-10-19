@@ -66,6 +66,7 @@ def normalize_tool_call(
         return call
 
     if isinstance(call, dict):
+        arguments_error = call.get("arguments_error")
         raw_id = call.get("id") or call.get("tool_use_id") or call.get("call_id")
         raw_name = call.get("name") or call.get("tool") or call.get("sucker_id")
         raw_args = call.get("arguments")
@@ -74,6 +75,7 @@ def normalize_tool_call(
         if raw_args is None:
             raw_args = call.get("args")
     else:
+        arguments_error = getattr(call, "arguments_error", None)
         raw_id = (
             getattr(call, "id", None)
             or getattr(call, "tool_use_id", None)
@@ -90,6 +92,10 @@ def normalize_tool_call(
         if raw_args is None:
             raw_args = getattr(call, "args", None)
 
+    if arguments_error:
+        raise ValueError("malformed tool arguments: expected a complete object")
+    if raw_args is not None and not isinstance(raw_args, dict):
+        raise ValueError("tool arguments must be an object")
     name = str(raw_name or "").strip()
     if not name:
         raise ValueError("tool call missing name")
