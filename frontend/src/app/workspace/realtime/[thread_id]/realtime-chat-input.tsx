@@ -84,7 +84,9 @@ export interface RealtimeChatInputProps extends ForwardedChatInputProps {
   canWriteConversation: boolean;
   researchLoading: boolean;
   hasBoundProject: boolean;
-  projectCapabilityAction: ReturnType<typeof resolveGroupProjectCapabilityAction>;
+  projectCapabilityAction: ReturnType<
+    typeof resolveGroupProjectCapabilityAction
+  >;
   openProjectWorkbenchForEntity: () => void;
   setPromoteGroupDialogOpen: StateSetter<boolean>;
   recorderPluginEnabled: boolean;
@@ -99,7 +101,7 @@ export interface RealtimeChatInputProps extends ForwardedChatInputProps {
   setWorkLocation: WorkLocationState[1];
   projectAgentMode: AgentModeName;
   isStopping: boolean;
-  handleRetryTask: (prompt: string) => void;
+  handleRetryTask: (prompt: string, background?: boolean) => void;
 }
 
 /**
@@ -170,10 +172,18 @@ export function RealtimeChatInput({
       // native roles serialize the thread's model source.
       modelProfileControl={!embeddedDesignChat}
       executionEngine={selectedExecutionEngine}
-      onExecutionEngineChange={!embeddedDesignChat ? executionSelection.setPreference : undefined}
+      onExecutionEngineChange={
+        !embeddedDesignChat ? executionSelection.setPreference : undefined
+      }
       executionEngineReady={executionSelection.engineReady}
       threadId={threadId}
-      draftStorageKey={isNewThread ? (welcomeTeamId ? `team:${welcomeTeamId}` : "__new__") : threadId}
+      draftStorageKey={
+        isNewThread
+          ? welcomeTeamId
+            ? `team:${welcomeTeamId}`
+            : "__new__"
+          : threadId
+      }
       isGroupConversation={isGroupConversation}
       projectCapabilityEnabled={hasBoundProject}
       onProjectCapabilityAction={
@@ -193,7 +203,9 @@ export function RealtimeChatInput({
           : undefined
       }
       responseModeControl={
-        !embeddedDesignChat && isGroupConversation && visibleCollaboratorCount > 1 ? (
+        !embeddedDesignChat &&
+        isGroupConversation &&
+        visibleCollaboratorCount > 1 ? (
           <RealtimeResponseModeControl
             t={t}
             teamModeIntent={teamModeIntent}
@@ -210,13 +222,9 @@ export function RealtimeChatInput({
           />
         ) : undefined
       }
-      automationTarget={
-        embeddedDesignChat ? null : automationTarget
-      }
+      automationTarget={embeddedDesignChat ? null : automationTarget}
       onAutomationTargetChange={
-        embeddedDesignChat
-          ? undefined
-          : handleAutomationTargetChange
+        embeddedDesignChat ? undefined : handleAutomationTargetChange
       }
       disabled={researchLoading || !canWriteConversation}
       showWorkDirSelector={!embeddedDesignChat}
@@ -233,14 +241,17 @@ export function RealtimeChatInput({
       // effect would briefly paint General and then
       // switch to Design, which looks like a third mode
       // flicker to the user.
-      projectAgentMode={
-        embeddedDesignChat ? "uxui" : projectAgentMode
-      }
-      permissionMode={normalizePermissionMode(
-        settings.context.permission_mode,
-      )}
+      projectAgentMode={embeddedDesignChat ? "uxui" : projectAgentMode}
+      permissionMode={normalizePermissionMode(settings.context.permission_mode)}
       allowAgentModes={!embeddedDesignChat}
-      onResume={!thread.isLoading && !isStopping && (thread.lastTurnStatus === "interrupted" || thread.lastTurnStatus === "failed") ? () => handleRetryTask(composerCopy.resumePrompt) : undefined}
+      onResume={
+        !thread.isLoading &&
+        !isStopping &&
+        (thread.lastTurnStatus === "interrupted" ||
+          thread.lastTurnStatus === "failed")
+          ? () => handleRetryTask(composerCopy.resumePrompt, true)
+          : undefined
+      }
       isStopping={isStopping}
       autoFocus={isNewThread}
       defaultValue={composerSeed}
@@ -248,17 +259,15 @@ export function RealtimeChatInput({
         !canWriteConversation
           ? t.teamMembers.viewerDesc
           : isEchoAssistant
-          ? t.realtime.composer.placeholderEcho
-          : isProjectCodeMode
-            ? t.realtime.composer.placeholderCode
-            : isNewThread
-              ? t.realtime.composer.placeholderNew
-              : undefined
+            ? t.realtime.composer.placeholderEcho
+            : isProjectCodeMode
+              ? t.realtime.composer.placeholderCode
+              : isNewThread
+                ? t.realtime.composer.placeholderNew
+                : undefined
       }
       className={
-        isNewThread
-          ? "border-border-subtle bg-card/90 shadow-none"
-          : undefined
+        isNewThread ? "border-border-subtle bg-card/90 shadow-none" : undefined
       }
     />
   );
@@ -284,14 +293,8 @@ function RealtimeResponseModeControl({
       ariaLabel={t.chatInputBox.responseMode}
       compact
       disabled={disabled}
-      disabledModes={
-        visibleCollaboratorCount <= 1
-          ? ["cluster", "swarm"]
-          : []
-      }
-      disabledReason={
-        t.chatInputBox.responseModeTeamRequired
-      }
+      disabledModes={visibleCollaboratorCount <= 1 ? ["cluster", "swarm"] : []}
+      disabledReason={t.chatInputBox.responseModeTeamRequired}
     />
   );
 }

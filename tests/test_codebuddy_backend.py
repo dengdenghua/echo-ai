@@ -104,6 +104,50 @@ def test_distinct_blocks_with_identical_text_are_not_discarded():
     assert reducer.text == "OKOK"
 
 
+def test_interleaved_stream_messages_match_their_own_final_snapshots():
+    reducer = CodeBuddyEvents()
+    for identity, text in (("first", "First"), ("second", "Second")):
+        reducer.consume(
+            {
+                "type": "stream_event",
+                "_messageId": identity,
+                "event": {
+                    "type": "content_block_delta",
+                    "delta": {"type": "text_delta", "text": text},
+                },
+            }
+        )
+    for identity, text in (("first", "First"), ("second", "Second")):
+        assert (
+            reducer.consume(
+                {
+                    **assistant({"type": "text", "text": text}, identity=identity),
+                    "uuid": "snapshot-" + identity,
+                    "_messageId": identity,
+                }
+            )
+            == []
+        )
+    assert reducer.text == "FirstSecond"
+    assert not reducer.partial_by_message
+
+
+def test_identified_stream_still_rejects_a_genuinely_rewritten_snapshot():
+    reducer = CodeBuddyEvents()
+    reducer.consume(
+        {
+            "type": "stream_event",
+            "_messageId": "first",
+            "event": {
+                "type": "content_block_delta",
+                "delta": {"type": "text_delta", "text": "Original"},
+            },
+        }
+    )
+    with pytest.raises(CodeBuddyError, match="流式回答"):
+        reducer.consume(assistant({"type": "text", "text": "Rewritten"}, identity="first"))
+
+
 def test_rewriting_same_text_block_still_fails():
     reducer = CodeBuddyEvents()
     reducer.consume({**assistant({"type": "text", "text": "Original"}), "uuid": "same-block"})

@@ -25,6 +25,7 @@ from runtime.safety.sandboxing.sandbox import (
     SandboxViolation,
     SeatbeltBackend,
 )
+from runtime.safety.sandboxing.windows_mxc import WindowsMXCBackend
 
 from . import chat_warm, warm_pool
 from ._app_server_protocol import (
@@ -864,6 +865,8 @@ class CodexExecutionSession:
         if choice is None:
             self._outer_sandbox = "none_configured"
             return None
+        if isinstance(choice.backend, WindowsMXCBackend):
+            return self._windows_control_plane_backend(choice)
         if not isinstance(choice.backend, SeatbeltBackend):
             self._outer_sandbox = choice.name
             return choice
@@ -890,6 +893,26 @@ class CodexExecutionSession:
             choice.name,
         )
         return None
+
+    def _windows_control_plane_backend(self, choice: BackendChoice) -> None:
+        """Keep local model authentication outside task-command isolation.
+
+        App Server needs its private CODEX_HOME, scoped credentials and network.
+        The generic MXC command launcher deliberately denies its own home and
+        cannot launch this control plane. Windows task commands still go through
+        the host broker's independently selected MXC backend; native tools keep
+        their separately validated named profile. Required outer isolation never
+        takes this local compatibility path.
+        """
+        if choice.strict or self._security.policy.outer_hard_sandbox_required:
+            self._outer_sandbox = "rejected_due_to_control_plane_incompatibility"
+            raise CodexSecurityError(
+                "required outer Windows MXC cannot host the Codex account control plane; "
+                "refusing to start the App Server"
+            )
+        self._outer_sandbox = "host_control_plane"
+        _logger.info("Codex outer_sandbox=host_control_plane; task commands retain Windows MXC")
+        return
 
 
 def _launch_is_wrapped(process_backend: BackendChoice | None) -> bool:

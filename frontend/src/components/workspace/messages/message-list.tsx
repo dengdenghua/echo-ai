@@ -1,3 +1,5 @@
+import { visibleConversationMessages } from "@/core/threads/background-resume";
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 import { type Message } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
 import type { ReactNode } from "react";
@@ -197,7 +199,14 @@ export function MessageList({
   const soleRosterEntry =
     combinedAgentRoster.length === 1 ? combinedAgentRoster[0] : undefined;
 
-  const messages = thread.messages;
+  const messages = useMemo(
+    () =>
+      visibleConversationMessages(
+        thread.messages,
+        composerActionsCopy(locale).resume,
+      ),
+    [thread.messages, locale],
+  );
   const latestClarificationContent = latestClarificationToolContent(messages);
   const showConversationActivity = thread.isLoading && !thread.error;
   // Message objects are immutable and reference-stable for untouched realtime

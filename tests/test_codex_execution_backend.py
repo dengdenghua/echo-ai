@@ -34,6 +34,7 @@ from runtime.safety.sandboxing.sandbox import (
     SandboxViolation,
     SeatbeltBackend,
 )
+from runtime.safety.sandboxing.windows_mxc import WindowsMXCBackend
 
 
 @dataclass
@@ -623,6 +624,24 @@ async def test_production_launch_is_transformed_by_full_backend(tmp_path: Path) 
     assert client.config.command[2:] == tuple(raw_argv)
     assert client.config.env_overrides["ECHO_OUTER_SANDBOX"] == "1"
     await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("require_hard, strict", [(True, False), (False, True)])
+async def test_required_windows_outer_boundary_never_uses_host_control_plane(
+    tmp_path, require_hard, strict
+):
+    session, security, _context, _factory, client = _make_session(
+        tmp_path,
+        require_hard=require_hard,
+        process_backend=BackendChoice(
+            backend=WindowsMXCBackend(), name="windows-mxc", hard=True, strict=strict
+        ),
+    )
+    with pytest.raises(CodexSecurityError, match="required outer Windows MXC"):
+        await session.start()
+    assert client.calls == []
+    assert security.prepare_kwargs is None
 
 
 @pytest.mark.asyncio

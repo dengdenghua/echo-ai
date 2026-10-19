@@ -59,6 +59,8 @@ class CodeBuddyEvents:
     ended: set[str] = field(default_factory=set)
     text: str = ""
     partial: str = ""
+    partial_by_message: dict[str, str] = field(default_factory=dict)
+    active_message_id: str = ""
     completed: bool = False
     model: str = "auto"
 
@@ -72,11 +74,19 @@ class CodeBuddyEvents:
             raise CodeBuddyError("CodeBuddy 返回了未授权的内置子代理消息。")
         if kind == "stream_event":
             event = message.get("event") or {}
+            if event.get("type") == "message_start":
+                self.active_message_id = str((event.get("message") or {}).get("id") or "")
             delta = event.get("delta") or {}
             if event.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
                 value = delta.get("text", "")
                 if isinstance(value, str) and value:
-                    self.partial += value
+                    identity = str(message.get("_messageId") or self.active_message_id)
+                    if identity:
+                        self.partial_by_message[identity] = (
+                            self.partial_by_message.get(identity, "") + value
+                        )
+                    else:
+                        self.partial += value
                     self.text += value
                     return [{"type": "text_delta", "delta": value}]
             return []
@@ -122,10 +132,16 @@ class CodeBuddyEvents:
                 self.snapshots[identity] = text
             novel = text[len(old) :] if has_text else ""
             # A complete assistant snapshot repeats preceding stream deltas.
-            if self.partial and novel:
-                if not novel.startswith(self.partial):
+            stream_identity = str(envelope.get("_messageId") or message.get("id") or "")
+            partial = self.partial_by_message.get(stream_identity, "") or self.partial
+            if partial and novel:
+                if not novel.startswith(partial):
                     raise CodeBuddyError("CodeBuddy 流式回答与最终消息不一致。")
-                novel, self.partial = novel[len(self.partial) :], ""
+                novel = novel[len(partial) :]
+                if stream_identity in self.partial_by_message:
+                    del self.partial_by_message[stream_identity]
+                else:
+                    self.partial = ""
             if novel:
                 self.text += novel
                 events.append({"type": "text_delta", "delta": novel})

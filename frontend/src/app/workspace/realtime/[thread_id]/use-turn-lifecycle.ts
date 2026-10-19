@@ -1,3 +1,4 @@
+import { backgroundResumeMessageId } from "@/core/threads/background-resume";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -329,7 +330,7 @@ export function useDirectTurnSenders({
     null,
   );
   const handleRetryTask = useCallback(
-    (prompt: string) => {
+    (prompt: string, background = false) => {
       const text = prompt.trim();
       if (!text || isLoading || !readyForMutations) return;
       // React updates the loading flag after this click returns. Guard the
@@ -344,7 +345,11 @@ export function useDirectTurnSenders({
       // recovered objective as a new turn preserves the gathered evidence
       // and avoids leaving the user on a pre-filled, unsent "new task" page.
       markSidebarThreadRunning(threadId);
-      void sendMessage(threadId, { text, files: [] });
+      void sendMessage(threadId, {
+        text,
+        files: [],
+        ...(background ? { clientMessageId: backgroundResumeMessageId() } : {}),
+      });
     },
     [
       markSidebarThreadRunning,
