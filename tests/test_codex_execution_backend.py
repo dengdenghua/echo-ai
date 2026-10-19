@@ -343,6 +343,10 @@ def _make_session(
         client_factory=cast(Any, factory),
         process_backend=process_backend,
     )
+    if binding is not None:
+        from runtime.execution.codex_backend import catalog_state
+
+        catalog_state.remember(context, binding.inner_thread_id, request)
     return session, security, context, factory, factory.client
 
 
@@ -733,7 +737,10 @@ async def test_existing_binding_resumes_without_rewriting(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
-async def test_resume_reasserts_the_exact_current_dynamic_tool_catalog(tmp_path: Path) -> None:
+@pytest.mark.parametrize("revoke", [False, True])
+async def test_catalog_change_starts_fresh_thread_with_current_tools(
+    tmp_path: Path, revoke: bool
+) -> None:
     session, _security, _context, _factory, client = _make_session(
         tmp_path,
         binding=_binding(),
@@ -758,10 +765,18 @@ async def test_resume_reasserts_the_exact_current_dynamic_tool_catalog(tmp_path:
         },
     )
 
+    if revoke:
+        from runtime.execution.codex_backend import catalog_state
+
+        catalog_state.remember(_context, "inner-existing", session.request)
+        session.request = replace(session.request, dynamic_tools=(), dynamic_tool_handler=None)
     await session.start()
 
-    resume = next(value for name, value in client.calls if name == "thread/resume")
-    assert resume[1]["extra_params"]["dynamicTools"] == [spec]
+    assert not any(name == "thread/resume" for name, _ in client.calls)
+    started = next(value for name, value in client.calls if name == "thread/start")
+    assert started["extra_params"]["dynamicTools"] == ([] if revoke else [spec])
+    assert not session.resumed
+    assert _security.writes == [("inner-new", "server", True)]
     await session.close()
 
 

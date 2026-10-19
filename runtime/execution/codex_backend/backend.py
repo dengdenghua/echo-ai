@@ -27,7 +27,7 @@ from runtime.safety.sandboxing.sandbox import (
 )
 from runtime.safety.sandboxing.windows_mxc import WindowsMXCBackend
 
-from . import chat_warm, warm_pool
+from . import catalog_state, chat_warm, warm_pool
 from ._app_server_protocol import (
     _entity_id,
     _environment_sandbox_refused,
@@ -449,10 +449,7 @@ class CodexExecutionSession:
             # Locks off newer default-on features only where this build
             # defines them; see feature_support.
             codex_executable=self.request.command[0],
-            # This attestation is derived from the effective BackendChoice
-            # that will actually wrap the process, never from a caller-owned
-            # bool or a bypassed nested-incompatible backend. Full enforcement
-            # and a successful transform are checked before the process starts.
+            # Attest the actual wrapping backend; transform is checked before launch.
             outer_hard_sandbox_active=bool(process_backend is not None and process_backend.hard),
             host_env=self.request.host_env,
             codex_home_scope=home_scope,
@@ -653,6 +650,8 @@ class CodexExecutionSession:
         binding: CodexThreadBinding | None,
     ) -> str:
         if binding is not None:
+            if not catalog_state.matches(context, binding, self.request):
+                return await self._create_thread(context, replace_binding=True)
             try:
                 thread = await self._resume_thread(context, binding.inner_thread_id)
             except RemoteError as exc:
@@ -691,10 +690,8 @@ class CodexExecutionSession:
         overrides = context.thread_start_security_overrides()
         permissions = _permission_profile(overrides)
         params = _thread_extra_params(overrides, resume=True)
-        # ``thread/resume`` can otherwise restore a stale App Server catalog.
-        # Reassert the exact current-turn catalog, including an explicit empty
-        # list when Echo revoked every tool since the previous turn.
-        params["dynamicTools"] = [dict(spec) for spec in self.request.dynamic_tools]
+        # App Server accepts dynamicTools only on thread/start. Catalog changes
+        # start a fresh inner thread and replay the outer conversation instead.
         if self.request.tool_free or self.request.host_tools_only:
             params["environments"] = []
         if self.request.developer_instructions is not None:
@@ -747,6 +744,7 @@ class CodexExecutionSession:
             authority=_SERVER_AUTHORITY,
             replace=replace_binding,
         )
+        catalog_state.remember(context, inner_thread_id, self.request)
         return inner_thread_id
 
     def _require_client(self) -> CodexAppServerClient:
