@@ -375,6 +375,7 @@ export interface ModelPickerProps {
   showSources?: boolean;
   showAutoOption?: boolean;
   footer?: ReactNode;
+  header?: ReactNode;
   disabled?: boolean;
   engineSource?: "opencode";
   open?: boolean;
@@ -393,6 +394,7 @@ export function ModelPicker({
   showSources = false,
   showAutoOption = true,
   footer,
+  header,
   disabled,
   engineSource,
   open: controlledOpen,
@@ -740,6 +742,7 @@ export function ModelPicker({
             className="min-w-0 flex-1 bg-transparent text-ui-caption outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           />
         </div>
+        {header}
         {engineSource && (
           <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/45 p-0.5">
             {(["custom", "opencode-zen"] as const).map((source) => (

@@ -72,6 +72,7 @@ export function UnifiedModelControl({
   const keys = coderQueryKeys(user?.actor_id || user?.user_id || "local");
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<ModelEngine | "all">("all");
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -228,7 +229,11 @@ export function UnifiedModelControl({
   const pending = disabled || save.isPending || effort.isPending;
   return (
     <ModelPicker
-      models={catalog}
+      models={
+        sourceFilter === "all"
+          ? catalog
+          : catalog.filter((model) => model.executionEngine === sourceFilter)
+      }
       value={selectedValue}
       onChange={(selection) => save.mutate(selection)}
       open={open}
@@ -237,6 +242,36 @@ export function UnifiedModelControl({
       showAutoOption={false}
       showSettingsLink={false}
       disabled={pending}
+      header={
+        <div
+          aria-label={locale.startsWith("zh") ? "模型来源" : "Model source"}
+          className="mb-1 flex flex-wrap gap-0.5 rounded-lg bg-muted/45 p-0.5"
+        >
+          {(["all", "codebuddy", "codex", "opencode", "echo"] as const).map(
+            (source) => (
+              <button
+                key={source}
+                type="button"
+                aria-pressed={sourceFilter === source}
+                onClick={() => setSourceFilter(source)}
+                className={`flex-1 rounded-md px-1.5 py-1 text-xs ${sourceFilter === source ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`}
+              >
+                {source === "all"
+                  ? locale.startsWith("zh")
+                    ? "全部"
+                    : "All"
+                  : source === "echo"
+                    ? "API/Echo"
+                    : source === "codebuddy"
+                      ? "CodeBuddy"
+                      : source === "codex"
+                        ? "Codex"
+                        : "OpenCode"}
+              </button>
+            ),
+          )}
+        </div>
+      }
       reasoningEffort={
         engine === "codex"
           ? (profile.data?.reasoning_effort as ReasoningEffort | undefined)
@@ -255,6 +290,7 @@ export function UnifiedModelControl({
           type="button"
           data-testid="unified-model-trigger"
           aria-label={`${engine} · ${label}`}
+          title={selected?.source_display_name || engine}
           disabled={pending}
           className="inline-flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2 text-ui text-muted-foreground hover:bg-muted/60"
         >
