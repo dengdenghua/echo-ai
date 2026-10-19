@@ -43,6 +43,16 @@ def test_windows_runtime_environment_keeps_font_directory_without_secrets(tmp_pa
     assert "EXAMPLE_API_KEY" not in env
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="real Windows startup canary")
+def test_mxc_startup_canary_uses_windows_echo_builtin(tmp_path, monkeypatch):
+    from runtime.core.cerebrum.env_health import probe_execution_health
+
+    if not WindowsMXCBackend.available():
+        pytest.skip("Echo Codex engine not installed")
+    monkeypatch.setenv("ECHO_PROCESS_SANDBOX", "windows-mxc")
+    assert probe_execution_health(cwd=str(tmp_path)) is False
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="real Windows kernel isolation test")
 @pytest.mark.parametrize("mode", ["workspace-write", "read-only"])
 def test_real_mxc_denies_outside_reads_writes_and_network(tmp_path, mode):

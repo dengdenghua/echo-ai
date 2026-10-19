@@ -72,8 +72,19 @@ def probe_execution_health(*, cwd: str | None = None, timeout_s: float = 8.0) ->
 
         choice = resolved_process_backend(effective_process_sandbox_mode())
         policy = SandboxPolicy(workspace=workspace)
+        command = ["echo", "echo-exec-canary"]
+        if os.name == "nt":
+            # echo is a cmd builtin, not a Windows executable. Launch the
+            # system shell explicitly so the canary measures sandbox health.
+            command = [
+                str(Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32" / "cmd.exe"),
+                "/d",
+                "/c",
+                "echo",
+                "echo-exec-canary",
+            ]
         argv, env, run_cwd = choice.backend.transform(
-            ["echo", "echo-exec-canary"],
+            command,
             policy.env_for(),
             workspace,
             policy,
