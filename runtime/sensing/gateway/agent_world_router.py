@@ -817,7 +817,7 @@ def create_agent_world_router(
             plugins = _cloud_catalog("plugins")
             return {
                 "plugins": [name for name in plugins.installed_plugins() if name == package_id],
-                "plugin_states": plugins.plugin_statuses(package_id=package_id),
+                "plugin_states": plugins.plugin_statuses(package_id=package_id, local_only=True),
             }
 
         from runtime.platform.assets.skill_inventory import (
@@ -839,7 +839,7 @@ def create_agent_world_router(
             "skill_states": skill_management_states(skill_registry, rows),
             "skill_users": build_skill_users(_list_local_agents(), skill_registry),
             "plugins": plugins.installed_plugins(),
-            "plugin_states": plugins.plugin_statuses(),
+            "plugin_states": plugins.plugin_statuses(local_only=True),
         }
 
     @router.post("/api/agent-market/cloud/skills/{name}/manage", dependencies=[Depends(_admin_dep)])

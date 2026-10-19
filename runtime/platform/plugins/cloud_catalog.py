@@ -564,15 +564,42 @@ class CloudCatalog(
                     names.add(cid)
         return sorted(names)
 
-    def plugin_statuses(self, *, package_id: str | None = None) -> dict[str, dict[str, Any]]:
+    def _status_items(self, installed: set[str], *, local_only: bool) -> list[dict[str, Any]]:
+        if local_only and self._store is None:
+            # Installed state must work without a cloud release or network.
+            # These descriptors only select the local verifier below; they do
+            # not authorize downloads, execution, or bypass package integrity.
+            local_items = {
+                str(row["plugin"]): {
+                    "id": row["id"],
+                    "plugin": row["plugin"],
+                    "kind": row["kind"],
+                    "factory_seed": row.get("factory_seed", False),
+                }
+                for row in _WORKBENCH_APPS
+            }
+            for name in installed:
+                if name not in local_items:
+                    kind = "connector"
+                    for directory, candidate in (("workbench", "workbench"), ("codex", "plugin")):
+                        if (self.PLUGIN_INSTALL_ROOT / directory / name).is_dir():
+                            kind = candidate
+                            break
+                    if kind == "connector" and (self.CODEX_CACHE_ROOT / name).is_dir():
+                        kind = "plugin"
+                    local_items[name] = {"id": name, "plugin": name, "kind": kind}
+            return list(local_items.values())
+        return self.items()
+
+    def plugin_statuses(
+        self, *, package_id: str | None = None, local_only: bool = False
+    ) -> dict[str, dict[str, Any]]:
         """Return the unified lifecycle projection for catalog plugins.
 
         Keys are install-package ids (the ``plugin`` field consumed by the
         frontend). Catalog ids remain present in each row so callers never have
-        to infer whether an item came from a factory seed or a mutable cloud
-        package. Transient downloading/uninstalling phases are owned by the
-        request/UI operation; this projection is the durable post-operation
-        truth.
+        to infer whether an item came from a factory seed or a cloud package.
+        This projection describes durable post-operation state.
         """
 
         if self._kind != "plugins":
@@ -583,7 +610,7 @@ class CloudCatalog(
         permission_store = self._marketplace_permission_store()
         statuses: dict[str, dict[str, Any]] = {}
         requested_package_id = package_id
-        for item in self.items():
+        for item in self._status_items(installed, local_only=local_only):
             package_id = str(item.get("plugin") or item.get("id") or "").strip()
             if requested_package_id is not None and package_id != requested_package_id:
                 continue

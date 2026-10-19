@@ -43,6 +43,8 @@ const testMatch =
     .map((entry) => entry.trim())
     .filter(Boolean) || defaultTestMatch;
 const backendEnv = [
+  // UI transport tests do not need a semantic model download on cold hosts.
+  "ECHO_EMBED_URL=http://127.0.0.1:1/v1",
   "ECHO_FF_REGENERATION_ENABLED=0",
   "ECHO_FF_CAMOUFLAGE_ENABLED=0",
   "ECHO_FF_UI_AMBIENT_SUGGESTIONS=0",

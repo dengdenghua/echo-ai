@@ -10,7 +10,7 @@ preset: null
 planner:
   type: llm
   model: mock/planner
-  mock_response: null
+  mock_response: "Offline test response completed."
   max_nodes: 10
 
 budget:
