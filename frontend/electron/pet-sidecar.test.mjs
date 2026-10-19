@@ -1,0 +1,40 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import vm from "node:vm";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+
+test("a packaged pet directory without its binary stays disabled", () => {
+  const resources = fs.mkdtempSync(path.join(os.tmpdir(), "echo-pet-test-"));
+  fs.mkdirSync(path.join(resources, "pet-sidecar"));
+  try {
+    const source = fs.readFileSync(
+      new URL("./pet-sidecar.cjs", import.meta.url),
+      "utf8",
+    );
+    const module = { exports: {} };
+    vm.runInNewContext(source, {
+      module,
+      process: { platform: "win32", env: {}, resourcesPath: resources },
+      console: { warn() {} },
+      require(name) {
+        if (name === "electron") return { app: { isPackaged: true } };
+        if (name === "child_process")
+          return {
+            spawn() {
+              assert.fail("must not execute a project directory");
+            },
+          };
+        return require(name);
+      },
+    });
+    assert.equal(module.exports.startPet().ok, false);
+    assert.equal(module.exports.isPetRunning(), false);
+  } finally {
+    fs.rmSync(resources, { recursive: true, force: true });
+  }
+});

@@ -106,16 +106,13 @@ function ensureSocket() {
 function resolveStartCommand() {
   const godot = resolveGodot();
   const project = resolveProject();
-  if (!godot && !project) {
+  if (!godot) {
     console.warn("[pet] no Godot binary or project found; pet disabled");
     return null;
   }
-  if (godot) {
-    // Dev: run the project with the selected Godot binary.
-    return { cmd: godot, args: project ? ["--path", project] : [] };
-  }
-  // Packaged fallback: project alone (custom launcher).
-  return { cmd: project, args: [] };
+  // A project directory is not an executable. Source-only or missing pet
+  // resources stay disabled until an actual Godot/sidecar binary is present.
+  return { cmd: godot, args: project ? ["--path", project] : [] };
 }
 
 /**

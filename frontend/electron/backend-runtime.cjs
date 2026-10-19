@@ -17,6 +17,7 @@ const path = require("path");
 const { app } = require("electron");
 const { requirePackagedOpenCode } = require("./opencode-runtime.cjs");
 const { terminateBackendChild } = require("./backend-process.cjs");
+const backendAddress = require("./backend-address.cjs");
 
 const PACKAGED_CODEX_VERSION = "0.162.0";
 const IS_WINDOWS = process.platform === "win32";
@@ -248,8 +249,7 @@ const resourcesPath = () => process.resourcesPath;
 // The port must match what main.cjs advertises to the renderer via
 // ECHO_BACKEND_URL; derive it from that same env when present.
 function backendPort() {
-  const m = (process.env.ECHO_BACKEND_URL || "").match(/:(\d+)$/);
-  return m ? m[1] : "8310";
+  return backendAddress.backendPort(app.isPackaged, process.env.ECHO_BACKEND_URL);
 }
 
 function pythonExe() {

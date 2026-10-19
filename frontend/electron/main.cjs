@@ -39,6 +39,7 @@ const petSidecar = require("./pet-sidecar.cjs");
 const desktopCore = require("./desktop-shell-core.cjs");
 const { selectPreviewSource } = require("./automation-preview.cjs");
 const desktopProtocol = require("./desktop-protocol.cjs");
+const backendAddress = require("./backend-address.cjs");
 const mcpOAuthDeepLink = require("./mcp-oauth-deep-link.cjs");
 const { startBrowserControlBridge } = require("./browser-control-bridge.cjs");
 const extensionStore = require("./extension-store.cjs");
@@ -190,9 +191,7 @@ function openUrlInBrowserTab(url) {
 
 // ── backend URL ────────────────────────────────────────────────
 function resolveBackendBaseURL() {
-  return desktopProtocol.normalizeLoopbackBackendBaseURL(
-    process.env.ECHO_BACKEND_URL || "http://127.0.0.1:8310",
-  );
+  return backendAddress.backendBaseURL(app.isPackaged, process.env.ECHO_BACKEND_URL);
 }
 
 function installDesktopRendererProtocol() {

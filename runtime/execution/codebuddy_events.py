@@ -53,6 +53,7 @@ def failure_message(detail: str) -> str:
 @dataclass
 class CodeBuddyEvents:
     tool_names: dict[str, str] = field(default_factory=dict)
+    tool_aliases: dict[str, str] = field(default_factory=dict, init=False)
     messages: set[str] = field(default_factory=set)
     snapshots: dict[str, str] = field(default_factory=dict)
     tools: dict[str, str] = field(default_factory=dict)
@@ -63,6 +64,20 @@ class CodeBuddyEvents:
     active_message_id: str = ""
     completed: bool = False
     model: str = "auto"
+
+    def __post_init__(self) -> None:
+        owners: dict[str, str] = {}
+        for native, skill in self.tool_names.items():
+            aliases = {native}
+            if native.startswith("mcp__echo__"):
+                # The official CLI replaces non-alphanumeric MCP-name
+                # characters with underscores before sending model calls.
+                aliases.add(re.sub(r"[^A-Za-z0-9_]", "_", native))
+            for alias in aliases:
+                if alias in owners and owners[alias] != native:
+                    raise CodeBuddyError("当前角色的工具名称转换后发生冲突，请修复工具目录后重试。")
+                owners[alias] = native
+                self.tool_aliases[alias] = skill
 
     def consume(self, message: dict[str, Any]) -> list[dict[str, Any]]:
         kind = message.get("type")
@@ -148,10 +163,15 @@ class CodeBuddyEvents:
         for block in content:
             if block.get("type") == "tool_use":
                 call_id, native = str(block.get("id") or ""), str(block.get("name") or "")
-                if not call_id or native not in self.tool_names:
-                    raise CodeBuddyError("CodeBuddy 请求了未授权的工具，本轮已停止。")
+                if not call_id or native not in self.tool_aliases:
+                    label = (
+                        native
+                        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_:-]{0,127}", native)
+                        else "未知工具"
+                    )
+                    raise CodeBuddyError(f"CodeBuddy 请求了未授权的工具（{label}），本轮已停止。")
                 if call_id not in self.tools:
-                    self.tools[call_id] = self.tool_names[native]
+                    self.tools[call_id] = self.tool_aliases[native]
                     events.append(
                         {
                             "type": "tool_start",

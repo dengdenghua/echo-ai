@@ -196,6 +196,37 @@ def test_unadvertised_tools_cannot_be_reported_as_authorized(native):
         reducer.consume(assistant({"type": "tool_use", "id": "t", "name": native}))
 
 
+def test_official_cli_mcp_normalization_preserves_the_authorized_blender_skill():
+    reducer = CodeBuddyEvents(
+        tool_names={
+            "mcp__echo__blender-control__blender-control": "blender-control__blender-control",
+        }
+    )
+    events = reducer.consume(
+        assistant(
+            {
+                "type": "tool_use",
+                "id": "blender-1",
+                "name": "mcp__echo__blender_control__blender_control",
+                "input": {},
+            }
+        )
+    )
+    assert events[0]["tool_name"] == "blender-control__blender-control"
+    assert reducer.tool_names == {
+        "mcp__echo__blender-control__blender-control": "blender-control__blender-control",
+    }
+    with pytest.raises(CodeBuddyError, match="未授权"):
+        reducer.consume(
+            assistant({"type": "tool_use", "id": "unlisted", "name": "mcp__echo__other_plugin"})
+        )
+
+
+def test_ambiguous_cli_name_normalization_is_rejected_before_execution():
+    with pytest.raises(CodeBuddyError, match="冲突"):
+        CodeBuddyEvents(tool_names={"mcp__echo__a-b": "first", "mcp__echo__a_b": "second"})
+
+
 @pytest.mark.parametrize(
     "result",
     [
