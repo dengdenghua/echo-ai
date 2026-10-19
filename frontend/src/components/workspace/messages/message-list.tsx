@@ -1,4 +1,7 @@
-import { visibleConversationMessages } from "@/core/threads/background-resume";
+import {
+  visibleConversationMessages,
+  conversationMessageIndexes,
+} from "@/core/threads/background-resume";
 import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 import { type Message } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
@@ -212,16 +215,10 @@ export function MessageList({
   // Message objects are immutable and reference-stable for untouched realtime
   // items. Build the positional lookup once per projected messages array so
   // rendering N rows does not call Array#indexOf N times.
-  const messageIndexByReference = useMemo(() => {
-    const indexes = new Map<Message, number>();
-    for (let index = 0; index < messages.length; index += 1) {
-      const message = messages[index]!;
-      // Preserve Array#indexOf semantics if a legacy projection happens to
-      // repeat the same Message object.
-      if (!indexes.has(message)) indexes.set(message, index);
-    }
-    return indexes;
-  }, [messages]);
+  const messageIndexByReference = useMemo(
+    () => conversationMessageIndexes(thread.messages, messages),
+    [thread.messages, messages],
+  );
   const latestOutboundDeliveryFailed = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index];

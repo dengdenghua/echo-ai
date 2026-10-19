@@ -19,3 +19,21 @@ export function visibleConversationMessages(
       : [];
   });
 }
+
+/** Fork/feedback offsets refer to the full journal, including hidden resumes. */
+export function conversationMessageIndexes(
+  source: Message[],
+  visible: Message[],
+): Map<Message, number> {
+  const result = new Map<Message, number>();
+  const byId = new Map<string, number>();
+  source.forEach((message, index) => {
+    if (!result.has(message)) result.set(message, index);
+    if (message.id && !byId.has(message.id)) byId.set(message.id, index);
+  });
+  for (const message of visible) {
+    const index = message.id ? byId.get(message.id) : undefined;
+    if (!result.has(message) && index !== undefined) result.set(message, index);
+  }
+  return result;
+}

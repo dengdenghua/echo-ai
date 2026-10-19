@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "@/core/api/types";
 import {
   backgroundResumeMessageId,
+  conversationMessageIndexes,
   visibleConversationMessages,
 } from "./background-resume";
 import {
@@ -10,6 +11,22 @@ import {
 } from "./optimistic-messages";
 
 describe("background continuation", () => {
+  it("preserves fork/feedback positions after hiding a continuation", () => {
+    const messages: Message[] = [
+      { type: "human", id: backgroundResumeMessageId(), content: "internal" },
+      { type: "ai", id: "reply", content: "answer" },
+      {
+        type: "human",
+        id: backgroundResumeMessageId(),
+        content: "internal",
+        additional_kwargs: { delivery_state: "failed" },
+      },
+    ];
+    const visible = visibleConversationMessages(messages, "Continue");
+    const positions = conversationMessageIndexes(messages, visible);
+    expect(positions.get(visible[0]!)).toBe(1);
+    expect(positions.get(visible[1]!)).toBe(2);
+  });
   it("keeps the sent id and delivery receipt while hiding generated prompt bubbles", () => {
     const id = backgroundResumeMessageId();
     expect(newClientMessageId(id)).toBe(id);
