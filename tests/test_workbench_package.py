@@ -81,6 +81,9 @@ def test_local_installed_status_needs_no_catalog_and_still_rejects_tampering(
 
     root = tmp_path / "plugins"
     package = _package(root / "workbench", "projects")
+    raw = json.loads((package / "app.json").read_text("utf-8"))
+    raw.pop("runtime_plugin")
+    (package / "app.json").write_text(json.dumps(raw), encoding="utf-8")
     manifest = WorkbenchPackageStore(root / "workbench").load_manifest("projects")
     trust = verify_workbench_package_trust(package, manifest)
     records = root / "workbench/.lifecycle/trust"
@@ -90,10 +93,10 @@ def test_local_installed_status_needs_no_catalog_and_still_rejects_tampering(
     monkeypatch.setattr(catalog, "PLUGIN_INSTALL_ROOT", root)
     monkeypatch.setattr(catalog, "installed_plugins", lambda: ["projects"])
     monkeypatch.setattr(catalog, "items", lambda: pytest.fail("local status queried cloud catalog"))
-    monkeypatch.setattr(catalog, "_validate_workbench_compatibility", lambda *a, **kw: None)
 
     status = catalog.plugin_statuses(package_id="projects", local_only=True)["projects"]
     assert status["installed"] is True
+    assert status["enabled"] is True  # Older compatible releases remain runnable.
     assert status["trust"]["integrity_verified"] is True
     assert status["available_version"] is None
 
@@ -102,6 +105,22 @@ def test_local_installed_status_needs_no_catalog_and_still_rejects_tampering(
     assert broken["lifecycle_state"] == "broken"
     assert broken["enabled"] is False
     assert broken["trust"]["integrity_verified"] is False
+
+
+def test_installed_packages_exclude_lifecycle_metadata(tmp_path, monkeypatch):
+    from runtime.platform.plugins.cloud_catalog import CloudCatalog
+
+    root = tmp_path / "plugins"
+    for name in ("projects", ".lifecycle", "_staging"):
+        (root / "workbench" / name).mkdir(parents=True)
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    catalog = CloudCatalog("plugins", use_remote=False, use_cache=False)
+    monkeypatch.setattr(catalog, "PLUGIN_INSTALL_ROOT", root)
+    monkeypatch.setattr(catalog, "CODEX_CACHE_ROOT", cache)
+    monkeypatch.setattr(catalog, "CONNECTOR_STATE_FILE", tmp_path / "missing.json")
+    assert "projects" in catalog.installed_plugins()
+    assert not {".lifecycle", "_staging"}.intersection(catalog.installed_plugins())
 
 
 def test_manifest_rejects_identity_mismatch_missing_entry_and_symlink(tmp_path: Path) -> None:

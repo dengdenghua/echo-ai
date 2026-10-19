@@ -534,8 +534,13 @@ class CloudCatalog(
             for kind_dir in root.iterdir():
                 if kind_dir.is_dir() and not kind_dir.name.startswith((".", "_")):
                     for d in kind_dir.iterdir():
-                        if d.is_dir() and not (
-                            kind_dir.name == "workbench" and d.name in _FACTORY_WORKBENCH_PLUGINS
+                        if (
+                            d.is_dir()
+                            and not d.name.startswith((".", "_"))
+                            and not (
+                                kind_dir.name == "workbench"
+                                and d.name in _FACTORY_WORKBENCH_PLUGINS
+                            )
                         ):
                             names.add(d.name)
         codex_cache = self.CODEX_CACHE_ROOT
@@ -594,13 +599,7 @@ class CloudCatalog(
     def plugin_statuses(
         self, *, package_id: str | None = None, local_only: bool = False
     ) -> dict[str, dict[str, Any]]:
-        """Return the unified lifecycle projection for catalog plugins.
-
-        Keys are install-package ids (the ``plugin`` field consumed by the
-        frontend). Catalog ids remain present in each row so callers never have
-        to infer whether an item came from a factory seed or a cloud package.
-        This projection describes durable post-operation state.
-        """
+        """Return durable lifecycle state keyed by installation-package id."""
 
         if self._kind != "plugins":
             return {}
@@ -718,6 +717,7 @@ class CloudCatalog(
                         self._validate_workbench_compatibility(
                             manifest,
                             install_root=self.PLUGIN_INSTALL_ROOT / "workbench",
+                            installed=True,
                         )
                     except (FileNotFoundError, ValueError) as exc:
                         lifecycle_state = "broken"

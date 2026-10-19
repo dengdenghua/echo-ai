@@ -100,7 +100,7 @@ runtime/adapters/integrations/local_auth/router.py::create_local_auth_router	212
 runtime/sensing/gateway/openai_gateway_router.py::create_openai_router._chat_completions_impl	281
 runtime/safety/recovery/_gepa_winner_proposal.py::record_winner_proposal_and_canary	280
 runtime/platform/ui/_reflex_admin_gepa_apply.py::register_gepa_apply	279
-runtime/platform/plugins/cloud_catalog.py::CloudCatalog.plugin_statuses	277
+runtime/platform/plugins/cloud_catalog.py::CloudCatalog.plugin_statuses	272
 runtime/sensing/gateway/_config_endpoints_local_models.py::_register_local_models	277
 runtime/sensing/gateway/_agent_trace_router_promotion.py::register_promotion_endpoints	276
 runtime/execution/suckers/_delegation_skills_graph.py::_run_agent_graph	271

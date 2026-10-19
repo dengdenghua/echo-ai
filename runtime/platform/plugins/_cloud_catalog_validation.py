@@ -95,6 +95,7 @@ class CloudCatalogValidationMixin:
         manifest: Any,
         *,
         install_root: Path,
+        installed: bool = False,
     ) -> None:
         official = next(
             (
@@ -104,7 +105,7 @@ class CloudCatalogValidationMixin:
             ),
             None,
         )
-        if official is None:
+        if official is None and not installed:
             official = next(
                 (
                     item
@@ -115,7 +116,7 @@ class CloudCatalogValidationMixin:
             )
         if official is not None:
             expected_version = str(official.get("version") or "").strip()
-            if expected_version and manifest.version != expected_version:
+            if not installed and expected_version and manifest.version != expected_version:
                 raise ValueError(
                     f"workbench version mismatch: expected {expected_version}, "
                     f"got {manifest.version}"
