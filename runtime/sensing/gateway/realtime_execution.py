@@ -287,10 +287,15 @@ async def select_turn_execution(
             scheduler=scheduler,
         )
     if route.engine is EngineId.CODEBUDDY:
-        from runtime.execution.codebuddy_backend import inspect_readiness, resolve_model
+        from runtime.execution.codebuddy_backend import (
+            inspect_readiness as inspect_codebuddy_readiness,
+        )
+        from runtime.execution.codebuddy_backend import (
+            resolve_model,
+        )
         from runtime.sensing.gateway.realtime_codebuddy_backend import scope_for_turn
 
-        status = await asyncio.to_thread(inspect_readiness, scope_for_turn(turn))
+        status = await asyncio.to_thread(inspect_codebuddy_readiness, scope_for_turn(turn))
         if not status["available"]:
             raise EngineSelectionError(
                 status["reason"], engine=EngineId.CODEBUDDY, reason="unavailable"
@@ -300,10 +305,15 @@ async def select_turn_execution(
     if route.engine is EngineId.ECHO:
         return route
     if route.engine is EngineId.OPENCODE:
-        from runtime.execution.opencode_backend import can_serve, inspect_readiness
+        from runtime.execution.opencode_backend import (
+            can_serve,
+        )
+        from runtime.execution.opencode_backend import (
+            inspect_readiness as inspect_opencode_readiness,
+        )
         from runtime.sensing.gateway.realtime_opencode_backend import scope_for_turn
 
-        status = await asyncio.to_thread(inspect_readiness, scope_for_turn(turn))
+        status = await asyncio.to_thread(inspect_opencode_readiness, scope_for_turn(turn))
         reason_code = status.get("reason_code")
         if status["available"]:
             model = requested_model or getattr(turn.params, "model", None)
