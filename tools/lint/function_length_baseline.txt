@@ -2,7 +2,7 @@
 # Shortening or splitting one? Remove (or lower) its line so the win is locked in.
 
 runtime/sensing/gateway/_team_stream_group_fanout.py::_drive_group_fanout	1568
-runtime/execution/subagents/bridge.py::call_subagent	391
+runtime/execution/subagents/bridge.py::call_subagent	387
 runtime/execution/subagents/_bridge_run.py::_SubagentRunMixin.run	392
 runtime/platform/ui/browser_router.py::create_browser_router	1179
 runtime/core/cerebrum/_react_execution_phase6d.py::_phase_6d_dispatch_and_observe	972
