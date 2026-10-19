@@ -29,6 +29,7 @@ from ._bridge_trace import (
     _subagent_trace_context,
 )
 from .artifact_handoff import ArtifactHandoff, ArtifactHandoffError
+from .execution_context import delegated_write_root
 from .registry import SubagentRegistry
 from .schema_output import schema_instruction
 
@@ -403,11 +404,7 @@ def call_subagent(
     # sub-agent's Session; the ephemeral chokepoint injects it as the
     # sandbox_dir for write skills (ephemeral runs bypass the executor's own
     # sandbox-arg injector). NOT a model-facing argument.
-    _locked_root = str(
-        workspace_path
-        or (context.get("workspace_path") if isinstance(context, dict) else "")
-        or "",
-    ).strip()
+    _locked_root = delegated_write_root(session, workspace_path, context)
 
     # ── Sub-agent identity for visibility (codename + avatar) ──
     # Computed once per call so the spawn / finish events agree on

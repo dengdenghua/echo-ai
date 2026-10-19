@@ -100,6 +100,64 @@ def test_bridge_children_have_distinct_identity_and_contend_for_same_file(tmp_pa
     assert parent.metadata["_execution_task"].task_id == "parent-turn"
 
 
+def test_chat_members_inherit_read_workspace_without_requesting_write_access(tmp_path):
+    project = tmp_path / "reference"
+    output = tmp_path / "output"
+    project.mkdir()
+    output.mkdir()
+    parent = _parent(project)
+    parent.metadata.update(
+        {
+            "mode": "chat",
+            "_artifact_output_root": str(output),
+            "_host_workspace_read_root": project,
+        }
+    )
+    task = parent.metadata["_execution_task"]
+    parent.metadata["_execution_task"] = replace(
+        task,
+        permissions=ExecutionScope(
+            "chat",
+            "chat",
+            (project, output),
+            (output,),
+        ),
+    )
+    calls = []
+
+    def runner(prompt, *, subagent_name, context):
+        child = current_session()
+        scope = current_execution_request().task.permissions
+        assert "_locked_write_root" not in child.metadata
+        assert scope.allows_read(project / "source.txt")
+        assert not scope.allows_write(project / "source.txt")
+        assert scope.allows_write(output / "reply.txt")
+        calls.append(prompt)
+        return "Hello"
+
+    result = call_subagent(
+        "coder",
+        "Hello",
+        session=parent,
+        runner=runner,
+        context={"workspace_path": str(project), "direct_conversation_reply": True},
+        timeout_seconds=3,
+    )
+    assert result["success"], result
+    assert calls == ["Hello"]
+    # An explicitly requested write boundary remains fail closed.
+    with pytest.raises(PermissionError, match="outside the parent execution scope"):
+        call_subagent(
+            "coder",
+            "Write",
+            session=parent,
+            runner=runner,
+            workspace_path=str(project),
+            timeout_seconds=3,
+        )
+    assert calls == ["Hello"]
+
+
 def test_parent_deadline_cancels_monitored_child_without_explicit_child_timeout(tmp_path):
     from runtime.safety.approval.cancellation import current_cancellation_token
 

@@ -41,6 +41,20 @@ def readonly_execution_parent(session: Any) -> Any:
     return replace(session, metadata=metadata)
 
 
+def delegated_write_root(parent: Any, explicit: Any, context: Any) -> str:
+    """An inherited read coordinate is not a requested write capability."""
+    root = str(
+        explicit or (context.get("workspace_path") if isinstance(context, dict) else "") or ""
+    ).strip()
+    task = parent_execution_task(parent)
+    # The trusted parent ceiling still bounds every child effect. Preserve
+    # the shared artifact output root instead of demanding writes to a
+    # project that the parent only granted as reference material.
+    if root and not explicit and task is not None and not task.permissions.allows_write(Path(root)):
+        return ""
+    return root
+
+
 @contextmanager
 def child_execution_scope(
     parent: Any,
