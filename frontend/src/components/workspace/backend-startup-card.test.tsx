@@ -11,6 +11,10 @@ describe("<BackendStartupCard />", () => {
       locale: "zh-CN",
     });
     expect(screen.getByText("正在启动 ECHO AI…")).toBeInTheDocument();
+    expect(screen.getByTestId("backend-startup-mark")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("backend-startup-mark").querySelectorAll("img"),
+    ).toHaveLength(2);
     expect(document.body.textContent).not.toMatch(/后端/);
   });
 

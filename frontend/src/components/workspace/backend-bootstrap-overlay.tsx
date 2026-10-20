@@ -122,7 +122,22 @@ export function BackendStartupCard({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm">
       <Card className="w-[min(90vw,420px)] border-none p-6">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="size-8 animate-pulse rounded-full bg-primary/60" />
+          <div
+            aria-hidden="true"
+            className="grid size-10 place-items-center"
+            data-testid="backend-startup-mark"
+          >
+            <img
+              alt=""
+              className="size-7 dark:hidden"
+              src="/brands/codex-blossom-on-light.png"
+            />
+            <img
+              alt=""
+              className="hidden size-7 dark:block"
+              src="/brands/codex-blossom-on-dark.png"
+            />
+          </div>
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">
               {message ?? copy.title}
