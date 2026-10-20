@@ -93,6 +93,21 @@ def test_bridge_status_requires_authenticated_active_webview(monkeypatch, tmp_pa
     }
 
 
+@pytest.mark.parametrize(
+    "status, expected",
+    [
+        ({"ok": True, "activeWebContentsId": None, "canOpenBrowser": True}, True),
+        ({"ok": True, "activeWebContentsId": 73}, True),
+        ({"ok": True, "activeWebContentsId": None}, False),
+        ({"ok": False, "canOpenBrowser": True}, False),
+        (None, False),
+    ],
+)
+def test_desktop_cold_start_can_open_a_visible_browser(monkeypatch, status, expected):
+    monkeypatch.setattr(browser_act, "_bridge_status", lambda: status)
+    assert browser_backends.ElectronBackend().available() is expected
+
+
 def test_live_browser_keeps_electron_priority_and_never_duplicates_failed_action(
     monkeypatch,
 ) -> None:

@@ -14,6 +14,9 @@ tier: "standard"
 ## Arms（外显能力）
 
 - `web_read`
+- `browser_read`
+- `browser_interact`
+- `desktop_operator`
 - `fs_writer`
 - `git`
 - `shell`

@@ -1,6 +1,9 @@
 {
   "arms": [
     "web_read",
+    "browser_read",
+    "browser_interact",
+    "desktop_operator",
     "fs_writer",
     "git",
     "shell"

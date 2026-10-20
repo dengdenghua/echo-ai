@@ -122,19 +122,19 @@ class TestPresetAgents:
 # ═══════════════════════════════════════════════════════════
 
 
-class TestCoderThreeArms:
+class TestCoderArms:
     def test_coder_has_expected_arms(self):
         agent = make_coder_agent(_fake_runtime())
         arm_ids = [str(a.arm_id) for a in agent.arms]
-        # The coding role has a fifth arm (``kane_private_arm``)
-        # for agent-private skill whitelisting; the four canonical
-        # arms below are still required.
-        assert len(arm_ids) == 5
+        assert len(arm_ids) == 8
         assert "web_read_arm" in arm_ids
         assert "fs_writer_arm" in arm_ids
         assert "git_arm" in arm_ids
         assert "shell_arm" in arm_ids
         assert "kane_private_arm" in arm_ids
+        assert "browser_read_arm" in arm_ids
+        assert "browser_interact_arm" in arm_ids
+        assert "desktop_operator_arm" in arm_ids
 
     def test_coder_can_use_all_three_domains(self):
         agent = make_coder_agent(_fake_runtime())

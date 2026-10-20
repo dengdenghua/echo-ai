@@ -210,12 +210,15 @@ class ElectronBackend:
 
     @staticmethod
     def _default_available() -> bool:
-        from runtime.execution.suckers.browser_act_skills import _electron_webview_available
+        from runtime.execution.suckers.browser_act_skills import _bridge_status
 
         # A stale bridge.json must not capture the request and return a hard
         # error. Only advertise Electron when the authenticated desktop bridge
-        # is alive and has a targetable browser surface.
-        return _electron_webview_available()
+        # is alive and owns either a selected tab or a visible browser launcher.
+        status = _bridge_status() or {}
+        return status.get("ok") is True and (
+            status.get("activeWebContentsId") is not None or status.get("canOpenBrowser") is True
+        )
 
     def available(self) -> bool:
         return bool(self._available_probe())

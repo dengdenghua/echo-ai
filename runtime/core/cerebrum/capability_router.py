@@ -25,6 +25,11 @@ _BROWSER_INTERACTION_RE = re.compile(
     re.IGNORECASE,
 )
 _EXPLICIT_BROWSER_SURFACE_RE = re.compile(r"@(?:browser|chrome)\b", re.IGNORECASE)
+_OPEN_WEB_SURFACE_RE = re.compile(
+    r"(?:打开|开启).{0,60}(?:网页|网站|国际站|官网|控制台|浏览器|https?://)"
+    r"|\bopen\b.{0,60}(?:\bwebsite\b|\bbrowser\b|\bconsole\b|https?://)",
+    re.IGNORECASE,
+)
 
 
 def browser_tools_requested(
@@ -70,8 +75,12 @@ def browser_tools_requested(
     ):
         return True
     goal_text = str(goal or "")
+    if goal_text.strip().lower() in {"继续", "重试", "continue", "retry"}:
+        goal_text = _context_text(goal_text, context)[0]
     return bool(
-        _EXPLICIT_BROWSER_SURFACE_RE.search(goal_text) or _BROWSER_INTERACTION_RE.search(goal_text)
+        _EXPLICIT_BROWSER_SURFACE_RE.search(goal_text)
+        or _BROWSER_INTERACTION_RE.search(goal_text)
+        or _OPEN_WEB_SURFACE_RE.search(goal_text)
     )
 
 
@@ -390,6 +399,9 @@ _RULES: tuple[dict[str, Any], ...] = (
         "modes": {"browser", "chrome", "ui"},
         "keywords": (
             "browser",
+            "国际站",
+            "官网",
+            "控制台",
             "localhost",
             "127.0.0.1",
             "screenshot",
@@ -434,6 +446,32 @@ _RULES: tuple[dict[str, Any], ...] = (
             "browser_find",
             "screen_capture",
             "screen_info",
+        ),
+    },
+    {
+        "label": "desktop-ui",
+        "modes": {"desktop", "computer"},
+        "keywords": (
+            "desktop automation",
+            "computer automation",
+            "computer use",
+            "电脑自动化",
+            "桌面自动化",
+            "桌面操作",
+            "控制电脑",
+            "操作电脑",
+        ),
+        "skills": (
+            "computer_observe",
+            "computer_uia_status",
+            "computer_uia_tree",
+            "computer_uia_find",
+            "computer_plan_next",
+            "computer_preview_action",
+            "computer_execute_token",
+            "computer_use_loop",
+            "screen_info",
+            "screen_capture",
         ),
     },
     {

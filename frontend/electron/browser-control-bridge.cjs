@@ -21,7 +21,13 @@ const ACTIONS = new Set([
 // A private loopback transport. The host owns target selection and execution;
 // callers cannot choose arbitrary webContents. Script execution, like every
 // other registered live-browser tool, remains confined to the selected webview.
-async function startBrowserControlBridge({ statePath, getTarget, runAction }) {
+async function startBrowserControlBridge({
+  statePath,
+  getTarget,
+  runAction,
+  ensureTarget,
+  canOpenBrowser,
+}) {
   const token = randomBytes(32).toString("hex");
   const server = http.createServer(async (req, res) => {
     const send = (status, value) => {
@@ -72,12 +78,26 @@ async function startBrowserControlBridge({ statePath, getTarget, runAction }) {
         send(400, { ok: false, error: "invalid parameters" });
         return;
       }
-      const target = getTarget();
+      let target = getTarget();
+      if (action === "navigate" && !target && ensureTarget) {
+        let url;
+        try {
+          url = new URL(String(params.url || ""));
+        } catch {
+          /* invalid below */
+        }
+        if (!url || !["http:", "https:"].includes(url.protocol)) {
+          send(400, { ok: false, error: "navigation requires an HTTP(S) URL" });
+          return;
+        }
+        target = await ensureTarget();
+      }
       if (action === "status") {
         send(200, {
           ok: true,
           activeWebContentsId: target?.id ?? null,
           pid: process.pid,
+          canOpenBrowser: Boolean(canOpenBrowser?.()),
         });
       } else if (!target) {
         send(503, { ok: false, error: "no active browser tab" });

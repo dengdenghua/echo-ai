@@ -65,6 +65,47 @@ test("desktop HTTP bridge controls only its selected webview", async () => {
     );
     expect(crossOrigin.status).toBe(403);
     expect((await request("click", { selector: "#save" })).status).toBe(503);
+    // Cold start: no selected tab is required, and no headless fallback runs.
+    expect((await (await request("status")).json()).canOpenBrowser).toBe(true);
+    expect(
+      (await request("navigate", { url: "file:///C:/Windows/win.ini" })).status,
+    ).toBe(400);
+    const opened = await (
+      await request("navigate", { url: `${base}/target` })
+    ).json();
+    expect(opened.ok).toBe(true);
+    expect(opened.url).toBe(`${base}/target`);
+    const browserWindow = app.windows().find((page) => page !== win)!;
+    await expect(browserWindow.locator("#result")).toHaveText("Waiting");
+    expect(
+      await app.evaluate(
+        ({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().filter((w) => w.isVisible()).length,
+      ),
+    ).toBeGreaterThan(0);
+    expect(
+      (
+        await (
+          await request("type", {
+            selector: "#name",
+            text: "Visible browser",
+            clear: true,
+          })
+        ).json()
+      ).ok,
+    ).toBe(true);
+    expect(
+      (await (await request("click", { selector: "#save" })).json()).ok,
+    ).toBe(true);
+    await expect(browserWindow.locator("#result")).toHaveText(
+      "Saved: Visible browser",
+    );
+    const capture = await (await request("screenshot")).json();
+    expect(capture.dataUrl).toMatch(/^data:image\/png;base64,/);
+    await browserWindow.screenshot({
+      path: "../data/automation-browser-qa/visible-browser.png",
+    });
+    await browserWindow.close();
     const id = await win.evaluate(async (url) => {
       const webview = document.createElement("webview") as HTMLElement & {
         getWebContentsId(): number;

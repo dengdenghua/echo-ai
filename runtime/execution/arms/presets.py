@@ -71,6 +71,18 @@ _BROWSER_INTERACT = [
     SkillId("browser_upload"),
     SkillId("browser_scroll"),
     SkillId("browser_wait"),
+    SkillId("browser_state"),
+    SkillId("browser_find"),
+    SkillId("live_browser_navigate"),
+    SkillId("live_browser_state"),
+    SkillId("live_browser_current_url"),
+    SkillId("live_browser_extract"),
+    SkillId("live_browser_find"),
+    SkillId("live_browser_click"),
+    SkillId("live_browser_type"),
+    SkillId("live_browser_scroll"),
+    SkillId("live_browser_wait"),
+    SkillId("live_browser_screenshot"),
 ]
 
 _WRITE_FS = [

@@ -25,17 +25,17 @@ tier: "standard"
 | `bb_read` | blackboard | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `bb_write` | blackboard | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `browser-testing-with-devtools` | agent_docs |  | — | — |
-| `browser_click` | browser |  | browser_interact | eve, leon |
-| `browser_extract` | browser |  | browser_read, ecommerce_mind, vibe_selling | eve, leon, luna, shion |
-| `browser_find` | browser |  | — | — |
-| `browser_get` | browser |  | browser_read, ecommerce_mind, vibe_selling | eve, leon, luna, shion |
-| `browser_navigate` | browser |  | browser_read, ecommerce_mind, vibe_selling | eve, leon, luna, shion |
-| `browser_screenshot` | browser |  | browser_read, ecommerce_mind, vibe_selling | eve, leon, luna, shion |
-| `browser_scroll` | browser |  | browser_interact | eve, leon |
-| `browser_state` | browser |  | — | — |
-| `browser_type` | browser |  | browser_interact | eve, leon |
-| `browser_upload` | browser |  | browser_interact | eve, leon |
-| `browser_wait` | browser |  | browser_interact | eve, leon |
+| `browser_click` | browser |  | browser_interact | eve, kane, leon |
+| `browser_extract` | browser |  | browser_read, ecommerce_mind, vibe_selling | eve, kane, leon, luna, shion |
+| `browser_find` | browser |  | browser_interact | eve, kane, leon |
+| `browser_get` | browser |  | browser_read, ecommerce_mind, vibe_selling | eve, kane, leon, luna, shion |
+| `browser_navigate` | browser |  | browser_read, ecommerce_mind, vibe_selling | eve, kane, leon, luna, shion |
+| `browser_screenshot` | browser |  | browser_read, ecommerce_mind, vibe_selling | eve, kane, leon, luna, shion |
+| `browser_scroll` | browser |  | browser_interact | eve, kane, leon |
+| `browser_state` | browser |  | browser_interact | eve, kane, leon |
+| `browser_type` | browser |  | browser_interact | eve, kane, leon |
+| `browser_upload` | browser |  | browser_interact | eve, kane, leon |
+| `browser_wait` | browser |  | browser_interact | eve, kane, leon |
 | `call_agent` | delegation |  | — | — |
 | `call_agent_background` | jobs |  | — | — |
 | `call_agent_parallel` | delegation |  | — | — |
@@ -47,13 +47,13 @@ tier: "standard"
 | `code_find_symbol` | code_intel | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `code_search` | code_intel | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `collaboration` | agent_meta | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
-| `computer_execute_token` | computer |  | desktop_operator | eve, leon, raven |
-| `computer_observe` | computer |  | desktop_operator | eve, leon, raven |
-| `computer_plan_next` | computer |  | desktop_operator | eve, leon, raven |
-| `computer_preview_action` | computer |  | desktop_operator | eve, leon, raven |
-| `computer_uia_find` | computer |  | desktop_operator | eve, leon, raven |
-| `computer_uia_status` | computer |  | desktop_operator | eve, leon, raven |
-| `computer_uia_tree` | computer |  | desktop_operator | eve, leon, raven |
+| `computer_execute_token` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `computer_observe` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `computer_plan_next` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `computer_preview_action` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `computer_uia_find` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `computer_uia_status` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `computer_uia_tree` | computer |  | desktop_operator | eve, kane, leon, raven |
 | `count_words` | builtin | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `crawl_site` | crawler |  | ecommerce_mind, general, vibe_selling, web_read | echo, echo_mira_voss, eve, kane, leon, luna, noah, shion, zero |
 | `crop_and_replicate_assets_in_image` | kimi_compat |  | — | — |
@@ -93,8 +93,8 @@ tier: "standard"
 | `job_kill` | jobs | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `job_list` | jobs | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `job_output` | jobs |  | — | — |
-| `keyboard_press` | computer |  | desktop_operator | eve, leon, raven |
-| `keyboard_type` | computer |  | desktop_operator | eve, leon, raven |
+| `keyboard_press` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `keyboard_type` | computer |  | desktop_operator | eve, kane, leon, raven |
 | `kg_query` | memory | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `kill_background_exec` | shell |  | shell | echo, eve, kane, leon, zero |
 | `kill_shell` | shell |  | shell | echo, eve, kane, leon, zero |
@@ -104,23 +104,23 @@ tier: "standard"
 | `list_learned_skills` | skill_library | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `list_scheduled_tasks` | cron |  | — | — |
 | `list_soul_history` | memory | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
-| `live_browser_click` | browser_act |  | — | — |
-| `live_browser_current_url` | browser_act |  | — | — |
+| `live_browser_click` | browser_act |  | browser_interact | eve, kane, leon |
+| `live_browser_current_url` | browser_act |  | browser_interact | eve, kane, leon |
 | `live_browser_execute_js` | browser_act |  | — | — |
-| `live_browser_extract` | browser_act |  | — | — |
-| `live_browser_find` | browser_act |  | — | — |
-| `live_browser_navigate` | browser_act |  | — | — |
-| `live_browser_screenshot` | browser_act |  | — | — |
-| `live_browser_scroll` | browser_act |  | — | — |
-| `live_browser_state` | browser_act |  | — | — |
-| `live_browser_type` | browser_act |  | — | — |
-| `live_browser_wait` | browser_act |  | — | — |
+| `live_browser_extract` | browser_act |  | browser_interact | eve, kane, leon |
+| `live_browser_find` | browser_act |  | browser_interact | eve, kane, leon |
+| `live_browser_navigate` | browser_act |  | browser_interact | eve, kane, leon |
+| `live_browser_screenshot` | browser_act |  | browser_interact | eve, kane, leon |
+| `live_browser_scroll` | browser_act |  | browser_interact | eve, kane, leon |
+| `live_browser_state` | browser_act |  | browser_interact | eve, kane, leon |
+| `live_browser_type` | browser_act |  | browser_interact | eve, kane, leon |
+| `live_browser_wait` | browser_act |  | browser_interact | eve, kane, leon |
 | `lsp_definition` | lsp |  | — | — |
 | `lsp_document_symbols` | lsp |  | — | — |
 | `lsp_hover` | lsp |  | — | — |
 | `lsp_references` | lsp |  | — | — |
-| `mouse_click` | computer |  | desktop_operator | eve, leon, raven |
-| `mouse_move` | computer |  | desktop_operator | eve, leon, raven |
+| `mouse_click` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `mouse_move` | computer |  | desktop_operator | eve, kane, leon, raven |
 | `multi_edit_file` | fs_write |  | — | — |
 | `note_user` | memory | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `platform_collect` | web |  | ecommerce_mind, general, vibe_selling, web_read | echo, echo_mira_voss, eve, kane, leon, luna, noah, shion, zero |
@@ -142,8 +142,8 @@ tier: "standard"
 | `revert_soul` | memory | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `run_tests` | code_quality |  | — | — |
 | `schedule_task` | cron |  | — | — |
-| `screen_capture` | computer |  | desktop_operator | eve, leon, raven |
-| `screen_info` | computer |  | desktop_operator | eve, leon, raven |
+| `screen_capture` | computer |  | desktop_operator | eve, kane, leon, raven |
+| `screen_info` | computer |  | desktop_operator | eve, kane, leon, raven |
 | `screenshot_web_full_page` | kimi_compat |  | — | — |
 | `search_capabilities` | agent_meta | ✅ | — | build-agent, echo, echo_mira_voss, eve, kane, leon, luna, noah, policy-test-member, raven, research-agent, shion, zero |
 | `search_image_by_image` | kimi_compat |  | — | — |

@@ -38,6 +38,7 @@ const {
 const petSidecar = require("./pet-sidecar.cjs");
 const desktopCore = require("./desktop-shell-core.cjs");
 const { selectPreviewSource } = require("./automation-preview.cjs");
+const { createVisibleAutomationBrowser } = require("./visible-automation-browser.cjs");
 const desktopProtocol = require("./desktop-protocol.cjs");
 const backendAddress = require("./backend-address.cjs");
 const mcpOAuthDeepLink = require("./mcp-oauth-deep-link.cjs");
@@ -2351,7 +2352,13 @@ if (!app.requestSingleInstanceLock()) {
           : path.resolve(__dirname, "../../data"));
       browserControlBridge = await startBrowserControlBridge({
         statePath: path.join(bridgeDataDir, "bridge.json"),
-        getTarget: activeBrowserTarget,
+        ...createVisibleAutomationBrowser({
+          BrowserWindow,
+          getSelectedTarget: activeBrowserTarget,
+          getOwner: () => mainWindow,
+          partition: BROWSER_PARTITION,
+          icon: path.join(__dirname, "..", "dist", "favicon.ico"),
+        }),
         runAction: runBrowserControlAction,
       });
     } catch {
