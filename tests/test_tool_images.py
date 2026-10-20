@@ -252,6 +252,6 @@ def test_native_loop_image_result_is_multimodal_and_consumed_only_once():
     original = [{"type": "tool_result", "tool_use_id": "render-call", "content": text}]
     result = visual_tool_results(original, session)
     assert isinstance(original[0]["content"], str)
-    assert result[0]["content"][1]["type"] == "image"
-    assert base64.b64decode(result[0]["content"][1]["source"]["data"]) == raw
+    assert result[1]["type"] == "image"
+    assert base64.b64decode(result[1]["source"]["data"]) == raw
     assert visual_tool_results(original, session)[0]["content"] == text

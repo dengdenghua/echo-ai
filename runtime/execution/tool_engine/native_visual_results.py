@@ -17,11 +17,11 @@ def visual_tool_results(blocks: list[dict[str, Any]], session: Any) -> list[dict
     for block in blocks:
         images = pending.pop(block.get("tool_use_id"), [])
         item = dict(block)
+        result.append(item)
         if images and not block.get("is_error"):
-            content = [{"type": "text", "text": str(block.get("content") or "")}]
             for image in images:
                 header, data = image["imageUrl"].split(",", 1)
-                content.append(
+                result.append(
                     {
                         "type": "image",
                         "source": {
@@ -31,6 +31,4 @@ def visual_tool_results(blocks: list[dict[str, Any]], session: Any) -> list[dict
                         },
                     }
                 )
-            item["content"] = content
-        result.append(item)
     return result

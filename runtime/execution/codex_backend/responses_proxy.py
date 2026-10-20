@@ -58,6 +58,7 @@ from ._security_support import (
     _prepare_state_root,
     _read_owned_private_file,
 )
+from .response_images import tool_output_message
 from .tool_limits import MAX_RESPONSES_TOOLS, TOOL_CATALOG_MESSAGE
 from .types import CodexProviderProfile, ConfigurationError
 
@@ -338,12 +339,13 @@ class ScopedResponsesProxy:
         server, self._server = self._server, None
         if server is not None:
             server.close()
-            await server.wait_closed()
         for writer in tuple(self._writers):
             writer.close()
         for writer in tuple(self._writers):
             with suppress(ConnectionError, OSError, RuntimeError):
                 await writer.wait_closed()
+        if server is not None:
+            await server.wait_closed()
         pending = {task for task in self._handlers if task is not asyncio.current_task()}
         if pending:
             done, still_pending = await asyncio.wait(pending, timeout=2.0)
@@ -1021,17 +1023,13 @@ def _append_input_items(
             "custom_tool_call_output",
             "local_shell_call_output",
         }:
-            call_id = _safe_call_id(item.get("call_id"))
             messages.append(
-                Message(
-                    role="user",
-                    content=[
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": call_id,
-                            "content": _flatten_output(item.get("output")),
-                        }
-                    ],
+                tool_output_message(
+                    _safe_call_id(item.get("call_id")),
+                    item.get("output"),
+                    images_b64,
+                    decode_image=_decode_inline_image,
+                    flatten_output=_flatten_output,
                 )
             )
         elif item_type == "compaction":

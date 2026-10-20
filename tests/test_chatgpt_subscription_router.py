@@ -330,3 +330,37 @@ def test_credentials_reject_group_or_world_access(tmp_path: Path) -> None:
     auth.chmod(0o644)
     with pytest.raises(ChatGPTSubscriptionRouterError, match="不可用"):
         _read_credentials(auth)
+
+
+def test_native_visual_tool_result_keeps_pixels_in_subscription_payload():
+    from runtime.sensing.model_router.chatgpt_subscription_router import _build_responses_payload
+
+    request = ModelRequest(
+        model="gpt-test",
+        messages=[
+            Message(
+                role="user",
+                content=[
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "render",
+                        "content": "image attached; unreviewed",
+                    },
+                    {
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": "image/png", "data": "aW1hZ2U="},
+                    },
+                ],
+            )
+        ],
+    )
+    payload = _build_responses_payload(request, model="gpt-test")
+    images = [
+        part
+        for item in payload["input"]
+        if item["type"] == "message"
+        for part in item["content"]
+        if part["type"] == "input_image"
+    ]
+    assert images == [{"type": "input_image", "image_url": "data:image/png;base64,aW1hZ2U="}]
+    assert payload["input"][0]["type"] == "function_call_output"

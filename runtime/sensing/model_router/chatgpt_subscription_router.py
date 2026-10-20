@@ -479,6 +479,7 @@ def _message_to_input_items(
         ]
     items: list[dict[str, Any]] = []
     text_parts: list[str] = []
+    image_parts: list[dict[str, Any]] = []
     for part in message.content:
         part_type = str(part.get("type") or "")
         if part_type == "tool_use":
@@ -505,6 +506,12 @@ def _message_to_input_items(
                     "output": _flatten_content(part.get("content", "")),
                 }
             )
+        elif part_type in {"image", "image_url"}:
+            from .openai_router_wire import _image_block_to_openai
+
+            image = _image_block_to_openai(part)
+            if image is not None:
+                image_parts.append({"type": "input_image", "image_url": image["image_url"]["url"]})
         else:
             text_parts.append(_flatten_content(part.get("text", part.get("content", ""))))
     if text_parts:
@@ -516,6 +523,8 @@ def _message_to_input_items(
                 "content": [{"type": text_type, "text": "\n".join(text_parts)}],
             },
         )
+    if image_parts:
+        items.append({"type": "message", "role": message.role, "content": image_parts})
     return items
 
 

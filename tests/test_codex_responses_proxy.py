@@ -987,11 +987,22 @@ async def test_real_codex_app_server_completes_scoped_text_and_tool_loop(
     workspace.mkdir()
     router = _RealToolLoopRouter()
     tool_calls: list[ApprovalRequest] = []
+    import base64
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (32, 16), "purple").save(buffer, format="PNG")
+    encoded_image = base64.b64encode(buffer.getvalue()).decode()
 
     async def _dynamic_tool(request: ApprovalRequest) -> dict[str, Any]:
         tool_calls.append(request)
         return {
-            "contentItems": [{"type": "inputText", "text": "probe succeeded"}],
+            "contentItems": [
+                {"type": "inputText", "text": "probe succeeded"},
+                {"type": "inputImage", "imageUrl": "data:image/png;base64," + encoded_image},
+            ],
             "success": True,
         }
 
@@ -1096,6 +1107,8 @@ async def test_real_codex_app_server_completes_scoped_text_and_tool_loop(
 
     assert isinstance(compact_result, dict)
     assert router.first_text_received.is_set()
+    assert router.requests[1].images_b64 == [encoded_image]
+    assert encoded_image not in str(router.requests[1].messages)
     assert len(router.requests) == 3
     compact_prompt = "\n".join(
         str(message.content) for message in router.requests[-1].messages
