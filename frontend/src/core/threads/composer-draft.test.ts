@@ -1,3 +1,4 @@
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -33,7 +34,11 @@ describe("composer-draft", () => {
     const oldKey = "echo:composer-draft:stale-thread";
     window.localStorage.setItem(
       oldKey,
-      JSON.stringify({ v: 1, text: "旧草稿", savedAt: Date.now() - 31 * 24 * 60 * 60 * 1000 }),
+      JSON.stringify({
+        v: 1,
+        text: "旧草稿",
+        savedAt: Date.now() - 31 * 24 * 60 * 60 * 1000,
+      }),
     );
     saveComposerDraft("fresh-thread", "新草稿");
     expect(window.localStorage.getItem(oldKey)).toBeNull();
@@ -75,3 +80,26 @@ describe("composer-draft", () => {
     });
   });
 });
+
+it.each(["zh-CN", "en-US", "ja-JP", "ko-KR"])(
+  "never restores an internal continuation draft in %s",
+  (locale) => {
+    const text = composerActionsCopy(locale).resumePrompt;
+    for (const raw of [
+      text,
+      JSON.stringify({ v: 1, text, savedAt: Date.now() }),
+    ]) {
+      window.localStorage.setItem("echo:composer-draft:resume", raw);
+      expect(loadComposerDraft("resume")).toBeNull();
+      expect(
+        window.localStorage.getItem("echo:composer-draft:resume"),
+      ).toBeNull();
+    }
+    saveComposerDraft("resume", text);
+    expect(loadComposerDraft("resume")).toBeNull();
+    saveComposerDraft("resume", composerActionsCopy(locale).resume);
+    expect(loadComposerDraft("resume")).toBe(
+      composerActionsCopy(locale).resume,
+    );
+  },
+);

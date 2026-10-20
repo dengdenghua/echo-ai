@@ -1,3 +1,5 @@
+import { isBackgroundResumePrompt } from "./background-resume";
+
 /**
  * Per-thread composer draft persistence.
  *
@@ -25,7 +27,9 @@ interface DraftEnvelope {
 }
 
 function storageKey(threadId: string | undefined | null): string {
-  return DRAFT_KEY_PREFIX + (threadId?.trim() ? threadId : NEW_THREAD_DRAFT_KEY);
+  return (
+    DRAFT_KEY_PREFIX + (threadId?.trim() ? threadId : NEW_THREAD_DRAFT_KEY)
+  );
 }
 
 function readDraft(raw: string | null): string | null {
@@ -66,7 +70,12 @@ export function loadComposerDraft(
   threadId: string | undefined | null,
 ): string | null {
   try {
-    return readDraft(window.localStorage.getItem(storageKey(threadId)));
+    const draft = readDraft(window.localStorage.getItem(storageKey(threadId)));
+    if (draft && isBackgroundResumePrompt(draft)) {
+      window.localStorage.removeItem(storageKey(threadId));
+      return null;
+    }
+    return draft;
   } catch {
     return null;
   }
@@ -77,10 +86,13 @@ export function saveComposerDraft(
   draft: string,
 ): void {
   try {
-    if (draft) {
+    if (draft && !isBackgroundResumePrompt(draft)) {
       const now = Date.now();
       const envelope: DraftEnvelope = { v: 1, text: draft, savedAt: now };
-      window.localStorage.setItem(storageKey(threadId), JSON.stringify(envelope));
+      window.localStorage.setItem(
+        storageKey(threadId),
+        JSON.stringify(envelope),
+      );
       pruneExpiredDrafts(now);
     } else {
       window.localStorage.removeItem(storageKey(threadId));

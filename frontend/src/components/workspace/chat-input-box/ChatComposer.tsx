@@ -1,3 +1,4 @@
+import { isBackgroundResumePrompt } from "@/core/threads/background-resume";
 import { ComposerModelControl } from "./ComposerModelControl";
 import { getLocalSettings } from "@/core/settings/local";
 import { StreamingSendActions } from "./StreamingSendActions";
@@ -584,14 +585,22 @@ export function ChatComposer({
   // empty — if the user already started retyping, theirs wins.
   useEffect(() => {
     const handler = (
-      event: CustomEvent<{ threadId?: string | null; text?: string | null }>,
+      event: CustomEvent<{
+        threadId?: string | null;
+        text?: string | null;
+        clientMessageId?: string | null;
+      }>,
     ) => {
       const detail = event.detail;
       if (detail?.threadId && threadId && detail.threadId !== threadId) {
         return;
       }
       const lostText = detail?.text ?? "";
-      if (!lostText) return;
+      if (
+        !lostText ||
+        detail?.clientMessageId?.startsWith("ui-resume-") ||
+        isBackgroundResumePrompt(lostText)
+      ) return;
       setDraft((current) => (current.trim() ? current : lostText));
       setTimeout(() => textareaRef.current?.focus(), 0);
     };
