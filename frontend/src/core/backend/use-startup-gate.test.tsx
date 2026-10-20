@@ -14,7 +14,7 @@ it("never polls or blocks web and development sessions", async () => {
   vi.stubGlobal("fetch", fetch);
   const { result } = renderHook(() => useStartupGate(false));
   await act(() => vi.advanceTimersByTimeAsync(10_000));
-  expect(result.current).toBe(false);
+  expect(result.current.visible).toBe(false);
   expect(fetch).not.toHaveBeenCalled();
 });
 
@@ -26,14 +26,14 @@ it("dismisses the startup card permanently after the first successful probe", as
   vi.stubGlobal("fetch", fetch);
   const { result } = renderHook(() => useStartupGate(true));
   await act(() => vi.advanceTimersByTimeAsync(0));
-  expect(result.current).toBe(false);
+  expect(result.current.visible).toBe(false);
   await act(() => vi.advanceTimersByTimeAsync(400));
-  expect(result.current).toBe(true);
+  expect(result.current.visible).toBe(true);
   await act(() => vi.advanceTimersByTimeAsync(1100));
-  expect(result.current).toBe(false);
+  expect(result.current.visible).toBe(false);
   fetch.mockResolvedValue({ ok: false });
   await act(() => vi.advanceTimersByTimeAsync(60_000));
-  expect(result.current).toBe(false);
+  expect(result.current.visible).toBe(false);
   expect(fetch).toHaveBeenCalledTimes(2);
 });
 
@@ -45,7 +45,7 @@ it("skips the startup card entirely when the first probe succeeds", async () => 
   vi.stubGlobal("fetch", fetch);
   const { result } = renderHook(() => useStartupGate(true));
   await act(() => vi.advanceTimersByTimeAsync(60_000));
-  expect(result.current).toBe(false);
+  expect(result.current.visible).toBe(false);
   expect(fetch).toHaveBeenCalledTimes(1);
 });
 
@@ -54,9 +54,9 @@ it("keeps one stable startup card while the service is genuinely starting", asyn
   vi.stubGlobal("fetch", fetch);
   const { result } = renderHook(() => useStartupGate(true));
   await act(() => vi.advanceTimersByTimeAsync(400));
-  expect(result.current).toBe(true);
+  expect(result.current.visible).toBe(true);
   await act(() => vi.advanceTimersByTimeAsync(10_000));
-  expect(result.current).toBe(true);
+  expect(result.current.visible).toBe(true);
   expect(fetch).toHaveBeenCalledTimes(7);
 });
 
@@ -73,7 +73,7 @@ it("waits for a pending probe instead of starting overlapping requests", async (
   await act(() => vi.advanceTimersByTimeAsync(10_000));
   expect(fetch).toHaveBeenCalledTimes(1);
   await act(async () => finish?.({ ok: true }));
-  expect(result.current).toBe(false);
+  expect(result.current.visible).toBe(false);
 });
 
 it("aborts and ignores late probe results after unmount", async () => {
@@ -107,6 +107,31 @@ it("cleans up StrictMode's discarded startup probe", async () => {
   });
   await act(() => vi.advanceTimersByTimeAsync(10_000));
   expect(signals[0]?.aborted).toBe(true);
-  expect(result.current).toBe(false);
+  expect(result.current.visible).toBe(false);
   expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it("offers recovery after a slow start without resetting the visible notice", async () => {
+  const fetch = vi.fn().mockResolvedValue({ ok: false });
+  vi.stubGlobal("fetch", fetch);
+  const { result } = renderHook(() => useStartupGate(true));
+  await act(() => vi.advanceTimersByTimeAsync(12_100));
+  expect(result.current.slow).toBe(true);
+  expect(result.current.visible).toBe(true);
+  const attempts = fetch.mock.calls.length;
+  fetch.mockResolvedValue({ ok: true });
+  await act(async () => result.current.retry());
+  expect(fetch).toHaveBeenCalledTimes(attempts + 1);
+  expect(result.current.visible).toBe(false);
+  await act(() => vi.advanceTimersByTimeAsync(60_000));
+  expect(fetch).toHaveBeenCalledTimes(attempts + 1);
+});
+
+it("does not start a second probe when retry is requested during an active check", async () => {
+  const fetch = vi.fn(() => new Promise<Response>(() => {}));
+  vi.stubGlobal("fetch", fetch);
+  const { result } = renderHook(() => useStartupGate(true));
+  expect(result.current.checking).toBe(true);
+  await act(async () => result.current.retry());
+  expect(fetch).toHaveBeenCalledTimes(1);
 });

@@ -1,5 +1,5 @@
-import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
 
@@ -27,5 +27,30 @@ describe("<BackendStartupCard />", () => {
       { locale: "zh-CN" },
     );
     expect(screen.getByText("安装 browser 能力…")).toBeInTheDocument();
+  });
+
+  it("uses a compact status notice without a modal or full-screen backdrop", () => {
+    const { container } = renderWithProviders(
+      <BackendStartupCard message={null} />,
+    );
+    expect(screen.getByRole("status")).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      container.querySelector("[aria-modal], .backdrop-blur-sm, .inset-0"),
+    ).toBeNull();
+    expect(container.querySelector('[data-echo-core="sync"]')).not.toBeNull();
+  });
+
+  it("offers a connection retry during slow startup and disables it while checking", () => {
+    const retry = vi.fn();
+    const { rerender } = renderWithProviders(
+      <BackendStartupCard message={null} slow onRetry={retry} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry connection" }));
+    expect(retry).toHaveBeenCalledOnce();
+    rerender(
+      <BackendStartupCard message={null} slow checking onRetry={retry} />,
+    );
+    expect(screen.getByRole("button", { name: "Checking…" })).toBeDisabled();
   });
 });

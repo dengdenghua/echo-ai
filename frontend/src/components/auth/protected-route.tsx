@@ -3,6 +3,8 @@ import { BrandLoading } from "@/components/brand/brand-loading";
 import { loginPathWithReturnTo } from "@/core/auth/return-to";
 import { useI18n } from "@/core/i18n/hooks";
 import { useAuth } from "@/providers/AuthProvider";
+import { isPackagedShell } from "@/core/backend/desktop-shell";
+import { DesktopStartupShell } from "@/components/workspace/desktop-startup-shell";
 
 /**
  * Route guard that redirects unauthenticated users to /login.
@@ -17,9 +19,8 @@ export function ProtectedRoute() {
 
   // Still loading auth status — show nothing to avoid flash
   if (isLoading) {
-    return (
-      <BrandLoading label={t.common.loadingWorkspace} />
-    );
+    if (isPackagedShell()) return <DesktopStartupShell />;
+    return <BrandLoading label={t.common.loadingWorkspace} />;
   }
 
   // Auth disabled on backend — let everyone through

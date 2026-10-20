@@ -11,17 +11,36 @@ let authState = {
   authStatus: null as { enabled: boolean } | null,
   isAuthenticated: false,
 };
+const desktop = vi.hoisted(() => ({ packaged: false }));
+vi.mock("@/core/backend/desktop-shell", () => ({
+  isPackagedShell: () => desktop.packaged,
+}));
 
 vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => authState,
 }));
 
 beforeEach(() => {
+  desktop.packaged = false;
   authState = {
     isLoading: true,
     authStatus: null,
     isAuthenticated: false,
   };
+});
+
+it("shows an empty desktop workspace frame while keeping protected content unmounted", () => {
+  desktop.packaged = true;
+  renderWithProviders(
+    <Routes>
+      <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<div>private conversation</div>} />
+      </Route>
+    </Routes>,
+  );
+  expect(screen.getByTestId("desktop-startup-shell")).toBeVisible();
+  expect(screen.queryByText("private conversation")).toBeNull();
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 function CurrentLocation() {

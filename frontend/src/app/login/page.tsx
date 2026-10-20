@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 
 import { BrandLoadingPanel } from "@/components/brand/brand-progress";
+import { isPackagedShell } from "@/core/backend/desktop-shell";
+import { DesktopStartupShell } from "@/components/workspace/desktop-startup-shell";
 import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { Button } from "@/components/ui/button";
 import {
@@ -715,6 +717,7 @@ export default function LoginPage() {
   }, [isLoading, isAuthenticated, authStatus, navigate, returnTo]);
 
   if (isLoading) {
+    if (isPackagedShell()) return <DesktopStartupShell />;
     return (
       <div
         data-echo-theme="graphite"

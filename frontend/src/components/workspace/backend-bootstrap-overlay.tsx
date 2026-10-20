@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 
-import { Card } from "@/components/ui/card";
+import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
+import { BrandProgressLine } from "@/components/brand/brand-progress";
 import { Progress } from "@/components/ui/progress";
 import { useI18n } from "@/core/i18n/hooks";
 import { desktopStartupCopy } from "@/core/i18n/locales/desktop-startup";
 import { useStartupGate } from "@/core/backend/use-startup-gate";
+import { isPackagedShell } from "@/core/backend/desktop-shell";
+export { isPackagedShell } from "@/core/backend/desktop-shell";
 
 /**
  * First-launch bootstrap gate for the packaged Electron app.
  *
  * The Windows desktop installer ships a fixed PyInstaller backend (see
  * backend-runtime.cjs). While that process is starting, the backend is
- * unreachable, so we show a full-screen overlay instead of a broken shell.
+ * unreachable, so a small status notice accompanies the workspace shell.
  *
  * Detection: only in the *packaged* shell (`isElectron` + `echo-app:` protocol).
  * Dev mode loads the renderer from the Vite server (http://localhost:3310) and
@@ -26,24 +29,8 @@ interface BootstrapProgress {
   message?: string;
 }
 
-interface PackagedShellWindow {
-  location: { protocol: string };
-  echo?: { isElectron?: boolean };
-}
-
-export function isPackagedShell(
-  shellWindow: PackagedShellWindow | undefined = typeof window === "undefined"
-    ? undefined
-    : window,
-): boolean {
-  return (
-    !!shellWindow?.echo?.isElectron &&
-    shellWindow.location.protocol === "echo-app:"
-  );
-}
-
 export function BackendBootstrapOverlay() {
-  const visible = useStartupGate(isPackagedShell());
+  const startup = useStartupGate(isPackagedShell());
   // The development bootstrap path may name its current step instead.
   const [message, setMessage] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | undefined>(undefined);
@@ -68,37 +55,73 @@ export function BackendBootstrapOverlay() {
     };
   }, []);
 
-  if (!visible) return null;
+  if (!startup.visible) return null;
 
-  return <BackendStartupCard message={message} percent={percent} />;
+  return (
+    <BackendStartupCard
+      message={message}
+      percent={percent}
+      slow={startup.slow}
+      checking={startup.checking}
+      onRetry={startup.retry}
+    />
+  );
 }
 
 /** The startup card itself: what is starting, in the reader's language. */
 export function BackendStartupCard({
   message,
   percent,
+  slow = false,
+  checking = false,
+  onRetry,
 }: {
   message: string | null;
   percent?: number;
+  slow?: boolean;
+  checking?: boolean;
+  onRetry?: () => void;
 }) {
   const { locale } = useI18n();
   const copy = desktopStartupCopy(locale);
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm">
-      <Card className="w-[min(90vw,420px)] border-none p-6">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="size-8 animate-pulse rounded-full bg-primary/60" />
-          <div className="space-y-1">
+    <div
+      className="pointer-events-none fixed inset-x-4 bottom-4 z-[60] flex justify-center"
+      data-testid="desktop-startup-notice"
+    >
+      <section
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        className="pointer-events-auto w-full max-w-md overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-sm"
+      >
+        <div className="flex items-center gap-3 px-4 py-3">
+          <EchoBrandMark size="sm" breathe />
+          <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-medium text-foreground">
               {message ?? copy.title}
             </p>
-            <p className="text-xs text-muted-foreground">{copy.detail}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {slow ? copy.slowDetail : copy.detail}
+            </p>
           </div>
-          {percent !== undefined && (
-            <Progress value={percent} className="w-full" />
+          {slow && onRetry && (
+            <button
+              type="button"
+              disabled={checking}
+              className="shrink-0 rounded-md border px-2.5 py-1.5 text-xs transition-colors hover:bg-muted disabled:opacity-50"
+              onClick={onRetry}
+            >
+              {checking ? copy.checking : copy.retry}
+            </button>
           )}
         </div>
-      </Card>
+        {percent !== undefined ? (
+          <Progress value={percent} className="h-0.5 w-full" />
+        ) : (
+          <BrandProgressLine />
+        )}
+      </section>
     </div>
   );
 }
