@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 
 repo_root = Path(SPECPATH).parents[1]
@@ -74,7 +74,7 @@ if connector_root.exists():
 a = Analysis(
     [str(entry)],
     pathex=[str(repo_root)],
-    binaries=[],
+    binaries=collect_dynamic_libs("uiautomation"),
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
