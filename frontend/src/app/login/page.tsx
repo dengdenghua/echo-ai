@@ -12,8 +12,6 @@ import {
 } from "lucide-react";
 
 import { BrandLoadingPanel } from "@/components/brand/brand-progress";
-import { isPackagedShell } from "@/core/backend/desktop-shell";
-import { DesktopStartupShell } from "@/components/workspace/desktop-startup-shell";
 import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { Button } from "@/components/ui/button";
 import {
@@ -624,6 +622,7 @@ export default function LoginPage() {
   }, []);
   const { authError, authStatus, isLoading, isAuthenticated, retryAuth } =
     useAuth();
+  const backendUnavailable = authError !== null && authStatus === null;
   const { t } = useI18n();
   const [authProviders, setAuthProviders] = useState<AuthProviderInfo[] | null>(
     null,
@@ -631,6 +630,7 @@ export default function LoginPage() {
   const [providerReloadKey, setProviderReloadKey] = useState(0);
 
   useEffect(() => {
+    if (isLoading || backendUnavailable) return;
     let cancelled = false;
 
     async function loadAuthProviders() {
@@ -656,12 +656,11 @@ export default function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [providerReloadKey]);
+  }, [providerReloadKey, isLoading, backendUnavailable]);
 
   const providersReady = authProviders !== null;
   const hasOct = authProviders?.some((p) => p.id === "oct") ?? false;
   const localProvider = authProviders?.find((p) => p.id === "local") ?? null;
-  const backendUnavailable = authError !== null && authStatus === null;
   // Name only the sign-in methods this deployment actually offers.
   const signInMethodNames = [
     socialProviders.google ? "Google" : null,
@@ -716,19 +715,7 @@ export default function LoginPage() {
     }
   }, [isLoading, isAuthenticated, authStatus, navigate, returnTo]);
 
-  if (isLoading) {
-    if (isPackagedShell()) return <DesktopStartupShell />;
-    return (
-      <div
-        data-echo-theme="graphite"
-        className="flex min-h-screen items-center justify-center bg-background"
-      >
-        <BrandLoadingPanel label={t.common.loading} />
-      </div>
-    );
-  }
-
-  if (isAuthenticated || (authStatus && !authStatus.enabled)) {
+  if (!isLoading && (isAuthenticated || (authStatus && !authStatus.enabled))) {
     return null;
   }
 
@@ -808,10 +795,11 @@ export default function LoginPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="px-8 pb-7 pt-0">
-              {!backendUnavailable && hasDesktopOwnerLogin() && (
+              {!isLoading && !backendUnavailable && hasDesktopOwnerLogin() && (
                 <DesktopOwnerLogin />
               )}
-              {!backendUnavailable &&
+              {!isLoading &&
+                !backendUnavailable &&
                 providersReady &&
                 (socialProviders.google || socialProviders.github) && (
                   <div className="mb-5 space-y-3">
@@ -851,7 +839,12 @@ export default function LoginPage() {
                     </div>
                   </div>
                 )}
-              {backendUnavailable ? (
+              {isLoading ? (
+                <BrandLoadingPanel
+                  label={t.common.loading}
+                  className="min-h-40"
+                />
+              ) : backendUnavailable ? (
                 <ErrorState
                   className="min-h-40 rounded-xl border border-destructive/20 bg-destructive/5"
                   title="暂时无法连接 ECHO AI 服务"

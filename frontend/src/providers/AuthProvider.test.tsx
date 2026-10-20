@@ -12,6 +12,11 @@ const mocks = vi.hoisted(() => ({
   getStoredUser: vi.fn(),
   clearTokens: vi.fn(),
   desktopOwnerLogin: vi.fn(),
+  logout: vi.fn(),
+  packaged: false,
+}));
+vi.mock("@/core/backend/desktop-shell", () => ({
+  isPackagedShell: () => mocks.packaged,
 }));
 
 vi.mock("@/core/auth/api", () => ({
@@ -21,7 +26,7 @@ vi.mock("@/core/auth/api", () => ({
   getToken: mocks.getToken,
   getUser: mocks.getStoredUser,
   login: mocks.login,
-  logout: vi.fn(),
+  logout: mocks.logout,
   refreshToken: vi.fn(),
   register: vi.fn(),
   _writeToken: vi.fn(),
@@ -48,6 +53,8 @@ function AuthState() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.packaged = false;
+  sessionStorage.clear();
   mocks.getToken.mockReturnValue(null);
   mocks.getStoredUser.mockReturnValue(null);
   mocks.desktopOwnerLogin.mockResolvedValue(null);
@@ -246,7 +253,7 @@ it("reads the account's roles right after an interactive sign-in", async () => {
   expect(mocks.getMe).toHaveBeenCalledTimes(1);
 });
 
-it("reads the desktop owner's roles after the shell signs them in", async () => {
+it("requires an explicit desktop sign-in and then reads the owner's roles", async () => {
   // Regression: the owner is an admin, but the shell's login response has no
   // roles, so 广场 and every workbench card said 请联系管理员.
   mocks.getAuthStatus.mockResolvedValue({
@@ -270,9 +277,15 @@ it("reads the desktop owner's roles after the shell signs them in", async () => 
     permissions: [],
     is_active: true,
   });
+  let signIn!: ReturnType<typeof useAuth>["desktopLogin"];
   function Roles() {
-    const { isLoading, user } = useAuth();
-    return <div>{isLoading ? "loading" : (user?.roles ?? []).join(",")}</div>;
+    const { isLoading, user, desktopLogin } = useAuth();
+    signIn = desktopLogin;
+    return (
+      <div>
+        {isLoading ? "loading" : (user?.roles ?? []).join(",") || "signed out"}
+      </div>
+    );
   }
 
   renderWithProviders(
@@ -281,8 +294,96 @@ it("reads the desktop owner's roles after the shell signs them in", async () => 
     </AuthProvider>,
   );
 
+  expect(await screen.findByText("signed out")).toBeInTheDocument();
+  expect(mocks.desktopOwnerLogin).not.toHaveBeenCalled();
+  await act(async () => signIn());
   expect(await screen.findByText("user,local,admin")).toBeInTheDocument();
   expect(mocks.desktopOwnerLogin).toHaveBeenCalledTimes(1);
+});
+
+it("does not create an owner session while signed out, including on quiet retry", async () => {
+  mocks.packaged = true;
+  mocks.getAuthStatus.mockResolvedValue({
+    enabled: true,
+    credential_present: false,
+  });
+  mocks.desktopOwnerLogin.mockResolvedValue({
+    user_id: "local:owner",
+    actor_id: "local:owner",
+    username: "owner",
+  });
+  let retry!: ReturnType<typeof useAuth>["retryAuth"];
+  function State() {
+    retry = useAuth().retryAuth;
+    return <AuthState />;
+  }
+  renderWithProviders(
+    <AuthProvider>
+      <State />
+    </AuthProvider>,
+  );
+  expect(await screen.findByText("anonymous")).toBeVisible();
+  await act(async () => retry({ quiet: true }));
+  expect(mocks.desktopOwnerLogin).not.toHaveBeenCalled();
+  expect(mocks.getMe).not.toHaveBeenCalled();
+});
+
+it("ends an old silently-created desktop owner cookie before showing sign-in", async () => {
+  mocks.packaged = true;
+  mocks.getMe.mockResolvedValue({
+    user_id: "local:owner",
+    actor_id: "local:owner",
+    username: "owner",
+  });
+  renderWithProviders(
+    <AuthProvider>
+      <AuthState />
+    </AuthProvider>,
+  );
+  expect(await screen.findByText("anonymous")).toBeVisible();
+  expect(mocks.logout).toHaveBeenCalledOnce();
+  expect(mocks.desktopOwnerLogin).not.toHaveBeenCalled();
+});
+
+it("restores an explicitly chosen desktop owner session on reload in the same window", async () => {
+  mocks.packaged = true;
+  const owner = {
+    user_id: "local:owner",
+    actor_id: "local:owner",
+    username: "owner",
+  };
+  mocks.getAuthStatus.mockResolvedValue({
+    enabled: true,
+    credential_present: false,
+  });
+  mocks.desktopOwnerLogin.mockResolvedValue(owner);
+  mocks.getMe.mockResolvedValue(owner);
+  let signIn!: ReturnType<typeof useAuth>["desktopLogin"];
+  function State() {
+    signIn = useAuth().desktopLogin;
+    return <AuthState />;
+  }
+  const first = renderWithProviders(
+    <AuthProvider>
+      <State />
+    </AuthProvider>,
+  );
+  expect(await screen.findByText("anonymous")).toBeVisible();
+  await act(async () => signIn());
+  expect(await screen.findByText("authenticated")).toBeVisible();
+  first.unmount();
+  mocks.getAuthStatus.mockResolvedValue({
+    enabled: true,
+    credential_present: true,
+  });
+  renderWithProviders(
+    <AuthProvider>
+      <AuthState />
+    </AuthProvider>,
+  );
+  expect(await screen.findByText("authenticated")).toBeVisible();
+  expect(mocks.desktopOwnerLogin).toHaveBeenCalledOnce();
+  expect(mocks.logout).not.toHaveBeenCalled();
 });
 
 it("names the account by its display name after a reload", async () => {

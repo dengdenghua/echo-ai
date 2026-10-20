@@ -11,8 +11,6 @@ export interface DesktopStartupCopy {
   slowDetail: string;
   retry: string;
   checking: string;
-  workspaceTitle: string;
-  workspaceDetail: string;
 }
 
 const zhCN: DesktopStartupCopy = {
@@ -21,8 +19,6 @@ const zhCN: DesktopStartupCopy = {
   slowDetail: "启动比平时稍久，仍在自动连接。",
   retry: "重试连接",
   checking: "正在检查…",
-  workspaceTitle: "正在准备工作区",
-  workspaceDetail: "你的会话即将就绪",
 };
 
 const enUS: DesktopStartupCopy = {
@@ -32,8 +28,6 @@ const enUS: DesktopStartupCopy = {
   slowDetail: "Startup is taking longer. Still connecting automatically.",
   retry: "Retry connection",
   checking: "Checking…",
-  workspaceTitle: "Preparing your workspace",
-  workspaceDetail: "Your conversations will be ready soon",
 };
 
 const jaJP: DesktopStartupCopy = {
@@ -42,8 +36,6 @@ const jaJP: DesktopStartupCopy = {
   slowDetail: "起動に時間がかかっています。自動接続を続けています。",
   retry: "接続を再試行",
   checking: "確認中…",
-  workspaceTitle: "ワークスペースを準備中",
-  workspaceDetail: "まもなく会話を利用できます",
 };
 
 const koKR: DesktopStartupCopy = {
@@ -52,8 +44,6 @@ const koKR: DesktopStartupCopy = {
   slowDetail: "시작이 지연되고 있습니다. 자동 연결을 계속하고 있습니다.",
   retry: "연결 다시 시도",
   checking: "확인 중…",
-  workspaceTitle: "작업 공간 준비 중",
-  workspaceDetail: "곧 대화를 이용할 수 있습니다",
 };
 
 export function desktopStartupCopy(locale: string): DesktopStartupCopy {

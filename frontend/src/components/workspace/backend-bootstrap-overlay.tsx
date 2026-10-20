@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 import { EchoBrandMark } from "@/components/brand/echo-brand-mark";
 import { BrandProgressLine } from "@/components/brand/brand-progress";
@@ -14,7 +15,7 @@ export { isPackagedShell } from "@/core/backend/desktop-shell";
  *
  * The Windows desktop installer ships a fixed PyInstaller backend (see
  * backend-runtime.cjs). While that process is starting, the backend is
- * unreachable, so a small status notice accompanies the workspace shell.
+ * unreachable, so a small status notice accompanies the sign-in surface.
  *
  * Detection: only in the *packaged* shell (`isElectron` + `echo-app:` protocol).
  * Dev mode loads the renderer from the Vite server (http://localhost:3310) and
@@ -83,11 +84,15 @@ export function BackendStartupCard({
   onRetry?: () => void;
 }) {
   const { locale } = useI18n();
+  const { pathname } = useLocation();
   const copy = desktopStartupCopy(locale);
   return (
     <div
       className="pointer-events-none fixed inset-x-4 bottom-4 z-[60] flex justify-center"
       data-testid="desktop-startup-notice"
+      data-echo-theme={
+        ["/", "/login", "/register"].includes(pathname) ? "graphite" : undefined
+      }
     >
       <section
         role="status"

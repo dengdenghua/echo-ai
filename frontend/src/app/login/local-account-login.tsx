@@ -31,8 +31,7 @@ function errorText(err: unknown): string {
   );
 }
 
-/** The desktop shell signs its owner in automatically; this brings them back
- * after an explicit logout or a failed automatic attempt. */
+/** The owner explicitly chooses the local account before entering the app. */
 export function DesktopOwnerLogin() {
   const { desktopLogin } = useAuth();
   const [pending, setPending] = useState(false);

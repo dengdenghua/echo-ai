@@ -40,6 +40,11 @@ import { useI18n } from "@/core/i18n/hooks";
 import { looseBody } from "@/core/api/response";
 import { isUser } from "@/core/auth/guards";
 import { isRecord, isString } from "@/core/utils/guards";
+import {
+  forgetDesktopSignIn,
+  needsDesktopSignIn,
+  rememberDesktopSignIn,
+} from "@/core/auth/desktop-sign-in";
 
 const GUEST_USER_ID = "__guest__";
 const ANONYMOUS_USER_ID = "__anonymous__";
@@ -172,9 +177,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const initializedRef = useRef(false);
-  // After an explicit logout the desktop owner stays signed out until they
-  // choose to sign in again, instead of being signed straight back in.
-  const desktopAutoLoginSuppressedRef = useRef(false);
 
   const isAuthenticated =
     !!user && !isPlaceholderUserId(user.user_id) && !user.is_guest;
@@ -209,7 +211,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (token === GUEST_USER_ID || storedUser?.is_guest) {
         _clearTokens();
         setUser(null);
-      } else if (token && localUser && !localUser.is_guest) {
+      } else if (
+        token &&
+        localUser &&
+        !localUser.is_guest &&
+        !needsDesktopSignIn(localUser)
+      ) {
         setUser(normalizeUserIdentity(localUser, tokenUser));
       } else {
         setUser(null);
@@ -244,6 +251,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .catch((error: unknown) => ({ currentUser: null, error }))
           : { currentUser: null, error: null };
       if (current.currentUser) {
+        if (needsDesktopSignIn(current.currentUser)) {
+          // Older builds silently created this owner session at startup.
+          // End it before exposing the explicit sign-in page in a new window.
+          setUser(null);
+          _clearTokens();
+          await logoutApi();
+          return;
+        }
         setUser(
           normalizeUserIdentity(current.currentUser, storedUser || tokenUser),
         );
@@ -255,23 +270,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (/401|Unauthorized/i.test(msg)) {
           _clearTokens();
           setUser(null);
-        }
-      }
-      // The desktop shell signs its owner in; elsewhere this is a no-op.
-      if (status.enabled && !desktopAutoLoginSuppressedRef.current) {
-        const owner = await desktopOwnerLogin().catch((error: unknown) => {
-          swallow(error);
-          return null;
-        });
-        if (owner) {
-          // The login response names the owner but not their roles. Read
-          // them, or the owner (an admin) is told to ask an administrator
-          // to install workbenches until the next sign-in.
-          const me = await getMe().catch((error: unknown) => {
-            swallow(error);
-            return null;
-          });
-          setUser(normalizeUserIdentity(owner, me));
         }
       }
     } catch (e) {
@@ -291,6 +289,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const expire = () => {
       if (getToken() === ACCOUNT_FREE_TOKEN) return;
       _clearTokens();
+      forgetDesktopSignIn();
       setUser(null);
       // HttpOnly cookies cannot be cleared from JavaScript.  The logout route
       // is deliberately callable even when the old JWT has expired.
@@ -309,6 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // sign-in page, so nothing refetches with the old credential.
   const startSession = useCallback(
     (next: User) => {
+      rememberDesktopSignIn(next);
       queryClient.clear();
       setUser(next);
       // A login response names the account but not its roles or scopes.
@@ -373,7 +373,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const desktopLogin = useCallback(async () => {
-    desktopAutoLoginSuppressedRef.current = false;
     const owner = await desktopOwnerLogin();
     if (!owner) throw new Error("本机登录不可用");
     startSession(normalizeUserIdentity(owner));
@@ -413,7 +412,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await logoutApi();
-    desktopAutoLoginSuppressedRef.current = true;
+    forgetDesktopSignIn();
     _clearTokens();
     setUser(null);
   }, []);

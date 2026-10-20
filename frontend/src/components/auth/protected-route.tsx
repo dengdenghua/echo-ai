@@ -4,7 +4,6 @@ import { loginPathWithReturnTo } from "@/core/auth/return-to";
 import { useI18n } from "@/core/i18n/hooks";
 import { useAuth } from "@/providers/AuthProvider";
 import { isPackagedShell } from "@/core/backend/desktop-shell";
-import { DesktopStartupShell } from "@/components/workspace/desktop-startup-shell";
 
 /**
  * Route guard that redirects unauthenticated users to /login.
@@ -17,9 +16,17 @@ export function ProtectedRoute() {
   const { isLoading, authStatus, isAuthenticated } = useAuth();
   const { t } = useI18n();
 
-  // Still loading auth status — show nothing to avoid flash
+  // Desktop startup stays on the sign-in surface until the session is verified.
   if (isLoading) {
-    if (isPackagedShell()) return <DesktopStartupShell />;
+    if (isPackagedShell())
+      return (
+        <Navigate
+          to={loginPathWithReturnTo(
+            `${location.pathname}${location.search}${location.hash}`,
+          )}
+          replace
+        />
+      );
     return <BrandLoading label={t.common.loadingWorkspace} />;
   }
 

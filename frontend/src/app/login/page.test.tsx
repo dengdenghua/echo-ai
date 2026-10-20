@@ -17,6 +17,7 @@ const localLoginMock = vi.fn();
 const startAccountFreeModeMock = vi.fn();
 const hasDesktopOwnerLoginMock = vi.fn();
 const desktopLoginMock = vi.fn();
+const startup = vi.hoisted(() => ({ loading: false }));
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<
@@ -46,7 +47,7 @@ vi.mock("@/providers/AuthProvider", () => ({
     authError: authUnavailableMock()
       ? new Error("authentication service unavailable")
       : null,
-    isLoading: false,
+    isLoading: startup.loading,
     isAuthenticated: false,
     login: localLoginMock,
     register: vi.fn(),
@@ -109,6 +110,7 @@ async function renderPageAtLoginForm(initialRoute?: string) {
 
 describe("LoginPage", () => {
   beforeEach(() => {
+    startup.loading = false;
     navigateMock.mockReset();
     emailSendMock.mockReset();
     emailLoginMock.mockReset();
@@ -127,6 +129,27 @@ describe("LoginPage", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("keeps the login page visible during startup and only enables sign-in after readiness", async () => {
+    startup.loading = true;
+    hasDesktopOwnerLoginMock.mockReturnValue(true);
+    const view = renderPage();
+    expect(
+      screen.getByRole("heading", { name: /THE AGE OF\s*ECHO/ }),
+    ).toBeVisible();
+    expect(screen.getByText("进入 ECHO")).toBeVisible();
+    expect(screen.queryByTestId("desktop-startup-shell")).toBeNull();
+    expect(screen.queryByRole("button", { name: "以本机账户继续" })).toBeNull();
+    expect(getAuthProvidersMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+    startup.loading = false;
+    view.rerender(<LoginPage />);
+    expect(
+      await screen.findByRole("button", { name: "以本机账户继续" }),
+    ).toBeVisible();
+    expect(await screen.findByRole("textbox", { name: "邮箱" })).toBeVisible();
+    expect(desktopLoginMock).not.toHaveBeenCalled();
   });
 
   it("offers the desktop owner sign-in and reports its failure", async () => {

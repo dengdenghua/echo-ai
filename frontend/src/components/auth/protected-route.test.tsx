@@ -29,16 +29,17 @@ beforeEach(() => {
   };
 });
 
-it("shows an empty desktop workspace frame while keeping protected content unmounted", () => {
+it("shows the sign-in surface during desktop startup while keeping protected content unmounted", async () => {
   desktop.packaged = true;
   renderWithProviders(
     <Routes>
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<div>private conversation</div>} />
       </Route>
+      <Route path="/login" element={<div>登录界面</div>} />
     </Routes>,
   );
-  expect(screen.getByTestId("desktop-startup-shell")).toBeVisible();
+  expect(await screen.findByText("登录界面")).toBeVisible();
   expect(screen.queryByText("private conversation")).toBeNull();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
