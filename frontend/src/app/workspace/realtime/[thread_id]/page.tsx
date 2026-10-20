@@ -41,7 +41,6 @@ import { StreamingDebugger } from "@/components/workspace/streaming-debugger";
 import { TeamWelcomeCard } from "@/components/workspace/team-welcome-card";
 import {
   usePlanActionHandler,
-  useRegenerateHandler,
 } from "@/components/workspace/use-thread-page";
 import { SubtasksProvider } from "@/core/tasks/context";
 import { useDeferredRouteCommit } from "@/core/router/use-deferred-route-commit";
@@ -154,7 +153,7 @@ import {
   useWorkDirSelection,
 } from "./use-thread-workspace";
 import {
-  useDirectTurnSenders,
+  useConversationTurnSenders,
   useNetworkAuthorizationRegen,
   useNewThreadRoutePromotion,
   usePendingNewSessionSend,
@@ -984,7 +983,6 @@ function RealtimePageContent({
     commitThreadRoute,
   });
 
-  useRegenerateHandler(thread, sendMessage, threadId);
   usePlanActionHandler(sendMessage, threadId);
 
   const { pendingNetworkRegen, handleAuthorizeNetwork } =
@@ -1180,7 +1178,7 @@ function RealtimePageContent({
   };
   usePendingNewSessionSend({ ...turnSenderInput, isNewThread });
   const { handleSendFollowUp, handleRetryTask } =
-    useDirectTurnSenders(turnSenderInput);
+    useConversationTurnSenders({ ...turnSenderInput, thread });
   const {
     handleModeChange,
     handleModelChange,
@@ -1721,7 +1719,7 @@ function RealtimePageContent({
                       isGroupConversation={isGroupConversation}
                       collaborationTeamName={collaborationTeamName}
                       headerThreadTitle={headerThreadTitle}
-                      handleRetryTask={handleRetryTask}
+                      onProjectCommand={handleSendFollowUp}
                       canManageHumanInvites={canManageHumanInvites}
                       handleOpenHumanInvite={handleOpenHumanInvite}
                       closeAgentWorkbenchPanel={closeAgentWorkbenchPanel}

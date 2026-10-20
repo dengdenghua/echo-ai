@@ -12,6 +12,7 @@ export function useRegenerateHandler(
   thread: BaseStream<AgentThreadState>,
   sendMessage: (threadId: string, message: PromptInputMessage) => void,
   threadId: string,
+  retryFailedTask?: () => void,
 ) {
   const threadRef = useRef(thread);
   useEffect(() => {
@@ -27,6 +28,10 @@ export function useRegenerateHandler(
         return;
       }
       const currentThread = threadRef.current;
+      if (!currentThread.isLoading && retryFailedTask) {
+        retryFailedTask();
+        return;
+      }
       const lastHuman = currentThread.messages
         .filter((m) => m.type === "human")
         .at(-1);
@@ -47,7 +52,7 @@ export function useRegenerateHandler(
     };
     window.addEventListener("echo:regenerate", handler);
     return () => window.removeEventListener("echo:regenerate", handler);
-  }, [sendMessage, threadId]);
+  }, [sendMessage, threadId, retryFailedTask]);
 }
 
 export function usePlanActionHandler(

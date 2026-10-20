@@ -101,7 +101,7 @@ export interface RealtimeChatInputProps extends ForwardedChatInputProps {
   setWorkLocation: WorkLocationState[1];
   projectAgentMode: AgentModeName;
   isStopping: boolean;
-  handleRetryTask: (prompt: string, background?: boolean) => void;
+  handleRetryTask: () => void;
 }
 
 /**
@@ -145,7 +145,6 @@ export function RealtimeChatInput({
   handleRetryTask,
   ...forwarded
 }: RealtimeChatInputProps) {
-  const composerCopy = composerActionsCopy(useI18n().locale);
   useOpencodePrewarm(
     selectedExecutionEngine,
     settings.context.model_name,
@@ -249,7 +248,7 @@ export function RealtimeChatInput({
         !isStopping &&
         (thread.lastTurnStatus === "interrupted" ||
           thread.lastTurnStatus === "failed")
-          ? () => handleRetryTask(composerCopy.resumePrompt, true)
+          ? handleRetryTask
           : undefined
       }
       isStopping={isStopping}

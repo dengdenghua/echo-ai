@@ -1,12 +1,13 @@
-import {
-  backgroundResumeMessageId,
-  isBackgroundResumePrompt,
-} from "@/core/threads/background-resume";
+import { backgroundResumeMessageId } from "@/core/threads/background-resume";
+import { retryPendingMessage } from "@/core/threads/optimistic-messages";
+import { useI18n } from "@/core/i18n/hooks";
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { useThreadChat } from "@/components/workspace/chats";
 import { useThreadStopController } from "@/components/workspace/use-thread-stop-controller";
+import { useRegenerateHandler } from "@/components/workspace/use-thread-page";
 import { eventBus } from "@/core/events";
 import {
   QUICK_REPLY_EVENT,
@@ -284,7 +285,9 @@ export function useDirectTurnSenders({
   readyForMutations,
   sendMessage,
   markSidebarThreadRunning,
-}: TurnSenderInput) {
+  messages,
+}: TurnSenderInput & { messages: RealtimeThread["messages"] }) {
+  const { locale } = useI18n();
   useEffect(() => {
     const handleQuickReply = (event: Event) => {
       const detail = (event as CustomEvent<QuickReplyDetail>).detail;
@@ -329,42 +332,69 @@ export function useDirectTurnSenders({
       threadId,
     ],
   );
-  const retryDispatchGuardRef = useRef<{ key: string; at: number } | null>(
+  const retryDispatchGuardRef = useRef<{ threadId: string; at: number } | null>(
     null,
   );
-  const handleRetryTask = useCallback(
-    (prompt: string, background = false) => {
-      const text = prompt.trim();
-      if (!text || isLoading || !readyForMutations) return;
-      // React updates the loading flag after this click returns. Guard the
-      // short gap so a double click cannot enqueue a second optimistic row
-      // before the eager outbound ledger becomes visible to the page.
-      const now = Date.now();
-      const key = `${threadId}\u0000${text}`;
-      const previous = retryDispatchGuardRef.current;
-      if (previous?.key === key && now - previous.at < 2_000) return;
-      retryDispatchGuardRef.current = { key, at: now };
-      // A retry should actually resume the failed conversation. Sending the
-      // recovered objective as a new turn preserves the gathered evidence
-      // and avoids leaving the user on a pre-filled, unsent "new task" page.
-      markSidebarThreadRunning(threadId);
-      void sendMessage(threadId, {
-        text,
-        files: [],
-        ...((background || isBackgroundResumePrompt(text))
-          ? { clientMessageId: backgroundResumeMessageId() }
-          : {}),
-      });
-    },
-    [
-      markSidebarThreadRunning,
-      sendMessage,
-      isLoading,
-      readyForMutations,
-      threadId,
-    ],
-  );
+  const handleRetryTask = useCallback(() => {
+    if (isLoading || !readyForMutations) return;
+    // React updates the loading flag after this click returns. Guard the
+    // short gap so a double click cannot enqueue a second optimistic row
+    // before the eager outbound ledger becomes visible to the page.
+    const now = Date.now();
+    const previous = retryDispatchGuardRef.current;
+    if (previous?.threadId === threadId && now - previous.at < 2_000) return;
+    retryDispatchGuardRef.current = { threadId, at: now };
+    markSidebarThreadRunning(threadId);
+
+    const lastHuman = [...messages].reverse().find((m) => m.type === "human");
+    if (
+      lastHuman?.id &&
+      lastHuman.additional_kwargs?.delivery_state === "failed"
+    ) {
+      retryPendingMessage(threadId, lastHuman.id);
+      return;
+    }
+
+    // Both the transcript's Retry and the composer's Continue resume the
+    // same task. The original request is already in the journal; replaying
+    // it as a visible new turn duplicates the request and may restart work.
+    void sendMessage(threadId, {
+      text: composerActionsCopy(locale).resumePrompt,
+      files: [],
+      clientMessageId: backgroundResumeMessageId(),
+    });
+  }, [
+    markSidebarThreadRunning,
+    sendMessage,
+    isLoading,
+    readyForMutations,
+    threadId,
+    messages,
+    locale,
+  ]);
   return { handleSendFollowUp, handleRetryTask };
+}
+
+/** Every current-turn recovery control uses the same callback and click guard. */
+export function useConversationTurnSenders(
+  input: TurnSenderInput & { thread: RealtimeThread },
+) {
+  const senders = useDirectTurnSenders({
+    ...input,
+    messages: input.thread.messages,
+  });
+  const { thread, sendMessage, threadId } = input;
+  const recoverable =
+    Boolean(thread.error) ||
+    thread.lastTurnStatus === "failed" ||
+    thread.lastTurnStatus === "interrupted";
+  useRegenerateHandler(
+    thread,
+    sendMessage,
+    threadId,
+    recoverable ? senders.handleRetryTask : undefined,
+  );
+  return senders;
 }
 
 /** Stop pauses this thread's active background task as well as its stream. */

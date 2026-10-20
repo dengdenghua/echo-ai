@@ -3,7 +3,7 @@ import { Loader2Icon, RefreshCwIcon } from "lucide-react";
 
 import { useI18n } from "@/core/i18n/hooks";
 import {
-  RETRY_PENDING_MESSAGE_EVENT,
+  retryPendingMessage,
   type OutboundDeliveryState,
 } from "@/core/threads/optimistic-messages";
 import { cn } from "@/lib/utils";
@@ -68,13 +68,7 @@ export function HumanMessageDeliveryStatus({
           type="button"
           className="inline-flex items-center gap-1 rounded px-1 py-0.5 font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
           data-testid="retry-pending-message"
-          onClick={() => {
-            window.dispatchEvent(
-              new CustomEvent(RETRY_PENDING_MESSAGE_EVENT, {
-                detail: { threadId, clientMessageId },
-              }),
-            );
-          }}
+          onClick={() => retryPendingMessage(threadId, clientMessageId)}
         >
           <RefreshCwIcon className="size-3" aria-hidden="true" />
           {t.conversation.retry}

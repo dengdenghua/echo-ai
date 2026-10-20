@@ -28,6 +28,25 @@ function threadWithStop(
 }
 
 describe("useRegenerateHandler", () => {
+  it("uses shared recovery for a failed turn instead of replaying the last request", () => {
+    const sendMessage = vi.fn();
+    const retryFailedTask = vi.fn();
+    const thread = { ...threadWithStop(vi.fn()), isLoading: false };
+    renderHook(() =>
+      useRegenerateHandler(thread, sendMessage, "thread-1", retryFailedTask),
+    );
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("echo:regenerate", {
+          detail: { threadId: "thread-1" },
+        }),
+      );
+    });
+    expect(retryFailedTask).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(thread.stop).not.toHaveBeenCalled();
+  });
+
   it("waits for an active turn to stop before sending the regenerated prompt", async () => {
     let resolveStop!: () => void;
     const stop = vi.fn(

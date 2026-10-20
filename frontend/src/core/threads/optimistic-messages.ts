@@ -4,6 +4,18 @@ import type { PromptInputMessage } from "@/core/uploads";
 export const RETRY_PENDING_MESSAGE_EVENT =
   "echo:retry-pending-message" as const;
 
+/** Retry the existing outbound item, including its original attachments. */
+export function retryPendingMessage(
+  threadId: string | null | undefined,
+  clientMessageId: string,
+): void {
+  window.dispatchEvent(
+    new CustomEvent(RETRY_PENDING_MESSAGE_EVENT, {
+      detail: { threadId, clientMessageId },
+    }),
+  );
+}
+
 export type OutboundDeliveryState = "queued" | "sending" | "failed";
 
 export interface PendingOutboundMessage {

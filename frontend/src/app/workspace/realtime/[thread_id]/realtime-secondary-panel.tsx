@@ -201,7 +201,7 @@ export interface RealtimeWorkbenchSurfaceProps {
   isGroupConversation: boolean;
   collaborationTeamName: string;
   headerThreadTitle: string | undefined;
-  handleRetryTask: (prompt: string) => void;
+  onProjectCommand: (prompt: string) => void;
   canManageHumanInvites: boolean;
   handleOpenHumanInvite: () => Promise<void>;
   closeAgentWorkbenchPanel: () => void;
@@ -248,7 +248,7 @@ export function RealtimeWorkbenchSurface({
   isGroupConversation,
   collaborationTeamName,
   headerThreadTitle,
-  handleRetryTask,
+  onProjectCommand,
   canManageHumanInvites,
   handleOpenHumanInvite,
   closeAgentWorkbenchPanel,
@@ -342,7 +342,7 @@ export function RealtimeWorkbenchSurface({
             isGroupConversation ? collaborationTeamName : null
           }
           currentThreadTitle={headerThreadTitle || null}
-          onProjectCommand={handleRetryTask}
+          onProjectCommand={onProjectCommand}
           onInvitePeople={
             canManageHumanInvites
               ? handleOpenHumanInvite
