@@ -545,6 +545,12 @@ class GroundingSource(BaseModel):
     path: str
 
 
+#: Approval strictness for one turn. ``never`` means auto-approve every
+#: boundary crossing (operator opt-in only); ``on-request`` pauses for a
+#: human decision; ``untrusted`` also quarantines model-authored content.
+ApprovalPolicy: TypeAlias = Literal["never", "on-request", "untrusted"]
+
+
 class TurnParams(BaseModel):
     """Inputs to :meth:`Runtime.start_turn`. Carries only the fields
     echo actually consumes; the surface is intentionally narrow
@@ -570,7 +576,7 @@ class TurnParams(BaseModel):
     queue_if_busy: bool = Field(default=False, alias="queueIfBusy", strict=True)
     input: list[dict[str, Any]] = Field(default_factory=list)
     cwd: str | None = None
-    approval_policy: Literal["never", "on-request", "untrusted"] = Field(
+    approval_policy: ApprovalPolicy = Field(
         default="on-request",
         alias="approvalPolicy",
     )

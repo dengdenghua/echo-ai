@@ -4,6 +4,8 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 import { UnifiedModelControl } from "./unified-model-control";
 import { routeNativeModels, routedModel } from "./unified-model-catalog";
+import type * as RequestModule from "@/core/api/request";
+import type * as CoderApiModule from "@/core/coder/api";
 
 const api = vi.hoisted(() => ({
   get: vi.fn(),
@@ -16,11 +18,11 @@ vi.mock("@/providers/AuthProvider", () => ({
   useAuth: () => ({ user: null, isLoading: false }),
 }));
 vi.mock("@/core/api/request", async (original) => ({
-  ...(await original<typeof import("@/core/api/request")>()),
+  ...(await original<typeof RequestModule>()),
   apiGet: api.get,
 }));
 vi.mock("@/core/coder/api", async (original) => ({
-  ...(await original<typeof import("@/core/coder/api")>()),
+  ...(await original<typeof CoderApiModule>()),
   getCoderAccount: api.account,
   getCoderModelProfile: api.profile,
   getCoderModels: api.models,

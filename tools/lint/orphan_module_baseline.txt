@@ -19,7 +19,6 @@ runtime/sensing/gateway/openai_gateway/synthesis.py
 runtime/sensing/gateway/realtime_frame_bounds.py
 runtime/sensing/gateway/realtime_react_policy.py
 runtime/sensing/gateway/realtime_turn_support.py
-runtime/tentacle/dashboard_support.py
 runtime/tentacle/mobile/_mcp_sse.py
 runtime/tentacle/mobile/mcp_transports.py
 

@@ -144,6 +144,25 @@ GATES = (
         r"^(runtime/|docs/openapi-snapshot\.json$|frontend/src/core/api/openapi-types\.ts$)",
         cwd="repo",
     ),
+    # Type + tracking hygiene, both cheap enough (1.4 s / 0.2 s) to run on every
+    # commit. They used to be CI-only, which is how a `str` assigned into a
+    # Literal union (realtime_turn_input.py) and three forgotten `git add`s — the
+    # same shape as the 2026-08-28 P0-1 — reached a commit unnoticed locally.
+    Gate(
+        "mypy-ratchet",
+        ("{python}", "tools/lint/mypy_ratchet.py"),
+        r"^(runtime/.*\.py$|tools/lint/mypy_ratchet)",
+    ),
+    # Unconditional on purpose ("^" matches every staged path): the failure this
+    # catches is a file that exists on disk but never got added, and that diff
+    # may carry no source-root change at all. It also has to read this checkout,
+    # not the snapshot — a file missing from the commit does not exist there.
+    Gate(
+        "untracked-sources",
+        ("{python}", "tools/lint/untracked_source_check.py"),
+        r"^",
+        cwd="repo",
+    ),
     # Whole-tree AST scans of 10-15 s each that rarely trip: before a push only.
     Gate(
         "import-direction",

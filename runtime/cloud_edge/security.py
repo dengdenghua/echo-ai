@@ -41,6 +41,12 @@ def decode_token(token: str, *, secret: str, issuer: str, audience: str) -> dict
         if not hmac.compare_digest(expected, _unb64(signature)):
             raise TokenError("bad signature")
         claims = json.loads(_unb64(payload))
+        if not isinstance(claims, dict):
+            # A correctly signed payload that is not an object used to escape as
+            # AttributeError on the ``claims.get`` lookups below — an untyped
+            # crash where the module promises TokenError.  Anything that is not
+            # a claim set is malformed input, whoever signed it.
+            raise TokenError("claims are not an object")
     except TokenError:
         raise
     except Exception as exc:

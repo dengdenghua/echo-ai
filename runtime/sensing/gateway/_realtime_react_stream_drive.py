@@ -10,8 +10,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from runtime.sensing.gateway._realtime_subagent_journal_items import (
-    _parse_lifecycle_preview,  # noqa: F401 - compatibility re-export
+from runtime.sensing.gateway._realtime_react_stream_helpers import (  # noqa: F401  re-export: import sites stay stable
+    _is_coalescable_delta as _is_coalescable_delta,
+)
+from runtime.sensing.gateway._realtime_subagent_journal_items import (  # noqa: F401  re-export: import sites stay stable
+    _emit_subagent_lifecycle_item,
+    _emit_subagent_progress_item,
+    _parse_lifecycle_preview,
+    _subagent_lifecycle_item_from_journal,
+    _subagent_lifecycle_matches,
+    _subagent_progress_item_from_journal,
+    _subagent_tool_item_from_journal,
 )
 from runtime.sensing.gateway.realtime_react_stream_drive_steps import (  # noqa: F401  re-export: import sites stay stable
     _INTERRUPT_PRODUCER_DRAIN_TIMEOUT_S as _INTERRUPT_PRODUCER_DRAIN_TIMEOUT_S,

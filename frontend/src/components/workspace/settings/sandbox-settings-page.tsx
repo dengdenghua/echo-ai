@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 
 import { useI18n } from "@/core/i18n/hooks";
@@ -66,13 +66,16 @@ type NetworkTier = "deny" | "common" | "full";
 export default function SandboxSettingsPage() {
   const { t, locale } = useI18n();
   const [settings, setSettings] = useLocalSettings();
-  const copy = {
-    ...t.sandboxSettings,
-    permission: {
-      ...t.sandboxSettings.permission,
-      autoSandbox: isolatedExecutionCopy(locale),
-    },
-  };
+  const copy = useMemo(
+    () => ({
+      ...t.sandboxSettings,
+      permission: {
+        ...t.sandboxSettings.permission,
+        autoSandbox: isolatedExecutionCopy(locale),
+      },
+    }),
+    [t.sandboxSettings, locale],
+  );
 
   const context = settings.context;
   const permission = normalizePermissionMode(context.permission_mode);

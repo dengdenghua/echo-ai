@@ -3,10 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 import { CodeBuddyConnection } from "./codebuddy-connection";
+import type * as RequestModule from "@/core/api/request";
 
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock("@/core/api/request", async (original) => ({
-  ...(await original<typeof import("@/core/api/request")>()),
+  ...(await original<typeof RequestModule>()),
   apiGet: api.get,
   apiPost: api.post,
 }));

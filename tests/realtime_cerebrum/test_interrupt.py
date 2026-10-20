@@ -201,7 +201,7 @@ async def test_turn_interrupt_closes_before_silent_provider_thread_returns(
     import time
 
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
     from runtime.memory.threads.event_log import EventLog
     from runtime.platform.models import ParsedIntent
     from runtime.protocol import Turn, TurnStatus

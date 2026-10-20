@@ -1,9 +1,10 @@
 .PHONY: install install-all quickstart quickstart-serve test test-fast test-unit test-integration test-sharded production-readiness production-readiness-static verify-local verify-full-stack lint lint-fast lint-invariants lint-mypy lint-ruff format fix clean tree \
+        preflight preflight-fast \
         security \
         dev dev-stack-start dev-stack-stop dev-stack-restart dev-stack-status dev-stack-logs bootstrap-skills \
         up up-full down logs restart ps rebuild \
         k8s-apply k8s-delete k8s-status \
-        frontend-install frontend-dev frontend-build frontend-clean frontend-typecheck \
+        frontend-install frontend-dev frontend-build frontend-clean frontend-typecheck frontend-lint frontend-test \
         dev-full dev-full-example \
         openapi-snapshot frontend-types refresh-model-capabilities
 
@@ -86,6 +87,12 @@ lint-untracked-sources:  ## No source file may sit untracked in a source root (a
 
 lint-mypy:  ## Run the mypy ratchet (no NEW type errors on hot packages)
 	$(PYTHON) tools/lint/mypy_ratchet.py
+
+preflight:  ## Run everything a commit can break, at CI's own thresholds (gates + test-import smoke + frontend)
+	$(PYTHON) tools/preflight.py
+
+preflight-fast:  ## Same as preflight but skips the frontend unit-test run
+	$(PYTHON) tools/preflight.py --fast
 
 secret-scan:  ## Scan git history for leaked secrets (requires gitleaks)
 	gitleaks git --no-banner --redact
@@ -202,6 +209,12 @@ frontend-build:  ## Build frontend/dist for FastAPI /ui mounting
 
 frontend-typecheck:  ## Run TypeScript type checking
 	cd frontend && pnpm typecheck
+
+frontend-lint:  ## Run ESLint at CI's threshold (a single warning fails the build)
+	cd frontend && pnpm exec eslint . --ext .ts,.tsx --max-warnings 1
+
+frontend-test:  ## Run the frontend unit tests (vitest)
+	cd frontend && pnpm test
 
 frontend-clean:  ## Clean frontend build outputs
 	rm -rf frontend/dist frontend/.vite frontend/node_modules/.vite

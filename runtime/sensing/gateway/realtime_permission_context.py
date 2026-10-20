@@ -2,10 +2,12 @@
 
 from typing import Any
 
+from runtime.protocol.items import ApprovalPolicy
+
 
 def canonical_permission_context(
-    context_payload: dict[str, Any], approval_policy: str
-) -> tuple[dict[str, Any], str, bool, str]:
+    context_payload: dict[str, Any], approval_policy: ApprovalPolicy
+) -> tuple[dict[str, Any], str, bool, ApprovalPolicy]:
     from runtime.safety.approval.permission_modes import (
         approval_reviewer_for_mode,
         canonical_permission_mode,

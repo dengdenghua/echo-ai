@@ -265,6 +265,9 @@ BENCHMARK_CASES: tuple[AgentBenchmarkCase, ...] = (
         weight=11,
         paths=(
             "runtime/core/cerebrum/react_loop.py",
+            # The loop body moved into ``react_loop_impl`` in the 2026-10-19 god-file
+            # split; keep both so the guard symbols stay pinned to their real home.
+            "runtime/core/cerebrum/react_loop_impl.py",
             "runtime/core/cerebrum/react_guards.py",
             "runtime/safety/sandboxing/container_sandbox.py",
             "tests/test_react_guard_registry.py",

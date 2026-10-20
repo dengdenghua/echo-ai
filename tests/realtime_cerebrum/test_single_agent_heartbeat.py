@@ -22,11 +22,12 @@ def _install_slow_stream(
     monkeypatch: pytest.MonkeyPatch, *, stall_s: float, interval_s: float
 ) -> None:
     import runtime.core.cerebrum.react_loop as rl
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive_rs
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive_rs
 
     # Fire the keepalive almost immediately so the test stays sub-second.
-    # Patch the constant where the consumer loop actually reads it (the
-    # drive module holds its own imported binding).
+    # Patch the constant where the consumer loop actually reads it — the
+    # heartbeat timeout lives in ``realtime_react_stream_drive_steps`` (the
+    # module that owns ``_drive_react``), not in the re-export facade.
     monkeypatch.setattr(drive_rs, "_SINGLE_AGENT_HEARTBEAT_INTERVAL_S", interval_s)
 
     def slow_stream(*_args: Any, **_kwargs: Any) -> Iterator[dict[str, Any]]:

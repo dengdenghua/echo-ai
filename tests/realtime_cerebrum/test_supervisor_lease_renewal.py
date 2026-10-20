@@ -53,7 +53,7 @@ def test_realtime_turn_renews_supervisor_lease(
     client, _, supervisor = gateway_with_supervisor
 
     import runtime.core.cerebrum.react_loop as rl
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive_rs
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive_rs
 
     # Speed up both the queue keepalive and the lease renewal cadence so
     # the assertion runs sub-second instead of waiting on real TTLs.
@@ -105,7 +105,7 @@ def test_no_supervisor_turn_completes_normally(
     # Regression guard: when no supervisor is wired (tests, minimal
     # deployments) the renewal helper must be a no-op, not a crash.
     import runtime.core.cerebrum.react_loop as rl
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive_rs
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive_rs
 
     client, _, _ = gateway_with_supervisor
 

@@ -164,7 +164,7 @@ class _ResidentToolRuntime:
         return None
 
     async def start_turn(self, params: dict[str, Any], emitter: Any) -> Turn:
-        from runtime.sensing.gateway._realtime_react_stream_drive import _drive_react
+        from runtime.sensing.gateway.realtime_react_stream_drive_steps import _drive_react
 
         thread_id = str(params["threadId"])
         turn = Turn(threadId=thread_id)
@@ -199,7 +199,7 @@ async def test_resident_tool_crosses_durable_boundary_after_owner_send_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     durable_start = threading.Event()
     side_effect = threading.Event()

@@ -1205,7 +1205,7 @@ describe("<ChatInputBox /> cowork materials", () => {
 
     await screen.findByTestId("permission-mode-option-default");
     expect(screen.queryByTestId("execution-mode-option-discussion")).toBeNull();
-    expect(screen.getAllByRole("menuitemradio")).toHaveLength(3);
+    expect(screen.getAllByRole("menuitemradio")).toHaveLength(4);
     expect(onModeChange).not.toHaveBeenCalled();
   });
 

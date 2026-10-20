@@ -113,7 +113,7 @@ async def _run_drive(
     log: Any,
     emitter: _EmitterStub,
 ) -> Turn:
-    from runtime.sensing.gateway._realtime_react_stream_drive import _drive_react
+    from runtime.sensing.gateway.realtime_react_stream_drive_steps import _drive_react
 
     turn = Turn(threadId="thread-audit")
     await _drive_react(
@@ -133,7 +133,7 @@ async def test_tool_side_effect_waits_until_start_event_is_applied(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     side_effect = threading.Event()
     apply_entered = asyncio.Event()
@@ -170,7 +170,7 @@ async def test_tool_side_effect_waits_until_start_event_is_applied(
 async def test_native_tool_loop_yield_is_a_real_audit_barrier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
     import runtime.sensing.gateway.tool_bridge as tool_bridge
 
     side_effect = threading.Event()
@@ -242,7 +242,7 @@ async def test_full_queue_drains_after_producer_done_when_apply_was_blocked(
     immediately instead of making the suite sleep beyond the old timeout.
     """
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     apply_entered = asyncio.Event()
     release_apply = asyncio.Event()
@@ -304,7 +304,7 @@ async def test_critical_structural_enqueue_timeout_fails_turn_and_exits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     apply_entered = asyncio.Event()
     release_apply = asyncio.Event()
@@ -362,7 +362,7 @@ async def test_terminal_apply_failure_is_not_counted_as_terminal_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     def _terminal_stream(*_args: Any, **_kwargs: Any):
         yield {"type": "react_completed"}
@@ -416,7 +416,7 @@ async def test_later_terminal_cannot_mask_structural_apply_failure(
     trailing_failure: bool,
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     def _receipt_then_terminal(*_args: Any, **_kwargs: Any):
         yield {
@@ -468,7 +468,7 @@ async def test_tool_apply_failure_is_fail_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     side_effect = threading.Event()
 
@@ -507,7 +507,7 @@ async def test_tool_does_not_execute_when_durable_start_pipeline_fails(
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
     import runtime.memory.threads.event_log as event_log_module
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     side_effect = threading.Event()
     real_apply = drive._apply_react_event
@@ -554,7 +554,7 @@ async def test_interrupt_rejects_pending_tool_start_without_deadlock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     side_effect = threading.Event()
     monkeypatch.setattr(react_loop, "stream_react_loop", _tool_script(side_effect))
@@ -578,7 +578,7 @@ async def test_interrupt_arriving_during_tool_start_apply_prevents_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import runtime.core.cerebrum.react_loop as react_loop
-    import runtime.sensing.gateway._realtime_react_stream_drive as drive
+    import runtime.sensing.gateway.realtime_react_stream_drive_steps as drive
 
     side_effect = threading.Event()
     apply_entered = asyncio.Event()

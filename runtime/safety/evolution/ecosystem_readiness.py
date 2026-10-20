@@ -91,12 +91,14 @@ REQUIRED_TOPICS: tuple[ReadinessTopic, ...] = (
         # The application market is embedded in HUB rather than exposed as a
         # standalone route.  Keep this check anchored to the real user entry
         # point: the 应用 tab renders registry plugins through
-        # CapabilityMarketPanel.  (It used to name AppMarketplacePanel, which
-        # HUB never rendered; only a comment kept that check green.)
+        # ``AgentWorldPluginsTab`` → ``CapabilityMarketPanel``.  (It used to
+        # name AppMarketplacePanel, which HUB never rendered; only a comment
+        # kept that check green.)  The panel render itself moved into the
+        # extracted plugins tab on 2026-10-18, so this anchor now names the
+        # hop that still lives in this file.
         path="frontend/src/components/workspace/agents/agent-world-unified.tsx",
         required_terms=(
-            "CapabilityMarketPanel",
-            "capability-market-panel",
+            "AgentWorldPluginsTab",
             'value="applications"',
         ),
     ),

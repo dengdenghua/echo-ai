@@ -3,7 +3,6 @@ import {
   conversationMessageIndexes,
 } from "@/core/threads/background-resume";
 import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
-import { type Message } from "@/core/api/types";
 import type { BaseStream } from "@/core/api/use-stream-types";
 import type { ReactNode } from "react";
 import { AlertTriangleIcon, Loader2Icon, XCircleIcon } from "lucide-react";

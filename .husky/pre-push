@@ -22,4 +22,17 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$zero" ] && continue # deleting a remote branch
   python "$repo_root/tools/hooks/commit_tree_gates.py" --push "$remote_sha" "$local_sha" || status=1
 done
+
+# Optional full preflight (gates + test-import smoke + frontend, ~8.5 min).
+# Off by default: CI already runs the same five steps against the pushed
+# branch, and a long local task at the end of a push is the kind of gate that
+# teaches people to reach for --no-verify.  The project rule is "default off,
+# degradable, switchable, long tasks exempt", so opt in per push:
+#     ECHO_PREFLIGHT=1 git push
+if [ "${ECHO_PREFLIGHT:-0}" = "1" ]; then
+  echo "husky(pre-push): ECHO_PREFLIGHT=1 — running full preflight (~8.5 min)"
+  python "$repo_root/tools/preflight.py" || status=1
+else
+  echo "husky(pre-push): full preflight skipped (opt in: ECHO_PREFLIGHT=1 git push)"
+fi
 exit $status
