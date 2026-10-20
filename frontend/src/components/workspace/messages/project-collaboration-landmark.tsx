@@ -7,7 +7,7 @@ import {
   ExternalLinkIcon,
   GitBranchIcon,
   GitMergeIcon,
-  Share2Icon,
+  SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { copyTextToClipboard } from "@/core/clipboard";
@@ -236,7 +236,7 @@ export function ProjectCollaborationLandmark({
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 pb-2">
         <div className="flex items-center gap-1.5 font-semibold text-primary">
-          <Share2Icon className="size-4 shrink-0" aria-hidden="true" />
+          <SquareArrowOutUpRightIcon className="size-4 shrink-0" aria-hidden="true" />
           <span className="text-xs">{copy.broadcastTitle}</span>
         </div>
         <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">

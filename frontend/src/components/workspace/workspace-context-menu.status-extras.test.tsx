@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -116,5 +116,43 @@ describe("WorkspaceContextMenu status extras", () => {
   it("hides the section when nothing runs in the background", async () => {
     await userEvent.setup().click(setup());
     expect(screen.queryByTestId("session-background-tasks")).toBeNull();
+  });
+
+  it("shows the scroll hint while the menu content overflows and drops it at the bottom", async () => {
+    // jsdom lays out nothing, so drive the scroller through defined getters.
+    const user = userEvent.setup();
+    const menu = setup();
+    await user.click(menu);
+    const scroller = screen.getByRole("menu");
+    const state = { scrollTop: 0 };
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      get: () => 900,
+    });
+    Object.defineProperty(scroller, "clientHeight", {
+      configurable: true,
+      get: () => 300,
+    });
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      get: () => state.scrollTop,
+      set: (v: number) => {
+        state.scrollTop = v;
+      },
+    });
+    const hint = screen.getByTestId("session-status-scroll-hint");
+    // The overflow is only known after a measure; the scroll event drives it.
+    scroller.dispatchEvent(new Event("scroll"));
+    await waitFor(() =>
+      expect(hint).toHaveAttribute("data-state", "more"),
+    );
+    expect(hint).toHaveTextContent("Scroll down for more");
+
+    // Scroll to the bottom: the hint must stop claiming there is more.
+    state.scrollTop = 900;
+    scroller.dispatchEvent(new Event("scroll"));
+    await waitFor(() =>
+      expect(hint).toHaveAttribute("data-state", "bottom"),
+    );
   });
 });

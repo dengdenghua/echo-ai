@@ -10,9 +10,25 @@ import { DiffView } from "./diff-view";
 import { cn } from "@/lib/utils";
 
 const DOC_EXT_RE = /\.(md|markdown|txt)$/i;
+// File kinds that have no meaningful in-turn test harness (shell/PowerShell
+// scripts, config, data). A yellow "could not confirm tests" banner on a
+// two-line .ps1 tweak reads as an alarm; these get a neutral gray notice.
+const UNTESTABLE_EXT_RE =
+  /\.(ps1|psm1|bat|cmd|sh|bash|zsh|fish|yaml|yml|toml|ini|cfg|conf|json|csv|env|lock)$/i;
 
 export function isDocumentationPath(path: string): boolean {
   return DOC_EXT_RE.test(path.trim());
+}
+
+export function deliveryNoticeClass(
+  paths: string[],
+): "doc" | "untestable" | "code" {
+  if (paths.length === 0) return "code";
+  if (paths.every((p) => isDocumentationPath(p))) return "doc";
+  if (paths.every((p) => UNTESTABLE_EXT_RE.test(p.trim()))) {
+    return "untestable";
+  }
+  return "code";
 }
 
 export function createVirtualDiff(content: string): string {
@@ -110,14 +126,16 @@ function isCreateOperation(
 }
 
 export function deliveryEvidence(events: LiveToolEvent[]) {
-  const changes: {
+  type Change = {
     id: string;
     path: string;
     op: string;
     diff?: string;
     truncated: boolean;
     status: string;
-  }[] = [];
+    writeCount?: number;
+  };
+  const rawChanges: Change[] = [];
   const checks: {
     id: string;
     command: string;
@@ -146,7 +164,7 @@ export function deliveryEvidence(events: LiveToolEvent[]) {
 
       for (const ref of toolResources(event.input, event.input?.arguments)) {
         if (ref.kind !== "file") continue;
-        changes.push({
+        rawChanges.push({
           id: `${event.id}:${ref.path}`,
           path: ref.path,
           op:
@@ -174,7 +192,7 @@ export function deliveryEvidence(events: LiveToolEvent[]) {
         ) {
           diff = createVirtualDiff(raw.content);
         }
-        changes.push({
+        rawChanges.push({
           id: `${event.id}:${i}`,
           path: raw.path,
           op,
@@ -199,6 +217,39 @@ export function deliveryEvidence(events: LiveToolEvent[]) {
         summary: typeof output.summary === "string" ? output.summary : "",
       });
     }
+  }
+
+  // The same file is often written several times in one turn (draft ->
+  // fix -> finalize, or an agent retrying a failed write). Each write
+  // used to become its own receipt row -- three near-identical _tmp_*.ps1
+  // lines with two "未确认完成" stubs drowned the one row that mattered.
+  // Merge per path AFTER collecting every event: keep the LAST write's
+  // diff, the strongest status (any confirmed "done" proves the final
+  // state landed), and count the folded writes.
+  const byPath = new Map<string, Change[]>();
+  for (const change of rawChanges) {
+    const bucket = byPath.get(change.path);
+    if (bucket) bucket.push(change);
+    else byPath.set(change.path, [change]);
+  }
+  const changes: Change[] = [];
+  for (const bucket of byPath.values()) {
+    const last = bucket[bucket.length - 1];
+    if (!last) continue;
+    changes.push({
+      ...last,
+      id: bucket[0]!.id,
+      status: bucket.some((c) => c.status === "done") ? "done" : last.status,
+      // A create followed by updates is still, on net, a create for
+      // receipt purposes; a later delete wins outright.
+      op:
+        last.op === "delete"
+          ? "delete"
+          : bucket.some((c) => c.op === "create")
+            ? "create"
+            : last.op,
+      writeCount: bucket.length,
+    });
   }
   return { changes, checks };
 }
@@ -246,6 +297,9 @@ export function TaskDeliveryReview({
   const isDocOnly =
     evidence.changes.length > 0 &&
     evidence.changes.every((change) => isDocumentationPath(change.path));
+  const noticeClass = deliveryNoticeClass(
+    evidence.changes.map((change) => change.path),
+  );
 
   return (
     <section
@@ -351,12 +405,14 @@ export function TaskDeliveryReview({
           <p
             className={cn(
               "border-t border-border-default px-3 py-2 text-xs",
-              isDocOnly ? "text-muted-foreground" : "text-warning",
+              noticeClass === "code" ? "text-warning" : "text-muted-foreground",
             )}
           >
-            {isDocOnly
+            {noticeClass === "doc"
               ? "文档/分析类交付，无测试项"
-              : "本轮未收到结构化验证记录，不能据此确认测试通过。"}
+              : noticeClass === "untestable"
+                ? "脚本/配置类交付，无结构化测试项；请以实际运行为准。"
+                : "本轮未收到结构化验证记录，不能据此确认测试通过。"}
           </p>
         )}
       </div>
@@ -377,6 +433,7 @@ function ChangeEntry({
     added: number;
     removed: number;
     empty: boolean;
+    writeCount?: number;
   };
   onQuote: () => void;
 }) {
@@ -412,6 +469,15 @@ function ChangeEntry({
         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
           {OP_LABEL[change.op] ?? change.op}
         </span>
+
+        {(change.writeCount ?? 1) > 1 && (
+          <span
+            className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-muted-foreground"
+            title={`本轮共写入 ${change.writeCount} 次，显示最终版本的差异`}
+          >
+            ×{change.writeCount}
+          </span>
+        )}
 
         <span className="min-w-0 flex-1 truncate" title={change.path}>
           <LinkedFileReference path={change.path} />

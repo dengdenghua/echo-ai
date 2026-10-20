@@ -44,7 +44,9 @@ it.each([
   expect(fetchImage).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { expanded: false }));
   await waitFor(() =>
-    expect(screen.getByAltText("自行车预览")).toHaveAttribute(
+    // The thumbnail and the circle-to-edit selector both render the image;
+    // every copy must carry the authenticated blob URL.
+    expect(screen.getAllByAltText("自行车预览")[0]).toHaveAttribute(
       "src",
       "blob:protected-png",
     ),
@@ -57,7 +59,10 @@ it.each([
       headers: { Authorization: "Bearer png-test-token" },
     }),
   );
-  expect(screen.getByAltText("自行车预览")).toHaveAttribute("width", "800");
+  expect(screen.getAllByAltText("自行车预览")[0]).toHaveAttribute(
+    "width",
+    "800",
+  );
   unmount();
   expect(revoke).toHaveBeenCalledWith("blob:protected-png");
 });
@@ -75,7 +80,7 @@ it.each([
     );
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { expanded: false }));
-    expect(screen.getByAltText("remote")).toHaveAttribute("src", src);
+    expect(screen.getAllByAltText("remote")[0]).toHaveAttribute("src", src);
     expect(fetchImage).not.toHaveBeenCalled();
   },
 );
@@ -87,9 +92,11 @@ it("opens a full image only after expanding and clicking the thumbnail", () => {
   const toggle = screen.getByRole("button", { expanded: false });
   expect(screen.queryByRole("img")).not.toBeInTheDocument();
   fireEvent.click(toggle);
-  expect(screen.getByRole("img")).toHaveClass("h-20", "w-20");
+  // Thumbnail + circle-to-edit selector both render an img; the first is
+  // the h-20 thumbnail.
+  expect(screen.getAllByRole("img")[0]).toHaveClass("h-20", "w-20");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("img").closest("button")!);
+  fireEvent.click(screen.getAllByRole("img")[0]!.closest("button")!);
   expect(screen.getByRole("dialog")).toBeInTheDocument();
   fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
   fireEvent.click(toggle);

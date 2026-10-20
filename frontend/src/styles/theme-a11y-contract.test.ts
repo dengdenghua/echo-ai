@@ -314,3 +314,151 @@ describe("type size floor", () => {
     expect(total).toBeLessThanOrEqual(BASELINE_10_11PX);
   }, 120_000);
 });
+
+describe("header icon hit area", () => {
+  // The chat header's icon buttons are 32px tall on desktop (sm:h-8) so the
+  // row stays dense, which is below the 44px touch guideline. A vertical
+  // pseudo-element extension restores a 44px target without touching the
+  // visual box or overlapping the 2px gap between neighbours.
+  const HEADER_BUTTON_FILES = [
+    "src/components/workspace/workspace-context-menu.tsx",
+    "src/components/workspace/share-menu.tsx",
+    "src/components/workspace/realtime/right-panel-menu.tsx",
+  ];
+
+  it("extends the icon buttons to a 44px target", () => {
+    const hitAreaBlock = blockAfter(
+      globalsCss,
+      "\n  .header-icon-hit-area::after {",
+    );
+    expect(hitAreaBlock.length).toBeGreaterThan(0);
+    expect(token(hitAreaBlock, "height")).toBe("44px");
+  });
+
+  it("keeps every header icon button on the shared hit-area class", () => {
+    const missing: string[] = [];
+    for (const file of HEADER_BUTTON_FILES) {
+      const source = readFileSync(join(root, file), "utf8");
+      if (!source.includes("header-icon-hit-area")) missing.push(file);
+    }
+    expect(
+      missing,
+      `header icon buttons without the 44px hit area: ${missing.join(", ")}`,
+    ).toEqual([]);
+  });
+});
+
+describe("session status glyph", () => {
+  // The header mark was a fill-level dial for a while, and it shipped two
+  // defects that way: at 0% the round line cap drew a lone dot floating on the
+  // track, and 30px is too small to read a level from. It is now a fixed
+  // bulleted-list mark — two rows of ring + rule — with the level living in the
+  // tooltip and the popover. These assertions keep it from drifting back to a
+  // dial, and keep the level out of the icon itself.
+  const source = readFileSync(
+    join(
+      root,
+      "src/components/workspace/chat-input-box/context-usage-details.tsx",
+    ),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+  const glyphStart = source.indexOf("export function SessionStatusGlyph(");
+  // Stop at the next top-level export so assertions cannot reach into the
+  // components below, which legitimately carry inline styles.
+  const glyphEnd = source.indexOf("\nexport ", glyphStart + 1);
+  const glyph = source.slice(glyphStart, glyphEnd > glyphStart ? glyphEnd : undefined);
+
+  it("draws two rings paired with two rules, not an arc or a ring", () => {
+    expect(glyph.length).toBeGreaterThan(0);
+    expect((glyph.match(/<circle /g) ?? []).length).toBe(2);
+    expect((glyph.match(/strokeLinecap="round"/g) ?? []).length).toBe(1);
+    // A dash pattern or a dash offset is how a dial is drawn; a list mark has
+    // neither.
+    expect(glyph).not.toMatch(/strokeDasharray|stroke-dasharray|strokeDashoffset/);
+    // Nor a sweeping arc path.
+    expect(glyph).not.toMatch(/\bA[\d.]/);
+  });
+
+  it("renders the same mark whatever the context window holds", () => {
+    // The level must not reach the glyph: no progress prop, no width style.
+    expect(glyph).not.toMatch(/progress/);
+    expect(glyph).not.toMatch(/style=\{\{/);
+  });
+
+  it("keeps the header button on the static glyph", () => {
+    const menu = readFileSync(
+      join(root, "src/components/workspace/workspace-context-menu.tsx"),
+      "utf8",
+    );
+    expect(menu).toContain("SessionStatusGlyph");
+    // The old meter call in the trigger is the regression this guards.
+    expect(menu).not.toContain("ContextMeter");
+  });
+});
+
+describe("share affordance icon", () => {
+  // "Share" was drawn as Share2 — three dots wired together — which reads as a
+  // network or a link rather than as sending something out of the
+  // conversation. It is now the arrow leaving a box, everywhere the verb is
+  // share / publish / broadcast, so one meaning has one mark.
+  const SHARE_ICON = "SquareArrowOutUpRightIcon";
+  const SHARE_FILES = [
+    "src/components/workspace/share-menu.tsx",
+    "src/components/workspace/recent-chat-list.tsx",
+    "src/components/workspace/messages/project-collaboration-landmark.tsx",
+    "src/components/workspace/messages/inline-subagent-card-expansion.tsx",
+    "src/components/workspace/agent-workbench-panel/subagent-process-view.tsx",
+  ];
+
+  it("uses the arrow-out-of-a-box mark at every share site", () => {
+    const missing: string[] = [];
+    const stale: string[] = [];
+    for (const file of SHARE_FILES) {
+      const source = readFileSync(join(root, file), "utf8");
+      if (!source.includes(SHARE_ICON)) missing.push(file);
+      // Match the import specifier and the JSX tag, not prose: the comment
+      // explaining the switch names the old icon on purpose.
+      const usesOldIcon =
+        /import[\s\S]*?\bShare2\b[,\s}]/.test(source) || /<Share2\b/.test(source);
+      if (usesOldIcon) stale.push(file);
+    }
+    expect(
+      missing,
+      `share sites without ${SHARE_ICON}: ${missing.join(", ")}`,
+    ).toEqual([]);
+    expect(
+      stale,
+      `share sites still on the Share2 node graph: ${stale.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("keeps the 44px target on the header share button", () => {
+    const source = readFileSync(
+      join(root, "src/components/workspace/share-menu.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("header-icon-hit-area");
+  });
+});
+
+describe("context meter segments", () => {
+  // Each segment used to be floored at 0.6% of the track so it stayed
+  // visible. On a 321px track that put a lone 2px speck next to the left cap
+  // for a segment holding a handful of tokens — the same "dot floating on the
+  // track" defect the header dial had. The rows below the bar carry the exact
+  // counts, so a sliver is allowed to round away.
+  const source = readFileSync(
+    join(
+      root,
+      "src/components/workspace/chat-input-box/context-usage-details.tsx",
+    ),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+
+  it("draws each segment at its true share, with no minimum width", () => {
+    expect(source).toContain("style={{ width: `${segPct}%` }}");
+    expect(source).not.toMatch(/Math\.max\(segPct/);
+    // The free-space/empty fallback may stay a plain percentage.
+    expect(source).toContain("style={{ width: `${percentage}%` }}");
+  });
+});

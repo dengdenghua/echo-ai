@@ -16,6 +16,11 @@ import {
 } from "@/core/artifacts/utils";
 import { useI18n } from "@/core/i18n/hooks";
 import { messageActionsCopy } from "@/core/i18n/locales/message-actions";
+import {
+  openInGallery,
+  useImageGalleryRegistration,
+} from "./image-gallery";
+import { ImageRegionSelector } from "./image-region-selector";
 
 /**
  * Custom image component that handles artifact URLs
@@ -34,6 +39,7 @@ export function MessageImage({
   const [opened, setOpened] = useState(false);
   const { locale } = useI18n();
   const copy = messageActionsCopy(locale);
+  useImageGalleryRegistration({ src: src ?? "", alt: alt ?? "" });
   if (!src || typeof src !== "string") return null;
 
   const reference = /^(?:https?:|data:|blob:|\/\/)/i.test(src)
@@ -60,19 +66,33 @@ export function MessageImage({
         />
       </button>
       {expanded && (
-        <button
-          type="button"
-          aria-label={copy.openImage}
-          onClick={() => setOpened(true)}
-          className="mt-2 block overflow-hidden rounded-lg border bg-muted/20 p-1 focus-visible:outline focus-visible:outline-2"
-        >
-          <AuthenticatedImage
-            {...props}
-            className="h-20 w-20 rounded object-contain"
+        <div className="mt-2 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            aria-label={copy.openImage}
+            onClick={() => {
+              // Gallery lightbox when the answer has multiple registered
+              // images (◀ ▶ + thumbnails); falls back to the plain dialog.
+              if (!openInGallery(0)) setOpened(true);
+            }}
+            className="block overflow-hidden rounded-lg border bg-muted/20 p-1 focus-visible:outline focus-visible:outline-2"
+          >
+            <AuthenticatedImage
+              {...props}
+              className="h-20 w-20 rounded object-contain"
+              src={url}
+              alt={alt ?? ""}
+            />
+          </button>
+          {/* Circle-to-edit: drag a region on the rendered image and quote
+              the percent coordinates back into the composer. */}
+          <ImageRegionSelector
             src={url}
             alt={alt ?? ""}
+            threadId={threadId}
+            filename={alt ?? undefined}
           />
-        </button>
+        </div>
       )}
       <Dialog open={opened} onOpenChange={setOpened}>
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[90vw]">

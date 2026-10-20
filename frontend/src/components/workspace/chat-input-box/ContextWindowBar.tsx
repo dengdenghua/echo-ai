@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
-  ContextRing,
+  ContextMeter,
   ContextUsageDetails,
   contextUsage,
   ringColorClass,
@@ -31,7 +31,7 @@ interface ContextWindowBarProps {
   segments?: ContextWindowSegment[];
 }
 
-/** With the header status menu on the page the ring is a duplicate, so it
+/** With the header status menu on the page the meter is a duplicate, so it
  * only shows up once the window is filling. */
 const SHOW_BESIDE_MENU_PERCENT = 50;
 
@@ -46,7 +46,7 @@ export function ContextWindowBar({
   const [open, setOpen] = useState(false);
   const openStatusMenu = useSessionStatusMenuOpener();
   // Handing over to the status menu: keep focus from snapping back to the
-  // ring, which would dismiss the menu as it opens.
+  // meter, which would dismiss the menu as it opens.
   const handingOff = useRef(false);
   const { progress, percentage, summary } = contextUsage(
     contextTokens,
@@ -78,7 +78,7 @@ export function ContextWindowBar({
           aria-valuemax={100}
           aria-valuenow={percentage}
         >
-          <ContextRing progress={progress} compressing={isCompressingContext} />
+          <ContextMeter progress={progress} compressing={isCompressingContext} />
           <span className="sr-only">{summary}</span>
         </button>
       </DropdownMenuTrigger>

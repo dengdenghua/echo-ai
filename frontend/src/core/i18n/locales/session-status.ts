@@ -38,6 +38,8 @@ export interface SessionStatusCopy {
   autoCompactSoon: string;
   outputs: string;
   noOutputs: string;
+  /** Sticky hint when the menu's own scroll area clips more rows below. */
+  scrollForMore: string;
   /** The composer ring's link to the header menu. */
   openInPanel: string;
 }
@@ -70,6 +72,7 @@ const zhCN: SessionStatusCopy = {
   autoCompactSoon: "接近上限：用量到约 90% 时会自动压缩较早的对话。",
   outputs: "产出",
   noOutputs: "这次对话还没有产出文件。",
+  scrollForMore: "向下滚动查看更多",
   openInPanel: "在状态面板查看与压缩",
 };
 
@@ -103,6 +106,7 @@ const enUS: SessionStatusCopy = {
   autoCompactSoon: "Close to the limit: older turns auto-compact at about 90%.",
   outputs: "Outputs",
   noOutputs: "No files produced in this conversation yet.",
+  scrollForMore: "Scroll down for more",
   openInPanel: "View and compress in the status panel",
 };
 
@@ -136,6 +140,7 @@ const jaJP: SessionStatusCopy = {
     "上限が近づいています：約 90% で古いやり取りを自動圧縮します。",
   outputs: "成果物",
   noOutputs: "この会話ではまだファイルが作成されていません。",
+  scrollForMore: "下にスクロールして続きを表示",
   openInPanel: "ステータスパネルで確認・圧縮",
 };
 
@@ -169,6 +174,7 @@ const koKR: SessionStatusCopy = {
     "한도에 가까워졌습니다: 약 90%에서 이전 대화를 자동 압축합니다.",
   outputs: "산출물",
   noOutputs: "이 대화에서 아직 만든 파일이 없습니다.",
+  scrollForMore: "아래로 스크롤하여 더 보기",
   openInPanel: "상태 패널에서 보기·압축",
 };
 

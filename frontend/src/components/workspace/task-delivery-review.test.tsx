@@ -4,6 +4,7 @@ import { renderWithProviders } from "@/test/harness";
 import {
   deliveryEvidence,
   isDocumentationPath,
+  deliveryNoticeClass,
   createVirtualDiff,
   TaskDeliveryReview,
 } from "./task-delivery-review";
@@ -157,4 +158,104 @@ it("renders warning notice when delivery includes non-doc code files without ver
     screen.getByText("本轮未收到结构化验证记录，不能据此确认测试通过。"),
   ).toBeDefined();
   expect(screen.queryByText("文档/分析类交付，无测试项")).toBeNull();
+});
+
+it("classifies delivery notice tiers by path mix", () => {
+  expect(deliveryNoticeClass(["report.md", "notes.txt"])).toBe("doc");
+  expect(deliveryNoticeClass(["sum.ps1", "config.yaml"])).toBe("untestable");
+  expect(deliveryNoticeClass(["src/agent.py"])).toBe("code");
+  // One code file among docs makes the whole delivery code-tier.
+  expect(deliveryNoticeClass(["report.md", "src/agent.py"])).toBe("code");
+  expect(deliveryNoticeClass([])).toBe("code");
+});
+
+it("renders neutral notice for script/config-only delivery", () => {
+  const events = [
+    event({
+      name: "write_file",
+      input: { path: "sum.ps1" },
+      output: { diff: "+param" },
+    }),
+  ];
+  renderWithProviders(<TaskDeliveryReview events={events} running={false} />);
+  expect(
+    screen.getByText("脚本/配置类交付，无结构化测试项；请以实际运行为准。"),
+  ).toBeDefined();
+  // Neutral gray, not the yellow warning tier.
+  expect(
+    screen.queryByText("本轮未收到结构化验证记录，不能据此确认测试通过。"),
+  ).toBeNull();
+});
+
+it("merges repeated writes to one path into a single final row", () => {
+  const { changes } = deliveryEvidence([
+    event({
+      name: "write_file",
+      id: "w1",
+      status: "error",
+      input: { path: "sum.ps1" },
+    }),
+    event({
+      name: "write_file",
+      id: "w2",
+      status: "running",
+      input: { path: "sum.ps1" },
+    }),
+    event({
+      name: "write_file",
+      id: "w3",
+      status: "done",
+      input: { path: "sum.ps1" },
+      output: { diff: "+final" },
+    }),
+  ]);
+  expect(changes).toHaveLength(1);
+  expect(changes[0]).toMatchObject({
+    path: "sum.ps1",
+    status: "done", // strongest status wins: the final write landed
+    diff: "+final", // last write's diff
+    writeCount: 3,
+  });
+});
+
+it("a later delete wins over earlier creates when merging", () => {
+  const { changes } = deliveryEvidence([
+    event({
+      name: "create_file",
+      input: { path: "scratch.txt", content: "draft" },
+    }),
+    event({ name: "delete_file", input: { path: "scratch.txt" } }),
+  ]);
+  expect(changes).toHaveLength(1);
+  expect(changes[0]).toMatchObject({ op: "delete", writeCount: 2 });
+});
+
+it("shows the fold badge for multi-write rows and single rows stay clean", () => {
+  const events = [
+    event({
+      name: "write_file",
+      id: "w1",
+      status: "error",
+      input: { path: "sum.ps1" },
+    }),
+    event({
+      name: "write_file",
+      id: "w2",
+      status: "done",
+      input: { path: "sum.ps1" },
+      output: { diff: "+x" },
+    }),
+    event({
+      name: "write_file",
+      id: "w3",
+      status: "done",
+      input: { path: "other.ps1" },
+      output: { diff: "+y" },
+    }),
+  ];
+  renderWithProviders(<TaskDeliveryReview events={events} running={false} />);
+  expect(screen.getByText("×2")).toBeDefined();
+  expect(screen.queryByText("×1")).toBeNull();
+  // The unconfirmed stub rows are gone — only merged/confirmed rows remain.
+  expect(screen.queryByText("未确认完成")).toBeNull();
 });

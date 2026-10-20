@@ -2,7 +2,7 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowDownIcon,
-  Share2Icon,
+  SquareArrowOutUpRightIcon,
   MessageCircleIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -329,7 +329,7 @@ export function SubagentProcessView({
                 title={shareableReply ? copy.shareToGroupHint : copy.shareUnavailable}
                 className="inline-flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
               >
-                <Share2Icon className="size-3.5" aria-hidden="true" />
+                <SquareArrowOutUpRightIcon className="size-3.5" aria-hidden="true" />
                 {copy.shareToGroup}
               </button>
             }

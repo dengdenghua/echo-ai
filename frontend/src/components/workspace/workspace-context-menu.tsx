@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";import { useNavigate } from "react-router-dom";
 import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
 import { worktreeCopy } from "@/core/i18n/locales/worktrees";
 import { sessionStatusCopy } from "@/core/i18n/locales/session-status";
@@ -8,7 +7,7 @@ import { artifactDisplayPath } from "@/core/artifacts/utils";
 import { getFileIcon, getFileName } from "@/core/utils/files";
 import { useOptionalArtifacts } from "./artifacts/context";
 import {
-  ContextRing,
+  SessionStatusGlyph,
   contextUsage,
   ringColorClass,
 } from "./chat-input-box/context-usage-details";
@@ -62,6 +61,57 @@ interface Source {
   url?: string;
 }
 
+/**
+ * Sticky footer that tells the reader the menu still has rows below.
+ *
+ * The menu body scrolls inside Radix's available-height clamp, so a long
+ * 产出/来源 tail otherwise just looks like it ends. The hint hides itself
+ * once the reader reaches the bottom.
+ *
+ * It lives inside the menu body instead of the menu component so the scroll
+ * container is guaranteed to exist when this mounts: the menu's own open
+ * effect runs before Radix has committed the portal content, so a ref there
+ * is still null. The element always renders (hidden when idle) because
+ * ``closest`` needs an anchor inside the scroller.
+ */
+function SessionStatusScrollHint({ label }: { label: string }) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [state, setState] = useState<"hidden" | "more" | "bottom">("hidden");
+  useEffect(() => {
+    const scroller = anchorRef.current?.closest<HTMLElement>(
+      '[data-slot="dropdown-menu-content"]',
+    );
+    if (!scroller) return;
+    const measure = () => {
+      const overflow = scroller.scrollHeight > scroller.clientHeight + 4;
+      const bottom =
+        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 8;
+      setState(!overflow ? "hidden" : bottom ? "bottom" : "more");
+    };
+    measure();
+    scroller.addEventListener("scroll", measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", measure);
+      ro.disconnect();
+    };
+  }, []);
+  return (
+    <div
+      ref={anchorRef}
+      data-testid="session-status-scroll-hint"
+      data-state={state}
+      className={cn(
+        "pointer-events-none sticky bottom-0 -mx-3 -mb-3 mt-1 bg-gradient-to-t from-popover via-popover to-transparent px-3 pt-6 pb-2 text-center text-xs text-muted-foreground",
+        state !== "more" && "hidden",
+      )}
+    >
+      {state === "more" ? label : null}
+    </div>
+  );
+}
+
 export interface WorkspaceContextMenuProps {
   workDir?: string | null;
   events: LiveToolEvent[];
@@ -102,6 +152,21 @@ export function WorkspaceContextMenu({
   const { t, locale } = useI18n();
   const copy = sessionStatusCopy(locale);
   const [open, setOpen] = useState(false);
+  // Pin the popover's right edge to the viewport's right edge instead of to
+  // the trigger: the trigger sits mid-cluster (share left, workbench right),
+  // so plain align="end" leaves the card floating inboard of the window edge.
+  // The measured gap (trigger right → viewport right) is handed to Radix as a
+  // negative alignOffset; for align="end" a negative offset extends past the
+  // anchor toward the viewport edge (verified against the rendered rect in
+  // the dev preview: wrapper right lands within the shadow radius of the
+  // viewport edge at any window width).
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [alignOffset, setAlignOffset] = useState(0);
+  const openMenu = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) setAlignOffset(-(window.innerWidth - rect.right));
+    setOpen(true);
+  };
   const outputs = useOptionalArtifacts()?.artifacts ?? [];
   const backgroundRows = useSessionBackgroundTasks(
     context || environment ? threadId : undefined,
@@ -111,7 +176,7 @@ export function WorkspaceContextMenu({
   useEffect(
     () =>
       ownsCompression
-        ? registerSessionStatusMenu(() => setOpen(true))
+        ? registerSessionStatusMenu(() => openMenu())
         : undefined,
     [ownsCompression],
   );
@@ -177,16 +242,18 @@ export function WorkspaceContextMenu({
       modal={false}
       open={open}
       onOpenChange={(next) => {
-        setOpen(next);
+        if (next) openMenu();
+        else setOpen(false);
       }}
     >
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          ref={triggerRef}
           data-slot="workspace-context-trigger"
           aria-label={menuTitle}
           title={context ? `${menuTitle} · ${usage.summary}` : menuTitle}
-          className="flex h-[42px] min-w-[42px] shrink-0 items-center justify-center gap-1 rounded-lg px-1.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/70 data-[state=open]:text-foreground sm:h-8 sm:min-w-8"
+          className="header-icon-hit-area flex h-[42px] min-w-[42px] shrink-0 items-center justify-center gap-1 rounded-lg px-1.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/70 data-[state=open]:text-foreground sm:h-8 sm:min-w-8"
         >
           {context ? (
             <span
@@ -195,11 +262,10 @@ export function WorkspaceContextMenu({
                 ringColorClass(usage.progress),
               )}
             >
-              <ContextRing
-                progress={usage.progress}
-                compressing={context.isCompressingContext}
-                trackClassName="opacity-45"
-              />
+              {/* A fixed mark, not a dial: the level is in the tooltip and
+                  the popover, so an empty window shows the same glyph as a
+                  full one instead of a bare track. */}
+              <SessionStatusGlyph />
               {/* The number appears once there is something to count. */}
               {usage.percentage >= 1 ? (
                 <span className="font-mono text-xs tabular-nums">
@@ -214,11 +280,12 @@ export function WorkspaceContextMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        alignOffset={alignOffset}
         side="bottom"
         sideOffset={10}
-        collisionPadding={12}
+        collisionPadding={0}
         aria-label={menuTitle}
-        className="max-h-[min(40rem,var(--radix-dropdown-menu-content-available-height))] w-[340px] max-w-[calc(100vw-24px)] rounded-2xl border-border-subtle bg-popover p-3 shadow-[0_4px_20px_rgb(0_0_0/0.08)] dark:shadow-[0_4px_20px_rgb(0_0_0/0.3)]"
+        className="max-h-[min(40rem,var(--radix-dropdown-menu-content-available-height))] w-[calc(100vw-16px)] sm:w-[360px] rounded-2xl border-border-subtle bg-popover p-3 shadow-[0_4px_20px_rgb(0_0_0/0.08)] dark:shadow-[0_4px_20px_rgb(0_0_0/0.3)]"
       >
         {(environment || workDir) && (
           <DropdownMenuLabel className={sectionLabelClass}>
@@ -418,6 +485,7 @@ export function WorkspaceContextMenu({
           ),
         )}
 
+        <SessionStatusScrollHint label={copy.scrollForMore} />
       </DropdownMenuContent>
     </DropdownMenu>
     <WorktreeDialog open={worktreesOpen} onOpenChange={setWorktreesOpen} projectPath={workDir ?? ""}

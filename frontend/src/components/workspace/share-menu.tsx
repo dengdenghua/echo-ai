@@ -14,7 +14,7 @@ import {
   Loader2Icon,
   MessageCircleMoreIcon,
   QrCodeIcon,
-  Share2Icon,
+  SquareArrowOutUpRightIcon,
   UnlinkIcon,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -224,7 +224,7 @@ export function ShareMenu({
               "flex h-[42px] items-center gap-1.5 border text-xs font-medium shadow-none transition-colors duration-base sm:h-7",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
               iconOnly
-                ? "w-[42px] justify-center rounded-lg border-transparent bg-transparent px-0 text-muted-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground sm:w-8"
+                ? "header-icon-hit-area w-[42px] justify-center rounded-lg border-transparent bg-transparent px-0 text-muted-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground sm:w-8"
                 : "rounded-lg border-transparent bg-transparent px-2.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground",
               className,
             )}
@@ -232,7 +232,10 @@ export function ShareMenu({
             {busy ? (
               <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
             ) : (
-              <Share2Icon className="size-4 text-muted-foreground" />
+              // "Send it out of this conversation", not three dots wired
+              // together: the arrow leaving a box reads as sharing at a glance,
+              // where Share2's node graph reads as a network or a link.
+              <SquareArrowOutUpRightIcon className="size-4 text-muted-foreground" />
             )}
             {!iconOnly && <span>{t.share.share}</span>}
           </button>

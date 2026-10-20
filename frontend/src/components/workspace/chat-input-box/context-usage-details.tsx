@@ -1,7 +1,7 @@
 /**
  * How full the model context is: the total, a bar split by what fills it
  * (messages, system prompt, tools, skills, memory …) and the space left.
- * Shared by the composer's context ring and the header status menu's 上下文
+ * Shared by the composer's context meter and the header status menu's 上下文
  * section, whose heading carries the total instead.
  */
 import { useState } from "react";
@@ -41,7 +41,7 @@ export function contextUsage(contextTokens: number, maxContextTokens: number) {
   };
 }
 
-/** The ring's tint: calm until the window fills up. */
+/** The meter tint: calm until the window fills up. */
 export function ringColorClass(progress: number): string {
   if (progress >= 0.95) return "text-destructive";
   if (progress >= 0.8) return "text-warning";
@@ -49,8 +49,16 @@ export function ringColorClass(progress: number): string {
   return "text-muted-foreground";
 }
 
-/** A progress ring in the current text colour; it pulses while compressing. */
-export function ContextRing({
+/**
+ * A horizontal context meter in the current text colour.
+ *
+ * A ring was the wrong shape here: at a near-empty window the round line cap
+ * rendered as a lone dark dot floating on the track, and a 30px circle is too
+ * small to read a fill level from at all. The horizontal bar is what other
+ * agent clients ship (a bar plus a percentage next to it), reads at a glance
+ * in a narrow header button, and shows nothing but a clean track at 0%.
+ */
+export function ContextMeter({
   progress,
   compressing = false,
   className,
@@ -62,42 +70,64 @@ export function ContextRing({
   /** A header button needs a firmer track to read as a control at 0%. */
   trackClassName?: string;
 }) {
-  const circumference = 2 * Math.PI * 7;
+  const percent = Math.min(Math.max(progress, 0), 1) * 100;
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "relative inline-block h-1 w-6 overflow-hidden rounded-full bg-current align-middle",
+        trackClassName,
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          "absolute inset-y-0 left-0 rounded-full bg-current transition-[width] duration-slow",
+          compressing && "animate-pulse",
+        )}
+        style={{ width: `${percent}%` }}
+      />
+    </span>
+  );
+}
+
+/**
+ * The header's session-status mark: two rows of ring + line, the shape other
+ * agent clients use for a "details of this run" affordance (a bulleted list,
+ * not a dial). Drawn here rather than pulled from lucide because no icon in
+ * the set is a ring paired with a rule — the nearest neighbours are
+ * `list-todo`/`list-checks`, whose boxes or ticks read as task state, and
+ * `list`, whose bullets are dots rather than rings.
+ *
+ * Deliberately static: the level lives in the tooltip and the popover, and a
+ * glyph that grew and shrank with the window was the thing being replaced.
+ */
+export function SessionStatusGlyph({
+  className,
+  strokeWidth = 1.75,
+}: {
+  className?: string;
+  strokeWidth?: number;
+}) {
   return (
     <svg
       aria-hidden
-      viewBox="0 0 18 18"
-      className={cn("size-4 -rotate-90", className)}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      className={cn("size-4 shrink-0", className)}
     >
-      <circle
-        cx="9"
-        cy="9"
-        r="7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        className={trackClassName}
-      />
-      {progress > 0 ? (
-        <circle
-          cx="9"
-          cy="9"
-          r="7"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeDasharray={`${circumference * progress} ${circumference}`}
-          className={cn(
-            "transition-[stroke-dasharray] duration-slow",
-            compressing && "animate-pulse",
-          )}
-        />
-      ) : null}
+      <circle cx="4.5" cy="8" r="2" />
+      <path d="M9.5 8h11" />
+      <circle cx="4.5" cy="16" r="2" />
+      <path d="M9.5 16h11" />
     </svg>
   );
 }
 
+/** Share of the window a segment or the free space takes. */
 function share(tokens: number, maxContextTokens: number): string {
   return maxContextTokens > 0
     ? ` (${Math.round((tokens / maxContextTokens) * 1000) / 10}%)`
@@ -156,7 +186,12 @@ export function ContextUsageDetails({
                   isHovered &&
                     "scale-y-110 shadow-xs ring-1 ring-foreground/40",
                 )}
-                style={{ width: `${Math.max(segPct, 0.6)}%` }}
+                // No minimum width: a floor of a fraction of a percent put a
+                // lone 2px speck on the track for a segment holding a handful
+                // of tokens, which read as a rendering smudge rather than a
+                // share. The per-segment rows below carry the exact counts, so
+                // a sliver that rounds away loses nothing.
+                style={{ width: `${segPct}%` }}
                 title={`${segment.label}: ${compactTokenCount(segment.tokens)}${share(segment.tokens, maxContextTokens)}`}
               />
             );

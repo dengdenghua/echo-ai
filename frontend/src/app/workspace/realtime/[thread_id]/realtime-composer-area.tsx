@@ -102,9 +102,9 @@ export function RealtimeComposerArea({
       className={cn(
         "relative mx-auto w-full transition-[max-width,transform] duration-slow",
         isNewThread && "workspace-start-composer",
-        isNewThread
-          ? "max-w-3xl"
-          : "max-w-(--conversation-column)",
+        // Same measure in both thread states: the first message must not
+        // animate a width jump (transition-[max-width]) when the state flips.
+        "max-w-(--conversation-column)",
       )}
     >
       {mounted ? (

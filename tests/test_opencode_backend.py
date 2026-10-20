@@ -645,6 +645,24 @@ def test_a_millisecond_timestamp_is_not_mistaken_for_an_http_status():
     assert "使用资格" not in message
 
 
+def test_a_400_parameters_rejected_names_the_model_or_proxy_cause():
+    """The user saw the raw English provider string; classify it so the toast
+    points at the real cause (model not served for this account / proxy)."""
+
+    message = public_model_error(
+        {
+            "statusCode": 400,
+            "body": (
+                "the request parameters were rejected by the model provider "
+                "(01a157ba5f9474cfbe45340e69e9ee66)"
+            ),
+        }
+    )
+    assert "请求参数" in message
+    assert "使用资格" not in message  # not an entitlement gate
+    assert "连接已失效" not in message  # not an auth drop
+
+
 def test_state_is_scoped_to_actor_tenant_and_thread():
     scopes = [
         TenantScope(tenant_id="one", actor_id="a"),

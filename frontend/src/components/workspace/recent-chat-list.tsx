@@ -7,7 +7,7 @@ import {
   MoreHorizontal,
   Pencil,
   PlusIcon,
-  Share2,
+  SquareArrowOutUpRightIcon,
   Trash2,
 } from "lucide-react";
 import { Link, useParams, useLocation, useNavigate } from "react-router-dom";
@@ -364,7 +364,7 @@ export function RecentChatList() {
                 <span>{t.common.rename}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => handleShare(thread.thread_id)}>
-                <Share2 className="text-muted-foreground" />
+                <SquareArrowOutUpRightIcon className="text-muted-foreground" />
                 <span>{t.common.share}</span>
               </DropdownMenuItem>
               <DropdownMenuSub>

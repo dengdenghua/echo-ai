@@ -567,15 +567,21 @@
   /* Reading measure for the conversation column (message list + composer +
      loading skeleton, which must stay the same width or the composer visibly
      steps out of the text axis).
-     720px - 32px (px-4, border-box) - 44px (ml-11, the avatar gutter:
-     size-8 + gap-3) = 644px of assistant body text, i.e. ~40 CJK characters
-     or ~80 Latin characters per line. Typography's comfortable measure tops
-     out around 40 CJK / 75-80 Latin; the previous --container-width-md (816px)
-     put this at ~46 CJK / ~92 Latin, past the point where the eye starts
-     losing its place on the return sweep.
-     Deliberately NOT widened on large viewports: a longer line is worse to
-     read, not better. Wide screens should spend their space on side panels. */
+     Narrow windows keep 720px - 32px (px-4, border-box) - 44px (ml-11, the
+     avatar gutter: size-8 + gap-3) = 644px of assistant body text, i.e.
+     ~40 CJK characters or ~80 Latin characters per line. Typography's
+     comfortable measure tops out around 40 CJK / 75-80 Latin.
+     On ≥1024px viewports the column widens to 960px (body ≈ 884px, ~55 CJK):
+     wide windows read as "narrow centered strip with dead margins" at 720px,
+     and the layout spends the extra width on the content axis instead of
+     more side panels. */
   --conversation-column: calc(var(--spacing) * 180);
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --conversation-column: calc(var(--spacing) * 240);
+  }
 }
 
 /* ECHO is the default palette. Every color maps onto the family tokens in
@@ -1914,6 +1920,24 @@
    own container query. Wrapper-level collapse rules live beside the JSX as
    named-container variants. */
 @layer utilities {
+  /* Icon-only header buttons are 32px tall on desktop (sm:h-8) so the row
+     stays dense. A 32px target is below the 44px touch guideline, so the
+     clickable area is extended vertically only: the header is 44px tall, and
+     a vertical extension cannot overlap the 2px gap between neighbours.
+     The visual box (border, background, icon) is untouched. */
+  .header-icon-hit-area {
+    position: relative;
+  }
+
+  .header-icon-hit-area::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+
   @container realtime-header (width <= 720px) {
     .realtime-group-header__members [data-slot="task-collaborator-label"] {
       display: none;
@@ -1958,14 +1982,16 @@
   }
   .workspace-start-composer {
     width: 100%;
-    max-width: 720px;
+    /* Same measure as the started-thread composer (--conversation-column):
+       the first message flips the thread state without a width jump. */
+    max-width: var(--conversation-column);
     translate: none;
     transform: none;
   }
   .workspace-start-heading {
     /* Grows with the starter chips instead of spilling under the composer. */
     min-height: 80px;
-    max-width: 720px;
+    max-width: var(--conversation-column);
     padding: 0;
     justify-content: flex-start;
   }

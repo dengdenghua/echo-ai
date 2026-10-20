@@ -185,6 +185,25 @@ def public_model_error(error: Any) -> str:
         _has_status(detail, "404") or any(x in detail for x in ("not found", "unavailable"))
     ):
         return "当前模型不可用，请切换其他模型。"
+    if _has_status(detail, "400") or any(
+        x in detail
+        for x in (
+            "bad request",
+            "parameters were rejected",
+            "invalid parameter",
+            "invalid request",
+        )
+    ):
+        # The upstream provider rejected the request body itself — distinct
+        # from an entitlement (403) or auth (401) problem. In practice this is
+        # almost always the model name not being served for this account/region
+        # (e.g. a Go model without a subscription, or a free model the key
+        # cannot call), or a proxy/node rewriting the request. Name the likely
+        # cause so the user fixes the configuration instead of re-sending.
+        return (
+            "模型服务拒绝了本次请求参数（常见原因：所选模型名称在当前账号/区域不可用，"
+            "或代理节点拦截/改写了请求）。请确认已选模型与你的 API Key 匹配，或切换节点后重试。"
+        )
     return "OpenCode 调用模型失败，请稍后重试或检查模型连接。"
 
 

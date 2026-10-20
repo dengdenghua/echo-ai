@@ -5,6 +5,7 @@ import type { AIMessage, Message } from "@/core/api/types";
 import { jsonAuthHeaders } from "@/core/auth/api";
 import { getBackendBaseURL } from "@/core/config";
 import { useI18n } from "@/core/i18n/hooks";
+import { cn } from "@/lib/utils";
 import {
   inlineVisualCopy,
   type InlineVisualStatus,
@@ -294,15 +295,29 @@ export function InlineVisual({
           {copy[action]}
         </p>
       )}
-      <iframe
-        ref={frame}
-        title={title}
-        sandbox="allow-scripts"
-        referrerPolicy="no-referrer"
-        srcDoc={srcDoc}
-        className={showSource ? "hidden" : "w-full border-0 transition-[height] duration-200 ease-out"}
-        style={{ height }}
-      />
+      <div className={cn("relative", showSource && "hidden")}>
+        <iframe
+          ref={frame}
+          title={title}
+          sandbox="allow-scripts"
+          referrerPolicy="no-referrer"
+          srcDoc={srcDoc}
+          className="w-full border-0 transition-[height] duration-200 ease-out"
+          style={{ height }}
+        />
+        {/* Streaming placeholder: the iframe keeps painting partial frames,
+            but before the first resize reply it is a bare 360px pane — show
+            progress instead of what reads as a hung card. */}
+        {!complete && (
+          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-background/70 py-2 text-xs text-muted-foreground backdrop-blur-[2px]">
+            <span
+              className="size-1.5 animate-pulse rounded-full bg-primary/70"
+              aria-hidden="true"
+            />
+            {copy.status.streaming}
+          </div>
+        )}
+      </div>
       {showSource && (
         <pre className="max-h-96 overflow-auto p-3 text-xs">
           <code>{code}</code>

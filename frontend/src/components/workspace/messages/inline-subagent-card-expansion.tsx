@@ -7,7 +7,7 @@ import {
   GitBranchIcon,
   Loader2Icon,
   MessageSquareIcon,
-  Share2Icon,
+  SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { eventBus } from "@/core/events/event-bus";
@@ -194,7 +194,7 @@ export function InlineSubagentCardExpansion({
             {published ? (
               <CheckIcon className="size-3" />
             ) : (
-              <Share2Icon className="size-3" />
+              <SquareArrowOutUpRightIcon className="size-3" />
             )}
             <span>{published ? copy.published : copy.publish}</span>
           </button>

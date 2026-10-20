@@ -7,7 +7,12 @@ import {
   createContext,
   useContext,
 } from "react";
-import type { AnchorHTMLAttributes, HTMLAttributes, ReactElement } from "react";
+import type {
+  AnchorHTMLAttributes,
+  HTMLAttributes,
+  ImgHTMLAttributes,
+  ReactElement,
+} from "react";
 import type { BundledLanguage } from "shiki";
 
 import {
@@ -19,6 +24,8 @@ import {
   CodeBlockCopyButton,
 } from "@/components/ai-elements/code-block";
 import { LinkedFileReference } from "./linked-file-reference";
+import { MarkdownImage } from "./markdown-image";
+import { AudioCard, VideoCard, mediaFromFence } from "./media-cards";
 import { parseFileReference } from "@/core/navigation/file-reference";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
 import {
@@ -196,6 +203,18 @@ function StreamingCodeRenderer(
         );
       }
 
+      // Inline media fences (```video / ```audio / bare media URL) render
+      // native players instead of a dead code block.
+      if (!isStreaming) {
+        const media = mediaFromFence(code, language);
+        if (media?.kind === "video") {
+          return <VideoCard src={media.src} filename={media.filename} />;
+        }
+        if (media?.kind === "audio") {
+          return <AudioCard src={media.src} filename={media.filename} />;
+        }
+      }
+
       return (
         <CodeBlock
           code={code}
@@ -301,6 +320,11 @@ export const MarkdownContent = memo(
         // travels via context inside StreamingCodeRenderer (see above).
         pre: (props: HTMLAttributes<HTMLPreElement>) => (
           <StreamingCodeRenderer {...props} />
+        ),
+        // Rich image card: skeleton while loading, click-to-zoom lightbox,
+        // graceful failure. Bare Streamdown <img> otherwise.
+        img: (props: ImgHTMLAttributes<HTMLImageElement>) => (
+          <MarkdownImage {...props} />
         ),
         // File citation. The rehypeFileReferences plugin has
         // transformed inline `path.ext:12-34` code into a <file-ref> element

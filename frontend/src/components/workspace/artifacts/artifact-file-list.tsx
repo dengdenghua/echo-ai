@@ -1,7 +1,8 @@
 import { DownloadIcon, EyeIcon, LoaderIcon, PackageIcon } from "lucide-react";
-import { Suspense, useCallback, lazy, useMemo, useRef } from "react";
+import { Suspense, useCallback, lazy, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { AuthenticatedImage } from "@/components/ui/authenticated-image";
 import { artifactDisplayPath, urlOfArtifact } from "@/core/artifacts/utils";
 import { useArtifactContent } from "@/core/artifacts/hooks";
 import { useI18n } from "@/core/i18n/hooks";
@@ -134,6 +135,12 @@ const LazyStreamdown = lazy(
   () => import("@/components/ai-elements/streamdown-host"),
 );
 
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i;
+
+export function isImageArtifact(filepath: string): boolean {
+  return IMAGE_EXT_RE.test(filepath.trim());
+}
+
 function InlineHtmlPreview({
   content,
   filepath,
@@ -180,6 +187,42 @@ function InlineMarkdownPreview({ content }: { content: string }) {
   );
 }
 
+/** Inline image artifact card body: authenticated load, contained zoom. */
+function InlineImagePreview({ url, alt }: { url: string; alt: string }) {
+  const [zoomed, setZoomed] = useState(false);
+  return (
+    <div className="flex size-full flex-col items-center justify-center gap-2 overflow-auto p-2">
+      <button
+        type="button"
+        aria-label={`放大预览 ${alt}`}
+        className="max-h-full max-w-full cursor-zoom-in overflow-hidden rounded"
+        onClick={() => setZoomed(true)}
+      >
+        <AuthenticatedImage
+          src={url}
+          alt={alt}
+          className="max-h-64 max-w-full object-contain"
+        />
+      </button>
+      {zoomed && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={alt}
+          className="fixed inset-0 z-[80] flex cursor-zoom-out items-center justify-center bg-background/90 p-6 backdrop-blur-sm"
+          onClick={() => setZoomed(false)}
+        >
+          <AuthenticatedImage
+            src={url}
+            alt={alt}
+            className="max-h-full max-w-full object-contain shadow-2xl"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ArtifactInlinePreviewCard({
   filepath,
   threadId,
@@ -193,13 +236,15 @@ function ArtifactInlinePreviewCard({
   const { language } = checkCodeFile(displayPath);
   const officeKind = officeArtifactKind(displayPath);
   const isWriteFile = filepath.startsWith("write-file:");
+  const imageFile = isImageArtifact(displayPath);
   const { content, url, isLoading } = useArtifactContent({
     filepath,
     threadId,
     // OfficePreview performs its own authenticated, format-aware fetch.
     // Reading xlsx/pptx/pdf through the text-content hook is both wasteful and
-    // can corrupt the preview by treating a binary file as UTF-8.
-    enabled: !isWriteFile && !officeKind,
+    // can corrupt the preview by treating a binary file as UTF-8. Images only
+    // need the resolved URL for <AuthenticatedImage>.
+    enabled: !isWriteFile && !officeKind && !imageFile,
   });
   const effectiveContent = isWriteFile ? "" : (content ?? "");
 
@@ -254,6 +299,11 @@ function ArtifactInlinePreviewCard({
             filepath={displayPath}
             url={url}
           />
+        ) : imageFile ? (
+          <InlineImagePreview
+            url={url ?? urlOfArtifact({ filepath, threadId })}
+            alt={getFileName(displayPath)}
+          />
         ) : null}
       </div>
     </div>
@@ -280,11 +330,13 @@ export function ArtifactInlinePreview({
   const previewable = useMemo(
     () =>
       (files ?? []).filter((f) => {
-        const lang = checkCodeFile(artifactDisplayPath(f)).language;
+        const display = artifactDisplayPath(f);
+        const lang = checkCodeFile(display).language;
         return (
           lang === "html" ||
           lang === "markdown" ||
-          Boolean(officeArtifactKind(artifactDisplayPath(f)))
+          isImageArtifact(display) ||
+          Boolean(officeArtifactKind(display))
         );
       }),
     [files],
