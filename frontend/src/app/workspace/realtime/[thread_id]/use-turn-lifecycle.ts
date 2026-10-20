@@ -1,4 +1,7 @@
-import { backgroundResumeMessageId } from "@/core/threads/background-resume";
+import {
+  backgroundResumeMessageId,
+  isBackgroundResumePrompt,
+} from "@/core/threads/background-resume";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -348,7 +351,9 @@ export function useDirectTurnSenders({
       void sendMessage(threadId, {
         text,
         files: [],
-        ...(background ? { clientMessageId: backgroundResumeMessageId() } : {}),
+        ...((background || isBackgroundResumePrompt(text))
+          ? { clientMessageId: backgroundResumeMessageId() }
+          : {}),
       });
     },
     [

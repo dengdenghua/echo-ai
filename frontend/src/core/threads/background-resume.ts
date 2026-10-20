@@ -1,4 +1,15 @@
 import type { Message } from "@/core/api/types";
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
+
+const resumePrompts = new Set(
+  ["zh-CN", "en-US", "ja-JP", "ko-KR"].map(
+    (locale) => composerActionsCopy(locale).resumePrompt,
+  ),
+);
+
+export function isBackgroundResumePrompt(text: string): boolean {
+  return resumePrompts.has(text.trim());
+}
 
 /** Keep receipts/history for delivery and model context; hide only generated UI sends. */
 export function backgroundResumeMessageId(): string {
@@ -7,16 +18,20 @@ export function backgroundResumeMessageId(): string {
 
 export function visibleConversationMessages(
   messages: Message[],
-  resumeLabel: string,
+  _resumeLabel: string,
 ): Message[] {
-  return messages.flatMap((message) => {
-    if (message.type !== "human" || !message.id?.startsWith("ui-resume-"))
-      return [message];
-    // A failed outbound send must retain its retry control without revealing
-    // the internal continuation instruction as a user-authored paragraph.
-    return message.additional_kwargs?.delivery_state === "failed"
-      ? [{ ...message, content: resumeLabel }]
-      : [];
+  return messages.filter((message) => {
+    if (message.type !== "human") return true;
+    // Keep the durable send/receipt intact, including failed delivery, but never
+    // turn an internal continuation into a chat bubble. Recognize the exact
+    // generated prompts from older releases that did not mark their item ids.
+    return (
+      !message.id?.startsWith("ui-resume-") &&
+      !(
+        typeof message.content === "string" &&
+        isBackgroundResumePrompt(message.content)
+      )
+    );
   });
 }
 

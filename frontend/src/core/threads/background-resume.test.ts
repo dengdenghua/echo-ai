@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { composerActionsCopy } from "@/core/i18n/locales/composer-actions";
 import type { Message } from "@/core/api/types";
 import {
   backgroundResumeMessageId,
+  isBackgroundResumePrompt,
   conversationMessageIndexes,
   visibleConversationMessages,
 } from "./background-resume";
@@ -25,7 +27,7 @@ describe("background continuation", () => {
     const visible = visibleConversationMessages(messages, "Continue");
     const positions = conversationMessageIndexes(messages, visible);
     expect(positions.get(visible[0]!)).toBe(1);
-    expect(positions.get(visible[1]!)).toBe(2);
+    expect(visible).toHaveLength(1);
   });
   it("keeps the sent id and delivery receipt while hiding generated prompt bubbles", () => {
     const id = backgroundResumeMessageId();
@@ -43,7 +45,7 @@ describe("background continuation", () => {
     ).toEqual([]);
   });
 
-  it("retains manually typed text and keeps failed background sends retryable", () => {
+  it("retains manually typed text and hides failed background sends", () => {
     const manual: Message = {
       type: "human",
       id: "itm_user_manual",
@@ -60,7 +62,41 @@ describe("background continuation", () => {
     };
     const result = visibleConversationMessages([manual, failed], "Continue");
     expect(result[0]).toBe(manual);
-    expect(result[1]?.content).toBe("Continue");
-    expect(result[1]?.additional_kwargs).toEqual(failed.additional_kwargs);
+    expect(result).toEqual([manual]);
+    expect(failed.additional_kwargs?.delivery_state).toBe("failed");
   });
 });
+
+it.each(["zh-CN", "en-US", "ja-JP", "ko-KR"])(
+  "hides legacy generated prompts in %s without hiding typed continue",
+  (locale) => {
+    const copy = composerActionsCopy(locale);
+    const generated: Message = {
+      type: "human",
+      id: "old-id",
+      content: copy.resumePrompt,
+    };
+    const failed: Message = {
+      type: "human",
+      id: backgroundResumeMessageId(),
+      content: copy.resume,
+      additional_kwargs: { delivery_state: "failed" },
+    };
+    const manual: Message = {
+      type: "human",
+      id: "typed-id",
+      content: copy.resume,
+    };
+    expect(isBackgroundResumePrompt(copy.resumePrompt)).toBe(true);
+    expect(isBackgroundResumePrompt(copy.resume)).toBe(false);
+    expect(
+      visibleConversationMessages([failed, generated, manual], copy.resume),
+    ).toEqual([manual]);
+    expect(
+      visibleConversationMessages(
+        JSON.parse(JSON.stringify([failed, generated])),
+        copy.resume,
+      ),
+    ).toEqual([]);
+  },
+);
