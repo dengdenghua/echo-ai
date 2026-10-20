@@ -40,6 +40,8 @@ const api = {
   windowControlsOverlay: process.argv.includes("--echo-titlebar-overlay"),
   backendBaseURL: ipcRenderer.sendSync("backend:getBaseURLSync"),
 
+  clipboard: { writeText: invoke("clipboard:writeText") },
+
   browser: {
     setDevice: invoke("browser:setDevice"),
     executeJS: invoke("browser:executeJS"),

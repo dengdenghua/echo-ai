@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Message } from "@/core/api/types";
 
@@ -47,6 +47,23 @@ vi.mock("@/core/i18n/hooks", () => ({
 }));
 
 describe("MessageListItem streaming isolation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("copies the complete answer through the native clipboard bridge", async () => {
+    const writeText = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("echo", { clipboard: { writeText } });
+    const queryClient = new QueryClient();
+    const text = "中文回答\n\n**保留格式**\n```ts\nconst x = 1;\n```";
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <MessageListItem message={{ id: "copy-answer", type: "ai", content: text, additional_kwargs: {} } as Message} isLoading={false} isLastMessage={false} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(text));
+  });
   it("does not re-render a historical message when streaming or values contexts change", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

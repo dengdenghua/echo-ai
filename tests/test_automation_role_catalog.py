@@ -1,5 +1,6 @@
-"""Exercise the shipped Kane bindings through the external-engine catalog."""
+"""Exercise shared role automation through the external-engine catalog."""
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,16 +14,18 @@ from runtime.execution.suckers.registry import SkillRegistry
 from runtime.execution.tool_engine.host_tool_broker import HostToolBroker
 
 
-def _catalog(tmp_path, goal, *, context=None, ceiling=None):
+def _catalog(tmp_path, goal, *, context=None, ceiling=None, role="kane", disabled=()):
     root = Path(__file__).resolve().parents[1] / "agents"
     agent = load_agent(
-        root / "kane",
+        root / role,
         GraphRuntime(executor=SimpleNamespace(journal=None), journal=None),
         root / "_shared",
     )
     registry = SkillRegistry()
     register_browser_act_skills(registry)
     register_computer_skills(registry, verify_tests=False)
+    for name in disabled:
+        registry.disable(name)
     return HostToolBroker(
         SimpleNamespace(executor=SimpleNamespace(registry=registry)),
         agent,
@@ -85,4 +88,55 @@ def test_plain_research_and_task_ceiling_do_not_gain_browser_controls(tmp_path):
     assert "live_browser_navigate" not in _catalog(tmp_path, "调研服务器价格")
     assert "live_browser_navigate" not in _catalog(
         tmp_path, "帮我打开阿里云国际站", ceiling=frozenset({"computer_observe"})
+    )
+
+
+_ROLES_ROOT = Path(__file__).resolve().parents[1] / "agents"
+_ROLE_IDS = sorted(p.parent.name for p in _ROLES_ROOT.glob("*/profile.jsonc"))
+
+
+@pytest.mark.parametrize("role", _ROLE_IDS)
+def test_every_shipped_role_exposes_browser_and_desktop_tools(tmp_path, role):
+    browser = _catalog(tmp_path, "帮我打开阿里云国际站", role=role)
+    desktop = _catalog(tmp_path, "操作电脑完成桌面自动化", role=role)
+    assert {"live_browser_navigate", "live_browser_click", "live_browser_screenshot"} <= set(
+        browser
+    )
+    assert {"computer_observe", "computer_plan_next", "computer_execute_token"} <= set(desktop)
+
+
+@pytest.mark.parametrize("registry_content", [None, {"arms": ["web_read"]}, {"arms": []}])
+def test_existing_and_imported_roles_gain_automation_without_file_changes(
+    tmp_path, registry_content
+):
+    role = tmp_path / "custom-role"
+    core = role / "agent-core"
+    core.mkdir(parents=True)
+    (role / "profile.jsonc").write_text(json.dumps({"id": "custom-role"}), encoding="utf-8")
+    path = core / "tool-registry.jsonc"
+    if registry_content is not None:
+        path.write_text(json.dumps(registry_content), encoding="utf-8")
+    before = path.read_bytes() if path.exists() else None
+    agent = load_agent(
+        role,
+        GraphRuntime(executor=SimpleNamespace(journal=None), journal=None),
+        tmp_path / "_shared",
+    )
+    assert agent.can_use("browser_navigate")
+    assert agent.can_use("live_browser_click")
+    assert agent.can_use("computer_execute_token")
+    assert (path.read_bytes() if path.exists() else None) == before
+    arm_ids = [str(arm.arm_id) for arm in agent.arms]
+    assert len(arm_ids) == len(set(arm_ids))
+
+
+def test_shared_automation_still_respects_disabled_tools_and_task_ceiling(tmp_path):
+    assert "live_browser_navigate" not in _catalog(
+        tmp_path, "帮我打开阿里云国际站", role="eve", disabled=("live_browser_navigate",)
+    )
+    assert "computer_execute_token" not in _catalog(
+        tmp_path, "电脑自动化", role="luna", ceiling=frozenset({"computer_observe"})
+    )
+    assert "computer_execute_token" not in _catalog(
+        tmp_path, "电脑自动化", role="shion", context={"_read_only_turn_enforced": True}
     )

@@ -2,6 +2,15 @@ import { swallow } from "@/core/utils/log";
 export async function copyTextToClipboard(text: string): Promise<void> {
   const value = String(text ?? "");
 
+  if (typeof window !== "undefined" && window.echo?.clipboard?.writeText) {
+    try {
+      const result = await window.echo.clipboard.writeText(value);
+      if (result.ok) return;
+    } catch (error) {
+      swallow(error, "native-clipboard");
+    }
+  }
+
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(value);
@@ -18,6 +27,7 @@ export async function copyTextToClipboard(text: string): Promise<void> {
   }
 
   const selection = document.getSelection();
+  const previousFocus = document.activeElement;
   const previousRange =
     selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
   const textarea = document.createElement("textarea");
@@ -36,6 +46,8 @@ export async function copyTextToClipboard(text: string): Promise<void> {
     copied = document.execCommand("copy");
   } finally {
     textarea.remove();
+    if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
+      previousFocus.focus({ preventScroll: true });
     if (selection) {
       selection.removeAllRanges();
       if (previousRange) selection.addRange(previousRange);

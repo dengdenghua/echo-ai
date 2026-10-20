@@ -66,6 +66,10 @@ _ARM_FACTORIES: dict[str, ArmFactory] = {
     "desktop_operator": make_desktop_operator_arm,
 }
 
+# Shared role abilities. Plugin availability, read-only mode and task ceilings
+# still decide which tools may be advertised or executed in a particular turn.
+_DEFAULT_AUTOMATION_ARMS = ("browser_read", "browser_interact", "desktop_operator")
+
 
 # ═══════════════════════════════════════════════════════════
 # path helpers
@@ -466,7 +470,9 @@ def _build_arms(
     private_skills: list[str] | None = None,
 ) -> ArmPool:
     arms: list[Worker] = []
-    for arm_id in arm_ids:
+    # Apply at construction so existing, imported and newly created role files
+    # all inherit the same baseline without rewriting their specialist tools.
+    for arm_id in dict.fromkeys((*arm_ids, *_DEFAULT_AUTOMATION_ARMS)):
         factory = _ARM_FACTORIES.get(arm_id)
         if factory is None:
             # Fail loud — a typo in tool-registry.jsonc shouldn't be

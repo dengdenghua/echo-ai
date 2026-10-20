@@ -350,6 +350,11 @@ export interface EchoElectronAPI {
     closeSidePanel: (id: string) => Promise<void>;
   };
 
+  clipboard?: {
+    /** Copy application text without granting web pages clipboard read access. */
+    writeText: (text: string) => Promise<{ ok: boolean; error?: string }>;
+  };
+
   app: {
     getVersion: () => Promise<string>;
     openExternal: (url: string) => Promise<void>;

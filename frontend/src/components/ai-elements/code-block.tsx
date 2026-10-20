@@ -314,11 +314,6 @@ export const CodeBlockCopyButton = ({
   }, []);
 
   const copyToClipboard = async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-      onError?.(new Error("Clipboard API not available"));
-      return;
-    }
-
     try {
       await copyTextToClipboard(code);
       setIsCopied(true);

@@ -38,6 +38,7 @@ const {
 const petSidecar = require("./pet-sidecar.cjs");
 const desktopCore = require("./desktop-shell-core.cjs");
 const { selectPreviewSource } = require("./automation-preview.cjs");
+const { registerClipboardWrite, isTrustedClipboardFrame } = require("./clipboard-write.cjs");
 const { createVisibleAutomationBrowser } = require("./visible-automation-browser.cjs");
 const desktopProtocol = require("./desktop-protocol.cjs");
 const backendAddress = require("./backend-address.cjs");
@@ -1298,6 +1299,15 @@ function registerIpc() {
     Array.from(auxiliaryWindows.values()).some(
       (win) => !win.isDestroyed() && win.webContents === contents,
     );
+  registerClipboardWrite({
+    ipcMain,
+    clipboard,
+    isTrustedSender: (event) => isTrustedClipboardFrame(event, {
+      isAppContents: isAppRendererContents,
+      isAppURL: desktopProtocol.isDesktopAppURL,
+      devURL: app.isPackaged ? null : (process.env.ELECTRON_START_URL || "http://localhost:5173"),
+    }),
+  });
   createAttentionNotifications({
     Notification,
     getMainWindow: () => mainWindow,
