@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import File, Form, HTTPException, Query, Request, UploadFile
-from starlette.responses import FileResponse
 
 from runtime.platform.io.file_coordination import (
     FileCoordinationConflict,
@@ -188,9 +187,11 @@ def _parse_git_branch_line(raw: str) -> tuple[str, str | None, int, int, bool]:
 
 
 def register_endpoints(router: Any, ctx: _FsContext) -> None:
+    from ._fs_file_preview import register_file_preview_endpoint
     from ._fs_file_reads import register_file_read_endpoints
 
     register_file_read_endpoints(router, ctx)
+    register_file_preview_endpoint(router, ctx)
 
     @router.get("/api/fs/roots", response_model=FsRootsResponse)
     def api_fs_roots(
@@ -365,39 +366,6 @@ def register_endpoints(router: Any, ctx: _FsContext) -> None:
             "path": str(import_root),
             "files": saved,
         }
-
-    @router.get("/api/fs/preview")
-    async def api_fs_preview(
-        request: Request,
-        path: str,
-        thread_id: str | None = None,
-    ) -> FileResponse:
-        _assert_local_request_scope(ctx, request, thread_id=thread_id, workspace_path=None)
-        file_path = _assert_in_scope(ctx, Path(path), thread_id=thread_id)
-        if not file_path.is_file():
-            raise HTTPException(404, "file not found")
-        if file_path.stat().st_size > 24 * 1024 * 1024:
-            raise HTTPException(413, "file exceeds the 24 MB preview limit")
-        # Never execute HTML/SVG/scripts from tool results. Known passive media
-        # may be viewed; every other type is an explicit user download.
-        media_types = {
-            ".png": "image/png",
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".webp": "image/webp",
-            ".gif": "image/gif",
-            ".pdf": "application/pdf",
-        }
-        media_type = media_types.get(file_path.suffix.lower(), "application/octet-stream")
-        return FileResponse(
-            file_path,
-            media_type=media_type,
-            filename=file_path.name,
-            content_disposition_type="inline"
-            if media_type != "application/octet-stream"
-            else "attachment",
-            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
-        )
 
     @router.post("/api/fs/write", response_model=FsWriteResponse)
     async def api_fs_write(

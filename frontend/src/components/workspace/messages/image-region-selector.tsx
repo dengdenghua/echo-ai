@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AuthenticatedImage } from "@/components/ui/authenticated-image";
 
 import { quoteIntoTask } from "@/core/threads/task-interaction";
 
@@ -57,7 +58,12 @@ export function ImageRegionSelector({
   if (disabled || !threadId) {
     return (
       <div className="relative inline-block max-w-full">
-        <img src={src} alt={alt} draggable={false} className="block max-w-full select-none object-contain" />
+        <AuthenticatedImage
+          src={src}
+          alt={alt}
+          draggable={false}
+          className="block max-w-full select-none object-contain"
+        />
       </div>
     );
   }
@@ -85,7 +91,8 @@ export function ImageRegionSelector({
           setRegion(undefined);
         }}
         onPointerMove={(event) => {
-          if (start.current) setRegion(imageRegionFrom(start.current, point(event)));
+          if (start.current)
+            setRegion(imageRegionFrom(start.current, point(event)));
         }}
         onPointerUp={(event) => {
           if (!start.current) return;
@@ -102,11 +109,12 @@ export function ImageRegionSelector({
           setRegion(undefined);
         }}
       >
-        <img
+        <AuthenticatedImage
           src={src}
           alt={alt}
           draggable={false}
           className="block max-h-[55vh] max-w-full select-none object-contain"
+          fallback={<span role="alert">图片读取失败</span>}
         />
         {region && (
           <div

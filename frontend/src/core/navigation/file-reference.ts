@@ -1,4 +1,5 @@
 import { createContext } from "react";
+import { decodeMarkdownFileURL } from "./markdown-file-url";
 
 export const FileReferenceScope = createContext<{
   threadId?: string;
@@ -8,7 +9,7 @@ export const FileReferenceScope = createContext<{
 export function parseFileReference(
   value: string,
 ): { path: string; lines?: string } | null {
-  let path = value.trim();
+  let path = decodeMarkdownFileURL(value.trim());
   if (/^\/api\//i.test(path)) return null;
   try {
     path = decodeURIComponent(path);

@@ -1,4 +1,4 @@
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useContext, useState } from "react";
 import { ChevronDown, ImageIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -8,19 +8,18 @@ import {
   artifactRefFromMarkdownHref,
   dispatchOpenArtifact,
 } from "@/core/artifacts/open-artifact";
+import { conversationImageURL } from "@/core/navigation/conversation-file";
 import {
-  normalizeWorkspaceArtifactRef,
-  parseWorkspaceOutputRef,
-  resolveArtifactURL,
-  urlOfArtifact,
-} from "@/core/artifacts/utils";
+  FileReferenceScope,
+  parseFileReference,
+} from "@/core/navigation/file-reference";
 import { useI18n } from "@/core/i18n/hooks";
 import { messageActionsCopy } from "@/core/i18n/locales/message-actions";
-import {
-  openInGallery,
-  useImageGalleryRegistration,
-} from "./image-gallery";
+import { conversationFilesCopy } from "@/core/i18n/locales/conversation-files";
+import { useImageGalleryRegistration } from "./image-gallery";
 import { ImageRegionSelector } from "./image-region-selector";
+import { LinkedFileReference } from "./linked-file-reference";
+import { decodeMarkdownFileURL } from "@/core/navigation/markdown-file-url";
 
 /**
  * Custom image component that handles artifact URLs
@@ -35,21 +34,25 @@ export function MessageImage({
   threadId: string;
   maxWidth?: string;
 }) {
+  if (typeof src === "string") src = decodeMarkdownFileURL(src);
   const [expanded, setExpanded] = useState(false);
   const [opened, setOpened] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const scope = useContext(FileReferenceScope);
   const { locale } = useI18n();
   const copy = messageActionsCopy(locale);
-  useImageGalleryRegistration({ src: src ?? "", alt: alt ?? "" });
+  const fileCopy = conversationFilesCopy(locale);
+  const url =
+    typeof src === "string"
+      ? conversationImageURL(src, threadId || scope.threadId, scope.basePath)
+      : "";
+  const openGallery = useImageGalleryRegistration({ src: url, alt: alt ?? "" });
   if (!src || typeof src !== "string") return null;
-
-  const reference = /^(?:https?:|data:|blob:|\/\/)/i.test(src)
-    ? src
-    : normalizeWorkspaceArtifactRef(src, threadId);
-  const url = parseWorkspaceOutputRef(reference)
-    ? urlOfArtifact({ filepath: reference, threadId })
-    : src.startsWith("/mnt/")
-      ? resolveArtifactURL(src, threadId)
-      : src;
+  const imageFailure = (
+    <span role="alert" className="text-xs text-destructive">
+      {fileCopy.imageFailed}
+    </span>
+  );
 
   return (
     <span className="my-2 block" data-testid="message-image">
@@ -73,25 +76,29 @@ export function MessageImage({
             onClick={() => {
               // Gallery lightbox when the answer has multiple registered
               // images (◀ ▶ + thumbnails); falls back to the plain dialog.
-              if (!openInGallery(0)) setOpened(true);
+              if (!openGallery()) setOpened(true);
             }}
             className="block overflow-hidden rounded-lg border bg-muted/20 p-1 focus-visible:outline focus-visible:outline-2"
           >
             <AuthenticatedImage
               {...props}
+              key={attempt}
               className="h-20 w-20 rounded object-contain"
               src={url}
               alt={alt ?? ""}
+              fallback={imageFailure}
             />
           </button>
-          {/* Circle-to-edit: drag a region on the rendered image and quote
-              the percent coordinates back into the composer. */}
-          <ImageRegionSelector
-            src={url}
-            alt={alt ?? ""}
-            threadId={threadId}
-            filename={alt ?? undefined}
-          />
+          <button
+            type="button"
+            className="text-xs text-muted-foreground underline"
+            onClick={() => setAttempt((value) => value + 1)}
+          >
+            {fileCopy.reloadImage}
+          </button>
+          {(parseFileReference(src) || src.startsWith("workspace-output:")) && (
+            <LinkedFileReference path={src} label={fileCopy.viewSource} />
+          )}
         </div>
       )}
       <Dialog open={opened} onOpenChange={setOpened}>
@@ -99,10 +106,12 @@ export function MessageImage({
           <DialogTitle className="pr-10 text-sm">
             {alt || copy.imagePreview}
           </DialogTitle>
-          <AuthenticatedImage
+          <ImageRegionSelector
+            key={attempt}
             src={url}
             alt={alt ?? ""}
-            className="mx-auto max-h-[75dvh] max-w-full object-contain"
+            threadId={threadId || scope.threadId}
+            filename={alt ?? undefined}
           />
         </DialogContent>
       </Dialog>
@@ -116,6 +125,21 @@ export function RoutedMessageLink({
   children,
   ...props
 }: ComponentProps<"a">) {
+  if (href) href = decodeMarkdownFileURL(href);
+  const artifactRef = href ? artifactRefFromMarkdownHref(href) : null;
+  const file =
+    href &&
+    !artifactRef?.startsWith("workspace-output:") &&
+    !href.startsWith("/mnt/")
+      ? parseFileReference(href)
+      : null;
+  if (file)
+    return (
+      <LinkedFileReference
+        {...file}
+        label={typeof children === "string" ? children : undefined}
+      />
+    );
   if (typeof href === "string" && isVideoPreviewHref(href)) {
     return (
       <VideoPreviewLink {...props} href={href} onClick={onClick}>

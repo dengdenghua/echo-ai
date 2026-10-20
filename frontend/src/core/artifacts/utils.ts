@@ -51,7 +51,9 @@ export function normalizeWorkspaceArtifactRef(
   threadId?: string,
 ) {
   if (!threadId || parseWorkspaceOutputRef(filepath)) return filepath;
-  const normalizedPath = filepath.replaceAll("\\", "/");
+  const normalizedPath = filepath
+    .replaceAll("\\", "/")
+    .replace(/^(?:\.\/)+/, "");
   const relativeOutputMatch = normalizedPath.match(
     /^output\/(final|stages|deploy|upload)\/(.+)$/,
   );
@@ -61,7 +63,7 @@ export function normalizeWorkspaceArtifactRef(
       relativePath: relativeOutputMatch[2]!,
     });
   }
-  const relativeOutputFileMatch = normalizedPath.match(/^output\/([^/]+)$/);
+  const relativeOutputFileMatch = normalizedPath.match(/^output\/(.+)$/);
   if (relativeOutputFileMatch) {
     return workspaceOutputRef({
       area: "output",

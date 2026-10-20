@@ -25,8 +25,10 @@ import {
 } from "@/components/ai-elements/code-block";
 import { LinkedFileReference } from "./linked-file-reference";
 import { MarkdownImage } from "./markdown-image";
+import { ImageGalleryScope } from "./image-gallery";
 import { AudioCard, VideoCard, mediaFromFence } from "./media-cards";
 import { parseFileReference } from "@/core/navigation/file-reference";
+import { remarkFileURLs } from "@/core/navigation/remark-file-urls";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
 import {
   artifactRefFromMarkdownHref,
@@ -263,8 +265,13 @@ export const MarkdownContent = memo(
   }: MarkdownContentProps) {
     const [settings] = useLocalSettings();
     const streamdownPlugins = useStreamdownPlugins();
-    const resolvedRemarkPlugins =
-      remarkPlugins ?? streamdownPlugins.remarkPlugins;
+    const resolvedRemarkPlugins = useMemo(
+      () => [
+        ...(remarkPlugins ?? streamdownPlugins.remarkPlugins ?? []),
+        remarkFileURLs,
+      ],
+      [remarkPlugins, streamdownPlugins.remarkPlugins],
+    );
     const proseSizeClass =
       CHAT_PROSE_SIZE[chatFontSizeProp ?? settings.display.chat_font_size];
     // Defer the full-text cleaning so a streaming burst (many content updates
@@ -291,9 +298,26 @@ export const MarkdownContent = memo(
           }
           const { className, target, rel, onClick, ...rest } = props;
           const external = isExternalUrl(props.href);
-          const generatedArtifact = props.href ? artifactRefFromMarkdownHref(props.href) : null;
-          const file = !external && props.href && !generatedArtifact?.startsWith("workspace-output:") ? parseFileReference(props.href) : null;
-          if (file) return <LinkedFileReference {...file} label={typeof props.children === "string" ? props.children : undefined} />;
+          const generatedArtifact = props.href
+            ? artifactRefFromMarkdownHref(props.href)
+            : null;
+          const file =
+            !external &&
+            props.href &&
+            !generatedArtifact?.startsWith("workspace-output:")
+              ? parseFileReference(props.href)
+              : null;
+          if (file)
+            return (
+              <LinkedFileReference
+                {...file}
+                label={
+                  typeof props.children === "string"
+                    ? props.children
+                    : undefined
+                }
+              />
+            );
           return (
             <RoutedWebLink
               {...rest}
@@ -356,38 +380,40 @@ export const MarkdownContent = memo(
     // unknown rest props, so the wrapper is where accessibility lands in
     // production.
     return (
-      <MarkdownStreamingContext.Provider value={isLoading}>
-        <div aria-busy={isLoading || undefined}>
-          <MessageResponse
-            className={cn(
-              // `whitespace-pre-wrap` preserves intentional soft line breaks inside
-              // prose, but it must NOT apply to the container's own text nodes.
-              // Streamdown splits markdown into sibling blocks and leaves the
-              // separator newlines between them as bare text nodes on the root — a
-              // `## heading` followed by a 12-row table leaves ~89 raw newlines
-              // there. Under pre-wrap each one rendered as a real blank line, so a
-              // table could be preceded by 1000px+ of void. Applying pre-wrap to
-              // the text blocks instead collapses that inter-block whitespace while
-              // keeping soft breaks. Lists are excluded on purpose: Streamdown
-              // already sets `whitespace-normal` on ul/ol for the same reason.
-              "chat-markdown whitespace-normal",
-              "[&_p]:whitespace-pre-wrap [&_blockquote]:whitespace-pre-wrap",
-              "[&_h1]:whitespace-pre-wrap [&_h2]:whitespace-pre-wrap",
-              "[&_h3]:whitespace-pre-wrap [&_h4]:whitespace-pre-wrap",
-              "[&_h5]:whitespace-pre-wrap [&_h6]:whitespace-pre-wrap",
-              proseSizeClass,
-              className,
-            )}
-            remarkPlugins={resolvedRemarkPlugins}
-            rehypePlugins={rehypePlugins}
-            components={components}
-            isAnimating={isLoading}
-            aria-busy={isLoading || undefined}
-          >
-            {publicContent}
-          </MessageResponse>
-        </div>
-      </MarkdownStreamingContext.Provider>
+      <ImageGalleryScope>
+        <MarkdownStreamingContext.Provider value={isLoading}>
+          <div aria-busy={isLoading || undefined}>
+            <MessageResponse
+              className={cn(
+                // `whitespace-pre-wrap` preserves intentional soft line breaks inside
+                // prose, but it must NOT apply to the container's own text nodes.
+                // Streamdown splits markdown into sibling blocks and leaves the
+                // separator newlines between them as bare text nodes on the root — a
+                // `## heading` followed by a 12-row table leaves ~89 raw newlines
+                // there. Under pre-wrap each one rendered as a real blank line, so a
+                // table could be preceded by 1000px+ of void. Applying pre-wrap to
+                // the text blocks instead collapses that inter-block whitespace while
+                // keeping soft breaks. Lists are excluded on purpose: Streamdown
+                // already sets `whitespace-normal` on ul/ol for the same reason.
+                "chat-markdown whitespace-normal",
+                "[&_p]:whitespace-pre-wrap [&_blockquote]:whitespace-pre-wrap",
+                "[&_h1]:whitespace-pre-wrap [&_h2]:whitespace-pre-wrap",
+                "[&_h3]:whitespace-pre-wrap [&_h4]:whitespace-pre-wrap",
+                "[&_h5]:whitespace-pre-wrap [&_h6]:whitespace-pre-wrap",
+                proseSizeClass,
+                className,
+              )}
+              remarkPlugins={resolvedRemarkPlugins}
+              rehypePlugins={rehypePlugins}
+              components={components}
+              isAnimating={isLoading}
+              aria-busy={isLoading || undefined}
+            >
+              {publicContent}
+            </MessageResponse>
+          </div>
+        </MarkdownStreamingContext.Provider>
+      </ImageGalleryScope>
     );
   },
   (prev, next) => {

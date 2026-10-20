@@ -38889,6 +38889,7 @@ export interface operations {
             query: {
                 path: string;
                 thread_id?: string | null;
+                reference?: string | null;
             };
             header?: never;
             path?: never;
@@ -38923,6 +38924,7 @@ export interface operations {
                 max_lines?: number;
                 thread_id?: string | null;
                 workspace_path?: string | null;
+                reference?: string | null;
             };
             header?: never;
             path?: never;

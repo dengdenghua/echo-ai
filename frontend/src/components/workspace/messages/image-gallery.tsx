@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useCallback,
   useMemo,
   useState,
   type ReactNode,
@@ -9,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
+import { AuthenticatedImage } from "@/components/ui/authenticated-image";
 
 /**
  * Per-answer image gallery.
@@ -27,6 +29,8 @@ export interface GalleryImage {
 
 interface GalleryContextValue {
   register: (image: GalleryImage) => () => void;
+  open: (image: GalleryImage) => boolean;
+  length: number;
 }
 
 const GalleryContext = createContext<GalleryContextValue | null>(null);
@@ -37,22 +41,33 @@ export function ImageGalleryScope({ children }: { children: ReactNode }) {
   // Registrations live in state so the lightbox re-renders as images
   // stream in; the counter ref keeps identity stable across remounts.
   const [images, setImages] = useState<(GalleryImage & { id: number })[]>([]);
+  const [state, setState] = useState<LightboxState | null>(null);
+  const register = useCallback((image: GalleryImage) => {
+    const id = nextGalleryId++;
+    setImages((prev) => [...prev, { ...image, id }]);
+    return () => setImages((prev) => prev.filter((e) => e.id !== id));
+  }, []);
   const context = useMemo<GalleryContextValue>(
     () => ({
-      register: (image) => {
-        const id = nextGalleryId++;
-        setImages((prev) => [...prev, { ...image, id }]);
-        return () => setImages((prev) => prev.filter((e) => e.id !== id));
+      register,
+      length: images.length,
+      open: (image) => {
+        const index = images.findIndex(
+          (entry) => entry.src === image.src && entry.alt === image.alt,
+        );
+        if (index < 0) return false;
+        setState({ index, images });
+        return true;
       },
     }),
-    [],
+    [images, register],
   );
   return (
     <GalleryContext.Provider value={context}>
       {children}
       {/* Portal keeps the lightbox above dialog overlays while staying
           inside React's event tree. */}
-      <GalleryLightbox images={images} />
+      <GalleryLightbox state={state} setState={setState} />
     </GalleryContext.Provider>
   );
 }
@@ -62,31 +77,13 @@ interface LightboxState {
   images: (GalleryImage & { id: number })[];
 }
 
-let openLightbox: ((state: LightboxState) => void) | null = null;
-
-export function openInGallery(index: number): boolean {
-  if (!openLightbox || currentImages.length === 0) return false;
-  openLightbox({ index, images: currentImages });
-  return true;
-}
-
-// The scope's lightbox reads registrations at open time; a module-level
-// mirror avoids threading the array back through the register callback.
-let currentImages: (GalleryImage & { id: number })[] = [];
-
 function GalleryLightbox({
-  images,
+  state,
+  setState,
 }: {
-  images: (GalleryImage & { id: number })[];
+  state: LightboxState | null;
+  setState: React.Dispatch<React.SetStateAction<LightboxState | null>>;
 }) {
-  const [state, setState] = useState<LightboxState | null>(null);
-  useEffect(() => {
-    currentImages = images;
-    openLightbox = setState;
-    return () => {
-      if (openLightbox === setState) openLightbox = null;
-    };
-  }, [images]);
   useEffect(() => {
     if (!state) return;
     const onKey = (event: KeyboardEvent) => {
@@ -115,8 +112,9 @@ function GalleryLightbox({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = previousOverflow;
     };
-  }, [state]);
-  if (!state || images.length === 0) return null;
+  }, [state, setState]);
+  if (!state || state.images.length === 0) return null;
+  const images = state.images;
   const current = images[Math.min(state.index, images.length - 1)]!;
   const many = images.length > 1;
   return createPortal(
@@ -127,12 +125,22 @@ function GalleryLightbox({
       className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-background/95 p-4 backdrop-blur-sm"
       onClick={() => setState(null)}
     >
-      <img
+      <button
+        type="button"
+        aria-label="关闭图片预览"
+        className="absolute right-4 top-4 rounded border px-3 py-1"
+        onClick={() => setState(null)}
+      >
+        关闭
+      </button>
+      <AuthenticatedImage
+        key={current.src}
         src={current.src}
         alt={current.alt}
         draggable={false}
         className="max-h-[75dvh] max-w-full select-none object-contain shadow-2xl"
         onClick={(event) => event.stopPropagation()}
+        fallback={<span role="alert">图片读取失败，请关闭后重新打开。</span>}
       />
       {many && (
         <>
@@ -189,7 +197,7 @@ function GalleryLightbox({
                 )}
                 onClick={() => setState({ index, images })}
               >
-                <img
+                <AuthenticatedImage
                   src={image.src}
                   alt=""
                   className="size-full object-cover"
@@ -207,13 +215,12 @@ function GalleryLightbox({
 
 export function useImageGalleryRegistration(image: GalleryImage) {
   const context = useContext(GalleryContext);
-  const serialized = `${image.src}:${image.alt}`;
+  const register = context?.register;
   useEffect(() => {
-    if (!context) return;
-    return context.register(image);
-    // Re-register only when the identity actually changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- image object identity is irrelevant
-  }, [context, serialized]);
+    if (!register || !image.src) return;
+    return register({ src: image.src, alt: image.alt });
+  }, [register, image.src, image.alt]);
+  return () => context?.open(image) ?? false;
 }
 
 export function useGalleryLength(): number {
@@ -221,5 +228,5 @@ export function useGalleryLength(): number {
   // module mirror at lightbox open time, so components only need a cheap
   // re-render signal. Keeping this hook out of the hot path: the length is
   // consumed by the lightbox itself, not by every image.
-  return currentImages.length;
+  return useContext(GalleryContext)?.length ?? 0;
 }

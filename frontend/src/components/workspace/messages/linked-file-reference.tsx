@@ -28,6 +28,9 @@ import { useI18n } from "@/core/i18n/hooks";
 import { linkedFileReferenceCopy } from "@/core/i18n/locales/linked-file-reference";
 import { quoteIntoTask } from "@/core/threads/task-interaction";
 import { MediaReference } from "./media-reference";
+import { fileReferenceParams } from "@/core/navigation/conversation-file";
+import { fileReadError } from "@/core/i18n/locales/conversation-files";
+import { isRecord } from "@/core/utils/guards";
 
 export function LinkedFileReference({
   path,
@@ -51,7 +54,19 @@ export function LinkedFileReference({
   const [selection, setSelection] = useState<{ text: string; lines: string }>();
   const [fingerprint, setFingerprint] = useState("");
   const [failedStatus, setFailedStatus] = useState<number>();
-  const resolvedPath = resolveFileReference(path, scope.basePath);
+  const [chosenFile, setChosenFile] = useState<{
+    reference: string;
+    threadId?: string;
+    path: string;
+  }>();
+  const chosenPath =
+    chosenFile?.reference === path && chosenFile.threadId === scope.threadId
+      ? chosenFile.path
+      : undefined;
+  const [loadedPath, setLoadedPath] = useState<string>();
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [attempt, setAttempt] = useState(0);
+  const resolvedPath = chosenPath ?? resolveFileReference(path, scope.basePath);
   const line = Number(lines?.split("-")[0]);
   // A file the run produced lives in the thread's output area, not under the
   // workspace root the chip would otherwise resolve against.
@@ -77,41 +92,59 @@ export function LinkedFileReference({
     setTruncated(false);
     setSelection(undefined);
     setFingerprint("");
+    setCandidates([]);
+    setLoadedPath(undefined);
     let objectUrl: string | undefined;
     const binary =
       !/\.(?:txt|md|markdown|json|jsonl|ya?ml|toml|ini|conf|log|csv|tsv|py|pyi|ts|tsx|js|jsx|mjs|cjs|css|scss|html?|xml|svg|sql|sh|ps1|bat|cmd|c|h|cpp|hpp|rs|go|java|kt|swift|rb|php|vue|svelte)$/i.test(
         path,
       );
-    const params = new URLSearchParams({
-      path: resolvedPath,
-      max_lines: "5000",
-    });
-    if (scope.threadId) params.set("thread_id", scope.threadId);
+    const params = fileReferenceParams(
+      resolvedPath,
+      scope.threadId,
+      chosenPath ? undefined : path,
+    );
+    if (!binary) params.set("max_lines", "5000");
     void fetch(
       `${getBackendBaseURL()}/api/fs/${binary ? "preview" : "read"}?${params}`,
       { headers: authHeaders(), signal: controller.signal },
     )
       .then(async (res) => {
         if (!res.ok && !controller.signal.aborted) setFailedStatus(res.status);
-        if (!res.ok)
-          throw new Error(
-            zh
-              ? `文件暂时无法读取（${res.status}）`
-              : `Unable to read file (${res.status})`,
-          );
+        if (!res.ok) {
+          let reason: string | undefined;
+          if (res.status === 409) {
+            const data: unknown = await res.json().catch(() => null);
+            const detail =
+              isRecord(data) && isRecord(data.detail) ? data.detail : undefined;
+            reason =
+              typeof detail?.error === "string" ? detail.error : undefined;
+            if (!controller.signal.aborted && Array.isArray(detail?.candidates))
+              setCandidates(
+                detail.candidates.filter(
+                  (value): value is string => typeof value === "string",
+                ),
+              );
+          }
+          throw new Error(fileReadError(res.status, locale, reason));
+        }
         if (binary) {
           const blob = await res.blob();
           if (controller.signal.aborted) return;
           objectUrl = URL.createObjectURL(blob);
           setMedia({ url: objectUrl, type: blob.type });
+          const actualPath = res.headers?.get("X-Echo-File-Path");
+          if (actualPath) setLoadedPath(decodeURIComponent(actualPath));
           return;
         }
         const data = (await res.json()) as {
           content: string;
           truncated?: boolean;
+          path?: string;
         };
         if (controller.signal.aborted) return;
         setContent(data.content);
+        setLoadedPath(data.path);
         setTruncated(Boolean(data.truncated));
         if (crypto.subtle) {
           const digest = await crypto.subtle.digest(
@@ -133,7 +166,7 @@ export function LinkedFileReference({
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [open, path, resolvedPath, scope.threadId, zh]);
+  }, [open, path, resolvedPath, chosenPath, scope.threadId, locale, attempt]);
   useEffect(() => {
     if (content !== undefined)
       lineRef.current?.scrollIntoView?.({ block: "center" });
@@ -164,12 +197,35 @@ export function LinkedFileReference({
             <DialogHeader>
               <DialogTitle>{path.split(/[\\/]/).pop()}</DialogTitle>
               <DialogDescription className="break-all">
-                {resolvedPath}
+                {loadedPath ?? resolvedPath}
               </DialogDescription>
             </DialogHeader>
             {error ? (
               <>
                 <p role="alert">{error}</p>
+                {candidates.map((candidate) => (
+                  <button
+                    key={candidate}
+                    type="button"
+                    className="break-all rounded border p-2 text-left text-sm"
+                    onClick={() =>
+                      setChosenFile({
+                        reference: path,
+                        threadId: scope.threadId,
+                        path: candidate,
+                      })
+                    }
+                  >
+                    {candidate}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="justify-self-start rounded border px-3 py-1 text-sm"
+                  onClick={() => setAttempt((value) => value + 1)}
+                >
+                  {zh ? "重新读取" : "Retry"}
+                </button>
                 {sameNameArtifacts.map((match) => (
                   <button
                     key={match}
@@ -196,7 +252,7 @@ export function LinkedFileReference({
                   <MediaReference
                     url={media.url}
                     type={media.type}
-                    path={resolvedPath}
+                    path={loadedPath ?? resolvedPath}
                     zh={zh}
                     onQuote={
                       scope.threadId
@@ -286,7 +342,7 @@ export function LinkedFileReference({
                 onClick={() => {
                   quoteIntoTask(
                     scope.threadId,
-                    `文件：${resolvedPath}${selection ? `:${selection.lines}` : lines ? `:${lines}` : ""}\n${fingerprint ? `预览内容 SHA-256：${fingerprint}\n` : ""}${truncated ? "（预览已截断）\n" : ""}${selection?.text ?? "请针对这个文件提出修改意见。"}`,
+                    `文件：${loadedPath ?? resolvedPath}${selection ? `:${selection.lines}` : lines ? `:${lines}` : ""}\n${fingerprint ? `预览内容 SHA-256：${fingerprint}\n` : ""}${truncated ? "（预览已截断）\n" : ""}${selection?.text ?? "请针对这个文件提出修改意见。"}`,
                   );
                   setOpen(false);
                 }}

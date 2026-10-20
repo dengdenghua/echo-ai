@@ -83,7 +83,9 @@ tier: "standard"
 | `_evolution_ops_learning_endpoints.py` | Learning-insight and skill-forge endpoints for the evolution ops router. |
 | `_evolution_ops_proposal_endpoints.py` | Skill, model, and MCP proposal endpoints for the evolution ops router. |
 | `_evolution_repair_endpoints.py` | Repair-recipe, verifier, and subagent endpoints for the evolution router. |
+| `_fs_file_preview.py` | Passive, scoped file previews for conversation references. |
 | `_fs_file_reads.py` | Filesystem read endpoints, retaining canonical workspace and local ACLs. |
+| `_fs_reference_resolution.py` | Resolve shortened conversation references within the owning thread only. |
 | `_fs_router_diff.py` | Unified-diff parsing / reverse-apply helpers for the filesystem router. |
 | `_fs_router_endpoints.py` | Endpoint handlers for the filesystem router. |
 | `_fs_router_helpers.py` | Shared helpers for the filesystem router factory. |
@@ -596,11 +598,23 @@ tier: "standard"
 | func | `def evolution_learning_curve_payload(journal, weeks)` |  |
 | func | `def evolution_recommendations_payload(journal, registry, planner)` |  |
 
+### `_fs_file_preview.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def register_file_preview_endpoint(router, ctx)` |  |
+
 ### `_fs_file_reads.py`
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def register_file_read_endpoints(router, ctx)` |  |
+
+### `_fs_reference_resolution.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def resolve_conversation_file(ctx, path, thread_id, reference, workspace_path)` | Prefer the exact path; resolve a missing relative citation by unique suffix. |
 
 ### `_fs_router_endpoints.py`
 

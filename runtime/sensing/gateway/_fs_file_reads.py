@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import HTTPException, Query, Request
 
+from ._fs_reference_resolution import resolve_conversation_file
 from ._fs_router_helpers import (
     _assert_in_scope,
     _assert_local_request_scope,
@@ -95,6 +96,7 @@ def register_file_read_endpoints(router: Any, ctx: _FsContext) -> None:
         max_lines: int = Query(default=500, ge=1, le=5000),
         thread_id: str | None = None,
         workspace_path: str | None = None,
+        reference: str | None = None,
     ) -> dict[str, Any]:
         # Remote-workspace routing: if ``path`` carries a ``workspace_id:``
         # prefix and the workspace exists, read_file via the MountBackend.
@@ -137,11 +139,13 @@ def register_file_read_endpoints(router: Any, ctx: _FsContext) -> None:
             thread_id=thread_id,
             workspace_path=workspace_path,
         )
-        file_path = _assert_in_scope(
+        file_path = await asyncio.to_thread(
+            resolve_conversation_file,
             ctx,
             Path(path),
             thread_id=thread_id,
             workspace_path=workspace_path,
+            reference=reference,
         )
         if not file_path.exists() or not file_path.is_file():
             raise HTTPException(404, f"file not found: {file_path}")

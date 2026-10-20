@@ -56,7 +56,9 @@ it("offers the same-named artifact when the workspace read is refused", async ()
   const listener = listenForArtifactOpens();
   renderWithProviders(<LinkedFileReference path="src/hello.py" />);
   fireEvent.click(screen.getByRole("button", { name: /hello\.py/ }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("403");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "authorized workspace",
+  );
   fireEvent.click(screen.getByRole("button", { name: "Open in Artifacts" }));
   listener.stop();
   expect(listener.opened).toEqual(["workspace-output:final:hello.py"]);
@@ -88,17 +90,94 @@ it("shows a read failure instead of silently doing nothing", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
   renderWithProviders(<LinkedFileReference path="private.txt" />);
   fireEvent.click(screen.getByRole("button", { name: "private.txt" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("403");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "authorized workspace",
+  );
+});
+
+it("preserves a shortened reference and shows the actual resolved path", async () => {
+  const fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      content: "actual evidence",
+      path: "D:/project/design/evidence/probe.log",
+    }),
+  });
+  vi.stubGlobal("fetch", fetch);
+  renderWithProviders(
+    <FileReferenceScope.Provider
+      value={{ threadId: "t", basePath: "D:/project" }}
+    >
+      <LinkedFileReference path="probe.log" />
+    </FileReferenceScope.Provider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "probe.log" }));
+  await screen.findByText("actual evidence");
+  expect(fetch.mock.calls[0]?.[0]).toContain("reference=probe.log");
+  expect(
+    screen.getByText("D:/project/design/evidence/probe.log"),
+  ).toBeVisible();
+});
+
+it("lets the user select an ambiguous full path, then reads that exact file", async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        detail: {
+          candidates: ["D:/project/a/model.txt", "D:/project/b/model.txt"],
+        },
+      }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ content: "chosen model" }),
+    });
+  vi.stubGlobal("fetch", fetch);
+  renderWithProviders(
+    <FileReferenceScope.Provider
+      value={{ threadId: "t", basePath: "D:/project" }}
+    >
+      <LinkedFileReference path="model.txt" />
+    </FileReferenceScope.Provider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "model.txt" }));
+  await screen.findByRole("alert");
+  expect(fetch).toHaveBeenCalledTimes(1);
+  fireEvent.click(
+    screen.getByRole("button", { name: "D:/project/b/model.txt" }),
+  );
+  await screen.findByText("chosen model");
+  expect(fetch.mock.calls[1]?.[0]).toContain(
+    "path=D%3A%2Fproject%2Fb%2Fmodel.txt",
+  );
+  expect(fetch.mock.calls[1]?.[0]).not.toContain("reference=");
+});
+
+it("can retry a file that was not yet written without reopening the conversation", async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: false, status: 404 })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ content: "now available" }),
+    });
+  vi.stubGlobal("fetch", fetch);
+  renderWithProviders(<LinkedFileReference path="report.txt" />);
+  fireEvent.click(screen.getByRole("button", { name: "report.txt" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("File not found");
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  await screen.findByText("now available");
 });
 it("returns an exact file and line reference to the owning composer without sending", async () => {
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({ content: "line one\nline two" }),
-      }),
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: "line one\nline two" }),
+    }),
   );
   const received = vi.fn();
   window.addEventListener("echo:quote-message", received);

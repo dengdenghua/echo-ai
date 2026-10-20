@@ -37924,6 +37924,22 @@
               ],
               "title": "Thread Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "reference",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reference"
+            }
           }
         ],
         "responses": {
@@ -38007,6 +38023,22 @@
                 }
               ],
               "title": "Workspace Path"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reference",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reference"
             }
           }
         ],

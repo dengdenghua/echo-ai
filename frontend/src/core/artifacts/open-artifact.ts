@@ -1,4 +1,5 @@
 import { workspaceOutputRef } from "./utils";
+import { decodeMarkdownFileURL } from "@/core/navigation/markdown-file-url";
 
 export const OPEN_ARTIFACT_EVENT = "echo:open-artifact";
 
@@ -8,7 +9,7 @@ const ARTIFACT_EXTENSION =
   /\.(?:pdf|docx?|xlsx?|pptx?|csv|tsv|html?|md|markdown|txt|json|svg|png|jpe?g|webp)(?:[?#].*)?$/i;
 
 export function artifactRefFromMarkdownHref(href: string): string | null {
-  const value = href.trim();
+  const value = decodeMarkdownFileURL(href.trim());
   if (!value || !ARTIFACT_EXTENSION.test(value)) return null;
   if (/^(?:mailto|tel|data|javascript):/i.test(value)) return null;
 

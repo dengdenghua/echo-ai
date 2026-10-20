@@ -18,6 +18,7 @@ interface AuthenticatedImageProps extends Omit<
   alt: string;
   className?: string;
   fallback?: ReactNode;
+  loadingFallback?: ReactNode;
 }
 
 function normalizeImageSrc(src: string): string {
@@ -75,6 +76,7 @@ export function AuthenticatedImage({
   alt,
   className,
   fallback = null,
+  loadingFallback = null,
   onError,
   ...imageProps
 }: AuthenticatedImageProps) {
@@ -154,9 +156,10 @@ export function AuthenticatedImage({
     };
   }, [normalizedSrc]);
 
-  if (failed || !resolvedSrc) {
+  if (failed) {
     return <>{fallback}</>;
   }
+  if (!resolvedSrc) return <>{loadingFallback}</>;
 
   return (
     <img
