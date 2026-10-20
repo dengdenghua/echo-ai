@@ -6,6 +6,42 @@ interface NativeTestWindow extends Window {
   sent: Record<string, unknown>[];
 }
 
+test("legacy optical specifications remain a native form after narration", async ({ page }, testInfo) => {
+  await page.route("**/questionnaire-test", (route) => route.fulfill({
+    contentType: "text/html; charset=utf-8",
+    body: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root" style="max-width:760px;margin:24px auto;padding:0 16px"></div><script type="module">
+      import RefreshRuntime from '/@react-refresh';
+      RefreshRuntime.injectIntoGlobalHook(window);
+      window.$RefreshReg$=()=>{}; window.$RefreshSig$=()=>type=>type;
+      window.__vite_plugin_react_preamble_installed__=true;
+      const {default:React}=await import('/node_modules/.vite/deps/react.js');
+      const {default:{createRoot}}=await import('/node_modules/.vite/deps/react-dom_client.js');
+      const {NativeUIMessages}=await import('/src/components/workspace/messages/native-ui.tsx');
+      const {ThreadMetaContext,ThreadMessagesContext}=await import('/src/components/workspace/messages/context.tsx');
+      await import('/src/styles/globals.css');
+      const questions=[{title:'镜头类型/用途',options:['成像','投影','准直/扩束','照明聚光'],multiple:false},{title:'工作波段',options:['白光（可见光）','近红外','单波长','宽光谱'],multiple:false},{title:'关键性能目标',options:['焦距 + 视场 + 画幅','F 数 / MTF','尺寸约束','参考型号对标'],multiple:false}];
+      const messages=[{id:'ask',type:'ai',content:'',tool_calls:[{id:'ask-tool',name:'ask_user_question',args:{output:JSON.stringify({ok:true,type:'clarification_questionnaire',title:'确认镜头规格',questions})}}]},{id:'final',type:'ai',content:'问卷已发出，确认后继续。'}];
+      window.sent=[];window.addEventListener('echo:quick-reply',event=>{window.sent.push(event.detail);event.preventDefault();});
+      createRoot(document.getElementById('root')).render(React.createElement(ThreadMetaContext.Provider,{value:{threadId:'optics'}},React.createElement(ThreadMessagesContext.Provider,{value:{messages}},React.createElement(NativeUIMessages,{messages}))));
+      window.nativeReady=true;
+    </script></body></html>`,
+  }));
+  await page.goto("/questionnaire-test");
+  await page.waitForFunction(() => (window as NativeTestWindow).nativeReady);
+  await page.getByLabel("镜头类型/用途", { exact: true }).selectOption("投影");
+  await page.getByLabel("工作波段", { exact: true }).selectOption("白光（可见光）");
+  await page.getByLabel("关键性能目标", { exact: true }).selectOption("焦距 + 视场 + 画幅");
+  await page.getByLabel("补充回答：关键性能目标", { exact: true }).fill("参考上传的规格书及仿真结果");
+  expect(await page.evaluate(() => (window as NativeTestWindow).sent)).toHaveLength(0);
+  await page.screenshot({ path: testInfo.outputPath("optical-form-desktop.png"), fullPage: true });
+  await page.setViewportSize({ width: 375, height: 850 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("optical-form-mobile.png"), fullPage: true });
+  await page.getByRole("button", { name: "发送到当前对话" }).click();
+  await expect(page.getByRole("button", { name: "等待回执" })).toBeDisabled();
+  expect(await page.evaluate(() => (window as NativeTestWindow).sent)).toEqual([expect.objectContaining({ threadId: "optics", text: expect.stringContaining("参考上传的规格书及仿真结果") })]);
+});
+
 // Browser integration uses the real renderer and conversation contexts. The
 // transport receipt is controlled here; backend validation has separate tests.
 test("native cards stream safely, submit once and adapt to a narrow screen", async ({

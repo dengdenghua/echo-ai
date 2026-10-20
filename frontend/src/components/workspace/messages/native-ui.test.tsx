@@ -106,6 +106,31 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/");
 });
 
+it("activates the native form from an external engine's inline execution receipt", () => {
+  const messages = toolMessages(document, null);
+  messages[0]!.tool_calls![0]!.args.output = JSON.stringify({ ok: true, kind: "echo.ui.v1", thread_id: "t1", status: "ready", version: 1 });
+  render(<View messages={messages} />);
+  expect(screen.getByLabelText(/项目名称/)).not.toBeDisabled();
+  expect(screen.queryByText("准备中")).not.toBeInTheDocument();
+});
+
+it("keeps a real specification questionnaire interactive after the final prose answer", () => {
+  const messages: Message[] = [{ type: "ai", id: "questionnaire", content: "", tool_calls: [{ id: "ask", name: "ask_user_question", args: { output: JSON.stringify({ ok: true, type: "clarification_questionnaire", title: "镜头规格", questions: [{ title: "镜头类型/用途", options: ["成像", "投影"], multiple: false }, { title: "工作波段", options: ["白光", "近红外"], multiple: false }] }) } }] }, { type: "ai", id: "final", content: "问卷已发出，确认后继续。" }];
+  const sent: QuickReplyDetail[] = [];
+  const listener = (event: Event) => { sent.push((event as CustomEvent<QuickReplyDetail>).detail); event.preventDefault(); };
+  window.addEventListener(QUICK_REPLY_EVENT, listener);
+  try {
+    render(<View messages={messages} />);
+    fireEvent.change(screen.getByLabelText("镜头类型/用途"), { target: { value: "投影" } });
+    fireEvent.change(screen.getByLabelText("工作波段"), { target: { value: "白光" } });
+    expect(sent).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "发送到当前对话" }));
+    fireEvent.click(screen.getByRole("button", { name: "等待回执" }));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ threadId: "t1", text: expect.stringContaining("镜头类型/用途：投影") });
+  } finally { window.removeEventListener(QUICK_REPLY_EVENT, listener); }
+});
+
 describe("native UI safety", () => {
   it("rejects scripts, actions, duplicate ids, fabricated task status and malformed comparisons", () => {
     for (const block of [

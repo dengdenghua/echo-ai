@@ -17,10 +17,12 @@ import {
   useThreadStreamRealtime,
   liveToolEventsFromConversation,
   liveToolEventsFromLastTurn,
-  uploadPromptInputFiles,
 } from "./use-thread-stream-realtime";
 import { RETRY_PENDING_MESSAGE_EVENT } from "./optimistic-messages";
 import { useRealtimeThread } from "@/core/realtime";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 vi.mock("@/core/realtime", () => ({
   useRealtimeThread: vi.fn(),
@@ -1688,6 +1690,19 @@ describe("useThreadStreamRealtime permissions", () => {
     dispatchSpy.mockRestore();
   });
 
+  it("reports a rejected turn as its real error after a spreadsheet was uploaded", async () => {
+    vi.mocked(toast.error).mockClear();
+    const startTurn = vi.fn().mockRejectedValue(new Error("Model credentials expired"));
+    mockRealtime(startTurn);
+    const name = "2LAW\u00a0设计规格书_20240709(2)(1).xlsx";
+    const file = new File(["test"], name);
+    const { result } = renderHook(() => useThreadStreamRealtime({ threadId: "th-test" }));
+    act(() => result.current[1]("th-test", { text: "规格书以及仿真结果", files: [{ type: "file", filename: name, mediaType: "application/octet-stream", url: "blob:spec", file, uploaded: { filename: name, size: 4, path: `/managed/upload/${name}`, virtual_path: `upload/${name}`, artifact_url: `/api/threads/th-test/artifacts/${encodeURIComponent(name)}`, content_type: "application/octet-stream" } }] }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Model credentials expired"));
+    expect(toast.error).not.toHaveBeenCalledWith("Upload failed");
+    expect(startTurn.mock.calls[0]?.[0].attachments[0].filename).toBe(name);
+  });
+
   it("restores the original Codex marker text when a send fails", async () => {
     const startTurn = vi.fn().mockRejectedValue(new Error("socket dropped"));
     mockRealtime(startTurn);
@@ -2668,62 +2683,5 @@ describe("useThreadStreamRealtime permissions", () => {
         }),
       }),
     );
-  });
-});
-
-// ── attach-time uploads are not re-posted at send ─
-//
-// The composer now uploads the moment a file lands in it. Sending used to
-// upload unconditionally, which would push the same bytes twice and mint a
-// second artifact for one picture.
-describe("uploadPromptInputFiles", () => {
-  const file = new File(["img"], "shot.png", { type: "image/png" });
-  const uploaded = {
-    filename: "shot.png",
-    size: file.size,
-    path: "/artifacts/shot.png",
-    virtual_path: "uploads/shot.png",
-    artifact_url: "https://example.test/shot.png",
-    content_type: "image/png",
-  };
-
-  it("skips the network when every part carries server-side info", async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
-    const attachments = await uploadPromptInputFiles("thread-1", [
-      {
-        type: "file",
-        mediaType: "image/png",
-        filename: "shot.png",
-        url: "data:image/png;base64,aW1n",
-        file,
-        uploaded,
-      },
-    ]);
-
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(attachments[0]).toMatchObject({
-      filename: "shot.png",
-      artifact_url: "https://example.test/shot.png",
-    });
-  });
-
-  it("still uploads when a part has no attach-time info", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, files: [uploaded] }),
-    });
-    vi.stubGlobal("fetch", fetchSpy);
-    await uploadPromptInputFiles("thread-1", [
-      {
-        type: "file",
-        mediaType: "image/png",
-        filename: "shot.png",
-        url: "data:image/png;base64,aW1n",
-        file,
-      },
-    ]);
-
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

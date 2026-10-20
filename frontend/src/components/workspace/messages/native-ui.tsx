@@ -2,6 +2,8 @@ import type { Message } from "@/core/api/types";
 import { useContext, useId, useRef, useState } from "react";
 
 import { getBackendBaseURL } from "@/core/config";
+import { I18nContext } from "@/core/i18n/context";
+import { questionnaireCopy } from "@/core/i18n/locales/questionnaire";
 import { useNativeUICopy } from "@/core/messages/native-ui-copy";
 import {
   formReply,
@@ -14,7 +16,7 @@ import {
   type UIForm,
 } from "@/core/messages/native-ui";
 import { dispatchQuickReply } from "@/core/messages/quick-reply";
-import { findToolCallResult } from "@/core/messages/utils";
+import { questionnaireForm, toolOutput } from "./questionnaire-form";
 import { useOptionalAuth } from "@/providers/AuthProvider";
 
 import {
@@ -142,11 +144,13 @@ function TaskPlan({ title }: { title: string }) {
 
 function ResponseForm({
   block,
+  hideTitle,
   threadId,
   complete,
   storageKey,
 }: {
   block: UIForm;
+  hideTitle?: boolean;
   threadId: string;
   complete: boolean;
   storageKey: string | null;
@@ -194,7 +198,7 @@ function ResponseForm({
         } else setNotice("");
       }}
     >
-      <h4 className="font-medium">{block.title}</h4>
+      {!hideTitle && <h4 className="font-medium">{block.title}</h4>}
       <fieldset disabled={locked} className="space-y-3">
         {block.fields.map((field) => {
           const props = {
@@ -300,6 +304,7 @@ function ResponseForm({
 
 export function NativeUIMessages({ messages }: { messages: Message[] }) {
   const copy = useNativeUICopy();
+  const locale = useContext(I18nContext)?.locale ?? "zh-CN";
   const meta = useContext(ThreadMetaContext);
   const auth = useOptionalAuth();
   const actor = auth?.user?.actor_id || auth?.user?.user_id;
@@ -316,10 +321,22 @@ export function NativeUIMessages({ messages }: { messages: Message[] }) {
   for (const message of messages) {
     if (message.type !== "ai") continue;
     for (const call of message.tool_calls ?? []) {
-      if (call.name !== "show_ui" || !call.id || seen.has(call.id)) continue;
+      if (
+        !["show_ui", "ask_user_question"].includes(call.name) ||
+        !call.id ||
+        seen.has(call.id)
+      )
+        continue;
       seen.add(call.id);
-      const result = findToolCallResult(call.id, messages);
-      const receipt = parseUIReceipt(result, call.args?.document);
+      const result = toolOutput(call, messages);
+      const legacyForm =
+        call.name === "ask_user_question" && meta?.threadId
+          ? questionnaireForm(result, questionnaireCopy(locale), meta.threadId)
+          : null;
+      const receipt =
+        legacyForm && meta
+          ? { ok: true, thread_id: meta.threadId, document: legacyForm }
+          : parseUIReceipt(result, call.args?.document);
       if (result && !receipt) continue;
       // Never render a receipt from another conversation, including private member chats.
       if (receipt && receipt.thread_id !== meta?.threadId) continue;
@@ -362,6 +379,7 @@ export function NativeUIMessages({ messages }: { messages: Message[] }) {
               <ResponseForm
                 key={`${storageScope}:${block.id}:${JSON.stringify(block)}`}
                 block={block}
+                hideTitle={block.title === document.title}
                 threadId={receipt?.thread_id ?? ""}
                 complete={!!receipt && !meta?.isMock}
                 storageKey={

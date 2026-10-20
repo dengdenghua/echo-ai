@@ -131,6 +131,7 @@ def test_external_engines_receive_the_same_ui_behavior():
         SimpleNamespace(soul="", name="test"), context={}, goal="比较方案", registry=registry
     )
     assert "show_ui" in text
+    assert "use ask_user_question only when show_ui is unavailable" in text
     assert "不把计划状态当成执行验收" in text
 
 

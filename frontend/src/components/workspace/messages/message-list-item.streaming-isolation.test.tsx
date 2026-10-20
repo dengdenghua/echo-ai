@@ -10,7 +10,10 @@ import { MessageListItem } from "./message-list-item";
 
 const renderTracker = vi.hoisted(() => ({
   markdown: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
 }));
+vi.mock("sonner", () => ({ toast: { success: renderTracker.success, error: renderTracker.error } }));
 
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => {
@@ -41,7 +44,7 @@ vi.mock("@/core/i18n/hooks", () => ({
       message: {
         attachmentFallback: "attachment",
       },
-      clipboard: { copyToClipboard: "Copy", failedToCopyToClipboard: "Copy failed" },
+      clipboard: { copyToClipboard: "Copy", copiedToClipboard: "Copied", failedToCopyToClipboard: "Copy failed" },
     },
   }),
 }));
@@ -63,6 +66,8 @@ describe("MessageListItem streaming isolation", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(text));
+    await waitFor(() => expect(renderTracker.success).toHaveBeenCalledWith("Copied"));
+    expect(renderTracker.error).not.toHaveBeenCalled();
   });
   it("does not re-render a historical message when streaming or values contexts change", () => {
     const queryClient = new QueryClient({

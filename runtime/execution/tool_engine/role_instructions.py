@@ -233,10 +233,11 @@ def compose_role_instructions(
             sections.append(explicit)
 
     sections.append(
-        "<clarification-interaction>For several related fields, prefer an advertised show_ui form after reading "
+        "<clarification-interaction>For several related fields, use an advertised show_ui form after reading "
         "visual_guidelines(module=ui), then await its reply; do not also emit a questionnaire for those fields. "
         "When missing user preferences or requirements prevent useful progress, "
-        "use ask_user_question if advertised, with questions=[{title,options,multiple}] (1-3 questions). "
+        "use ask_user_question only when show_ui is unavailable or a required multi-select is unsupported, "
+        "with questions=[{title,options,multiple}] (1-3 questions). "
         "Ask only missing information; allow free text and uncertainty, and never invent answers. "
         "If the tool is unavailable, render the same questionnaire as a JSON fenced block with "
         'type="clarification_questionnaire" and questions containing title, options, multiple. '
@@ -251,6 +252,9 @@ def compose_role_instructions(
         "exec_shell 优先传入 argv 数组，尤其在 Windows 上执行带引号的 python -c。"
         "退出码为 0 只说明进程退出成功，仍需检查预期输出、文件差异或测试结果，"
         "再报告任务完成。</tool-error-recovery>"
+        "<attachment-paths>Preserve attachment paths and filenames exactly, including Unicode spaces. "
+        "If a file is missing, inspect the current upload directory before guessing a replacement path. "
+        "A failed read is not evidence that uploading failed.</attachment-paths>"
     )
     sections.append(
         "<search-policy>使用当前引擎实际可用且获授权的搜索工具。原生搜索失败或不可用时，"

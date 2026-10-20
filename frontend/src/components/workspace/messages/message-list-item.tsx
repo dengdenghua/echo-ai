@@ -304,9 +304,9 @@ export const MessageListItem = memo(function MessageListItem({
           label: t.clipboard.copyToClipboard,
           icon: <CopyIcon />,
           onSelect: () => {
-            void copyTextToClipboard(clipboardText).catch(() =>
-              toast.error(t.clipboard.failedToCopyToClipboard),
-            );
+            void copyTextToClipboard(clipboardText)
+              .then(() => toast.success(t.clipboard.copiedToClipboard))
+              .catch(() => toast.error(t.clipboard.failedToCopyToClipboard));
           },
         },
         ...(!isHuman

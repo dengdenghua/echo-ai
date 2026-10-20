@@ -75,6 +75,36 @@ def client(stack, isolated_cwd: Path) -> TestClient:
 
 
 class TestUploadPost:
+    def test_unicode_space_spreadsheet_name_survives_upload_and_read(
+        self, client: TestClient
+    ) -> None:
+        name = "2LAW\u00a0设计规格书_20240709(2)(1).xlsx"
+        buffer = BytesIO()
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        workbook.active.append(["规格", "仿真结果", "93 lp/mm"])
+        workbook.save(buffer)
+        content = buffer.getvalue()
+        response = client.post(
+            "/api/threads/unicode_sheet/uploads",
+            files={
+                "files": (
+                    name,
+                    content,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+        )
+        assert response.status_code == 200
+        entry = response.json()["files"][0]
+        assert entry["filename"] == name
+        assert Path(entry["path"]).read_bytes() == content
+        assert "仿真结果" in entry["extracted_text"]
+        downloaded = client.get(f"/api/threads/unicode_sheet/artifacts/{name}")
+        assert downloaded.status_code == 200
+        assert downloaded.content == content
+
     def test_single_file_persists(self, client: TestClient) -> None:
         r = client.post(
             "/api/threads/t1/uploads",

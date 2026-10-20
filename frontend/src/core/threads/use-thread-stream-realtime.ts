@@ -1775,7 +1775,7 @@ export function useThreadStreamRealtime(
           error: errorMessage,
         });
         if (hasFileUploads) {
-          toast.error(t.chatInputBox.uploadFailed);
+          toast.error(errorMessage);
         }
         // Keep the failed bubble in the timeline and also hand the original
         // draft back to the composer so the user can edit before retrying.

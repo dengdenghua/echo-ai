@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useContext,
   useMemo,
   useRef,
   useState,
@@ -79,6 +80,8 @@ import {
 } from "@/core/automation/references";
 import { MarkdownContent } from "./markdown-content";
 import { InteractiveMessages } from "./interactive-messages";
+import { ThreadMetaContext } from "./context";
+import { hasNativeQuestionnaire } from "./questionnaire-form";
 import { stripTraceLabelPrefixes } from "./trace-labels";
 import {
   assignTimelineRoles,
@@ -604,7 +607,7 @@ export function MessageGroup({
   /** Cards keyed by the real delegation call, in execution order. */
   delegationContent?: ReadonlyMap<string, ReactNode>;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { receiptsByCallId } = useToolEffects();
   // Conversation detail level (Settings → Appearance → 对话细节级别):
   // low = hide thinking/tool/intermediate rows (final answer only),
@@ -695,9 +698,6 @@ export function MessageGroup({
         message.additional_kwargs?.response_state === "interrupted",
     );
   const clarificationContent = useMemo(() => {
-    // A real ask_clarification / ask_user_question result is the canonical
-    // card source: use it on its own so surrounding reasoning text cannot
-    // break the structured-payload extraction.
     const toolOutputs = steps
       .map((step) => {
         if (
@@ -713,8 +713,6 @@ export function MessageGroup({
         if (typeof step.result === "string" && step.result.trim()) {
           return step.result;
         }
-        // Tool results are JSON-parsed when they arrive as a tool message;
-        // re-encode objects so the card can extract the payload.
         if (step.result && typeof step.result === "object") {
           return JSON.stringify(step.result);
         }
@@ -733,8 +731,9 @@ export function MessageGroup({
       .filter((value): value is string => Boolean(value?.trim()))
       .join("\n\n");
   }, [steps]);
-  const effectiveClarificationContent =
-    clarificationContent || externalClarificationContent || "";
+  const threadMeta = useContext(ThreadMetaContext);
+  const effectiveClarificationContent = hasNativeQuestionnaire(messages, threadMeta?.threadId, locale)
+    ? "" : clarificationContent || externalClarificationContent || "";
   const timelineItems = useMemo(
     () => groupConsecutiveReasoningSteps(steps),
     [steps],
