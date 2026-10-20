@@ -159,3 +159,99 @@ def test_transport_rejects_oversized_media_instead_of_corrupting_it():
             }
         )
         assert result["success"] is False
+
+
+@pytest.mark.parametrize("size", [(80, 40), (2400, 1200)])
+def test_render_file_becomes_real_image_without_base64_in_text(size):
+    from runtime.execution.tool_engine.tool_images import image_observation
+
+    raw = png_bytes(size)
+    images = []
+    result = image_observation(
+        "read_file",
+        {
+            "ok": True,
+            "kind": "image",
+            "media_type": "image/png",
+            "data_base64": base64.b64encode(raw).decode(),
+            "path": "render.png",
+        },
+        images,
+    )
+    assert len(images) == 1
+    assert "data_base64" not in result and "data:" not in json.dumps(result)
+    receipt = result["visual_observation"]
+    assert receipt["attached"] and receipt["review_status"] == "unreviewed"
+    assert len(receipt["image_sha256"]) == 64
+    image = Image.open(io.BytesIO(base64.b64decode(images[0]["imageUrl"].split(",")[1])))
+    image.load()
+    assert image.width == receipt["image_width"]
+
+
+def test_mcp_image_only_result_survives_bridge_and_is_not_a_pass_verdict():
+    from runtime.adapters.mcp_client.bridge import _make_handler_for
+    from runtime.execution.tool_engine.tool_images import image_observation
+
+    raw = png_bytes((64, 32))
+    block = {"type": "image", "mimeType": "image/png", "data": base64.b64encode(raw).decode()}
+    client = SimpleNamespace(
+        call_tool=lambda name, args: SimpleNamespace(
+            success=True, output=None, latency_ms=1, raw_content=[block]
+        )
+    )
+    output = _make_handler_for(client, "get_screenshot_of_window_as_image")()
+    images = []
+    result = image_observation("mcp_blender_screenshot", output, images)
+    assert len(images) == 1 and "_mcp_images" not in result
+    assert result["visual_observation"]["attached"]
+    assert result["visual_observation"]["review_status"] == "unreviewed"
+    assert base64.b64decode(images[0]["imageUrl"].split(",")[1]) == raw
+
+
+def test_corrupt_file_image_is_unreviewed_and_never_text_encoded():
+    from runtime.execution.tool_engine.tool_images import image_observation
+
+    images = []
+    result = image_observation(
+        "read_file",
+        {"ok": True, "kind": "image", "media_type": "image/png", "data_base64": "invalid"},
+        images,
+    )
+    assert not images and not result["visual_observation"]["attached"]
+    assert result["visual_observation"]["review_status"] == "unreviewed"
+    assert "data_base64" not in result
+
+
+def test_native_loop_image_result_is_multimodal_and_consumed_only_once():
+    from runtime.execution.tool_engine.native_visual_results import visual_tool_results
+    from runtime.sensing.gateway._tool_bridge_exec import _execute_tool_call
+
+    raw = png_bytes((64, 32))
+    stack = SimpleNamespace(
+        executor=SimpleNamespace(
+            registry=SimpleNamespace(
+                has=lambda _: True,
+                is_enabled=lambda _: True,
+                get=lambda _: SimpleNamespace(
+                    handler=lambda **_: {
+                        "ok": True,
+                        "kind": "image",
+                        "media_type": "image/png",
+                        "data_base64": base64.b64encode(raw).decode(),
+                    }
+                ),
+            )
+        )
+    )
+    session = Session(metadata={})
+    with session_scope(session):
+        text, failed = _execute_tool_call(
+            stack, {"id": "render-call", "name": "read_file", "arguments": {}}
+        )
+    assert not failed
+    original = [{"type": "tool_result", "tool_use_id": "render-call", "content": text}]
+    result = visual_tool_results(original, session)
+    assert isinstance(original[0]["content"], str)
+    assert result[0]["content"][1]["type"] == "image"
+    assert base64.b64decode(result[0]["content"][1]["source"]["data"]) == raw
+    assert visual_tool_results(original, session)[0]["content"] == text

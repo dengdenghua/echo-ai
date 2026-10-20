@@ -48,7 +48,13 @@ def _commit_tool_results(ctx: _NativeLoopContext) -> _NativeLoopDirective:
                     ctx._successful_native_read_calls.add(
                         bridge._native_tool_call_fingerprint(call)
                     )
-    ctx.messages.append(bridge.Message(role="user", content=ctx.tool_result_blocks))
+    from runtime.execution.tool_engine.native_visual_results import visual_tool_results
+
+    ctx.messages.append(
+        bridge.Message(
+            role="user", content=visual_tool_results(ctx.tool_result_blocks, ctx._session_obj)
+        )
+    )
     _plan_milestones = bridge._native_plan_reconciliation_milestones(
         ctx.round_tool_calls, ctx.tool_result_blocks
     )

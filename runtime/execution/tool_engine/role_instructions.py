@@ -168,7 +168,9 @@ def compose_role_instructions(
     metadata.update(ctx)
     from runtime.projectos.sizing_policy import PROJECT_SIZING_POLICY
 
-    sections: list[str] = [PROJECT_SIZING_POLICY]
+    from .visual_review import VISUAL_REVIEW_CONTRACT
+
+    sections: list[str] = [PROJECT_SIZING_POLICY, VISUAL_REVIEW_CONTRACT]
     try:
         from runtime.execution.agents.loader import compose_runtime_soul
 

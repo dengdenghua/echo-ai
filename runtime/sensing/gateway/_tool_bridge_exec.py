@@ -46,7 +46,8 @@ def _execute_tool_call(
     direct use as a ``tool_result`` ``content`` field — always a
     string, always bounded in length.
     """
-    return execute_native_tool_call(
+    images: list[dict[str, str]] = []
+    text, failed = execute_native_tool_call(
         stack,
         call,
         max_chars=TOOL_OUTPUT_MAX_CHARS,
@@ -56,7 +57,16 @@ def _execute_tool_call(
         step_id=step_id,
         arm_id=arm_id,
         budget=budget,
+        image_items=images,
     )
+    if images and not failed:
+        from runtime.execution.tool_engine.native_visual_results import remember_tool_images
+
+        remember_tool_images(
+            str(getattr(call, "id", None) or (call.get("id") if isinstance(call, dict) else "")),
+            images,
+        )
+    return text, failed
 
 
 def _is_semantic_error(output: Any) -> bool:

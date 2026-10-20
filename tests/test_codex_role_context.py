@@ -107,3 +107,15 @@ def test_explicit_skill_mentions_must_be_allowed_enabled_and_known(tmp_path: Pat
         agent=_agent("known", "unknown"),
     )
     assert rendered == ""
+
+
+def test_visual_review_contract_is_shared_and_does_not_accept_numeric_evidence():
+    from runtime.core.cerebrum.react_prompt_contracts import VISUAL_EXPRESSION_CONTRACT
+    from runtime.execution.tool_engine.visual_review import VISUAL_REVIEW_CONTRACT
+
+    instructions = role_context.compose_codex_role_instructions(
+        _agent(), context={}, goal="render bicycle"
+    )
+    assert VISUAL_REVIEW_CONTRACT in instructions
+    assert VISUAL_REVIEW_CONTRACT in VISUAL_EXPRESSION_CONTRACT
+    assert "视觉未验收" in instructions and "review_status=unreviewed" in instructions

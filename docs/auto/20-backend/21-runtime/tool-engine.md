@@ -53,6 +53,7 @@ Tool contracts are available without constructing the executor import graph.
 | `host_mcp.py` | Ephemeral, authenticated MCP transport for one Echo turn's host tools. |
 | `host_tool_broker.py` | Shared Echo tools for external execution engines. |
 | `native_tool_execution.py` | Execute a model-native tool call through the Echo executor boundary. |
+| `native_visual_results.py` | Turn-local image handoff for the native tool-result protocol. |
 | `redis_effect_store.py` | Redis-backed, cross-host tool-effect receipts. |
 | `role_instructions.py` | Shared role, mode, memory and explicit Skill instructions for execution engines. |
 | `session_metadata.py` | Project caller context into the metadata trusted by tool sessions. |
@@ -60,12 +61,13 @@ Tool contracts are available without constructing the executor import graph.
 | `session_reference.py` | Echo Native cross-session reference resolver. |
 | `session_reference_uri.py` | Canonical Echo session URI and inline mention encoding. |
 | `skill_gate.py` | Shared pre-execution safety gate for direct skill dispatch. |
-| `tool_images.py` | Bounded screenshot observations for external engines; never fetch remote URLs. |
+| `tool_images.py` | Bounded visual observations for external engines; never fetch remote URLs. |
 | `tool_output_pruner.py` | Deterministic head/middle/tail pruning for over-budget tool results. |
 | `tool_output_spill.py` | Session-scoped spill storage for oversized plain-text tool results. |
 | `tool_protocol.py` | — |
 | `tool_shadow_price.py` | Shadow-price accounting for tool-result pruning. |
 | `tool_taxonomy.py` | Unified tool identity layer · stable taxonomy for audit & grouping. |
+| `visual_review.py` | Shared evidence requirements for visual deliverables. |
 
 ## Key classes & functions
 
@@ -139,6 +141,13 @@ Tool contracts are available without constructing the executor import graph.
 | Kind | Symbol | Doc |
 | --- | --- | --- |
 | func | `def execute_native_tool_call(stack, call, max_chars, prune_middle, spill_oversized, task_id, step_id, arm_id, budget, image_items)` | Run one native tool request through the normal executor chokepoint. |
+
+### `native_visual_results.py`
+
+| Kind | Symbol | Doc |
+| --- | --- | --- |
+| func | `def remember_tool_images(call_id, images)` |  |
+| func | `def visual_tool_results(blocks, session)` |  |
 
 ### `redis_effect_store.py`
 
@@ -219,6 +228,7 @@ Tool contracts are available without constructing the executor import graph.
 | --- | --- | --- |
 | func | `def valid_inline_image(value)` |  |
 | func | `def screenshot_observation(tool_name, output, images)` | Detach image bytes before text pruning, keeping coordinate metadata. |
+| func | `def image_observation(tool_name, output, images)` | Promote authorized file reads and MCP image blocks before text pruning. |
 
 ### `tool_output_pruner.py`
 
@@ -284,7 +294,7 @@ Tool contracts are available without constructing the executor import graph.
 
 ## Who imports this
 
-**37** file(s) reference this package:
+**39** file(s) reference this package:
 
 - **`runtime/cli_core.py/`** · 1 file(s)
   - `runtime/cli_core.py`
@@ -292,13 +302,13 @@ Tool contracts are available without constructing the executor import graph.
   - `runtime/cli_execution.py`
 - **`runtime/cli_run.py/`** · 1 file(s)
   - `runtime/cli_run.py`
-- **`runtime/core/`** · 8 file(s)
+- **`runtime/core/`** · 9 file(s)
   - `runtime/core/cerebrum/_react_execution_dispatch.py`
   - `runtime/core/cerebrum/_react_execution_phase6d.py`
   - `runtime/core/cerebrum/_react_execution_results.py`
   - `runtime/core/cerebrum/design_capabilities.py`
   - `runtime/core/cerebrum/react_action_outcomes.py`
-  - _… and 3 more_
+  - _… and 4 more_
 - **`runtime/execution/`** · 13 file(s)
   - `runtime/execution/codebuddy_roles.py`
   - `runtime/execution/codex_backend/dynamic_tools.py`
@@ -311,11 +321,11 @@ Tool contracts are available without constructing the executor import graph.
 - **`runtime/safety/`** · 2 file(s)
   - `runtime/safety/auth/path_guard.py`
   - `runtime/safety/recovery/skill_forge.py`
-- **`runtime/sensing/`** · 10 file(s)
+- **`runtime/sensing/`** · 11 file(s)
   - `runtime/sensing/gateway/_observability_rollback_panels.py`
   - `runtime/sensing/gateway/_realtime_react_stream_helpers.py`
   - `runtime/sensing/gateway/_team_stream_topology.py`
   - `runtime/sensing/gateway/_tool_bridge_exec.py`
-  - `runtime/sensing/gateway/_tool_bridge_policy.py`
-  - _… and 5 more_
+  - `runtime/sensing/gateway/_tool_bridge_loop_results.py`
+  - _… and 6 more_
 

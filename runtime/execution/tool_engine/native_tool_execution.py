@@ -114,9 +114,9 @@ def execute_native_tool_call(
             return (f"(skill error: {type(exc).__name__}: {exc})", True)
 
     if image_items is not None and not output_signals_error(output):
-        from .tool_images import screenshot_observation
+        from .tool_images import image_observation
 
-        output = screenshot_observation(normalized.name, output, image_items)
+        output = image_observation(normalized.name, output, image_items)
 
     result = normalize_tool_result(
         normalized,

@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import re
 
+from runtime.execution.tool_engine.visual_review import VISUAL_REVIEW_CONTRACT
+
 # --------------------------------------------------------------------------
 # 1. Deliverables
 # --------------------------------------------------------------------------
@@ -382,7 +384,7 @@ SKILL_SELECTION_CONTRACT = (
 )
 
 
-VISUAL_EXPRESSION_CONTRACT = (
+VISUAL_EXPRESSION_CONTRACT = VISUAL_REVIEW_CONTRACT + (
     "\n<visual-expression>\n"
     "当结构、关系、流程、空间或参数变化用图更直观时，主动选择可视化，不必等待用户要求。"
     "简单事实或短列表保持文字；简单流程/关系用 mermaid 代码块。"

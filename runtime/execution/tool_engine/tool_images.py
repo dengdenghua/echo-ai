@@ -1,9 +1,10 @@
-"""Bounded screenshot observations for external engines; never fetch remote URLs."""
+"""Bounded visual observations for external engines; never fetch remote URLs."""
 
 from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import io
 import warnings
 from pathlib import Path
@@ -80,9 +81,49 @@ def screenshot_observation(
     """
     if tool_name not in SCREENSHOT_TOOLS or not isinstance(output, dict):
         return output
+    return _attach_image(output, images)
+
+
+def image_observation(tool_name: str, output: Any, images: list[dict[str, str]]) -> Any:
+    """Promote authorized file reads and MCP image blocks before text pruning."""
+    if not isinstance(output, dict):
+        return output
+    if tool_name == "read_file" and output.get("kind") == "image" and output.get("ok") is True:
+        payload = {key: value for key, value in output.items() if key != "data_base64"}
+        payload["data"] = (
+            "data:"
+            + str(output.get("media_type"))
+            + ";base64,"
+            + str(output.get("data_base64") or "")
+        )
+        return _attach_image(payload, images)
+    if isinstance(output.get("_mcp_images"), list):
+        result = {key: value for key, value in output.items() if key != "_mcp_images"}
+        observations = []
+        for block in output["_mcp_images"][:4]:
+            if not isinstance(block, dict):
+                continue
+            payload = {
+                "data": "data:"
+                + str(block.get("mimeType"))
+                + ";base64,"
+                + str(block.get("data") or "")
+            }
+            observations.append(_attach_image(payload, images)["visual_observation"])
+        result["visual_observation"] = {
+            "attached": any(item["attached"] for item in observations),
+            "images": observations,
+            "review_status": "unreviewed",
+        }
+        return result
+    return screenshot_observation(tool_name, output, images)
+
+
+def _attach_image(output: dict[str, Any], images: list[dict[str, str]]) -> dict[str, Any]:
     text_output = {key: value for key, value in output.items() if key not in {"data", "dataUrl"}}
     unavailable = {
         "attached": False,
+        "review_status": "unreviewed",
         "reason": "Screenshot could not be attached within access, format, or size limits.",
     }
     try:
@@ -112,6 +153,8 @@ def screenshot_observation(
             images.append({"type": "inputImage", "imageUrl": url})
             text_output["visual_observation"] = {
                 "attached": True,
+                "review_status": "unreviewed",
+                "image_sha256": hashlib.sha256(data).hexdigest(),
                 "original_width": width,
                 "original_height": height,
                 "image_width": width,
@@ -129,6 +172,8 @@ def screenshot_observation(
                 images.append({"type": "inputImage", "imageUrl": url})
                 text_output["visual_observation"] = {
                     "attached": True,
+                    "review_status": "unreviewed",
+                    "image_sha256": hashlib.sha256(buffer.getvalue()).hexdigest(),
                     "original_width": width,
                     "original_height": height,
                     "image_width": image.width,

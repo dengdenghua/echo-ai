@@ -392,3 +392,41 @@ def test_saved_thread_preserves_current_permission_choice(
     assert scope.execution_environment == environment
     assert scope.allows_read(tmp_path.parent / "outside.txt") is (expected == "bypassPermissions")
     assert intent.user_context["auto_approve"] is (expected == "bypassPermissions")
+
+
+@pytest.mark.asyncio
+async def test_render_read_is_image_over_real_mcp_and_outside_read_stays_denied(tmp_path):
+    import base64
+    import io
+
+    from PIL import Image
+
+    bridge, _, workspace = host(tmp_path)
+    Image.new("RGB", (96, 64), "red").save(workspace / "render.png")
+    Image.new("RGB", (96, 64), "blue").save(tmp_path / "private.png")
+    async with (
+        bridge.serve() as connection,
+        httpx.AsyncClient(
+            base_url=connection.url,
+            trust_env=False,
+            headers={
+                "Authorization": f"Bearer {connection.token}",
+                "Accept": "application/json, text/event-stream",
+            },
+        ) as client,
+    ):
+        result = await rpc(
+            client, 1, "tools/call", {"name": "read_file", "arguments": {"path": "render.png"}}
+        )
+        assert not result["isError"], result
+        assert [item["type"] for item in result["content"]] == ["text", "image"]
+        image = Image.open(io.BytesIO(base64.b64decode(result["content"][1]["data"])))
+        assert image.size == (96, 64) and image.getpixel((0, 0)) == (255, 0, 0)
+        assert "unreviewed" in result["content"][0]["text"]
+        denied = await rpc(
+            client,
+            2,
+            "tools/call",
+            {"name": "read_file", "arguments": {"path": str(tmp_path / "private.png")}},
+        )
+        assert denied["isError"] and all(item["type"] != "image" for item in denied["content"])

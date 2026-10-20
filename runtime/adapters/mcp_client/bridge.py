@@ -136,11 +136,15 @@ def _make_handler_for(client: MCPClient, tool_name: str) -> Any:
             }
         if not result.success:
             return {"error": result.error or "mcp_call_failed", "tool": tool_name}
-        return {
-            "output": result.output,
-            "tool": tool_name,
-            "latency_ms": result.latency_ms,
-        }
+        output = {"output": result.output, "tool": tool_name, "latency_ms": result.latency_ms}
+        images = [
+            block
+            for block in getattr(result, "raw_content", [])
+            if isinstance(block, dict) and block.get("type") == "image"
+        ]
+        if images:
+            output["_mcp_images"] = images[:4]
+        return output
 
     handler.__name__ = f"mcp_{tool_name}_handler"
     return handler
