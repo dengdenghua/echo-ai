@@ -1,4 +1,6 @@
-import { type ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
+import { ChevronDown, ImageIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
 import { AuthenticatedImage } from "@/components/ui/authenticated-image";
@@ -28,13 +30,11 @@ export function MessageImage({
   threadId: string;
   maxWidth?: string;
 }) {
-  if (!src) return null;
-
-  const imgClassName = "overflow-hidden rounded-lg max-w-[90%]";
-
-  if (typeof src !== "string") {
-    return <img className={imgClassName} src={src} alt={alt} {...props} />;
-  }
+  const [expanded, setExpanded] = useState(false);
+  const [opened, setOpened] = useState(false);
+  const { locale } = useI18n();
+  const copy = messageActionsCopy(locale);
+  if (!src || typeof src !== "string") return null;
 
   const reference = /^(?:https?:|data:|blob:|\/\/)/i.test(src)
     ? src
@@ -46,14 +46,47 @@ export function MessageImage({
       : src;
 
   return (
-    <RoutedMessageLink href={url}>
-      <AuthenticatedImage
-        className={imgClassName}
-        src={url}
-        alt={alt ?? ""}
-        {...props}
-      />
-    </RoutedMessageLink>
+    <span className="my-2 block" data-testid="message-image">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded(!expanded)}
+        className="inline-flex items-center gap-1.5 rounded text-xs text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2"
+      >
+        <ImageIcon className="size-3.5" />
+        {copy.imagePreview}
+        <ChevronDown
+          className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
+      </button>
+      {expanded && (
+        <button
+          type="button"
+          aria-label={copy.openImage}
+          onClick={() => setOpened(true)}
+          className="mt-2 block overflow-hidden rounded-lg border bg-muted/20 p-1 focus-visible:outline focus-visible:outline-2"
+        >
+          <AuthenticatedImage
+            {...props}
+            className="h-20 w-20 rounded object-contain"
+            src={url}
+            alt={alt ?? ""}
+          />
+        </button>
+      )}
+      <Dialog open={opened} onOpenChange={setOpened}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[90vw]">
+          <DialogTitle className="pr-10 text-sm">
+            {alt || copy.imagePreview}
+          </DialogTitle>
+          <AuthenticatedImage
+            src={url}
+            alt={alt ?? ""}
+            className="mx-auto max-h-[75dvh] max-w-full object-contain"
+          />
+        </DialogContent>
+      </Dialog>
+    </span>
   );
 }
 

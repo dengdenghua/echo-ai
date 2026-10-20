@@ -8,6 +8,8 @@
 export interface MessageActionsCopy {
   sideQuestion: string;
   videoPreview: string;
+  imagePreview: string;
+  openImage: string;
   interruptedWithReason: (message: string, reason: string) => string;
   pausedWithReason: (message: string, reason: string) => string;
   shadowReview: {
@@ -29,6 +31,8 @@ export interface MessageActionsCopy {
 const zhCN: MessageActionsCopy = {
   sideQuestion: "在旁路追问",
   videoPreview: "视频预览",
+  imagePreview: "图片 · 1 张",
+  openImage: "打开大图",
   interruptedWithReason: (message, reason) => `${message}（原因：${reason}）`,
   pausedWithReason: (message, reason) => `${message}（${reason}）`,
   shadowReview: {
@@ -51,6 +55,8 @@ const zhCN: MessageActionsCopy = {
 const enUS: MessageActionsCopy = {
   sideQuestion: "Ask a side question",
   videoPreview: "Video preview",
+  imagePreview: "Image · 1",
+  openImage: "Open full image",
   interruptedWithReason: (message, reason) => `${message} (Reason: ${reason})`,
   pausedWithReason: (message, reason) => `${message} (${reason})`,
   shadowReview: {
@@ -73,6 +79,8 @@ const enUS: MessageActionsCopy = {
 const jaJP: MessageActionsCopy = {
   sideQuestion: "サイドで質問",
   videoPreview: "動画プレビュー",
+  imagePreview: "画像 · 1 枚",
+  openImage: "画像を拡大",
   interruptedWithReason: (message, reason) => `${message}（理由：${reason}）`,
   pausedWithReason: (message, reason) => `${message}（${reason}）`,
   shadowReview: {
@@ -96,6 +104,8 @@ const jaJP: MessageActionsCopy = {
 const koKR: MessageActionsCopy = {
   sideQuestion: "사이드 질문하기",
   videoPreview: "동영상 미리보기",
+  imagePreview: "이미지 · 1장",
+  openImage: "이미지 크게 보기",
   interruptedWithReason: (message, reason) => `${message} (사유: ${reason})`,
   pausedWithReason: (message, reason) => `${message} (${reason})`,
   shadowReview: {

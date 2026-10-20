@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { MessageImage } from "./routed-message-link";
 import {
@@ -32,7 +32,7 @@ it.each([
       static revokeObjectURL = revoke;
     },
   );
-  const { unmount } = render(
+  const { unmount } = renderWithProviders(
     <MessageImage
       src={src}
       threadId="thread-png"
@@ -40,6 +40,9 @@ it.each([
       width={800}
     />,
   );
+  expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  expect(fetchImage).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { expanded: false }));
   await waitFor(() =>
     expect(screen.getByAltText("自行车预览")).toHaveAttribute(
       "src",
@@ -67,11 +70,31 @@ it.each([
   (src) => {
     const fetchImage = vi.fn();
     vi.stubGlobal("fetch", fetchImage);
-    render(<MessageImage src={src} threadId="thread-png" alt="remote" />);
+    renderWithProviders(
+      <MessageImage src={src} threadId="thread-png" alt="remote" />,
+    );
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByAltText("remote")).toHaveAttribute("src", src);
     expect(fetchImage).not.toHaveBeenCalled();
   },
 );
+
+it("opens a full image only after expanding and clicking the thumbnail", () => {
+  renderWithProviders(
+    <MessageImage src="data:image/png;base64,AA==" threadId="t" alt="render" />,
+  );
+  const toggle = screen.getByRole("button", { expanded: false });
+  expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  fireEvent.click(toggle);
+  expect(screen.getByRole("img")).toHaveClass("h-20", "w-20");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("img").closest("button")!);
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+  fireEvent.click(toggle);
+  expect(screen.queryByRole("img")).not.toBeInTheDocument();
+});
 
 it("opens a generated Office link in the current artifact workbench", () => {
   let opened: OpenArtifactDetail | null = null;
@@ -80,7 +103,9 @@ it("opens a generated Office link in the current artifact workbench", () => {
     event.preventDefault();
   };
   window.addEventListener(OPEN_ARTIFACT_EVENT, handleOpen);
-  render(<RoutedMessageLink href="out/deck.pptx">下载 PPT</RoutedMessageLink>);
+  renderWithProviders(
+    <RoutedMessageLink href="out/deck.pptx">下载 PPT</RoutedMessageLink>,
+  );
 
   fireEvent.click(screen.getByRole("link", { name: "下载 PPT" }));
 

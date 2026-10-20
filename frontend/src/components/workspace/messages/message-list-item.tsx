@@ -583,22 +583,17 @@ function MessageContent_({
           const src = att.data_url || att.url || att.artifact_url || "";
           if (!src) return null;
           return (
-            <RoutedMessageLink
+            <MessageImage
               key={`att-${idx}-${att.filename ?? idx}`}
-              href={src}
-              className="block overflow-hidden rounded-lg border border-border-subtle"
-            >
-              <img
-                src={src}
-                alt={att.filename ?? t.message.attachmentFallback}
-                className="h-32 w-auto max-w-60 object-cover"
-              />
-            </RoutedMessageLink>
+              src={src}
+              threadId={thread_id ?? ""}
+              alt={att.filename ?? t.message.attachmentFallback}
+            />
           );
         })}
       </div>
     );
-  }, [attachments, t.message.attachmentFallback]);
+  }, [attachments, t.message.attachmentFallback, thread_id]);
 
   // Uploading state: mock AI message shown while files upload
   if (message.additional_kwargs?.element === "task") {
