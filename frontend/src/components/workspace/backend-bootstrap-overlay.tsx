@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useI18n } from "@/core/i18n/hooks";
 import { desktopStartupCopy } from "@/core/i18n/locales/desktop-startup";
+import { useStartupGate } from "@/core/backend/use-startup-gate";
 
 /**
  * First-launch bootstrap gate for the packaged Electron app.
@@ -25,9 +26,6 @@ interface BootstrapProgress {
   message?: string;
 }
 
-const HEALTH_POLL_MS = 1500;
-const HEALTH_TIMEOUT_MS = 2000;
-
 interface PackagedShellWindow {
   location: { protocol: string };
   echo?: { isElectron?: boolean };
@@ -44,26 +42,8 @@ export function isPackagedShell(
   );
 }
 
-async function backendReady(): Promise<boolean> {
-  try {
-    // The packaged shell serves the renderer from echo-app://app and
-    // reaches the loopback backend only through the protocol proxy's
-    // route prefixes. The readiness endpoint lives at the backend root
-    // (/readyz, NOT under /api), so request it same-origin relative:
-    // packaged → protocol proxy, dev → Vite dev-server proxy.
-    const res = await fetch("/readyz", {
-      method: "GET",
-      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 export function BackendBootstrapOverlay() {
-  // null = undetermined (first check pending); true = backend up; false = down.
-  const [ready, setReady] = useState<boolean | null>(null);
+  const visible = useStartupGate(isPackagedShell());
   // The development bootstrap path may name its current step instead.
   const [message, setMessage] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | undefined>(undefined);
@@ -71,14 +51,6 @@ export function BackendBootstrapOverlay() {
   useEffect(() => {
     const packaged = isPackagedShell();
     if (!packaged) return;
-
-    let active = true;
-
-    const check = async () => {
-      const ok = await backendReady();
-      if (!active) return;
-      setReady(ok);
-    };
 
     // Refine the message when the development-only bootstrap path emits it.
     const off = window.echo?.on(
@@ -91,18 +63,11 @@ export function BackendBootstrapOverlay() {
       },
     );
 
-    // Immediate check (avoids a flash when the backend is already up), then poll.
-    void check();
-    const timer = setInterval(() => void check(), HEALTH_POLL_MS);
-
     return () => {
-      active = false;
       off?.();
-      clearInterval(timer);
     };
   }, []);
 
-  const visible = isPackagedShell() && ready === false;
   if (!visible) return null;
 
   return <BackendStartupCard message={message} percent={percent} />;
