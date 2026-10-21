@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from runtime.execution.suckers.agent_meta_skills import (
     _todo_write,
@@ -335,6 +337,45 @@ def test_execute_skill_rejects_side_effecting_or_ambiguous_skill() -> None:
     assert write_result["ok"] is False
     assert ambiguous_result["ok"] is False
     assert "normal tool/capability path" in write_result["error"]
+    assert calls == []
+
+
+def test_execute_skill_allows_side_effecting_skill_under_full_access() -> None:
+    """完全访问 (bypassPermissions) promises what the native path allows; a
+    side-effecting tool reached via execute_skill there still runs the full
+    inner-dispatch gates, so refusing it only forced the file-tool fallback
+    fallback the Zemax turn showed. Auto-approve gets the same exception."""
+    registry = SkillRegistry()
+    calls: list[str] = []
+    registry.register(
+        Skill(
+            name="hidden_write_tool",
+            affinity=["write"],
+            trusted_source="skill://public/hidden_write_tool",
+            handler=lambda **_: calls.append("called") or {"done": True},
+        )
+    )
+    register_agent_meta_skills(registry)
+    handler = registry.get("execute_skill").handler
+
+    session = SimpleNamespace(
+        metadata={"permission_mode": "bypassPermissions"},
+        tenant_id=None,
+        workspace=None,
+    )
+    with patch(
+        "runtime.platform.process.session.current_session",
+        return_value=session,
+    ):
+        bypass_result = handler(name="hidden_write_tool", args={})
+
+    assert bypass_result["ok"] is True
+    assert calls == ["called"]
+
+    # Without a session (no policy context) the fail-closed default holds.
+    calls.clear()
+    default_result = handler(name="hidden_write_tool", args={})
+    assert default_result["ok"] is False
     assert calls == []
 
 

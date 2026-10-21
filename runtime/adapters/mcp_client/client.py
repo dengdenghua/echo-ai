@@ -41,6 +41,11 @@ class MCPTool(BaseModel):
     description: str = ""
     input_schema: dict[str, Any] = Field(default_factory=dict)  # JSON Schema
     server_name: str = ""
+    # MCP spec ``annotations`` (readOnlyHint / destructiveHint / idempotentHint
+    # / openWorldHint). Preserved verbatim so downstream affinity decisions
+    # (e.g. the skill gate's read-only classification) read the server's own
+    # declaration instead of guessing from tool names.
+    annotations: dict[str, Any] = Field(default_factory=dict)
 
 
 class MCPInvocationResult(BaseModel):
@@ -275,6 +280,11 @@ class StdioMCPClient(MCPClient):
                     description=(t.description or ""),
                     input_schema=(getattr(t, "input_schema", getattr(t, "inputSchema", {})) or {}),
                     server_name=self.config.name,
+                    annotations=(
+                        getattr(t, "annotations", None).model_dump()
+                        if getattr(t, "annotations", None) is not None
+                        else {}
+                    ),
                 )
                 for t in result.tools
             ]

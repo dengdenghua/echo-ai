@@ -612,9 +612,7 @@ describe("<AgentWorkbenchPanel />", () => {
     expect(screen.queryByText("协作")).not.toBeInTheDocument();
 
     fireEvent.click(codexSeat);
-    expect(screen.getByRole("button", { name: "概要" })).toHaveClass(
-      "border-foreground/70",
-    );
+    expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     expect(screen.queryByText("暂无独立进程活动")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "执行画面" }),
@@ -754,12 +752,12 @@ describe("<AgentWorkbenchPanel />", () => {
 
     // Clicking a sub-role opens its execution process; identity details live
     // on the avatar profile card, not in this sidebar.
-    expect(screen.getByText("summary lane")).toBeInTheDocument();
+    expect(screen.getByTestId("member-process-header")).toHaveTextContent("writer");
 
     expect(
-      screen.getByRole("button", { name: "执行画面" }),
+      screen.getByTestId("member-process-view"),
     ).toBeInTheDocument();
-    expect(screen.getByText("summary lane")).toBeInTheDocument();
+    expect(screen.getByTestId("member-process-header")).toHaveTextContent("writer");
   });
 
   test("merges dispatch specs with same-role runtime lifecycle by requested id", () => {
@@ -1051,7 +1049,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "执行画面" }),
+      screen.getByTestId("member-process-view"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Agent 集群 - 独立进程")).not.toBeInTheDocument();
   });
@@ -1871,7 +1869,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: "执行画面" }),
+        screen.getByTestId("member-process-view"),
       ).toBeInTheDocument();
     });
     expect(
@@ -1956,7 +1954,7 @@ describe("<AgentWorkbenchPanel />", () => {
       screen.getByText("已完成上一轮视觉回归并记录关键差异。"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "执行画面" }),
+      screen.getByTestId("member-process-view"),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "角色卡" }),
@@ -1991,8 +1989,7 @@ describe("<AgentWorkbenchPanel />", () => {
     await waitFor(() =>
       expect(screen.getByText("HUB_FINAL_437")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("计算 19 × 23")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "执行画面" }));
+    expect(screen.getByTestId("member-process-header")).toBeVisible();
     expect(screen.getByText("HUB_FINAL_437")).toBeInTheDocument();
   });
 
@@ -2042,9 +2039,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "执行画面" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     });
     expect(
       screen.getByTestId("subagent-main-conversation"),
@@ -2111,9 +2106,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "执行画面" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     });
     expect(
       screen.getByTestId("subagent-main-conversation"),
@@ -2221,9 +2214,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "执行画面" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     });
     expect(
       screen.getByTestId("subagent-main-conversation"),
@@ -2231,6 +2222,7 @@ describe("<AgentWorkbenchPanel />", () => {
     // Settled: no live typewriter window, but the step output is reachable.
     expect(screen.queryByTestId("live-exec-stream")).not.toBeInTheDocument();
     const conversation = screen.getByTestId("subagent-main-conversation");
+    fireEvent.click(screen.getByText(/过程回放/));
     expect(conversation.textContent).toContain("正在读取 report.md");
   });
 
@@ -2261,18 +2253,17 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
 
-    // The intent must not force the computer screen open.
+    // A member focus always opens that member's own process.
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "概要" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     });
     expect(screen.queryByText("Agent 集群 - 独立进程")).not.toBeInTheDocument();
 
     expect(
-      screen.getByRole("button", { name: "执行画面" }),
+      screen.getByTestId("member-process-view"),
     ).toBeInTheDocument();
-    expect(screen.getByText("writer.md")).toBeInTheDocument();
+    expect(screen.getByTestId("interleaved-process-timeline")).toBeInTheDocument();
+    expect(screen.queryByText("research.md")).not.toBeInTheDocument();
   });
 
   test("keeps the focused sub-agent stream stable during snapshot churn", async () => {
@@ -2300,9 +2291,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "执行画面" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     });
 
     // Streaming churn rebuilds agentTiles with a fresh identity; the stale
@@ -2363,9 +2352,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "概要" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     });
     expect(screen.queryByText("Agent 集群 - 独立进程")).not.toBeInTheDocument();
 
@@ -2379,9 +2366,7 @@ describe("<AgentWorkbenchPanel />", () => {
       />,
     );
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "执行画面" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     });
     expect(
       screen.getByTestId("subagent-main-conversation"),
@@ -2578,9 +2563,7 @@ describe("<AgentWorkbenchPanel />", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "执行画面" })).toHaveClass(
-        "border-foreground/70",
-      );
+      expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
     });
     expect(
       screen.getByTestId("subagent-main-conversation"),
@@ -3386,8 +3369,8 @@ describe("chat workbench without the duplicate main overview", () => {
     rerender(<AgentWorkbenchPanel hideMainOverview activeTab="agent" focusedAgentId="researcher" focusedAgentView="summary" events={[
       event({id: "spawn", name: "subagent_spawned", agentId: "researcher", agentName: "Researcher", subAgentRole: "researcher", status: "running"}),
     ]} />);
-    expect(screen.getByRole("button", {name: "概要"})).toBeInTheDocument();
-    expect(screen.getByRole("button", {name: "执行画面"})).toBeInTheDocument();
+    expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
+    expect(screen.getByTestId("member-process-view")).toBeInTheDocument();
   });
 });
 

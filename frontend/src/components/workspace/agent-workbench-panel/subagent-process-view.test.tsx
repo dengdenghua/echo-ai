@@ -109,6 +109,18 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the task collapsed and presents a fixed identity, status and result", async () => {
+    renderWithProviders(<SubagentProcessView agent={{ ...mockAgent, prompt: "完整的任务输入", durationMs: 65000 }} blocks={mockBlocks} onOpenMain={vi.fn()} />);
+    const header = screen.getByTestId("member-process-header");
+    expect(header).toHaveTextContent("规划专家");
+    expect(header).toHaveTextContent("1:05");
+    expect(screen.queryByText("完整的任务输入")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText(copy.task));
+    expect(await screen.findByText("完整的任务输入")).toBeVisible();
+    expect(screen.getByRole("region", { name: copy.result })).toHaveTextContent(mockAgent.resultSummary!);
+    expect(screen.getByText(copy.privateChatHint)).toBeVisible();
+  });
+
   it("closes completed tools even when they returned no text", () => {
     renderWithProviders(
       <SubagentProcessView

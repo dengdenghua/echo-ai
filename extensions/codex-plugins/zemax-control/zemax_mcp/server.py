@@ -109,7 +109,7 @@ def zemax_connect(mode: str = "extension") -> dict:
     return _ok(**_session.info())
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_environment() -> dict:
     """Inspect Windows, pythonnet and the ZOS-API helper path without launching Zemax."""
     import platform
@@ -137,7 +137,7 @@ def zemax_disconnect(save: bool = False) -> dict:
     return _ok(disconnected=True)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_info() -> dict:
     """Report the current connection: mode, license edition, serial, open file, seq/nonseq."""
     return _ok(**_require().info())
@@ -225,7 +225,7 @@ def zemax_set_fields(field_type: str, points: list[list[float]]) -> dict:
 
 
 # ============================================================ LENS DATA EDITOR (LDE)
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_lde_summary() -> dict:
     """Return a compact table of every surface: index, comment, radius, thickness,
     material, semi-diameter. This is the sequential 'prescription' at a glance."""
@@ -300,7 +300,7 @@ def zemax_merit_wizard(optimization_goal: str = "RMS_Spot") -> dict:
     return _ok(goal=optimization_goal, merit=float(mfe.CalculateMeritFunction()))
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_merit_value() -> dict:
     """Return the current merit function value (lower is better)."""
     z = _require()
@@ -389,7 +389,7 @@ def zemax_run_analysis(analysis_type: str) -> dict:
     return _ok(**out)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_spot_rms() -> dict:
     """Compute the RMS spot radius per field via a Spot Diagram analysis (quick metric)."""
     z = _require()
@@ -408,7 +408,7 @@ def zemax_spot_rms() -> dict:
 
 
 # ============================================================= NON-SEQUENTIAL (NSC)
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_nsc_summary() -> dict:
     """List Non-Sequential Component Editor objects: index, type, comment, material."""
     z = _require()
@@ -442,7 +442,7 @@ def zemax_nsc_ray_trace(split: bool = True, scatter: bool = False,
     return _ok(split=split, scatter=scatter, cleared=clear_detectors)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_nsc_detector_data(object_number: int, data_type: int = 1) -> dict:
     """Read a Non-Sequential DETECTOR object's data after a zemax_nsc_ray_trace.
 
@@ -545,7 +545,7 @@ def zemax_analysis_series(analysis_type: str, max_points: int = 40) -> dict:
 
 
 # =============================================================== MULTI-CONFIG (MCE)
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_mce_summary() -> dict:
     """List the Multi-Configuration Editor: number of configurations, and for each
     operand its type + value in every configuration (values as display strings)."""
@@ -607,7 +607,7 @@ def zemax_mce_add_operand(operand_type: str, param1: int = 0,
 
 
 # ================================================================= TOLERANCING (TDE)
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def zemax_tde_summary() -> dict:
     """List the Tolerance Data Editor: each operand's type, comment, and
     min / nominal / max limits plus param1."""

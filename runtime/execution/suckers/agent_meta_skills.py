@@ -448,16 +448,31 @@ def _execute_skill_for_registry(registry: SkillRegistry):
 
         from runtime.execution.tool_engine.effect_receipts import is_side_effecting
 
+        # Full-access exception: "完全访问" (bypassPermissions) promises the
+        # same operations the native tool path allows, and a side-effecting
+        # tool invoked DIRECTLY there still runs the executor's approval and
+        # effect-receipt pipeline. Refusing the same tool only because the
+        # model reached it via execute_skill protects nothing — it just
+        # forces the retry the screenshot showed (kane falling back to file
+        # tools to probe Zemax). The policy context is read fresh per call;
+        # every other gate below (capability / taint / immunity / file
+        # safety / scope) still applies unconditionally.
         if is_side_effecting(skill.affinity):
-            return {
-                "ok": False,
-                "name": skill.name,
-                "error": (
-                    "skill is side-effecting or lacks an explicit read-only affinity; "
-                    "invoke it through the normal tool/capability path so approval and "
-                    "effect receipts are enforced"
-                ),
-            }
+            from runtime.execution.tool_engine.skill_gate import (
+                current_execution_policy,
+            )
+
+            policy = current_execution_policy()
+            if not (policy.auto_approve or policy.bypass_approval):
+                return {
+                    "ok": False,
+                    "name": skill.name,
+                    "error": (
+                        "skill is side-effecting or lacks an explicit read-only affinity; "
+                        "invoke it through the normal tool/capability path so approval and "
+                        "effect receipts are enforced"
+                    ),
+                }
 
         if args is None:
             call_args: dict[str, Any] = {}

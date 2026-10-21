@@ -85,10 +85,21 @@ def register_mcp_tools_as_skills(
                 )
             )
 
+        # The server's own MCP ``annotations.readOnlyHint`` is the only
+        # trustworthy read-only signal: tool names are server-chosen and
+        # a name-based guess would both miss read tools with mutating
+        # names and wrongly trust write tools with tame names. A declared
+        # read-only tool gains the "read" affinity, which the skill gate's
+        # side-effect classifier requires before a meta-skill
+        # (execute_skill) may dispatch it. Absent/False hint ⇒ unchanged
+        # fail-closed ["mcp", "external"]. getattr: duck-typed tools in
+        # tests/third-party adapters may not carry the field.
+        annotations = getattr(tool, "annotations", None)
+        read_declared = isinstance(annotations, dict) and annotations.get("readOnlyHint") is True
         skill = Skill(
             name=skill_name,
             description=tool.description or f"MCP tool from {tool.server_name}",
-            affinity=["mcp", "external"],
+            affinity=(["mcp", "external", "read"] if read_declared else ["mcp", "external"]),
             cost_profile="mid",
             trusted_source=f"mcp://{tool.server_name}/{tool.name}",
             tenant_id=tenant_id,

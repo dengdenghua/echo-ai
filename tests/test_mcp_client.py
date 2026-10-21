@@ -358,6 +358,35 @@ class TestRegistryBridge:
         assert result["tool"] == "greet"
         assert "latency_ms" in result
 
+    def test_read_only_hint_grants_read_affinity(self):
+        """A server-declared ``readOnlyHint`` must surface as the ``read``
+        affinity so the skill gate's side-effect classifier lets
+        ``execute_skill`` dispatch the tool; without the hint the
+        fail-closed default keeps every MCP tool side-effecting."""
+        client = MockMCPClient(
+            server_name="zemax",
+            tools=[
+                MCPTool(
+                    name="env",
+                    annotations={"readOnlyHint": True},
+                ),
+                MCPTool(name="edit_surface"),  # no hint
+            ],
+            tool_handlers={"env": "ok", "edit_surface": "ok"},
+        )
+        registry = SkillRegistry()
+        register_mcp_tools_as_skills(registry, client, require_trust=False, name_prefix="")
+        assert registry.get("env").affinity == ["mcp", "external", "read"]
+        assert registry.get("edit_surface").affinity == ["mcp", "external"]
+
+    def test_is_side_effecting_respects_read_affinity(self):
+        """End-to-end gate contract: a hinted tool is no longer classified
+        side-effecting, an unhinted one still is."""
+        from runtime.execution.tool_engine.effect_receipts import is_side_effecting
+
+        assert not is_side_effecting(["mcp", "external", "read"])
+        assert is_side_effecting(["mcp", "external"])
+
     def test_skill_failure_wraps_as_error(self):
         client = MockMCPClient(
             tools=[MCPTool(name="boom")],

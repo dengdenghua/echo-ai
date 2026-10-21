@@ -1,9 +1,8 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 import { useI18n } from "@/core/i18n/hooks";
-import { cn } from "@/lib/utils";
 import type { OutlineRound } from "@/core/threads/progress-outline";
 import type { GroundingSource, VisibilityStep } from "@/core/realtime/items";
 import type { WorkBlock } from "../work-blocks";
@@ -18,6 +17,7 @@ import { AgentSummaryPage } from "../agent-workbench-pages";
 import type { LiveToolEvent } from "../live-tool-timeline";
 import type { WorkbenchRosterSeat } from "./helpers";
 import { SubagentProcessView } from "./subagent-process-view";
+import type { MemberReadingPositions } from "./use-member-reading-position";
 
 type AgentKanbanUserInput = {
   text: string;
@@ -50,7 +50,6 @@ function visibilityStepNeedsAttention(step: VisibilityStep): boolean {
 }
 
 function AgentKanbanViewImpl({
-  effectiveActivityView,
   selectedRosterSeat,
   selectedAgent,
   screenBlocks,
@@ -65,7 +64,6 @@ function AgentKanbanViewImpl({
   userInput,
   groundingSources,
   preferStructuredReferences,
-  mainAgentName,
   resultPreviewUrl,
   terminalState,
   contextTokens,
@@ -75,12 +73,10 @@ function AgentKanbanViewImpl({
   visibilityEvents,
   collaborationEvents,
   threadId,
-  setActivityView,
   onSelectTab,
   onOpenArtifact,
   openMainProcess,
   setSelectedBlockId,
-  setManualBlockSelection,
 }: {
   effectiveActivityView: "summary" | "screen";
   selectedRosterSeat: WorkbenchRosterSeat | null;
@@ -137,92 +133,23 @@ function AgentKanbanViewImpl({
     [visibilitySteps],
   );
   const [visibilityOpen, setVisibilityOpen] = useState(false);
+  const readingPositions = useRef<MemberReadingPositions>(new Map());
+  const focusedMember: AgentTile | null = selectedAgent ?? (selectedRosterSeat ? {
+    id: selectedRosterSeat.id, name: selectedRosterSeat.name, label: selectedRosterSeat.name,
+    status: "pending", task: "", blackboardWrites: [], filesTouched: [], eventCount: 0, startedAt: 0,
+  } : null);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Summary remains the default for the main process. A selected agent's
-          execution screen is available here; identity belongs to the avatar
-          profile card in the conversation, not this workbench. */}
-      {(selectedAgent || selectedRosterSeat) && <div className="flex items-center gap-4 border-b border-border-subtle px-5 py-2">
-        {[
-          { id: "summary" as const, label: t.agentWorkbenchPanel.summaryLabel },
-          ...(selectedAgent
-            ? [
-                {
-                  id: "screen" as const,
-                  label: t.agentWorkbench.executionView,
-                },
-              ]
-            : []),
-        ].map((view) => (
-          <button
-            key={view.id}
-            type="button"
-            onClick={() => setActivityView(view.id)}
-            className={cn(
-              "border-b border-transparent pb-1 text-xs font-medium transition-colors",
-              effectiveActivityView === view.id
-                ? "border-foreground/70 text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {view.label}
-          </button>
-        ))}
-        <span className="ml-auto font-mono text-xs text-muted-foreground">
-          {selectedRosterSeat
-            ? selectedRosterSeat.name
-            : (selectedAgent?.codename ??
-              selectedAgent?.name ??
-              mainAgentName ??
-              t.agentWorkbenchPanel.mainComputer)}
-        </span>
-      </div>}
-
-      {effectiveActivityView === "summary" &&
-      selectedAgent &&
-      (selectedAgent.status === "done" || selectedAgent.status === "error") ? (
+      {focusedMember ? (
         <SubagentProcessView
-          agent={selectedAgent}
-          blocks={screenBlocks}
+          agent={focusedMember}
+          blocks={selectedAgent ? screenBlocks : []}
           currentBlockId={currentScreenBlockId}
           onOpenMain={openMainProcess}
           onSelectBlock={setSelectedBlockId}
-          summaryOnly
-        />
-      ) : effectiveActivityView === "summary" ? (
-        <AgentSummaryPage
-          phases={phases}
-          diffEntries={visibleDiffEntries}
-          agentTiles={agentTiles}
-          blocks={blocks}
-          focusedProcessEvent={focusedProcessEvent}
-          focusedEventId={focusedEventId}
-          progressOutline={progressOutline}
-          userInput={userInput}
-          groundingSources={groundingSources}
-          preferStructuredReferences={preferStructuredReferences}
-          terminalState={terminalState}
-          contextTokens={contextTokens}
-          maxContextTokens={maxContextTokens}
-          isCompressingContext={isCompressingContext}
-          onCompressContext={onCompressContext}
-          onSelectTab={onSelectTab}
-          onOpenArtifact={onOpenArtifact}
-          resultPreviewUrl={resultPreviewUrl}
           threadId={threadId}
-          collaborationEvents={collaborationEvents}
-        />
-      ) : effectiveActivityView === "screen" && selectedAgent ? (
-        <SubagentProcessView
-          agent={selectedAgent}
-          blocks={screenBlocks}
-          currentBlockId={currentScreenBlockId}
-          onOpenMain={openMainProcess}
-          onSelectBlock={(blockId) => {
-            setSelectedBlockId(blockId);
-            setManualBlockSelection(true);
-          }}
+          readingPositions={readingPositions.current}
         />
       ) : (
         <AgentSummaryPage

@@ -219,6 +219,7 @@ Tool contracts are available without constructing the executor import graph.
 | class | `class GateBlock` | A definitive block verdict from :func:`gate_inner_dispatch`. |
 | func | `def gate_inner_dispatch(skill, args, caller, defer_taint_if_handled)` | Apply the executor's pre-execution safety gates to a skill that a meta-skill is about to dispatch DIRECTLY (``use_capability``, a forged com |
 | class | `class PreparedInnerDispatch` | Result of :func:`prepare_inner_dispatch`. |
+| func | `def current_execution_policy()` | Read the turn's governance policy from ambient session metadata. |
 | func | `def inner_dispatch_risk(skill, args)` | Approval risk for an inner action a meta-skill is about to run. |
 | func | `def prepare_inner_dispatch(skill, args, caller, require_approval)` | Run the executor's pre-execution pipeline for a meta-skill's inner call. |
 

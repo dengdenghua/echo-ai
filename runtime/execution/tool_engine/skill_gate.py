@@ -46,6 +46,7 @@ from runtime.safety.auth import check_file_write
 
 if TYPE_CHECKING:
     from runtime.safety.auth import TrustEngine
+    from runtime.safety.governance import ExecutionPolicyContext
 
 
 # ── Ambient trust engine ──────────────────────────────────────
@@ -280,6 +281,20 @@ def _session_metadata() -> dict[str, Any]:
     return metadata if isinstance(metadata, dict) else {}
 
 
+def current_execution_policy() -> ExecutionPolicyContext:
+    """Read the turn's governance policy from ambient session metadata.
+
+    Public because ``execute_skill`` needs the same auto-approve /
+    bypass-approval verdict the approval gate uses; keeping one reader
+    avoids the two sites drifting (e.g. one honouring a metadata key the
+    other ignores). Outside a session returns the all-defaults context
+    (fail-closed: neither auto-approve nor bypass set).
+    """
+    from runtime.safety.governance import ExecutionPolicyContext
+
+    return ExecutionPolicyContext.from_metadata(_session_metadata())
+
+
 def _action_tail(name: str) -> str:
     tail = name.rsplit(".", 1)[-1].rsplit("/", 1)[-1]
     if "__" in tail:
@@ -463,6 +478,7 @@ __all__ = [
     "PreparedInnerDispatch",
     "antigen_for",
     "canonical_tool_path",
+    "current_execution_policy",
     "current_trust_engine",
     "file_safety_target",
     "gate_inner_dispatch",

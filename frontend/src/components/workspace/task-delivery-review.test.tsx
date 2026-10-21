@@ -140,9 +140,9 @@ it("renders gray lightweight notice for pure doc delivery without verification c
     }),
   ];
   renderWithProviders(<TaskDeliveryReview events={events} running={false} />);
-  expect(screen.getByText("文档/分析类交付，无测试项")).toBeDefined();
+  expect(screen.getByText("文档交付，无测试项")).toBeDefined();
   expect(
-    screen.queryByText("本轮未收到结构化验证记录，不能据此确认测试通过。"),
+    screen.queryByText("未收到验证记录，不能确认测试通过"),
   ).toBeNull();
 });
 
@@ -155,9 +155,9 @@ it("renders warning notice when delivery includes non-doc code files without ver
   ];
   renderWithProviders(<TaskDeliveryReview events={events} running={false} />);
   expect(
-    screen.getByText("本轮未收到结构化验证记录，不能据此确认测试通过。"),
+    screen.getByText("未收到验证记录，不能确认测试通过"),
   ).toBeDefined();
-  expect(screen.queryByText("文档/分析类交付，无测试项")).toBeNull();
+  expect(screen.queryByText("文档交付，无测试项")).toBeNull();
 });
 
 it("classifies delivery notice tiers by path mix", () => {
@@ -179,11 +179,11 @@ it("renders neutral notice for script/config-only delivery", () => {
   ];
   renderWithProviders(<TaskDeliveryReview events={events} running={false} />);
   expect(
-    screen.getByText("脚本/配置类交付，无结构化测试项；请以实际运行为准。"),
+    screen.getByText("脚本/配置交付，以实际运行为准"),
   ).toBeDefined();
   // Neutral gray, not the yellow warning tier.
   expect(
-    screen.queryByText("本轮未收到结构化验证记录，不能据此确认测试通过。"),
+    screen.queryByText("未收到验证记录，不能确认测试通过"),
   ).toBeNull();
 });
 
@@ -254,8 +254,9 @@ it("shows the fold badge for multi-write rows and single rows stay clean", () =>
     }),
   ];
   renderWithProviders(<TaskDeliveryReview events={events} running={false} />);
-  expect(screen.getByText("×2")).toBeDefined();
-  expect(screen.queryByText("×1")).toBeNull();
+  expect(screen.getByText("修改 ×2")).toBeDefined();
+  expect(screen.queryByText("修改 ×1")).toBeNull();
+  expect(screen.queryByText(/×1/)).toBeNull();
   // The unconfirmed stub rows are gone — only merged/confirmed rows remain.
-  expect(screen.queryByText("未确认完成")).toBeNull();
+  expect(screen.queryByText("未确认")).toBeNull();
 });

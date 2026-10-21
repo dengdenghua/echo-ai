@@ -867,7 +867,7 @@ function AgentWorkbenchPanelImpl({
         onTabClose={handleCloseTab}
         onClose={onClose}
         workspaceLabel={selectedAgent ? (selectedAgent.codename ?? selectedAgent.name) : workspaceLabel}
-        showWorkspaceLabel
+        showWorkspaceLabel={!selectedAgent}
         mainRunStatusLabel={selectedAgent ? (selectedAgent.status === "running" ? t.agentWorkbenchPanel.agentStatusRunning : selectedAgent.status === "error" ? t.agentWorkbenchPanel.agentStatusError : selectedAgent.status) : mainRunStatus.label}
       />
 

@@ -24,6 +24,17 @@ def command_sandbox_required() -> bool:
     return isolated_auto_execution() or process_sandbox_required()
 
 
+def local_command_execution() -> bool:
+    """Use the effective task scope; metadata cannot override a sandbox ceiling."""
+    from runtime.platform.process.scope import resolve_execution_scope
+    from runtime.platform.process.session import current_session
+
+    if command_sandbox_required():
+        return False
+    session = current_session()
+    return session is not None and resolve_execution_scope(session).execution_environment == "local"
+
+
 def command_process_backend() -> "BackendChoice":
     from .sandbox import effective_process_sandbox_mode, resolved_process_backend
 

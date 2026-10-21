@@ -409,10 +409,10 @@ export function TaskDeliveryReview({
             )}
           >
             {noticeClass === "doc"
-              ? "文档/分析类交付，无测试项"
+              ? "文档交付，无测试项"
               : noticeClass === "untestable"
-                ? "脚本/配置类交付，无结构化测试项；请以实际运行为准。"
-                : "本轮未收到结构化验证记录，不能据此确认测试通过。"}
+                ? "脚本/配置交付，以实际运行为准"
+                : "未收到验证记录，不能确认测试通过"}
           </p>
         )}
       </div>
@@ -467,17 +467,10 @@ function ChangeEntry({
         )}
 
         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
-          {OP_LABEL[change.op] ?? change.op}
+          {(change.writeCount ?? 1) > 1
+            ? `${OP_LABEL[change.op] ?? change.op} ×${change.writeCount}`
+            : (OP_LABEL[change.op] ?? change.op)}
         </span>
-
-        {(change.writeCount ?? 1) > 1 && (
-          <span
-            className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-muted-foreground"
-            title={`本轮共写入 ${change.writeCount} 次，显示最终版本的差异`}
-          >
-            ×{change.writeCount}
-          </span>
-        )}
 
         <span className="min-w-0 flex-1 truncate" title={change.path}>
           <LinkedFileReference path={change.path} />
@@ -485,7 +478,7 @@ function ChangeEntry({
 
         {change.status !== "done" && (
           <span className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-warning">
-            未确认完成
+            未确认
           </span>
         )}
 
@@ -510,12 +503,6 @@ function ChangeEntry({
         <div className="mt-1.5 pl-[1.375rem]">
           <DiffView diff={change.diff} truncated={change.truncated} />
         </div>
-      )}
-
-      {!hasDiff && (
-        <p className="mt-1 pl-[1.375rem] text-xs text-muted-foreground">
-          此操作未提供差异记录。
-        </p>
       )}
     </li>
   );
