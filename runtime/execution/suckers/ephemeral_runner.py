@@ -789,12 +789,10 @@ def make_llm_ephemeral_runner(
                 )
             )
 
-            # Execute each tool through the registry's handler.
-            # Emit sub-tool-start/end events around each call so the
-            # parent SSE stream can forward them to the UI with a
-            # ``parent_tool_use_id`` correlation (set by the parent
-            # loop in ``tool_bridge.stream_agentic_fallback`` via
-            # ``session.metadata["_active_parent_tool_use_id"]``).
+            # Execute advertised tools and forward their start/end events to
+            # the parent SSE stream, correlated by the parent tool-use id in
+            # ``session.metadata["_active_parent_tool_use_id"]`` (set by
+            # ``tool_bridge.stream_agentic_fallback``).
             tool_results: list[dict[str, Any]] = []
             for tc in tool_calls:
                 _emit_sub_tool_event(
@@ -843,6 +841,8 @@ def make_llm_ephemeral_runner(
                     output, is_error = _execute_tool_in_subagent(
                         registry,
                         tc,
+                        allowed_tools=frozenset(spec.name for spec in tool_specs),
+                        read_only=read_only,
                     )
                 # Record the executed call for the verification gate (write
                 # tools only count when they succeeded).

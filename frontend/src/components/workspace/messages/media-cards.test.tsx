@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { renderWithProviders } from "@/test/harness";
 
 import {
   AudioCard,
@@ -10,27 +11,34 @@ import { MarkdownImage } from "./markdown-image";
 
 describe("MarkdownImage", () => {
   it("renders the image and opens a zoom overlay on click", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <MarkdownImage src="https://example.com/a.png" alt="架构图" />,
+      { locale: "zh-CN" },
     );
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
     expect(img?.getAttribute("alt")).toBe("架构图");
 
-    fireEvent.click(container.querySelector("span[aria-hidden]") ?? container);
-    // Click on the wrapper span opens the lightbox (role=dialog).
-    fireEvent.click(screen.getByRole("dialog"));
+    // The shared message-image preview expands before opening the lightbox.
+    const thumbnail = img?.closest("button");
+    if (!thumbnail) throw new Error("Missing image preview button");
+    fireEvent.click(thumbnail);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭", exact: true }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("shows a failure chip when the image errors", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <MarkdownImage src="https://example.com/broken.png" alt="挂了" />,
+      { locale: "zh-CN" },
     );
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
     fireEvent.error(img!);
-    expect(screen.getByText(/图片加载失败/)).not.toBeNull();
+    expect(screen.getByText(/图片读取失败/)).not.toBeNull();
   });
 });
 

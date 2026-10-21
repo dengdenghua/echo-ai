@@ -48,6 +48,20 @@ class MCPTool(BaseModel):
     annotations: dict[str, Any] = Field(default_factory=dict)
 
 
+def _tool_from_sdk(tool: Any, server_name: str) -> MCPTool:
+    """Use one discovery conversion for every MCP transport."""
+    annotations = getattr(tool, "annotations", None)
+    if isinstance(annotations, BaseModel):
+        annotations = annotations.model_dump(by_alias=True, exclude_none=True)
+    return MCPTool(
+        name=tool.name,
+        description=tool.description or "",
+        input_schema=getattr(tool, "input_schema", getattr(tool, "inputSchema", {})) or {},
+        server_name=server_name,
+        annotations=annotations if isinstance(annotations, dict) else {},
+    )
+
+
 class MCPInvocationResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -274,20 +288,7 @@ class StdioMCPClient(MCPClient):
         ):
             await session.initialize()
             result = await session.list_tools()
-            return [
-                MCPTool(
-                    name=t.name,
-                    description=(t.description or ""),
-                    input_schema=(getattr(t, "input_schema", getattr(t, "inputSchema", {})) or {}),
-                    server_name=self.config.name,
-                    annotations=(
-                        getattr(t, "annotations", None).model_dump()
-                        if getattr(t, "annotations", None) is not None
-                        else {}
-                    ),
-                )
-                for t in result.tools
-            ]
+            return [_tool_from_sdk(t, self.config.name) for t in result.tools]
 
     async def _call_tool_async(self, name: str, args: dict[str, Any]) -> MCPInvocationResult:
         from mcp import ClientSession
@@ -461,17 +462,7 @@ class HttpMCPClient(MCPClient):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.list_tools()
-                return [
-                    MCPTool(
-                        name=t.name,
-                        description=(t.description or ""),
-                        input_schema=(
-                            getattr(t, "input_schema", getattr(t, "inputSchema", {})) or {}
-                        ),
-                        server_name=self.config.name,
-                    )
-                    for t in result.tools
-                ]
+                return [_tool_from_sdk(t, self.config.name) for t in result.tools]
 
     async def _call_tool_async(self, name: str, args: dict[str, Any]) -> MCPInvocationResult:
         from mcp import ClientSession

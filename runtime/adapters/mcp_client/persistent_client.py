@@ -24,6 +24,7 @@ from .client import (
     MCPInvocationResult,
     MCPTool,
     _cancelled_result,
+    _tool_from_sdk,
 )
 from .types import MCPServerConfig
 
@@ -336,15 +337,7 @@ class PersistentStdioMCPClient(MCPClient):
 
     async def _list_tools_async(self) -> list[MCPTool]:
         result = await self._session.list_tools()
-        return [
-            MCPTool(
-                name=t.name,
-                description=(t.description or ""),
-                input_schema=(getattr(t, "input_schema", getattr(t, "inputSchema", {})) or {}),
-                server_name=self.config.name,
-            )
-            for t in result.tools
-        ]
+        return [_tool_from_sdk(t, self.config.name) for t in result.tools]
 
     async def _call_tool_async(
         self,

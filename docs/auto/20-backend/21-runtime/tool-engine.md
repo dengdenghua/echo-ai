@@ -211,6 +211,7 @@ Tool contracts are available without constructing the executor import graph.
 
 | Kind | Symbol | Doc |
 | --- | --- | --- |
+| func | `def read_only_dispatch_scope(read_only)` | Carry a verifier's read-only boundary through nested meta-tools. |
 | func | `def current_trust_engine()` |  |
 | func | `def use_trust_engine(engine)` | Bind ``engine`` as the ambient trust engine for the dynamic extent of the ``with`` block (and any nested meta-skill dispatch within it). |
 | func | `def canonical_tool_path(args)` |  |

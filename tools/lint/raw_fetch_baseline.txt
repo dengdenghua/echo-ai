@@ -52,7 +52,6 @@ frontend/src/components/workspace/artifacts/artifact-file-detail.tsx	1
 frontend/src/components/workspace/automation/automation-configured-tab.tsx	1
 frontend/src/components/workspace/automation/automation-create-dialog.tsx	1
 frontend/src/components/workspace/automation/automation-history-tab.tsx	1
-frontend/src/components/workspace/backend-bootstrap-overlay.tsx	1
 frontend/src/components/workspace/channel-pairings-sheet.tsx	1
 frontend/src/components/workspace/chat-input-box/helpers.ts	1
 frontend/src/components/workspace/codex-hotspot-panel.tsx	1
@@ -73,6 +72,7 @@ frontend/src/components/workspace/team-welcome-card.tsx	1
 frontend/src/components/workspace/terminal-panel.tsx	1
 frontend/src/core/auth/fetch-interceptor.ts	1
 frontend/src/core/backend/readiness.ts	1
+frontend/src/core/backend/use-startup-gate.ts	1
 frontend/src/core/browser/local-services.ts	1
 frontend/src/core/sharing/public-thread-share.ts	1
 frontend/src/core/streaming/sse.ts	1

@@ -18,6 +18,8 @@ export interface SubagentViewCopy {
   result: string;
   elapsed: string;
   privateChatHint: string;
+  privateChatLoading: string;
+  privateChatUnavailable: string;
   privateChat: string;
   privateChatLabel: (name: string) => string;
   privateChatPlaceholder: (name: string) => string;
@@ -37,6 +39,8 @@ const zhCN: SubagentViewCopy = {
   result: "任务结果",
   elapsed: "已用时间",
   privateChatHint: "在新的私聊中继续交流",
+  privateChatLoading: "正在加载可私聊的角色…",
+  privateChatUnavailable: "此成员未关联可私聊的角色",
   privateChat: "另开私聊",
   privateChatLabel: (name) => `与 ${name} 私聊`,
   privateChatPlaceholder: (name) => `给 ${name} 的私聊草稿…`,
@@ -56,6 +60,8 @@ const enUS: SubagentViewCopy = {
   result: "Result",
   elapsed: "Elapsed time",
   privateChatHint: "Continue in a new private conversation",
+  privateChatLoading: "Loading available personas…",
+  privateChatUnavailable: "This member has no persona available for private chat",
   privateChat: "New private chat",
   privateChatLabel: (name) => `Private chat with ${name}`,
   privateChatPlaceholder: (name) => `Draft a private message to ${name}…`,
@@ -76,6 +82,8 @@ const jaJP: SubagentViewCopy = {
   result: "結果",
   elapsed: "経過時間",
   privateChatHint: "新しい個別チャットで会話を続けます",
+  privateChatLoading: "個別チャットができるロールを読み込み中…",
+  privateChatUnavailable: "このメンバーには個別チャットができるロールがありません",
   privateChat: "新規個別チャット",
   privateChatLabel: (name) => `${name} と個別チャット`,
   privateChatPlaceholder: (name) => `${name} に何を聞きますか？`,
@@ -95,6 +103,8 @@ const koKR: SubagentViewCopy = {
   result: "작업 결과",
   elapsed: "경과 시간",
   privateChatHint: "새 개인 대화에서 계속합니다",
+  privateChatLoading: "개인 대화가 가능한 역할을 불러오는 중…",
+  privateChatUnavailable: "이 멤버에게 개인 대화가 가능한 역할이 연결되어 있지 않습니다",
   privateChat: "새 개인 채팅",
   privateChatLabel: (name) => `${name}와(과) 개인 채팅`,
   privateChatPlaceholder: (name) => `${name}에게 무엇을 물어볼까요?`,

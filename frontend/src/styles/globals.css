@@ -3,6 +3,7 @@
 /* ECHO family tokens (--echo-*): Snow on :root, Graphite on .dark. Copied
    from the ECHO brand kit; the shadcn variables below map onto them. */
 @import "./echo-tokens.css";
+@import "./liquid-glass.css";
 
 /* Chat font-size uses the official `prose-sm|base|lg` class names
    (set in markdown-content.tsx), but the @tailwindcss/typography
@@ -730,8 +731,6 @@
     var(--background) 100%
   );
 }
-
-@import "./liquid-glass.css";
 
 @layer base {
   * {

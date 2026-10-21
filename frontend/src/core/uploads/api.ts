@@ -169,8 +169,11 @@ export async function listUploadedFiles(
  */
 export async function deleteUploadedFile(
   threadId: string,
-  filename: string,
+  file: string | UploadedFileInfo,
 ): Promise<{ success: boolean; message: string }> {
+  // A metadata object identifies the exact upload even when display names
+  // repeat. Strings remain supported for legacy filename-based callers.
+  const filename = typeof file === "string" ? file : file.path;
   return apiDelete("/api/threads/{thread_id}/uploads/{filename}", {
     path: { thread_id: threadId, filename },
     errorMessage: detailOr("Failed to delete file"),

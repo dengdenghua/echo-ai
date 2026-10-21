@@ -103,6 +103,7 @@ export function useWorkbenchSelection({
     return {
       id: focusedAgentSnapshot.id,
       name: focusedAgentSnapshot.name,
+      profileId: focusedAgentSnapshot.profileId ?? focusedAgentSnapshot.role,
       label,
       status:
         focusedAgentSnapshot.status === "waiting"
@@ -137,6 +138,7 @@ export function useWorkbenchSelection({
           ? {
               ...agent,
               name: focusedFallbackAgent.name || agent.name,
+              profileId: agent.profileId ?? focusedFallbackAgent.profileId,
               codename: focusedFallbackAgent.codename ?? agent.codename,
               avatar: focusedFallbackAgent.avatar ?? agent.avatar,
               resultSummary:

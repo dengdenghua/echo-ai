@@ -13,6 +13,17 @@ const { createAttentionNotifications } = requireElectronModule(
     registerIpc: (ipcMain: unknown) => void;
   };
 };
+const { registerClipboardWrite, isTrustedClipboardFrame }: {
+  registerClipboardWrite: (deps: Record<string, unknown>) => void;
+  isTrustedClipboardFrame: (
+    event: unknown,
+    policy: Record<string, unknown>,
+  ) => boolean;
+} = requireElectronModule(resolve("electron/clipboard-write.cjs"));
+const desktopProtocol: {
+  DESKTOP_APP_ENTRY_URL: string;
+  isDesktopAppURL: (url: string) => boolean;
+} = requireElectronModule(resolve("electron/desktop-protocol.cjs"));
 
 class FakeNotification {
   static isSupported = () => true;
@@ -62,7 +73,11 @@ function bridge({ packaged = true, disabled = false } = {}) {
     argv: [],
     env: { ECHO_PET_DISABLED: disabled ? "1" : "0" },
   };
-  const rendererContents = { isDestroyed: () => false, send: vi.fn() };
+  const rendererContents = {
+    isDestroyed: () => false,
+    send: vi.fn(),
+    mainFrame: { url: desktopProtocol.DESKTOP_APP_ENTRY_URL },
+  };
   const mainWindow = {
     webContents: rendererContents,
     isDestroyed: () => false,
@@ -87,6 +102,10 @@ function bridge({ packaged = true, disabled = false } = {}) {
     ensureOptionalDeps,
     backendProgress,
     createAttentionNotifications,
+    registerClipboardWrite,
+    isTrustedClipboardFrame,
+    clipboard: { writeText: vi.fn() },
+    desktopProtocol,
     Notification: FakeNotification,
     BrowserWindow: { fromWebContents: () => mainWindow },
     mainWindow,
@@ -104,7 +123,10 @@ function bridge({ packaged = true, disabled = false } = {}) {
       invoke: (channel: string, ...args: unknown[]) => {
         const handler = handlers.get(channel);
         if (!handler) throw new Error(`Missing IPC handler: ${channel}`);
-        return handler({ sender: rendererContents }, ...args);
+        return handler(
+          { sender: rendererContents, senderFrame: rendererContents.mainFrame },
+          ...args,
+        );
       },
     },
   };

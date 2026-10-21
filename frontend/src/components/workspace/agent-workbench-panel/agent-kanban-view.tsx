@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
@@ -73,6 +73,7 @@ function AgentKanbanViewImpl({
   visibilityEvents,
   collaborationEvents,
   threadId,
+  readingPositions,
   onSelectTab,
   onOpenArtifact,
   openMainProcess,
@@ -103,6 +104,7 @@ function AgentKanbanViewImpl({
   visibilityEvents: LiveToolEvent[];
   collaborationEvents: LiveToolEvent[];
   threadId?: string;
+  readingPositions: MemberReadingPositions;
   setActivityView: (view: "summary" | "trace" | "screen") => void;
   onSelectTab: ((tab: AgentWorkbenchTabId) => void) | undefined;
   onOpenArtifact: ((path: string) => void) | undefined;
@@ -133,9 +135,9 @@ function AgentKanbanViewImpl({
     [visibilitySteps],
   );
   const [visibilityOpen, setVisibilityOpen] = useState(false);
-  const readingPositions = useRef<MemberReadingPositions>(new Map());
   const focusedMember: AgentTile | null = selectedAgent ?? (selectedRosterSeat ? {
     id: selectedRosterSeat.id, name: selectedRosterSeat.name, label: selectedRosterSeat.name,
+    profileId: selectedRosterSeat.kind === "human" ? undefined : selectedRosterSeat.id,
     status: "pending", task: "", blackboardWrites: [], filesTouched: [], eventCount: 0, startedAt: 0,
   } : null);
 
@@ -149,7 +151,7 @@ function AgentKanbanViewImpl({
           onOpenMain={openMainProcess}
           onSelectBlock={setSelectedBlockId}
           threadId={threadId}
-          readingPositions={readingPositions.current}
+          readingPositions={readingPositions}
         />
       ) : (
         <AgentSummaryPage

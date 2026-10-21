@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import os
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import quote
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -46,7 +52,9 @@ def test_uploads_write_to_workspace_upload_dir(tmp_path: Path) -> None:
     )
 
     assert response.status_code == 200
-    upload_path = tmp_path / "workspaces" / "th-1" / "upload" / "brief.md"
+    upload_path = Path(response.json()["files"][0]["path"])
+    assert upload_path.name == "brief.md"
+    assert upload_path.parent.parent == (tmp_path / "workspaces" / "th-1" / "upload").resolve()
     assert upload_path.read_bytes() == b"# brief\n"
     assert Path(response.json()["files"][0]["path"]) == upload_path.resolve()
     assert (tmp_path / "workspaces" / "th-1" / "workspace.json").is_file()
@@ -131,7 +139,7 @@ def test_upload_rejects_too_many_files(tmp_path: Path, monkeypatch) -> None:
     assert response.status_code == 413
 
 
-def test_upload_refuses_symlink_target(tmp_path: Path) -> None:
+def test_upload_never_overwrites_legacy_symlink_target(tmp_path: Path) -> None:
     root = tmp_path / "thread_uploads"
     upload_dir = root / "th-1"
     upload_dir.mkdir(parents=True)
@@ -148,7 +156,8 @@ def test_upload_refuses_symlink_target(tmp_path: Path) -> None:
         files={"files": ("link.txt", b"replace", "text/plain")},
     )
 
-    assert response.status_code == 409
+    assert response.status_code == 200
+    assert client.get(response.json()["files"][0]["artifact_url"]).content == b"replace"
     assert outside.read_text(encoding="utf-8") == "secret"
 
 
@@ -170,3 +179,144 @@ def test_upload_list_and_artifact_skip_symlink_files(tmp_path: Path) -> None:
     assert listing.status_code == 200
     assert listing.json() == {"files": [], "count": 0}
     assert artifact.status_code == 404
+
+
+def test_same_name_uploads_have_immutable_urls_and_exact_delete(tmp_path: Path) -> None:
+    client = _legacy_client(tmp_path / "uploads")
+    entries = []
+    for content in (b"first", b"second"):
+        response = client.post(
+            "/api/threads/th-1/uploads",
+            files={"files": ("same.txt", content, "text/plain")},
+        )
+        assert response.status_code == 200
+        entries.append(response.json()["files"][0])
+    assert entries[0]["artifact_url"] != entries[1]["artifact_url"]
+    assert [entry["filename"] for entry in entries] == ["same.txt", "same.txt"]
+    assert [client.get(entry["artifact_url"]).content for entry in entries] == [b"first", b"second"]
+    listing = client.get("/api/threads/th-1/uploads/list").json()
+    assert {entry["path"] for entry in listing["files"]} == {entry["path"] for entry in entries}
+    assert client.get("/api/threads/th-1/artifacts/same.txt").status_code == 409
+    assert client.delete("/api/threads/th-1/uploads/same.txt").status_code == 409
+    assert (
+        client.delete("/api/threads/th-1/uploads/" + quote(entries[0]["path"], safe="")).status_code
+        == 200
+    )
+    assert client.get(entries[0]["artifact_url"]).status_code == 404
+    assert client.get(entries[1]["artifact_url"]).content == b"second"
+    relative = entries[1]["artifact_url"].split("/artifacts/", 1)[1]
+    assert client.delete("/api/threads/th-1/uploads/" + relative).status_code == 200
+    assert client.get("/api/threads/th-1/uploads/list").json()["count"] == 0
+
+
+def test_concurrent_same_name_uploads_keep_every_instance(tmp_path: Path) -> None:
+    root = tmp_path / "uploads"
+    client = _legacy_client(root)
+
+    def upload(index: int):
+        content = f"version {index}".encode()
+        response = client.post(
+            "/api/threads/th-1/uploads",
+            files={"files": ("same.txt", content, "text/plain")},
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["files"][0], content
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(upload, range(8)))
+    assert len({entry["artifact_url"] for entry, _ in results}) == 8
+    for entry, content in results:
+        assert client.get(entry["artifact_url"]).content == content
+    assert client.get("/api/threads/th-1/uploads/list").json()["count"] == 8
+
+
+def test_new_upload_preserves_legacy_url_and_deletion(tmp_path: Path) -> None:
+    root = tmp_path / "uploads"
+    legacy = root / "th-1" / "same.txt"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(b"legacy")
+    client = _legacy_client(root)
+    uploaded = client.post(
+        "/api/threads/th-1/uploads", files={"files": ("same.txt", b"new", "text/plain")}
+    ).json()["files"][0]
+    assert client.get("/api/threads/th-1/artifacts/same.txt").content == b"legacy"
+    assert client.get(uploaded["artifact_url"]).content == b"new"
+    assert client.delete("/api/threads/th-1/uploads/same.txt").status_code == 200
+    assert not legacy.exists()
+    assert client.get(uploaded["artifact_url"]).content == b"new"
+
+
+def test_upload_url_encodes_original_filename(tmp_path: Path) -> None:
+    client = _legacy_client(tmp_path / "uploads")
+    name = "设计 #1%.txt"
+    entry = client.post(
+        "/api/threads/th-1/uploads", files={"files": (name, b"content", "text/plain")}
+    ).json()["files"][0]
+    assert entry["filename"] == name
+    response = client.get(entry["artifact_url"])
+    assert response.status_code == 200
+    assert response.content == b"content"
+
+
+@contextmanager
+def _directory_redirect(link: Path, target: Path):
+    if os.name == "nt":
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode:
+            pytest.skip("junction creation unavailable")
+    else:
+        link.symlink_to(target, target_is_directory=True)
+    try:
+        yield
+    finally:
+        if os.name == "nt":
+            link.rmdir()
+        else:
+            link.unlink()
+
+
+def test_nested_junction_cannot_read_list_or_delete_outside_file(tmp_path: Path) -> None:
+    root = tmp_path / "uploads"
+    thread_dir = root / "th-1"
+    thread_dir.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "marker.txt"
+    marker.write_bytes(b"outside")
+    client = _legacy_client(root)
+    with _directory_redirect(thread_dir / "upload-redirect", outside):
+        reference = "upload-redirect/marker.txt"
+        assert client.get(f"/api/threads/th-1/artifacts/{reference}").status_code == 404
+        assert client.delete(f"/api/threads/th-1/uploads/{reference}").status_code == 404
+        assert client.get("/api/threads/th-1/artifacts/marker.txt").status_code == 404
+        absolute = quote(str(thread_dir / "upload-redirect" / "marker.txt"), safe="")
+        assert client.get(f"/api/threads/th-1/artifacts/{absolute}").status_code == 404
+        assert client.delete(f"/api/threads/th-1/uploads/{absolute}").status_code == 404
+        assert client.get("/api/threads/th-1/uploads/list").json()["count"] == 0
+        assert marker.read_bytes() == b"outside"
+
+
+@pytest.mark.parametrize("workspace", [False, True])
+def test_upload_root_junction_cannot_receive_new_uploads(tmp_path: Path, workspace: bool) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if workspace:
+        (root / "th-1").mkdir()
+        link = root / "th-1" / "upload"
+        client = _client(root)
+    else:
+        link = root / "th-1"
+        client = _legacy_client(root)
+    with _directory_redirect(link, outside):
+        response = client.post(
+            "/api/threads/th-1/uploads",
+            files={"files": ("marker.txt", b"new", "text/plain")},
+        )
+        assert response.status_code == 409
+        assert list(outside.iterdir()) == []

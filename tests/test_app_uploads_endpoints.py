@@ -258,11 +258,11 @@ class TestArtifactServe:
         client: TestClient,
         isolated_cwd: Path,
     ) -> None:
-        client.post(
+        uploaded = client.post(
             "/api/threads/art_abs/uploads",
             files={"files": ("a.txt", b"hello from artifact", "text/plain")},
         )
-        absolute = (isolated_cwd / "data" / "workspaces" / "art_abs" / "upload" / "a.txt").resolve()
+        absolute = Path(uploaded.json()["files"][0]["path"])
 
         r = client.get(f"/api/threads/art_abs/artifacts/{absolute}")
 

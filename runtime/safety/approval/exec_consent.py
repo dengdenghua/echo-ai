@@ -88,6 +88,32 @@ def fallback_approval_provider() -> ApprovalProvider | None:
     return None
 
 
+def unconfined_execution_denial(
+    argv: list[str], *, provider: Any | None, thread_id: str = "", tool_name: str = "exec_shell"
+) -> tuple[str, str] | None:
+    """Authorize a required hard-sandbox fallback, or return its status and error."""
+    if provider is None:
+        return (
+            "needs_approval",
+            "sandbox_fallback_needs_approval: no hard sandbox backend is available and no "
+            "approval provider is configured; refuse unconfined execution",
+        )
+    decision = provider.request(
+        ApprovalRequest(
+            thread_id=thread_id,
+            tool_name=tool_name,
+            tool_call_id="",
+            args_preview=" ".join(str(arg) for arg in argv),
+            detail="no hard sandbox backend is available; authorizing the unconfined execution fallback",
+            unconfined=True,
+        ),
+        timeout=120.0,
+    )
+    if not decision.approved:
+        return "denied", "sandbox_fallback_denied: unconfined execution was not authorized"
+    return None
+
+
 def needs_unconfined_consent(risk_categories: Any) -> bool:
     """Whether approving a tool with these risk categories also approves an
     unconfined run, because it spawns processes on a host without a hard
@@ -132,4 +158,5 @@ __all__ = [
     "host_lacks_hard_sandbox",
     "is_human_provider",
     "needs_unconfined_consent",
+    "unconfined_execution_denial",
 ]

@@ -3,6 +3,21 @@ import { useLayoutEffect, useRef, useState } from "react";
 export type MemberReadingPosition = { top: number; following: boolean; taskOpen?: boolean };
 export type MemberReadingPositions = Map<string, MemberReadingPosition>;
 
+/** A workbench can outlive many conversations; retain only recent task views. */
+export function saveMemberReadingPosition(
+  positions: MemberReadingPositions,
+  key: string,
+  position: MemberReadingPosition,
+) {
+  positions.delete(key);
+  positions.set(key, position);
+  while (positions.size > 40) {
+    const oldest = positions.keys().next().value;
+    if (oldest === undefined) break;
+    positions.delete(oldest);
+  }
+}
+
 /** Kept by the enclosing workbench, scoped to conversation + task instance. */
 export function useMemberReadingPosition(
   key: string,
@@ -25,7 +40,7 @@ export function useMemberReadingPosition(
       const away = node.scrollHeight - node.clientHeight - node.scrollTop > 80;
       following.current = !away;
       setShowLatest(away);
-      positions.set(key, { ...positions.get(key), top: node.scrollTop, following: !away });
+      saveMemberReadingPosition(positions, key, { ...positions.get(key), top: node.scrollTop, following: !away });
     };
     node.addEventListener("scroll", update, { passive: true });
     const resize =
@@ -36,11 +51,7 @@ export function useMemberReadingPosition(
           });
     if (node.firstElementChild) resize?.observe(node.firstElementChild);
     return () => {
-      positions.set(key, { ...positions.get(key), top: node.scrollTop, following: following.current });
-      if (positions.size > 40) {
-        const oldest = positions.keys().next().value;
-        if (oldest !== undefined) positions.delete(oldest);
-      }
+      saveMemberReadingPosition(positions, key, { ...positions.get(key), top: node.scrollTop, following: following.current });
       node.removeEventListener("scroll", update);
       resize?.disconnect();
     };
@@ -57,7 +68,10 @@ export function useMemberReadingPosition(
     following.current = true;
     setShowLatest(false);
     const node = containerRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
+    if (node) {
+      node.scrollTop = node.scrollHeight;
+      saveMemberReadingPosition(positions, key, { ...positions.get(key), top: node.scrollTop, following: true });
+    }
   };
   return { containerRef, showLatest, scrollToLatest };
 }

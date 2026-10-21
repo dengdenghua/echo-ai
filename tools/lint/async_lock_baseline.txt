@@ -3,4 +3,5 @@
 # Moved the await outside the lock? Delete its line to lock in the fix.
 # Regenerate with --write-baseline.
 
-runtime/sensing/gateway/_fs_router_endpoints.py:98
+# Non-blocking cross-process try-lock (timeout 0); contention returns 409.
+runtime/sensing/gateway/_fs_router_endpoints.py:97

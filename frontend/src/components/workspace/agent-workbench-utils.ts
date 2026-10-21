@@ -28,6 +28,9 @@ import {
 export interface AgentTile {
   id: string;
   name: string;
+  /** Persona profile reference, separate from execution ids and display names.
+   * Resolve against the installed agent catalog before opening a private chat. */
+  profileId?: string;
   label: string;
   status: "running" | "waiting_approval" | "done" | "pending" | "error";
   task: string;

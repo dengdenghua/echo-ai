@@ -49,6 +49,7 @@ import {
 import { BrowserTabPage } from "./agent-workbench-panel/browser-tab-page";
 import { PersonaWorkbenchHome } from "./agent-workbench-panel/persona-workbench-home";
 import { AgentKanbanView } from "./agent-workbench-panel/agent-kanban-view";
+import type { MemberReadingPositions } from "./agent-workbench-panel/use-member-reading-position";
 import {
   ProjectOsTab,
   ProjectOsTabError,
@@ -211,6 +212,7 @@ function AgentWorkbenchPanelImpl({
   const { deriveAgentTiles, workbenchStatus } = useAgentWorkbenchI18n();
 
   // IndexedDB 缓存实例（跨刷新持久化）
+  const readingPositions = useRef<MemberReadingPositions>(new Map());
   const snapshotCacheRef = useRef<WorkbenchSnapshotCache | null>(null);
   const [cachedSnapshot, setCachedSnapshot] = useState<ReturnType<
     typeof useAgentWorkbenchSnapshot
@@ -739,6 +741,7 @@ function AgentWorkbenchPanelImpl({
 
   const agentKanbanPage = (
     <AgentKanbanView
+      readingPositions={readingPositions.current}
       effectiveActivityView={effectiveActivityView}
       selectedRosterSeat={selectedRosterSeat}
       selectedAgent={selectedAgent}

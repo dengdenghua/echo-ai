@@ -8,9 +8,15 @@ import { subagentViewCopy } from "@/core/i18n/locales/subagent-view";
 import { SubagentProcessView } from "./subagent-process-view";
 import type { AgentTile } from "../agent-workbench-utils";
 import type { WorkBlock } from "../work-blocks";
+import type { LiveToolEvent } from "../live-tool-timeline";
+import { deriveAgentTilesFromEvents } from "../use-agent-workbench-i18n";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+}));
+
+vi.mock("@/core/agents/hooks", () => ({
+  useAgents: () => ({ agents: [{ name: "kane" }], isLoading: false }),
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -31,6 +37,7 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
   const mockAgent: AgentTile = {
     id: "agent-sub-1",
     name: "planner-agent",
+    profileId: "coder",
     codename: "规划专家",
     label: "01",
     task: "规划整体工程架构方案",
@@ -173,7 +180,7 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
     fireEvent.click(screen.getByRole("button", { name: copy.privateChat, exact: true }));
     expect(emitSpy).not.toHaveBeenCalled();
     const params = new URL(mocks.navigate.mock.calls[0][0], "http://localhost").searchParams;
-    expect(params.get("agent")).toBe("planner-agent");
+    expect(params.get("agent")).toBe("kane");
     expect(params.get("private")).toBe("1");
     expect(params.get("prompt")).toBe("请将方案细化到文件级别");
     emitSpy.mockRestore();
@@ -185,6 +192,41 @@ describe("<SubagentProcessView /> interaction enhancements", () => {
     const params = new URL(mocks.navigate.mock.calls[0][0], "http://localhost").searchParams;
     expect(params.get("private")).toBe("1");
     expect(params.has("prompt")).toBe(false);
+  });
+
+  it("opens the registered persona from a dispatch and runtime spawn, not its task id or codename", () => {
+    const dispatch: LiveToolEvent = {
+      id: "dispatch-1", name: "call_agent_parallel", status: "running", startedAt: 1000, iteration: 0,
+      input: { specs: [{ agent_id: "review-task-42", subagent_name: "coder", prompt: "Review the code" }] },
+    };
+    const [pendingAgent] = deriveAgentTilesFromEvents([dispatch]);
+    if (!pendingAgent) throw new Error("Missing pending member");
+    const view = renderWithProviders(<SubagentProcessView agent={pendingAgent} blocks={[]} onOpenMain={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: copy.privateChat, exact: true }));
+    expect(new URL(mocks.navigate.mock.calls[0][0], "http://localhost").searchParams.get("agent")).toBe("kane");
+
+    const [agent] = deriveAgentTilesFromEvents([
+      dispatch,
+      { id: "spawn-1", name: "subagent", lifecycle: "spawned", status: "running", startedAt: 1100, iteration: 0,
+        agentId: "review-task-42", subAgentRole: "coder", subagentCodename: "Spark-abc", parentToolUseId: "dispatch-1" },
+    ]);
+    if (!agent) throw new Error("Missing dispatched member");
+    expect(agent.id).toBe("review-task-42");
+    expect(agent.name).toBe("Spark-abc");
+    view.rerender(<SubagentProcessView agent={agent} blocks={[]} onOpenMain={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: copy.privateChat, exact: true }));
+    expect(new URL(mocks.navigate.mock.calls[1][0], "http://localhost").searchParams.get("agent")).toBe("kane");
+  });
+
+  it("does not route an unregistered temporary role through its display name or execution id", () => {
+    renderWithProviders(<SubagentProcessView agent={{ ...mockAgent, profileId: undefined, role: "temporary-reviewer", id: "kane", name: "kane" }} blocks={[]} onOpenMain={vi.fn()} />);
+    const button = screen.getByRole("button", { name: copy.privateChat, exact: true });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(copy.privateChatUnavailable)).toBeVisible();
+    const form = button.closest("form");
+    if (!form) throw new Error("Missing private chat form");
+    fireEvent.submit(form);
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
   it("does not present a task brief or an error as a shareable reply", () => {

@@ -24,4 +24,11 @@ describe("durable member workbench", () => {
     expect(tiles[0]?.status).toBe("pending");
     expect(tiles[0]?.resultSummary).toBeUndefined();
   });
+  it("clears the previous assignment's elapsed time when the same member starts new work", () => {
+    const previous = mergeCoordinatedAgents([], [task]).map(tile => ({ ...tile, durationMs: 5000, finishedAt: 15000 }));
+    const [next] = mergeCoordinatedAgents(previous, [{ ...task, id: "next-job", created_at: 20 }]);
+    expect(next?.profileId).toBe("kane");
+    expect(next?.durationMs).toBeUndefined();
+    expect(next?.finishedAt).toBeUndefined();
+  });
 });

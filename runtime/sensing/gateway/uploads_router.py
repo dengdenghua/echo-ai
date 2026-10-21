@@ -27,9 +27,8 @@ Covered by ``test_filename_path_traversal_stripped``.
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import os
 import secrets
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -52,15 +51,12 @@ except ImportError:  # pragma: no cover
 from runtime.execution.misc.document_text_extractor import extract_text_from_upload
 from runtime.execution.misc.office_fidelity_preview import render_office_fidelity_preview
 from runtime.execution.misc.office_preview import render_office_preview
-from runtime.platform.process.paths import app_paths
-from runtime.platform.runtime_policy.workspaces import WorkspaceManager
 from runtime.sensing._fastapi_guard import require_fastapi
 from runtime.sensing.gateway._untrusted_content import untrusted_file_response
 
 MAX_UPLOAD_FILES = 20
 MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024
 _UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
-_MAX_UPLOAD_FILENAME_LENGTH = 255
 
 # ═══════════════════════════════════════════════════════════
 # Response models
@@ -128,107 +124,9 @@ def create_uploads_router(
     require_fastapi(__name__)
 
     router = APIRouter(tags=["uploads"])
-    legacy_root = legacy_upload_root or upload_root
-    workspace_manager = WorkspaceManager(workspace_root) if workspace_root else None
+    from ._upload_storage import UploadStorage
 
-    def _has_control_chars(value: str) -> bool:
-        return any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
-
-    def _safe_upload_filename(filename: str | None) -> str:
-        raw = (filename or "upload.bin").replace("\\", "/")
-        safe_name = Path(raw).name.strip()
-        if (
-            not safe_name
-            or safe_name in {".", ".."}
-            or "/" in safe_name
-            or "\\" in safe_name
-            or _has_control_chars(safe_name)
-            or len(safe_name.encode("utf-8")) > _MAX_UPLOAD_FILENAME_LENGTH
-        ):
-            raise HTTPException(400, "invalid upload filename")
-        return safe_name
-
-    def _legacy_dir_for_root(root: Path, thread_id: str, *, create: bool) -> Path:
-        if (
-            not thread_id
-            or thread_id in {".", ".."}
-            or "/" in thread_id
-            or "\\" in thread_id
-            or _has_control_chars(thread_id)
-        ):
-            raise HTTPException(400, "invalid thread_id")
-        root_resolved = Path(root).expanduser().resolve()
-        candidate = (root_resolved / thread_id).resolve(strict=False)
-        with contextlib.suppress(ValueError):
-            candidate.relative_to(root_resolved)
-            if candidate.exists() and candidate.is_symlink():
-                raise HTTPException(409, "upload directory is not a real directory")
-            if create:
-                candidate.mkdir(parents=True, exist_ok=True)
-                if candidate.is_symlink() or not candidate.is_dir():
-                    raise HTTPException(409, "upload directory is not a real directory")
-            return candidate
-        raise HTTPException(400, "invalid thread_id")
-
-    def _ensure_real_upload_dir(path: Path) -> Path:
-        if path.exists() and path.is_symlink():
-            raise HTTPException(409, "upload directory is not a real directory")
-        path.mkdir(parents=True, exist_ok=True)
-        if path.is_symlink() or not path.is_dir():
-            raise HTTPException(409, "upload directory is not a real directory")
-        return path
-
-    def _upload_dir(thread_id: str) -> Path:
-        if workspace_manager is not None:
-            return _ensure_real_upload_dir(workspace_manager.layout(thread_id).upload)
-        root = legacy_root or (app_paths().data_dir / "thread_uploads")
-        return _legacy_dir_for_root(root, thread_id, create=True)
-
-    def _legacy_upload_dir(thread_id: str) -> Path | None:
-        if legacy_root is None:
-            return None
-        return _legacy_dir_for_root(legacy_root, thread_id, create=False)
-
-    def _upload_dirs_for_read(thread_id: str) -> list[Path]:
-        dirs = [_upload_dir(thread_id)]
-        legacy = _legacy_upload_dir(thread_id)
-        if legacy is not None and legacy not in dirs:
-            dirs.append(legacy)
-        return dirs
-
-    def _absolute_artifact_candidate(thread_id: str, raw_path: Path) -> Path | None:
-        if not raw_path.exists() or raw_path.is_symlink() or not raw_path.is_file():
-            return None
-        try:
-            resolved = raw_path.resolve()
-        except OSError:
-            return None
-        for upload_dir in _upload_dirs_for_read(thread_id):
-            with contextlib.suppress(OSError, ValueError):
-                resolved.relative_to(upload_dir.resolve())
-                return resolved
-        return None
-
-    def _safe_file_candidate(path: Path) -> Path | None:
-        if not path.exists() or path.is_symlink() or not path.is_file():
-            return None
-        return path
-
-    def _write_upload_bytes(target: Path, data: bytes) -> None:
-        if target.is_symlink() or (target.exists() and not target.is_file()):
-            raise HTTPException(409, "upload target is not a real file")
-        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
-        try:
-            fd = os.open(target, flags, 0o600)
-            with os.fdopen(fd, "wb") as fh:
-                fh.write(data)
-        except OSError as exc:
-            raise HTTPException(
-                500,
-                f"failed to store upload: {exc}",
-            ) from exc
+    storage = UploadStorage(workspace_root, legacy_upload_root or upload_root)
 
     async def _read_upload_limited(upload: UploadFile) -> bytes:
         chunks: list[bytes] = []
@@ -242,25 +140,6 @@ def create_uploads_router(
                 raise HTTPException(413, "upload file too large")
             chunks.append(chunk)
         return b"".join(chunks)
-
-    def _metadata(
-        thread_id: str,
-        file_path: Path,
-        *,
-        extracted_text: str | None = None,
-    ) -> dict[str, Any]:
-        rel_name = file_path.name
-        stat = file_path.stat()
-        return {
-            "filename": rel_name,
-            "size": stat.st_size,
-            "path": str(file_path),
-            "virtual_path": str(file_path),
-            "artifact_url": (f"/api/threads/{thread_id}/artifacts/{rel_name}"),
-            "extension": file_path.suffix.lstrip(".") or None,
-            "modified": int(stat.st_mtime),
-            "extracted_text": extracted_text,
-        }
 
     def _require_store() -> None:
         if thread_store is None:
@@ -336,7 +215,7 @@ def create_uploads_router(
     ) -> dict[str, Any]:
         _require_store()
         _require_thread_access(request, thread_id, allow_create=True)
-        upload_dir = _upload_dir(thread_id)
+        upload_dir = storage._upload_dir(thread_id)
         if not files or len(files) > MAX_UPLOAD_FILES:
             raise HTTPException(413, f"upload file count must be 1-{MAX_UPLOAD_FILES}")
         uploaded: list[dict[str, Any]] = []
@@ -344,15 +223,18 @@ def create_uploads_router(
             # Sanitize: strip any path traversal segments. Relying
             # on Path(...).name gives us the basename only · a
             # malicious "../../evil" collapses to "evil".
-            safe_name = _safe_upload_filename(upload.filename)
-            target = upload_dir / safe_name
+            safe_name = storage._safe_upload_filename(upload.filename)
             data = await _read_upload_limited(upload)
-            await asyncio.to_thread(_write_upload_bytes, target, data)
+            # mkdir is exclusive, so concurrent same-name uploads cannot
+            # overwrite each other or a previously returned artifact URL.
+            instance_dir = Path(tempfile.mkdtemp(prefix="upload-", dir=upload_dir))
+            target = instance_dir / safe_name
+            await asyncio.to_thread(storage._write_upload_bytes, target, data)
             ext = target.suffix.lstrip(".") or None
             # OOXML/PDF parsing is CPU/file-format work. Keep it off FastAPI's
             # event loop so one large deck does not stall realtime traffic.
             extracted = await asyncio.to_thread(extract_text_from_upload, data, ext)
-            uploaded.append(_metadata(thread_id, target, extracted_text=extracted))
+            uploaded.append(storage._metadata(thread_id, target, extracted_text=extracted))
         return {
             "success": True,
             "files": uploaded,
@@ -368,18 +250,19 @@ def create_uploads_router(
         _require_thread_access(request, thread_id)
         files: list[dict[str, Any]] = []
         seen: set[str] = set()
-        for upload_dir in _upload_dirs_for_read(thread_id):
+        for upload_dir in storage._upload_dirs_for_read(thread_id):
             if not upload_dir.exists() or not upload_dir.is_dir():
                 continue
-            for path in sorted(upload_dir.iterdir(), key=lambda p: p.name.lower()):
-                if path.is_symlink() or not path.is_file() or path.name in seen:
+            for path in storage._stored_files(upload_dir):
+                reference = path.relative_to(upload_dir).as_posix()
+                if reference in seen:
                     continue
-                seen.add(path.name)
-                files.append(_metadata(thread_id, path))
+                seen.add(reference)
+                files.append(storage._metadata(thread_id, path))
         return {"files": files, "count": len(files)}
 
     @router.delete(
-        "/api/threads/{thread_id}/uploads/{filename}",
+        "/api/threads/{thread_id}/uploads/{filename:path}",
         response_model=UploadDeleteResponse,
     )
     def api_thread_uploads_delete(
@@ -389,20 +272,7 @@ def create_uploads_router(
     ) -> dict[str, Any]:
         _require_store()
         _require_thread_access(request, thread_id)
-        # Sanitize the incoming filename the same way we did on
-        # upload · don't trust URL path params more than we'd
-        # trust a multipart field.
-        safe_name = _safe_upload_filename(filename)
-        target = next(
-            (
-                upload_dir / safe_name
-                for upload_dir in _upload_dirs_for_read(thread_id)
-                if (upload_dir / safe_name).exists()
-                and not (upload_dir / safe_name).is_symlink()
-                and (upload_dir / safe_name).is_file()
-            ),
-            None,
-        )
+        target = storage._find_upload(thread_id, filename)
         if target is None:
             raise HTTPException(404, f"upload not found: {filename}")
         try:
@@ -429,21 +299,7 @@ def create_uploads_router(
     ) -> Any:
         _require_store()
         _require_thread_access(request, thread_id)
-        normalized = Path(artifact_path)
-        candidates: list[Path] = []
-        if normalized.is_absolute():
-            # Legacy clients may have persisted the server-side upload
-            # path. Keep that compatibility only when the absolute path
-            # still points inside this thread's upload roots.
-            absolute = _absolute_artifact_candidate(thread_id, normalized)
-            if absolute is not None:
-                candidates.append(absolute)
-        for upload_dir in _upload_dirs_for_read(thread_id):
-            candidates.append(upload_dir / _safe_upload_filename(artifact_path))
-        target = next(
-            (c for c in candidates if _safe_file_candidate(c) is not None),
-            None,
-        )
+        target = storage._find_upload(thread_id, artifact_path)
         if target is None:
             raise HTTPException(
                 404,

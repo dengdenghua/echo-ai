@@ -42,3 +42,22 @@ it("keeps a reopened panel's position and isolates conversations and new task in
   view.rerender(<Reader key="new" id="thread-b:member:task-1" positions={positions} />);
   expect(screen.getByTestId("scroll").scrollTop).toBe(1200);
 });
+
+it("bounds retained task views while keeping a recently revisited reading position", () => {
+  const positions: MemberReadingPositions = new Map();
+  const view = render(<Reader key="task-0" id="task-0" positions={positions} />);
+  for (let index = 1; index <= 39; index++) {
+    const scroll = screen.getByTestId("scroll");
+    scroll.scrollTop = index;
+    fireEvent.scroll(scroll);
+    view.rerender(<Reader key={`task-${index}`} id={`task-${index}`} positions={positions} />);
+  }
+  view.rerender(<Reader key="task-0" id="task-0" positions={positions} />);
+  expect(screen.getByTestId("scroll").scrollTop).toBe(1);
+  fireEvent.scroll(screen.getByTestId("scroll"));
+  view.rerender(<Reader key="task-41" id="task-41" positions={positions} />);
+  fireEvent.scroll(screen.getByTestId("scroll"));
+  expect(positions.size).toBe(40);
+  expect(positions.has("task-0")).toBe(true);
+  expect(positions.has("task-1")).toBe(false);
+});

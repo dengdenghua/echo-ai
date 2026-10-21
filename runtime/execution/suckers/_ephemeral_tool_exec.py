@@ -201,6 +201,9 @@ def _ephemeral_write_confine_block(call: Any, skill: Any) -> str | None:
 def _execute_tool_in_subagent(
     registry: Any,
     call: Any,
+    *,
+    allowed_tools: frozenset[str] | None = None,
+    read_only: bool = False,
 ) -> tuple[str, bool]:
     """Run one tool_use call inside an ephemeral sub-agent.
 
@@ -214,6 +217,13 @@ def _execute_tool_in_subagent(
     Returns ``(output_text, is_error)``.
     """
     import json
+
+    if allowed_tools is not None and call.name not in allowed_tools:
+        return (f"(blocked: tool {call.name!r} is outside the sub-agent tool catalog)", True)
+    from runtime.execution.suckers.layers import is_read_only_skill
+
+    if read_only and not is_read_only_skill(call.name):
+        return (f"(blocked: tool {call.name!r} is outside the read-only verifier scope)", True)
 
     try:
         if not registry.has(call.name):
@@ -306,10 +316,12 @@ def _execute_tool_in_subagent(
 
     try:
         from runtime.execution.tool_engine.coordination_guard import invoke_coordinated
+        from runtime.execution.tool_engine.skill_gate import read_only_dispatch_scope
 
-        output = invoke_coordinated(
-            skill, call.input, service=getattr(registry, "coordination", None)
-        )
+        with read_only_dispatch_scope(read_only):
+            output = invoke_coordinated(
+                skill, call.input, service=getattr(registry, "coordination", None)
+            )
     except TypeError as exc:
         return (f"(TypeError: {exc})", True)
     except Exception as exc:  # noqa: BLE001

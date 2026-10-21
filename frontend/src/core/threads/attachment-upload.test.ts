@@ -58,4 +58,43 @@ describe("uploadPromptInputFiles", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
+
+  it.each([true, false])(
+    "keeps same-named images paired with their bytes (preuploaded=%s)",
+    async (preuploaded) => {
+      const files = ["first", "second"].map(
+        (content) => new File([content], "shot.png", { type: "image/png" }),
+      );
+      const metadata = files.map((file, index) => ({
+        ...uploaded,
+        size: file.size,
+        path: `/uploads/upload-${index}/shot.png`,
+        artifact_url: `/api/threads/thread-1/artifacts/upload-${index}/shot.png`,
+      }));
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, files: metadata }),
+      });
+      vi.stubGlobal("fetch", fetchSpy);
+      const attachments = await uploadPromptInputFiles(
+        "thread-1",
+        files.map((file, index) => ({
+          type: "file",
+          mediaType: file.type,
+          filename: file.name,
+          url: "unused",
+          file,
+          ...(preuploaded ? { uploaded: metadata[index] } : {}),
+        })),
+      );
+      expect(attachments.map((attachment) => attachment.data_url)).toEqual([
+        "data:image/png;base64,Zmlyc3Q=",
+        "data:image/png;base64,c2Vjb25k",
+      ]);
+      expect(attachments.map((attachment) => attachment.path)).toEqual(
+        metadata.map((entry) => entry.path),
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(preuploaded ? 0 : 1);
+    },
+  );
 });

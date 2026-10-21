@@ -28,6 +28,7 @@ export type AgentWorkbenchProcessEventKind = "thinking" | "execution";
 export type AgentWorkbenchFocusAgentSnapshot = {
   id: string;
   name: string;
+  profileId?: string;
   role?: string;
   avatar?: string;
   status: "running" | "done" | "error" | "waiting";

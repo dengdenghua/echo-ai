@@ -63,6 +63,17 @@ _active_trust_engine: ContextVar[TrustEngine | None] = ContextVar(
     "echo_active_trust_engine",
     default=None,
 )
+_read_only_dispatch: ContextVar[bool] = ContextVar("echo_read_only_dispatch", default=False)
+
+
+@contextmanager
+def read_only_dispatch_scope(read_only: bool) -> Iterator[None]:
+    """Carry a verifier's read-only boundary through nested meta-tools."""
+    token = _read_only_dispatch.set(read_only or _read_only_dispatch.get())
+    try:
+        yield
+    finally:
+        _read_only_dispatch.reset(token)
 
 
 def current_trust_engine() -> TrustEngine | None:
@@ -409,6 +420,11 @@ def prepare_inner_dispatch(
     def _blocked(gate: str, reason: str) -> PreparedInnerDispatch:
         return PreparedInnerDispatch(call_args, stripped, GateBlock(gate, reason))
 
+    from runtime.execution.tool_engine.effect_receipts import is_side_effecting
+
+    if _read_only_dispatch.get() and is_side_effecting(skill.affinity):
+        return _blocked(GATE_READ_ONLY, "side-effecting inner tool is outside the verifier scope")
+
     from runtime.execution.request import current_execution_request
 
     host_request = current_execution_request()
@@ -484,5 +500,6 @@ __all__ = [
     "gate_inner_dispatch",
     "inner_dispatch_risk",
     "prepare_inner_dispatch",
+    "read_only_dispatch_scope",
     "use_trust_engine",
 ]

@@ -418,50 +418,21 @@ def stream_run(
             # go through the mode-aware selector so they cannot downgrade.
             choice = command_process_backend()
             if getattr(choice, "needs_approval", False):
-                # A hard sandbox was requested but is not available on this
-                # host. Do not silently run unconfined: when an approval
-                # provider is available, ask a human to authorize the direct
-                # (non-sandboxed) fallback; otherwise fail closed.
-                if approval_provider is not None:
-                    from runtime.safety.approval.approval_gate import ApprovalRequest
+                from runtime.safety.approval.exec_consent import unconfined_execution_denial
 
-                    decision = approval_provider.request(
-                        ApprovalRequest(
-                            thread_id=thread_id,
-                            tool_name="exec_shell",
-                            tool_call_id="",
-                            args_preview=" ".join(str(a) for a in argv),
-                            detail="no hard sandbox backend is available; "
-                            "authorizing the unconfined execution fallback",
-                        ),
-                        timeout=120.0,
-                    )
-                    if not decision.approved:
-                        return {
-                            "error": "sandbox_fallback_denied: unconfined "
-                            "execution was not authorized",
-                            "sandbox_backend": "direct",
-                            "sandbox_hard": False,
-                            "execution_policy": _policy_snapshot(
-                                result={
-                                    "status": "denied",
-                                    "error_type": "sandbox_fallback_denied",
-                                }
-                            ),
-                        }
-                    # Authorized: fall through to the shared transform below;
-                    # the direct backend then runs with explicit human consent.
-                else:
+                denial = unconfined_execution_denial(
+                    list(argv), provider=approval_provider, thread_id=thread_id
+                )
+                if denial is not None:
+                    status, error = denial
                     return {
-                        "error": "sandbox_fallback_needs_approval: no hard sandbox "
-                        "backend is available and no approval provider is "
-                        "configured; refuse unconfined execution",
+                        "error": error,
                         "sandbox_backend": "direct",
                         "sandbox_hard": False,
                         "execution_policy": _policy_snapshot(
                             result={
-                                "status": "needs_approval",
-                                "error_type": "sandbox_fallback_needs_approval",
+                                "status": status,
+                                "error_type": error.split(":", 1)[0],
                             }
                         ),
                     }

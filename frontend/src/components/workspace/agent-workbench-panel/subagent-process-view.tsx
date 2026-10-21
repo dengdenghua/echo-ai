@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { eventBus } from "@/core/events/event-bus";
+import { canonicalAgentId } from "@/core/agents/aliases";
+import { useAgents } from "@/core/agents/hooks";
 import { useI18n } from "@/core/i18n/hooks";
 import { subagentViewCopy } from "@/core/i18n/locales/subagent-view";
 import type { AgentTile } from "../agent-workbench-utils";
@@ -19,6 +21,7 @@ import { MemberProcessHeader } from "./member-process-header";
 import { subagentMessages } from "./subagent-process-messages";
 import {
   useMemberReadingPosition,
+  saveMemberReadingPosition,
   type MemberReadingPositions,
 } from "./use-member-reading-position";
 
@@ -62,6 +65,13 @@ function MemberProcessContent({
   const { t, locale } = useI18n();
   const copy = subagentViewCopy(locale);
   const navigate = useNavigate();
+  const { agents: profiles, isLoading: profilesLoading } = useAgents();
+  // Runtime ids and codenames identify a task instance, never its persona.
+  // A role can also be temporary; only registered profiles can be chatted with.
+  const profileReference = agent.profileId?.trim();
+  const privateProfileId = profileReference
+    ? profiles.find((profile) => profile.name === canonicalAgentId(profileReference))?.name
+    : undefined;
   const [followupText, setFollowupText] = useState("");
   const [taskOpen, setTaskOpen] = useState(positions.get(scope)?.taskOpen ?? false);
   const memberName = agent.codename ?? agent.name;
@@ -91,7 +101,8 @@ function MemberProcessContent({
   };
   const handlePrivateChat = (event: React.FormEvent) => {
     event.preventDefault();
-    const params = new URLSearchParams({ agent: agent.name, private: "1" });
+    if (!privateProfileId) return;
+    const params = new URLSearchParams({ agent: privateProfileId, private: "1" });
     if (followupText.trim()) params.set("prompt", followupText.trim());
     void navigate("/workspace/realtime/new?" + params.toString());
     setFollowupText("");
@@ -140,7 +151,7 @@ function MemberProcessContent({
               const open = event.currentTarget.open;
               setTaskOpen(open);
               const position = positions.get(scope);
-              positions.set(scope, { top: position?.top ?? 0, following: position?.following ?? isRunning, taskOpen: open });
+              saveMemberReadingPosition(positions, scope, { top: position?.top ?? 0, following: position?.following ?? isRunning, taskOpen: open });
             }} className="group/brief rounded-lg border border-border-subtle bg-muted/15">
               <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
                 <ChevronRightIcon
@@ -221,6 +232,7 @@ function MemberProcessContent({
         >
           <input
             type="text"
+            disabled={!privateProfileId}
             aria-label={copy.privateChatLabel(memberName)}
             value={followupText}
             onChange={(event) => setFollowupText(event.target.value)}
@@ -229,14 +241,15 @@ function MemberProcessContent({
           />
           <button
             type="submit"
+            disabled={!privateProfileId}
             title={copy.privateChatTitle(memberName)}
-            className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md bg-muted px-3 py-2 text-xs font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md bg-muted px-3 py-2 text-xs font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
           >
             <MessageCircleIcon className="size-3.5" aria-hidden="true" />
             {copy.privateChat}
           </button>
           <p className="w-full text-xs text-muted-foreground">
-            {copy.privateChatHint}
+            {privateProfileId ? copy.privateChatHint : profilesLoading ? copy.privateChatLoading : copy.privateChatUnavailable}
           </p>
         </form>
       </div>

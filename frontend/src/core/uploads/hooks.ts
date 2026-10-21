@@ -48,7 +48,7 @@ export function useDeleteUploadedFile(threadId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (filename: string) => deleteUploadedFile(threadId, filename),
+    mutationFn: (file: string | UploadedFileInfo) => deleteUploadedFile(threadId, file),
     onSuccess: () => {
       // Invalidate the uploaded files list
       void queryClient.invalidateQueries({

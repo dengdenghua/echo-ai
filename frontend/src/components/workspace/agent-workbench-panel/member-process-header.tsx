@@ -7,9 +7,13 @@ import { subagentAvatarSrc, type AgentTile } from "../agent-workbench-utils";
 import { dockAgentStatusLabel } from "./helpers";
 
 function elapsedLabel(agent: AgentTile, now: number) {
-  const ms =
-    agent.durationMs ??
-    (agent.startedAt > 0 && (agent.finishedAt || agent.status === "running") ? (agent.finishedAt ?? now) - agent.startedAt : null);
+  const live = agent.status === "running" || agent.status === "waiting_approval";
+  const ms = live
+    ? (agent.startedAt > 0 ? now - agent.startedAt : null)
+    : agent.durationMs ??
+      (agent.startedAt > 0 && agent.finishedAt !== undefined
+        ? agent.finishedAt - agent.startedAt
+        : null);
   if (ms === null || !Number.isFinite(ms)) return null;
   const seconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(seconds / 60);
@@ -29,7 +33,7 @@ export function MemberProcessHeader({
   const copy = subagentViewCopy(locale);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if (agent.status !== "running") return;
+    if (agent.status !== "running" && agent.status !== "waiting_approval") return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [agent.status]);

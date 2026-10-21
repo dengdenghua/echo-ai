@@ -403,6 +403,34 @@ def _inference_domains() -> tuple[str, ...]:
         return ()
 
 
+def _background_sandbox_denial(
+    choice: Any, argv: list[str], workspace: str | None, cwd: str | None, env_mode: str
+) -> dict[str, Any] | None:
+    if not getattr(choice, "needs_approval", False):
+        return None
+    from runtime.safety.approval.exec_consent import (
+        fallback_approval_provider,
+        unconfined_execution_denial,
+    )
+
+    denial = unconfined_execution_denial(
+        argv, provider=fallback_approval_provider(), tool_name="background_exec"
+    )
+    if denial is None:
+        return None
+    status, error = denial
+    policy = _background_execution_policy(
+        sandbox_requested=True,
+        sandbox_workspace=workspace,
+        cwd=cwd,
+        sandbox_backend=choice.name,
+        sandbox_hard=choice.hard,
+        env_mode=env_mode,
+    )
+    policy["result"] = {"status": status, "error_type": error.split(":", 1)[0]}
+    return {"error": error, "argv": argv, "execution_policy": policy}
+
+
 def _background_exec(
     command: str | list[str] = "",
     *,
@@ -520,6 +548,9 @@ def _background_exec(
         env_mode = "allowlist"
         try:
             choice = command_process_backend()
+            denied = _background_sandbox_denial(choice, argv, sandbox_workspace, cwd_str, env_mode)
+            if denied is not None:
+                return denied
             argv, run_env, transformed_cwd = choice.backend.transform(
                 list(argv),
                 run_env,

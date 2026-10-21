@@ -138,6 +138,7 @@ export function deriveAgentTilesFromEvents(
       avatarUrl: event.subagentAvatarUrl ?? existing?.avatarUrl,
       codename: event.subagentCodename ?? existing?.codename,
       role: event.subAgentRole ?? existing?.role,
+      profileId: event.subAgentRole ?? existing?.profileId,
       roleDisplayName:
         event.subagentRoleDisplayName ?? existing?.roleDisplayName,
       roleDescription:
@@ -151,7 +152,9 @@ export function deriveAgentTilesFromEvents(
       iterationCount: event.iterationCount ?? existing?.iterationCount,
       blackboardWrites,
       filesTouched,
-      durationMs: event.durationMs ?? existing?.durationMs,
+      durationMs: isTerminalAgentEvent
+        ? (event.durationMs ?? existing?.durationMs)
+        : existing?.durationMs,
       error:
         isTerminalAgentEvent && status === "error"
           ? (errorFromAgentEvent(event) ?? existing?.error)
@@ -160,7 +163,9 @@ export function deriveAgentTilesFromEvents(
             : existing?.error,
       eventCount: (existing?.eventCount ?? 0) + 1,
       startedAt,
-      finishedAt: maxDefined(existing?.finishedAt, event.finishedAt),
+      finishedAt: isTerminalAgentEvent
+        ? maxDefined(existing?.finishedAt, event.finishedAt)
+        : existing?.finishedAt,
     });
   }
   if (byId.size > 0) return Array.from(byId.values()).slice(0, 12);
@@ -381,6 +386,9 @@ function addDispatchSpecTiles(
       avatar: existing?.avatar ?? avatarForRole(role),
       codename: existing?.codename,
       role: existing?.role ?? role,
+      profileId: existing?.profileId ?? stringFromKeys(spec, [
+        "subagent_name", "subagent_type", "role", "name", "agent",
+      ]),
       specIndex: existing?.specIndex ?? index,
       taskLabel: existing?.taskLabel ?? taskLabel,
       parentToolUseId: event.id,
@@ -543,6 +551,7 @@ function mergeDispatchResultTile(
     avatar: existing?.avatar ?? avatarForRole(role),
     codename: existing?.codename,
     role: existing?.role ?? role,
+    profileId: existing?.profileId ?? stringFromKeys(result, ["role", "custom_role", "resolved_to"]),
     specIndex: numberFromUnknown(result.spec_index) ?? existing?.specIndex,
     taskLabel: resolvedTaskLabel,
     parentToolUseId: existing?.parentToolUseId ?? event.id,
