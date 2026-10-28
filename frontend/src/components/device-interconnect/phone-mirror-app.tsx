@@ -16,7 +16,7 @@ import {
 import { refreshDeviceDirectory, useDeviceDirectory } from "./device-directory";
 import { enqueuePhoneTransfer, usePhoneTransfers } from "./phone-transfers";
 import { PhoneTransferList } from "./phone-transfer-list";
-import { DesktopCast } from "./desktop-cast";
+import { RemoteDesktopHost } from "./remote-desktop-host";
 import { PhoneKeyboard } from "./phone-keyboard";
 import {
   phoneRequest,
@@ -641,7 +641,7 @@ export function PhoneMirrorApp({ deviceId, deviceName, onClose }: Props) {
           </aside>
         )}
       </div>
-      <DesktopCast deviceId={selected} online={online} />
+      <RemoteDesktopHost deviceId={selected} online={online} />
     </div>
   );
 }

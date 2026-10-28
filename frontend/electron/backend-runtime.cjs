@@ -539,6 +539,10 @@ const CORE_DEPS = [
   "python-pptx>=1.0.2",
   "pypdf>=6.19.0",
   "reportlab>=4.4.4",
+  "aiortc>=1.14,<2",
+  "mss>=10,<11",
+  "pyautogui>=0.9.54",
+  "pillow>=11.2",
 ];
 
 // Heavy optional capability → pyproject extra. Installed lazily on first use.

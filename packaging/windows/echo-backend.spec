@@ -31,6 +31,9 @@ hiddenimports = [
     "python_multipart",
 ]
 
+hiddenimports += collect_submodules("aiortc") + collect_submodules("av") + collect_submodules("mss")
+hiddenimports += ["pylibsrtp", "_cffi_backend", "pyautogui._pyautogui_win"]
+
 datas = [
     item
     for item in collect_data_files("runtime", include_py_files=False)
@@ -74,7 +77,7 @@ if connector_root.exists():
 a = Analysis(
     [str(entry)],
     pathex=[str(repo_root)],
-    binaries=collect_dynamic_libs("uiautomation"),
+    binaries=collect_dynamic_libs("uiautomation") + collect_dynamic_libs("av") + collect_dynamic_libs("pylibsrtp"),
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

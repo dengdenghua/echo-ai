@@ -8043,6 +8043,19 @@
         "title": "RejectTeamJoinRequest",
         "type": "object"
       },
+      "RemotePermission": {
+        "properties": {
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "RemotePermission",
+        "type": "object"
+      },
       "RenewLeaseBody": {
         "properties": {
           "ttl_seconds": {
@@ -56270,6 +56283,106 @@
           }
         },
         "summary": "List Execution Receipts",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/remote-desktop/permissions/{device_id}": {
+      "put": {
+        "operationId": "permission_api_tentacle_remote_desktop_permissions__device_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemotePermission"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Permission Api Tentacle Remote Desktop Permissions  Device Id  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Permission",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/remote-desktop/status": {
+      "get": {
+        "operationId": "status_api_tentacle_remote_desktop_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Status Api Tentacle Remote Desktop Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "tentacle"
+        ]
+      }
+    },
+    "/api/tentacle/remote-desktop/stop": {
+      "post": {
+        "operationId": "stop_api_tentacle_remote_desktop_stop_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Stop Api Tentacle Remote Desktop Stop Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stop",
         "tags": [
           "tentacle"
         ]

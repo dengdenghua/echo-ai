@@ -177,6 +177,12 @@ class TentacleCoordinator:
             on_screen_frame=self._on_screen_frame,
             on_remote_input=self._on_remote_input,
         )
+        from .remote_desktop import RemoteDesktopHost
+
+        self.remote_desktop = RemoteDesktopHost(
+            self.ws_server, app_paths().data_dir / "tentacle" / "remote-desktop-permissions.json"
+        )
+        self.ws_server.on_custom = self.remote_desktop.handle
         self.ws_server.on_task_workspace = self._on_task_workspace
         self._decision_engine = decision_engine
         self._dashboard_port = dashboard_port
@@ -299,6 +305,7 @@ class TentacleCoordinator:
 
     async def stop(self) -> None:
         """停止协调器."""
+        await self.remote_desktop.shutdown()
         if hasattr(self, "task_workspace"):
             await self.task_workspace.shutdown()
             del self.task_workspace
@@ -343,6 +350,7 @@ class TentacleCoordinator:
 
     async def _on_device_disconnect(self, tentacle_id: str) -> None:
         """设备断开 —— 从 Pool 注销，清理屏幕流订阅."""
+        await self.remote_desktop.stop(tentacle_id, "device_disconnected")
         device = self.pool.get(tentacle_id)
         if device is not None:
             await device.disconnect()

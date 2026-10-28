@@ -116,6 +116,13 @@ def create_tentacle_router(
         if principal is not None:
             request.state.device_workspace_actor = principal.actor_id
 
+    from .remote_desktop_api import create_remote_desktop_router
+
+    router.include_router(
+        create_remote_desktop_router(lambda: getattr(coordinator, "remote_desktop", None)),
+        dependencies=[Depends(_require_http_auth)],
+    )
+
     from .mirror_api import create_mirror_router
 
     router.include_router(
