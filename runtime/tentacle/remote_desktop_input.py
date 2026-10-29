@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ctypes
 import math
+import os
+import subprocess
 import sys
 from typing import Any
 
@@ -80,6 +82,24 @@ def type_unicode(text: str) -> None:
                     cg.CGEventPost(0, event)
                 finally:
                     cf.CFRelease(event)
+    elif sys.platform.startswith("linux") and not text.isascii():
+        if os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland":
+            raise ValueError("Unicode input requires an X11 desktop")
+        try:
+            # Send text over stdin: never expose it in process listings, shell
+            # arguments, logs, or the user's clipboard. libxdo supplies Unicode
+            # keysyms missing from the current X11 keyboard layout.
+            subprocess.run(
+                ["/usr/bin/xdotool", "type", "--clearmodifiers", "--delay", "1", "--file", "-"],
+                input=text.encode("utf-8"),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                env={**os.environ, "LC_ALL": "C.UTF-8"},
+                timeout=15,
+                check=True,
+            )
+        except (OSError, subprocess.SubprocessError):
+            raise OSError("Linux Unicode input failed; check the X11 session and xdotool") from None
     else:
         if not text.isascii():
             raise ValueError("Unicode input requires a Windows or macOS desktop")
