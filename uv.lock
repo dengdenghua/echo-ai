@@ -1300,6 +1300,7 @@ desktop-build = [
 desktop-core = [
     { name = "aiortc" },
     { name = "anthropic" },
+    { name = "bcrypt" },
     { name = "cryptography" },
     { name = "ddgs" },
     { name = "fastapi" },
@@ -1445,6 +1446,7 @@ requires-dist = [
     { name = "av", marker = "extra == 'video'", specifier = ">=12.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7" },
     { name = "bcrypt", marker = "extra == 'all'", specifier = ">=4.0" },
+    { name = "bcrypt", marker = "extra == 'desktop-core'", specifier = ">=4.0" },
     { name = "bcrypt", marker = "extra == 'dev'", specifier = ">=4.0" },
     { name = "bcrypt", marker = "extra == 'local-auth'", specifier = ">=4.0" },
     { name = "cryptography", specifier = ">=50.0.0" },

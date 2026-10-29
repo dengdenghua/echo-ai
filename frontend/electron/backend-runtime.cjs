@@ -249,7 +249,10 @@ const resourcesPath = () => process.resourcesPath;
 // The port must match what main.cjs advertises to the renderer via
 // ECHO_BACKEND_URL; derive it from that same env when present.
 function backendPort() {
-  return backendAddress.backendPort(app.isPackaged, process.env.ECHO_BACKEND_URL);
+  return backendAddress.backendPort(
+    app.isPackaged,
+    process.env.ECHO_BACKEND_URL,
+  );
 }
 
 function pythonExe() {
@@ -518,6 +521,7 @@ function developmentUvCmd() {
 // the `desktop-core` extra in pyproject.toml; released installers use the
 // PyInstaller dependency graph instead.
 const CORE_DEPS = [
+  "bcrypt>=4.0",
   "cryptography>=50.0.0",
   "fastapi>=0.115,<1.0",
   "starlette>=1.3.1",
@@ -667,7 +671,9 @@ async function loginDesktopOwner(backendBaseURL, { displayName } = {}) {
     username: DESKTOP_OWNER_USERNAME,
     password: DESKTOP_OWNER_TOKEN,
   };
-  const name = String(displayName || "").trim().slice(0, 128);
+  const name = String(displayName || "")
+    .trim()
+    .slice(0, 128);
   if (name) body.display_name = name;
   let response;
   try {
@@ -748,7 +754,10 @@ async function spawnBackend(configPath, onProgress) {
         backendPort(),
       ];
   const logFd = packaged
-    ? require("./desktop-logging.cjs").openDesktopLog(app.getPath("userData"), "backend.log")
+    ? require("./desktop-logging.cjs").openDesktopLog(
+        app.getPath("userData"),
+        "backend.log",
+      )
     : null;
   let child;
   try {
