@@ -113,7 +113,9 @@ def type_unicode(text: str) -> None:
 
                 type_x11_text(text)
         except (ImportError, OSError, subprocess.SubprocessError):
-            raise OSError("Linux Unicode input failed; check the X11 session and input dependencies") from None
+            raise OSError(
+                "Linux Unicode input failed; check the X11 session and input dependencies"
+            ) from None
     else:
         if not text.isascii():
             raise ValueError("Unicode input requires a Windows or macOS desktop")
@@ -161,6 +163,25 @@ class DesktopInput:
                         backend._keyUp(pressed)
                     else:
                         self.driver.keyUp(pressed, _pause=False)
+        elif action == "system":
+            command = event.get("command")
+            if command not in {"show_desktop", "all_windows"}:
+                raise ValueError("Unsupported desktop action")
+            if sys.platform.startswith("linux"):
+                subprocess.run(
+                    ["/usr/bin/python3", str(Path(__file__).with_name("remote_desktop_x11_actions.py")), command],
+                    check=True,
+                    timeout=8,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                keys = {
+                    "win32": {"show_desktop": ("win", "d"), "all_windows": ("win", "tab")},
+                    "darwin": {"show_desktop": ("f11",), "all_windows": ("ctrl", "up")},
+                }
+                combo = keys[sys.platform][command]
+                self.apply({"action": "key", "text": "+".join(combo)})
         elif action == "scroll":
             delta = self._number(event.get("delta", 0), -20, 20)
             self.driver.scroll(round(delta), _pause=False)
@@ -192,6 +213,11 @@ class DesktopInput:
         if not math.isfinite(value) or not low <= value <= high:
             raise ValueError("Coordinate out of range")
         return float(value)
+
+    def focus_hint(self):
+        from .remote_desktop_focus import focused_input_hint
+
+        return focused_input_hint()
 
     def release(self) -> None:
         # Release through the native backend: a pointer at the failsafe corner must

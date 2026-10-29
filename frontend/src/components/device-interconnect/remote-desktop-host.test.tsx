@@ -10,6 +10,28 @@ vi.mock("@/core/config", () => ({
 }));
 afterEach(() => vi.unstubAllGlobals());
 
+it("distinguishes configured video relay from a verified external gateway", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        state: "ready",
+        permissions: {},
+        active: [],
+        relayConfigured: true,
+        inputFocusHints: true,
+      }),
+    }),
+  );
+  render(<RemoteDesktopHost deviceId="phone" online />);
+  const note = await screen.findByText(
+    /异地使用前，请先配置安全连接入口并完成外网测试/,
+  );
+  expect(note).toHaveTextContent("画面中继已配置");
+  expect(note).toHaveTextContent("自动打开手机输入栏");
+});
+
 it("starts denied and explicitly grants the selected phone; revoke stays available offline", async () => {
   const status = {
     state: "ready",

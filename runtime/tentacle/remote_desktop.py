@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .remote_desktop_config import has_relay, ice_servers
+from .remote_desktop_config import VIDEO_PROFILES, has_relay, ice_servers
 from .remote_desktop_input import DesktopInput
 
 
@@ -38,6 +38,7 @@ class RemoteSession:
     expires: float = 0
     sequence: int = 0
     transport: str = "webrtc"
+    quality: str = "auto"
 
 
 class RemoteDesktopHost:
@@ -80,7 +81,13 @@ class RemoteDesktopHost:
             relay = False
         result = {
             "state": available,
+            "platform": sys.platform,
+            "inputFocusHints": sys.platform == "win32"
+            or (
+                sys.platform.startswith("linux") and os.environ.get("XDG_SESSION_TYPE") != "wayland"
+            ),
             "relayConfigured": relay,
+            "qualityProfiles": list(VIDEO_PROFILES),
             "active": [
                 {"deviceId": s.device_id, "state": s.state, "permission": s.permission}
                 for s in self.sessions.values()
@@ -133,6 +140,10 @@ class RemoteDesktopHost:
             await self._send(ws, method, self.status(device_id))
         elif method == "webrtc/request":
             request_id = params.get("requestId", "")
+            quality = params.get("quality", "auto")
+            if not isinstance(quality, str) or quality not in VIDEO_PROFILES:
+                await self._send(ws, "remote_desktop/error", {"code": "invalid_settings"})
+                return
             if not isinstance(request_id, str) or not re.fullmatch(
                 r"[a-zA-Z0-9-]{1,80}", request_id
             ):
@@ -163,6 +174,7 @@ class RemoteDesktopHost:
                     return
                 await self._close(device_id, "replaced")
                 session = RemoteSession(device_id, request_id, self.permissions[device_id], ws)
+                session.quality = quality
                 session.transport = "relay" if params.get("transport") == "relay" else "webrtc"
                 self.sessions[device_id] = session
                 session.task = asyncio.create_task(self._start(session))
@@ -233,6 +245,8 @@ class RemoteDesktopHost:
                     lambda data: self._input(session, data),
                     lambda state: self._state(session, state),
                 )
+            if hasattr(session.peer, "configure_video"):
+                session.peer.configure_video(session.quality)
             geometry = await asyncio.wait_for(session.peer.prepare(), 10)
             if session.permission == "control":
                 session.worker = ThreadPoolExecutor(
@@ -258,6 +272,8 @@ class RemoteDesktopHost:
                     "permission": session.permission,
                 },
             )
+            if session.transport == "relay":
+                self._state(session, "connected")
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -318,12 +334,23 @@ class RemoteDesktopHost:
             if self.permissions.get(session.device_id) != "control":
                 continue
             ok = True
+            focus = None
             try:
                 await asyncio.get_running_loop().run_in_executor(
                     session.worker, session.input.apply, event
                 )
             except Exception:
                 ok = False
+            if ok and event.get("action") == "tap" and hasattr(session.input, "focus_hint"):
+                try:
+                    focus = await asyncio.get_running_loop().run_in_executor(
+                        session.worker, session.input.focus_hint
+                    )
+                except Exception:
+                    # A failed optional hint must never imply that the click failed.
+                    focus = {"available": False, "editable": False, "secure": False}
+            if isinstance(focus, dict):
+                focus = {key: focus.get(key) is True for key in ("available", "editable", "secure")}
             session.peer.send(
                 json.dumps(
                     {
@@ -331,6 +358,7 @@ class RemoteDesktopHost:
                         "seq": event["seq"],
                         "ok": ok,
                         "code": "ok" if ok else "input_failed",
+                        **({"inputFocus": focus} if isinstance(focus, dict) else {}),
                     }
                 )
             )

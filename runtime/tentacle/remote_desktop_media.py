@@ -7,6 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
 from typing import Any
 
+from .remote_desktop_config import VIDEO_PROFILES
+
 
 class DesktopCapture:
     def __init__(self):
@@ -14,13 +16,14 @@ class DesktopCapture:
 
         self.screen = mss.mss()
         self.geometry = dict(self.screen.monitors[1])
+        self.max_edge = 1280
 
     def frame(self):
         from PIL import Image
 
         shot = self.screen.grab(self.geometry)
         image = Image.frombytes("RGB", shot.size, shot.rgb)
-        image.thumbnail((1280, 1280))
+        image.thumbnail((self.max_edge, self.max_edge))
         # Video codecs require even dimensions. Preserve the screen's aspect ratio.
         return image.resize((max(2, image.width // 2 * 2), max(2, image.height // 2 * 2)))
 
@@ -29,6 +32,9 @@ class DesktopCapture:
 
 
 class DesktopPeer:
+    def configure_video(self, quality):
+        self.video_profile = VIDEO_PROFILES[quality]
+
     def __init__(self, servers, on_input, on_state, capture_factory=DesktopCapture):
         from aiortc import RTCConfiguration, RTCIceServer, RTCPeerConnection
 
@@ -44,6 +50,7 @@ class DesktopPeer:
         self.track: Any = None
         self.closed = False
         self.capture_future = None
+        self.video_profile = VIDEO_PROFILES["auto"]
 
     async def prepare(self):
         from aiortc import VideoStreamTrack
@@ -52,8 +59,10 @@ class DesktopPeer:
         loop = asyncio.get_running_loop()
         self.capture_future = loop.run_in_executor(self.worker, self.capture_factory)
         self.capture = await asyncio.shield(self.capture_future)
+        self.capture.max_edge = self.video_profile[0]
         await loop.run_in_executor(self.worker, self.capture.frame)  # Permission/display preflight.
         capture, worker = self.capture, self.worker
+        fps = self.video_profile[1]
 
         class Screen(VideoStreamTrack):
             def __init__(self):
@@ -62,7 +71,7 @@ class DesktopPeer:
                 self.index = 0
 
             async def recv(self):
-                await asyncio.sleep(max(0, self.started + self.index / 15 - loop.time()))
+                await asyncio.sleep(max(0, self.started + self.index / fps - loop.time()))
                 image = await loop.run_in_executor(worker, capture.frame)
                 frame = VideoFrame.from_image(image)
                 frame.pts = round((loop.time() - self.started) * 90000)
@@ -116,6 +125,9 @@ class DesktopPeer:
 class RelayedDesktopPeer:
     """Bounded low-frame-rate fallback through the existing authenticated WSS gateway."""
 
+    def configure_video(self, quality):
+        self.video_profile = VIDEO_PROFILES[quality]
+
     def __init__(self, emit, capture_factory=DesktopCapture):
         self.emit = emit
         self.capture_factory = capture_factory
@@ -124,11 +136,13 @@ class RelayedDesktopPeer:
         self.capture_future = None
         self.task = None
         self.closed = False
+        self.video_profile = VIDEO_PROFILES["auto"]
 
     async def prepare(self):
         loop = asyncio.get_running_loop()
         self.capture_future = loop.run_in_executor(self.worker, self.capture_factory)
         self.capture = await asyncio.shield(self.capture_future)
+        self.capture.max_edge = min(1280, self.video_profile[0])
         await loop.run_in_executor(self.worker, self.capture.frame)
         return self.capture.geometry
 
@@ -159,7 +173,7 @@ class RelayedDesktopPeer:
                 if frame:
                     await self.emit("remote_desktop/frame", frame)
                 # Await every send: a slow gateway cannot accumulate stale frames.
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(1 / self.video_profile[2])
         except asyncio.CancelledError:
             raise
         except Exception:

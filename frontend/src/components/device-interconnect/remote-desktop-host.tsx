@@ -6,6 +6,7 @@ type Mode = "denied" | "view" | "control";
 type HostStatus = {
   state: string;
   relayConfigured: boolean;
+  inputFocusHints?: boolean;
   permissions: Record<string, Mode>;
   active: { deviceId: string; state: string; permission: Mode }[];
 };
@@ -124,6 +125,17 @@ export function RemoteDesktopHost({
         )}
       </div>
       <p className="mt-2 text-muted-foreground">{message}</p>
+      {status?.state === "ready" && (
+        <p className="mt-1 text-muted-foreground">
+          异地使用前，请先配置安全连接入口并完成外网测试。
+          {status.relayConfigured
+            ? "画面中继已配置。"
+            : "当前可尝试直连或兼容画面。"}
+          {status.inputFocusHints
+            ? "支持识别电脑文字框，自动打开手机输入栏。"
+            : "可在手机手动打开键盘输入。"}
+        </p>
+      )}
       {status?.permissions[deviceId] === "control" && (
         <p className="mt-1 text-muted-foreground">
           此手机可以查看屏幕并操作鼠标与键盘。改为“不允许”会立即断开并撤销权限。

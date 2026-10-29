@@ -10,6 +10,13 @@ import os
 import time
 from urllib.parse import urlsplit
 
+VIDEO_PROFILES = {
+    "auto": (1280, 15, 3),
+    "smooth": (960, 24, 5),
+    "sharp": (1920, 15, 3),
+    "saver": (854, 8, 2),
+}
+
 
 def ice_servers(device_id: str, env=None, now: float | None = None) -> list[dict]:
     env = os.environ if env is None else env

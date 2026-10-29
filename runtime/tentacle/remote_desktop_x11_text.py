@@ -130,7 +130,8 @@ def insert_focused_text(desktop, value, api, can_edit=None):
 
 def main():
     snapshot = sys.argv[1:] == ["--snapshot"]
-    if not snapshot:
+    focus = sys.argv[1:] == ["--focus"]
+    if not snapshot and not focus:
         value = sys.stdin.buffer.read(16385).decode("utf-8", errors="strict")
         if not value or len(value) > 4096 or "\0" in value:
             return FAILED
@@ -142,6 +143,17 @@ def main():
         bus = dbus.SystemBus()
     except Exception:
         return UNAVAILABLE
+    if focus:
+        hint = {"available": True, "editable": False, "secure": False}
+        try:
+            if unlocked_x11_session(bus, os.getuid(), os.environ.get("DISPLAY", "")):
+                node = focused_editor(desktop, pyatspi)
+                hint["editable"] = True
+                hint["secure"] = node.getRole() == pyatspi.ROLE_PASSWORD_TEXT
+        except Exception:
+            pass
+        print(json.dumps(hint), flush=True)
+        return 0
     if snapshot:
         try:
             if not unlocked_x11_session(bus, os.getuid(), os.environ.get("DISPLAY", "")):
