@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from runtime.tentacle import remote_desktop_input as subject
+from runtime.tentacle import remote_desktop_x11_keys as keyboard
 
 
 @pytest.mark.parametrize("text", ["ASCII text", "中文，Hello 🌏\n第二行"])
@@ -38,17 +39,11 @@ def test_only_known_unavailable_editor_falls_back(monkeypatch):
         return SimpleNamespace(returncode=69 if len(calls) == 1 else 0)
 
     monkeypatch.setattr(subject.subprocess, "run", run)
+    values = []
+    monkeypatch.setattr(keyboard, "type_x11_text", values.append)
     subject.type_unicode("终端输入")
-    assert len(calls) == 2
-    assert calls[1] == [
-        "/usr/bin/xdotool",
-        "type",
-        "--clearmodifiers",
-        "--delay",
-        "12",
-        "--file",
-        "-",
-    ]
+    assert len(calls) == 1
+    assert values == ["终端输入"]
 
 
 def test_ambiguous_editor_failure_is_never_replayed(monkeypatch):
@@ -82,6 +77,7 @@ def test_linux_failure_does_not_expose_text(monkeypatch, failure):
         raise failure
 
     monkeypatch.setattr(subject.subprocess, "run", failed)
+    monkeypatch.setattr(keyboard, "type_x11_text", lambda _: failed())
     with pytest.raises(OSError, match="Linux Unicode input failed") as exc:
         subject.type_unicode("secret 中文")
     assert "secret" not in str(exc.value)
