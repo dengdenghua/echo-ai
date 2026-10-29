@@ -6,6 +6,7 @@ editing operation was attempted; all ambiguous mutation failures use exit 70.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 
@@ -35,28 +36,57 @@ def unlocked_x11_session(bus, uid, display):
     return False
 
 
+def focused_editor(desktop, api):
+    active = [
+        window
+        for app in _children(desktop)
+        for window in _children(app)
+        if window.getState().contains(api.STATE_ACTIVE)
+    ]
+    candidates = []
+    stack = [(window, 0) for window in active]
+    visited = 0
+    while stack and visited < 10000:
+        node, depth = stack.pop()
+        visited += 1
+        state = node.getState()
+        if state.contains(api.STATE_FOCUSED) and state.contains(api.STATE_EDITABLE):
+            candidates.append(node)
+        if depth < 64:
+            stack.extend((child, depth + 1) for child in _children(node))
+    if len(candidates) != 1:
+        raise LookupError("No unique focused editor")
+    return candidates[0]
+
+
+def focused_snapshot(desktop, api):
+    node = focused_editor(desktop, api)
+    if node.getRole() in (api.ROLE_PASSWORD_TEXT, api.ROLE_TERMINAL):
+        return None
+    text = node.queryText()
+    selections = text.getNSelections()
+    if selections > 1:
+        return None
+    start, end = text.getSelection(0) if selections else (0, 0)
+    count = text.characterCount
+    if start < 0 or end < start or end > count or count < 0:
+        return None
+    identity = [node.getApplication().get_process_id()]
+    parent = node
+    for _ in range(64):
+        if parent.getRole() == api.ROLE_APPLICATION:
+            break
+        identity.append(parent.getIndexInParent())
+        parent = parent.parent
+        if parent is None:
+            return None
+    units = "utf16" if node.getApplication().toolkitName.lower() == "qt" else "codepoints"
+    return {"target": identity, "count": count, "selected": end - start, "units": units}
+
+
 def insert_focused_text(desktop, value, api, can_edit=None):
     try:
-        active = [
-            window
-            for app in _children(desktop)
-            for window in _children(app)
-            if window.getState().contains(api.STATE_ACTIVE)
-        ]
-        candidates = []
-        stack = [(window, 0) for window in active]
-        visited = 0
-        while stack and visited < 10000:
-            node, depth = stack.pop()
-            visited += 1
-            state = node.getState()
-            if state.contains(api.STATE_FOCUSED) and state.contains(api.STATE_EDITABLE):
-                candidates.append(node)
-            if depth < 64:
-                stack.extend((child, depth + 1) for child in _children(node))
-        if len(candidates) != 1:
-            return UNAVAILABLE
-        node = candidates[0]
+        node = focused_editor(desktop, api)
         editable, text = node.queryEditableText(), node.queryText()
         selections = text.getNSelections()
         if selections > 1:
@@ -88,7 +118,7 @@ def insert_focused_text(desktop, value, api, can_edit=None):
         # Qt and browser editors can count astral characters differently. Use
         # the editor's own offset units rather than splitting an emoji pair.
         inserted = text.characterCount - before
-        if inserted not in (len(value), len(value.encode("utf-16-le")) // 2):
+        if inserted != length:
             return FAILED
         caret = start + inserted
         if not text.setCaretOffset(caret) and text.caretOffset != caret:
@@ -99,9 +129,11 @@ def insert_focused_text(desktop, value, api, can_edit=None):
 
 
 def main():
-    value = sys.stdin.buffer.read(16385).decode("utf-8", errors="strict")
-    if not value or len(value) > 4096 or "\0" in value:
-        return FAILED
+    snapshot = sys.argv[1:] == ["--snapshot"]
+    if not snapshot:
+        value = sys.stdin.buffer.read(16385).decode("utf-8", errors="strict")
+        if not value or len(value) > 4096 or "\0" in value:
+            return FAILED
     try:
         import dbus
         import pyatspi
@@ -110,6 +142,17 @@ def main():
         bus = dbus.SystemBus()
     except Exception:
         return UNAVAILABLE
+    if snapshot:
+        try:
+            if not unlocked_x11_session(bus, os.getuid(), os.environ.get("DISPLAY", "")):
+                return UNAVAILABLE
+            state = focused_snapshot(desktop, pyatspi)
+            if state is None:
+                return UNAVAILABLE
+            print(json.dumps(state), flush=True)
+            return 0
+        except Exception:
+            return UNAVAILABLE
     return insert_focused_text(
         desktop,
         value,

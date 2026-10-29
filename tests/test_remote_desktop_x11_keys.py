@@ -84,3 +84,50 @@ def test_fcitx_active_state_is_restored_even_after_failure(monkeypatch):
     with pytest.raises(OSError), subject.paused_fcitx():
         raise OSError("failed")
     assert [args[1:] for args in calls] == [[], ["-c"], ["-o"]]
+
+
+@pytest.mark.parametrize("units,value,total", [("codepoints", "中", 1), ("utf16", "🌏", 2)])
+def test_mapping_is_retained_until_the_destination_confirms_all_characters(units, value, total):
+    display = Display()
+    states = iter([0, total - 1, total])
+    confirmed = []
+    change = display.change_keyboard_mapping
+
+    def observe():
+        count = next(states)
+        if count == total:
+            confirmed.append(True)
+        return {"target": [42, 1], "count": count, "selected": 0, "units": units}
+
+    def checked_change(code, values):
+        if not any(values[0]):
+            assert confirmed, "Mapping was restored while input was still pending"
+        change(code, values)
+
+    display.change_keyboard_mapping = checked_change
+    subject.type_with_display(
+        display, value, lambda *_: None, sleep=lambda _: None, observe=observe
+    )
+    assert confirmed == [True]
+
+
+def test_changed_destination_rejects_ack_and_restores_mapping_without_retry():
+    display = Display()
+    original = {key: value[:] for key, value in display.mapping.items()}
+    states = iter(
+        [
+            {"target": [1], "count": 0, "selected": 0, "units": "codepoints"},
+            {"target": [2], "count": 1},
+        ]
+    )
+    events = []
+    with pytest.raises(OSError, match="changed"):
+        subject.type_with_display(
+            display,
+            "中",
+            lambda *event: events.append(event),
+            sleep=lambda _: None,
+            observe=lambda: next(states),
+        )
+    assert len(events) == 2
+    assert display.mapping == original

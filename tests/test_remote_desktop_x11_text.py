@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from runtime.tentacle import remote_desktop_x11_text as subject
 from runtime.tentacle.remote_desktop_x11_text import (
     FAILED,
     UNAVAILABLE,
@@ -137,3 +138,13 @@ def test_logind_guard_matches_the_active_unlocked_display(active, locked, displa
         get_object=lambda _, path: manager if path.endswith("login1") else session
     )
     assert unlocked_x11_session(bus, 1000, ":0") is expected
+
+
+@pytest.mark.parametrize("role", ["password", "terminal"])
+def test_snapshot_never_reads_password_or_terminal_text(monkeypatch, role):
+    node = SimpleNamespace(
+        getRole=lambda: role, queryText=lambda: pytest.fail("Read protected text")
+    )
+    api = SimpleNamespace(ROLE_PASSWORD_TEXT="password", ROLE_TERMINAL="terminal")
+    monkeypatch.setattr(subject, "focused_editor", lambda *_: node)
+    assert subject.focused_snapshot(None, api) is None

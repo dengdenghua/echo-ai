@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import subprocess
 import threading
 import time
@@ -32,7 +33,26 @@ def key_batches(value, lookup, capacity):
     return batches
 
 
-def type_with_display(display, value, emit, sleep=time.sleep):
+def focused_text_state():
+    result = subprocess.run(
+        [
+            "/usr/bin/python3",
+            str(Path(__file__).with_name("remote_desktop_x11_text.py")),
+            "--snapshot",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        timeout=2,
+        check=False,
+    )
+    if result.returncode == 69:
+        return None
+    if result.returncode:
+        raise OSError("Focused editor observation failed")
+    return json.loads(result.stdout)
+
+
+def type_with_display(display, value, emit, sleep=time.sleep, observe=None):
     first = display.display.info.min_keycode
     count = display.display.info.max_keycode - first + 1
     original = display.get_keyboard_mapping(first, count)
@@ -53,6 +73,7 @@ def type_with_display(display, value, emit, sleep=time.sleep):
         for symbols, missing in batches:
             changed = {}
             try:
+                before = observe() if observe else None
                 mapped = dict(lookup)
                 for symbol, code in zip(sorted(missing), free, strict=False):
                     changed[code] = original[code - first]
@@ -79,9 +100,23 @@ def type_with_display(display, value, emit, sleep=time.sleep):
                         pressed.discard(shift)
                     display.sync()
                     sleep(0.001)
-                # The destination must consume the key events before restoring
-                # the mapping. libxdo reuses one code while clients still read it.
-                sleep(0.15)
+                if before is not None:
+                    base = before["count"] - before["selected"]
+                    codepoints = len(symbols)
+                    utf16 = sum(2 if symbol > 0x100FFFF else 1 for symbol in symbols)
+                    expected = base + (utf16 if before["units"] == "utf16" else codepoints)
+                    while True:
+                        after = observe()
+                        if after is None or after["target"] != before["target"]:
+                            raise OSError("Focused editor changed during input")
+                        if after["count"] == expected:
+                            break
+                        if after["count"] > expected or time.monotonic() > deadline:
+                            raise OSError("Focused editor did not confirm the entire text")
+                        sleep(0.03)
+                else:
+                    # Password and terminal widgets expose no readable editor.
+                    sleep(0.3)
             finally:
                 for code, mapping in changed.items():
                     display.change_keyboard_mapping(code, [mapping])
@@ -123,6 +158,7 @@ def type_x11_text(value):
                 lambda code, down: xtest.fake_input(
                     display, X.KeyPress if down else X.KeyRelease, code
                 ),
+                observe=focused_text_state,
             )
         finally:
             display.close()
