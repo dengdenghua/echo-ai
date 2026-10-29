@@ -1,27 +1,79 @@
 """Linux text never enters the command line or clipboard, including failures."""
 
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
 from runtime.tentacle import remote_desktop_input as subject
 
 
-def test_linux_unicode_uses_utf8_stdin(monkeypatch):
+@pytest.mark.parametrize("text", ["ASCII text", "中文，Hello 🌏\n第二行"])
+def test_linux_unicode_uses_utf8_stdin(monkeypatch, text):
     calls = []
     monkeypatch.setattr(subject.sys, "platform", "linux")
     monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
-    monkeypatch.setattr(subject.subprocess, "run", lambda args, **kw: calls.append((args, kw)))
-    text = "中文，Hello 🌏\n第二行"
+
+    def run(args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subject.subprocess, "run", run)
     subject.type_unicode(text)
     args, kwargs = calls[0]
-    assert args == ["/usr/bin/xdotool", "type", "--clearmodifiers", "--delay", "1", "--file", "-"]
+    assert args[0] == "/usr/bin/python3"
+    assert args[1].endswith("remote_desktop_x11_text.py")
     assert kwargs["input"] == text.encode("utf-8")
     assert kwargs["env"]["LC_ALL"] == "C.UTF-8"
-    assert kwargs["timeout"] == 15 and kwargs["check"]
+    assert kwargs["timeout"] == 5 and not kwargs["check"]
 
 
-@pytest.mark.parametrize("failure", [FileNotFoundError(), subprocess.TimeoutExpired("xdotool", 15), subprocess.CalledProcessError(1, "xdotool", stderr=b"secret")])
+def test_only_known_unavailable_editor_falls_back(monkeypatch):
+    calls = []
+    monkeypatch.setattr(subject.sys, "platform", "linux")
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=69 if len(calls) == 1 else 0)
+
+    monkeypatch.setattr(subject.subprocess, "run", run)
+    subject.type_unicode("终端输入")
+    assert len(calls) == 2
+    assert calls[1] == [
+        "/usr/bin/xdotool",
+        "type",
+        "--clearmodifiers",
+        "--delay",
+        "12",
+        "--file",
+        "-",
+    ]
+
+
+def test_ambiguous_editor_failure_is_never_replayed(monkeypatch):
+    calls = []
+    monkeypatch.setattr(subject.sys, "platform", "linux")
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=70)
+
+    monkeypatch.setattr(subject.subprocess, "run", run)
+    with pytest.raises(OSError):
+        subject.type_unicode("只输入一次")
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        FileNotFoundError(),
+        subprocess.TimeoutExpired("xdotool", 15),
+        subprocess.CalledProcessError(1, "xdotool", stderr=b"secret"),
+    ],
+)
 def test_linux_failure_does_not_expose_text(monkeypatch, failure):
     monkeypatch.setattr(subject.sys, "platform", "linux")
     monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
