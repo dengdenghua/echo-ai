@@ -32,6 +32,7 @@ hiddenimports = [
 ]
 
 hiddenimports += collect_submodules("aiortc") + collect_submodules("av") + collect_submodules("mss")
+hiddenimports += collect_submodules("pyaudiowpatch")
 hiddenimports += ["pylibsrtp", "_cffi_backend", "pyautogui._pyautogui_win"]
 
 datas = [

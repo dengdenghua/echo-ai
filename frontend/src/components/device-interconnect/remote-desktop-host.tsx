@@ -80,7 +80,7 @@ export function RemoteDesktopHost({
         ? "当前主机没有可共享的桌面，请连接正在使用的电脑。"
         : status?.state === "network_config_invalid"
           ? "跨网连接配置需要修复。"
-          : "允许后，在手机的“电脑远控”中连接。直连失败时自动使用兼容连接。";
+          : "允许后，在手机的“电脑远控”中连接。手机可单独开启系统声音，结束远控即停止。直连失败时自动使用兼容连接。";
   return (
     <section
       aria-label="手机控制这台电脑"

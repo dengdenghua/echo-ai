@@ -39,6 +39,7 @@ class RemoteSession:
     sequence: int = 0
     transport: str = "webrtc"
     quality: str = "auto"
+    audio: bool = False
 
 
 class RemoteDesktopHost:
@@ -74,6 +75,8 @@ class RemoteDesktopHost:
         return "ready"
 
     def status(self, device_id: str | None = None) -> dict:
+        from .remote_desktop_audio import system_audio_available
+
         available = self.availability()
         try:
             relay = has_relay(ice_servers("status"))
@@ -88,6 +91,7 @@ class RemoteDesktopHost:
             ),
             "relayConfigured": relay,
             "qualityProfiles": list(VIDEO_PROFILES),
+            "systemAudio": system_audio_available(),
             "active": [
                 {"deviceId": s.device_id, "state": s.state, "permission": s.permission}
                 for s in self.sessions.values()
@@ -141,7 +145,8 @@ class RemoteDesktopHost:
         elif method == "webrtc/request":
             request_id = params.get("requestId", "")
             quality = params.get("quality", "auto")
-            if not isinstance(quality, str) or quality not in VIDEO_PROFILES:
+            audio = params.get("audio", False)
+            if type(audio) is not bool or not isinstance(quality, str) or quality not in VIDEO_PROFILES:
                 await self._send(ws, "remote_desktop/error", {"code": "invalid_settings"})
                 return
             if not isinstance(request_id, str) or not re.fullmatch(
@@ -175,6 +180,7 @@ class RemoteDesktopHost:
                 await self._close(device_id, "replaced")
                 session = RemoteSession(device_id, request_id, self.permissions[device_id], ws)
                 session.quality = quality
+                session.audio = audio
                 session.transport = "relay" if params.get("transport") == "relay" else "webrtc"
                 self.sessions[device_id] = session
                 session.task = asyncio.create_task(self._start(session))
@@ -247,6 +253,15 @@ class RemoteDesktopHost:
                 )
             if hasattr(session.peer, "configure_video"):
                 session.peer.configure_video(session.quality)
+            if hasattr(session.peer, "configure_audio"):
+                async def audio_status(state):
+                    if self.sessions.get(session.device_id) is session:
+                        await self._send(session.socket, "remote_desktop/audioStatus", {
+                            "requestId": session.request_id, "sessionId": session.id,
+                            "state": state,
+                        })
+
+                session.peer.configure_audio(session.audio, audio_status)
             geometry = await asyncio.wait_for(session.peer.prepare(), 10)
             if session.permission == "control":
                 session.worker = ThreadPoolExecutor(

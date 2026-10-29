@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
 from typing import Any
 
+from .remote_desktop_audio import SessionAudio
 from .remote_desktop_config import VIDEO_PROFILES
 
 
@@ -32,10 +33,13 @@ class DesktopCapture:
 
 
 class DesktopPeer:
+    def configure_audio(self, enabled, on_status=None):
+        self.audio.configure(enabled, on_status)
+
     def configure_video(self, quality):
         self.video_profile = VIDEO_PROFILES[quality]
 
-    def __init__(self, servers, on_input, on_state, capture_factory=DesktopCapture):
+    def __init__(self, servers, on_input, on_state, capture_factory=DesktopCapture, audio_factory=None):
         from aiortc import RTCConfiguration, RTCIceServer, RTCPeerConnection
 
         self.pc = RTCPeerConnection(
@@ -51,6 +55,7 @@ class DesktopPeer:
         self.closed = False
         self.capture_future = None
         self.video_profile = VIDEO_PROFILES["auto"]
+        self.audio = SessionAudio(**({"capture_factory": audio_factory} if audio_factory else {}))
 
     async def prepare(self):
         from aiortc import VideoStreamTrack
@@ -81,11 +86,13 @@ class DesktopPeer:
 
         self.track = Screen()
         self.pc.addTrack(self.track)
+        if await self.audio.prepare():
+            self.pc.addTrack(self.audio.create_track())
         return self.capture.geometry
 
     async def offer(self) -> dict:
         await self.pc.setLocalDescription(await self.pc.createOffer())
-        return {"sdp": self.pc.localDescription.sdp, "type": "offer"}
+        return {"sdp": self.pc.localDescription.sdp, "type": "offer", "audio": self.audio.state}
 
     async def answer(self, sdp: str):
         from aiortc import RTCSessionDescription
@@ -112,6 +119,8 @@ class DesktopPeer:
         self.closed = True
         if self.track:
             self.track.stop()
+        # Stop speaker capture before waiting for network transport teardown.
+        await self.audio.close()
         await self.pc.close()
         try:
             if self.capture is None and self.capture_future is not None:
@@ -128,7 +137,10 @@ class RelayedDesktopPeer:
     def configure_video(self, quality):
         self.video_profile = VIDEO_PROFILES[quality]
 
-    def __init__(self, emit, capture_factory=DesktopCapture):
+    def configure_audio(self, enabled, on_status=None):
+        self.audio.configure(enabled, on_status)
+
+    def __init__(self, emit, capture_factory=DesktopCapture, audio_factory=None):
         self.emit = emit
         self.capture_factory = capture_factory
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="remote-relay")
@@ -137,6 +149,9 @@ class RelayedDesktopPeer:
         self.task = None
         self.closed = False
         self.video_profile = VIDEO_PROFILES["auto"]
+        self.audio_task = None
+        self.audio = SessionAudio(rate=24000, channels=1,
+                                 **({"capture_factory": audio_factory} if audio_factory else {}))
 
     async def prepare(self):
         loop = asyncio.get_running_loop()
@@ -144,6 +159,7 @@ class RelayedDesktopPeer:
         self.capture = await asyncio.shield(self.capture_future)
         self.capture.max_edge = min(1280, self.video_profile[0])
         await loop.run_in_executor(self.worker, self.capture.frame)
+        await self.audio.prepare()
         return self.capture.geometry
 
     def _frame(self):
@@ -164,7 +180,26 @@ class RelayedDesktopPeer:
 
     async def offer(self):
         self.task = asyncio.create_task(self._stream())
-        return {"type": "relay"}
+        if self.audio.state == "enabled":
+            self.audio_task = asyncio.create_task(self._audio_stream())
+        return {"type": "relay", "audio": self.audio.state}
+
+    async def _audio_stream(self):
+        import base64
+
+        deadline = asyncio.get_running_loop().time()
+        sequence = 0
+        while not self.closed and self.audio.state == "enabled":
+            pcm = await self.audio.read()
+            if self.audio.state != "enabled":
+                return
+            await self.emit("remote_desktop/audio", {
+                "pcm": base64.b64encode(pcm).decode(), "rate": 24000,
+                "channels": 1, "seq": sequence,
+            })
+            sequence += 1
+            deadline = max(deadline + .02, asyncio.get_running_loop().time())
+            await asyncio.sleep(max(0, deadline - asyncio.get_running_loop().time()))
 
     async def _stream(self):
         try:
@@ -194,7 +229,12 @@ class RelayedDesktopPeer:
             self.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self.task
+        if self.audio_task:
+            self.audio_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self.audio_task
         try:
+            await self.audio.close()
             if self.capture is None and self.capture_future is not None:
                 self.capture = await self.capture_future
             if self.capture:

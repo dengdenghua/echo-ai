@@ -28,7 +28,7 @@ AI 管理接口位于 `/api/tentacle/remote-desktop`，复用现有 operator 身
 | 清晰 | 1920 / 15 | 1280 / 3 |
 | 省流量 | 854 / 8 | 854 / 2 |
 
-切换画质会重新建立会话，保留未发送文字；已经使用兼容连接时延续该连接方式。分辨率、实际接收帧率和往返时间由当前连接测量。兼容画面适合操作和应急查看，不适合视频或游戏；当前不传输系统声音。
+切换画质会重新建立会话，保留未发送文字；已经使用兼容连接时延续该连接方式。分辨率、实际接收帧率和往返时间由当前连接测量。兼容画面适合操作和应急查看，不适合视频或游戏。
 
 跨网前提是手机已经能连接该主机的设备网关。兼容模式复用现有 WSS 网关，不会凭空建立公网入口或自动部署中继。公网使用 WSS；如果现有地址仅是局域网地址，应先启用产品已有的远程访问网关。可部署 TURN 提升 WebRTC 可达性：
 
@@ -37,6 +37,14 @@ AI 管理接口位于 `/api/tentacle/remote-desktop`，复用现有 operator 身
 - `ECHO_REMOTE_TURN_SECRET`：仅主机和 TURN 服务保存的共享密钥；按 TURN REST 方式生成一小时有效凭据，手机不会收到共享密钥。设备标识做摘要后用于临时用户名。
 
 主机和手机使用同一份会话 ICE 配置。配置错误会有明确提示。源码开发使用 `uv sync --extra desktop-core` 或 `--extra remote-desktop`；桌面启动依赖和 Windows 打包规格已加入 aiortc、mss、PyAutoGUI、Pillow 与媒体库。
+
+## 系统声音
+
+手机在“操作”中单独开启系统声音，默认关闭；仅观看权限也可收听。音频不落盘、不读麦克风，也不保存开启偏好。结束、断线、撤权和切到不可见后台时停止采集与播放，重连只传当前声音，不重放旧缓冲。
+
+Windows 使用 PyAudioWPatch 的默认 WASAPI 扬声器回环，拒绝回退到录音设备。Linux 使用 `pulseaudio-utils` 的 `parec --device=@DEFAULT_MONITOR@`，兼容 PipeWire PulseAudio 服务；预览虚拟机和完整镜像均安装该工具。macOS 系统声音尚不支持。
+
+直连使用 WebRTC Opus（48 kHz 双声道）；兼容连接使用 24 kHz 单声道 PCM，通过原有认证网关发送，每包 20ms，约 0.5 Mbps（不含协议开销）。发送等待网关背压，采集仅保留最近三块数据；手机播放缓冲上限约 140ms。设备缺失、拔出或采集失败只降级声音，并提示用户，保留视频和控制。浏览器限制自动播放时显示“点击播放系统声音”。
 
 ## 输入与恢复
 
@@ -50,9 +58,10 @@ Windows 中文/表情使用原生 Unicode 输入事件；macOS 使用 Unicode �
 
 - `tests/test_remote_desktop.py`：授权、只读、旧连接、队列上限、撤权、资源释放、Unicode/表情、快捷键异常释放、TURN 凭据。
 - `tests/test_remote_desktop_api.py`：AI 管理接口身份边界、正常主机装配。
+- `tests/test_remote_desktop_audio.py`：声音授权、默认关闭、设备故障、资源释放、真实 RTP 音频解码和兼容 PCM 背压。
 - `tests/test_remote_desktop_live.py`：真实 aiortc 视频与 DataChannel 输入确认。
 - `tests/test_remote_desktop_experience.py` 与 `tests/test_remote_desktop_actions.py`：画质约束、输入框状态隐私、探测失败、锁屏和桌面窗口操作。
 - `tests/test_remote_desktop_browser.py`：实际手机 HTML + 认证 WebSocket + WebRTC/兼容连接，中文输入确认和断线保留。设置 `ECHO_REMOTE_MOBILE_ASSETS` 为手机仓库 assets 目录；可设置 `ECHO_REMOTE_BROWSER_CHANNEL=msedge` 使用已安装浏览器。需安装 Playwright。测试使用合成画面和记录输入的测试驱动，不会操作真实桌面。
-- OS 另运行 `tests/appliance/test_remote_desktop.py`，手机仓库运行 `node --test scripts/test-remote-desktop.cjs scripts/test-remote-controls.cjs` 及 Android 构建、lint、detekt、单元测试。
+- OS 另运行 `tests/appliance/test_remote_desktop.py`，手机仓库运行 `node --test scripts/test-remote-desktop.cjs scripts/test-remote-controls.cjs scripts/test-remote-audio.cjs` 及 Android 构建、lint、detekt、单元测试。
 
 真实 Android 输入法与画中画、手机蜂窝网络、公网 TURN 延迟/丢包及 macOS 权限对话框仍需要设备环境实测。自动化测试通过不代表这些环境已验收。

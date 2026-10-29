@@ -26,7 +26,11 @@ async def test_phone_page_frame_unicode_and_disconnect(tmp_path, monkeypatch, tr
     from playwright.async_api import async_playwright, expect
     from websockets.asyncio.client import connect
 
+    from runtime.tentacle import remote_desktop_audio as audio
     from runtime.tentacle import remote_desktop_media as media
+    from tests.test_remote_desktop_audio import Tone
+
+    monkeypatch.setattr(audio, "system_audio_available", lambda: True)
 
     class Capture:
         geometry = {"left": 0, "top": 0, "width": 160, "height": 90}
@@ -46,14 +50,14 @@ async def test_phone_page_frame_unicode_and_disconnect(tmp_path, monkeypatch, tr
 
     monkeypatch.setenv("ECHO_REMOTE_ICE_SERVERS", "[]")
     monkeypatch.setattr(
-        media, "RelayedDesktopPeer", partial(media.RelayedDesktopPeer, capture_factory=Capture)
+        media, "RelayedDesktopPeer", partial(media.RelayedDesktopPeer, capture_factory=Capture, audio_factory=Tone)
     )
     server = TentacleWebSocketServer(host="127.0.0.1", port=0, auth_token="test-phone-token")
     host = RemoteDesktopHost(
         server,
         tmp_path / "grants.json",
         input_factory=BrowserInput,
-        peer_factory=partial(media.DesktopPeer, capture_factory=Capture)
+        peer_factory=partial(media.DesktopPeer, capture_factory=Capture, audio_factory=Tone)
         if transport == "webrtc"
         else None,
     )
@@ -161,12 +165,22 @@ async def test_phone_page_frame_unicode_and_disconnect(tmp_path, monkeypatch, tr
             assert session.quality == "sharp" and old_session.peer.closed
             assert await page.locator("#kbi").input_value() == "切换画质保留的草稿"
             assert not any(e["action"] == "type" for e in session.input.events)
+            # The actual phone page negotiates an independent sound preference.
+            await page.locator("#btn-audio").click()
+            await expect(page.locator("#audio-note")).to_contain_text("正在播放", timeout=30000)
+            await expect(page.locator("#st")).to_contain_text("可控制", timeout=30000)
+            session = host.sessions["phone"]
+            assert session.audio and session.quality == "sharp"
+            assert session.peer.audio.capture is not None
+            audio_capture = session.peer.audio.capture
             await page.locator("#btn-kb").click()
             # Preserve unsent text, release input and end capture at the connection boundary.
             await page.locator("#kbi").fill("断线时保留的文字")
             await phone.close()
             await page.evaluate("window.remoteConnection(false)")
-            await wait_for(lambda: session.peer.closed and session.input.released)
+            await wait_for(lambda: session.peer.closed and session.input.released and audio_capture.closed)
+            assert audio_capture.closed
+            assert await page.evaluate("document.querySelector('#system-audio').srcObject === null")
             assert await page.locator("#kbi").input_value() == "断线时保留的文字"
             assert await page.locator("#btn-send-type").is_disabled()
             assert not host.sessions
