@@ -113,7 +113,7 @@ def type_unicode(text: str) -> None:
 
                 type_x11_text(text)
         except (ImportError, OSError, subprocess.SubprocessError):
-            raise OSError("Linux Unicode input failed; check the X11 session and xdotool") from None
+            raise OSError("Linux Unicode input failed; check the X11 session and input dependencies") from None
     else:
         if not text.isascii():
             raise ValueError("Unicode input requires a Windows or macOS desktop")
