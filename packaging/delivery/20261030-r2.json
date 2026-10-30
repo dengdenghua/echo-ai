@@ -1,0 +1,12 @@
+{
+  "delivery_id": "20261030-r2",
+  "profile": "development-preview",
+  "remote_system_audio": true,
+  "remote_shared_modules": 10,
+  "base_commit": "5cd900c125888848cd987f3d925c6bee8ab4cd2a",
+  "package_version": "0.2.1-preview.20261030",
+  "deferred": [
+    "real-wan",
+    "android-hardware"
+  ]
+}
