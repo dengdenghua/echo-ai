@@ -83,17 +83,25 @@ def observe(capture, *, discard=20, chunks=20):
         capture.read()
     frames = [capture.read() for _ in range(chunks)]
     assert all(len(pcm) == capture.samples * capture.channels * 2 for pcm in frames)
-    values = struct.unpack("<" + "h" * (sum(map(len, frames)) // 2), b"".join(frames))
-    mono = [sum(values[i:i + capture.channels]) / capture.channels
-            for i in range(0, len(values), capture.channels)]
+    packets = []
+    for pcm in frames:
+        values = struct.unpack("<" + "h" * (len(pcm) // 2), pcm)
+        packets.append([sum(values[i:i + capture.channels]) / capture.channels
+                        for i in range(0, len(values), capture.channels)])
+    mono = [sample for packet in packets for sample in packet]
     rms = math.sqrt(sum(x * x for x in mono) / len(mono))
 
     def amplitude(hz):
-        real = sum(x * math.cos(2 * math.pi * hz * i / capture.rate)
-                   for i, x in enumerate(mono))
-        imag = sum(x * math.sin(2 * math.pi * hz * i / capture.rate)
-                   for i, x in enumerate(mono))
-        return 2 * math.hypot(real, imag) / len(mono)
+        # Queue overflow may intentionally skip old packets under CPU load.
+        # Compare spectral magnitudes without assuming phase continuity across them.
+        magnitudes = []
+        for packet in packets:
+            real = sum(x * math.cos(2 * math.pi * hz * i / capture.rate)
+                       for i, x in enumerate(packet))
+            imag = sum(x * math.sin(2 * math.pi * hz * i / capture.rate)
+                       for i, x in enumerate(packet))
+            magnitudes.append(2 * math.hypot(real, imag) / len(packet))
+        return sum(magnitudes) / len(magnitudes)
 
     return rms, amplitude
 
