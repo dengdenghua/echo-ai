@@ -20,6 +20,23 @@ def system_audio_available():
     return sys.platform.startswith("linux") and shutil.which("parec") is not None
 
 
+def _windows_com():
+    import ctypes
+
+    ole32 = ctypes.WinDLL("ole32")
+    ole32.CoInitializeEx.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    ole32.CoInitializeEx.restype = ctypes.c_long
+    ole32.CoUninitialize.argtypes = []
+    ole32.CoUninitialize.restype = None
+    result = ole32.CoInitializeEx(None, 2)
+    if result in (0, 1):
+        return ole32.CoUninitialize
+    # An existing MTA belongs to its caller and must not be uninitialized here.
+    if ctypes.c_uint32(result).value != 0x80010106:
+        raise OSError("Windows audio thread initialization failed")
+    return None
+
+
 class SystemAudioCapture:
     """20ms signed little-endian PCM; at most three native chunks are retained."""
 
@@ -30,6 +47,7 @@ class SystemAudioCapture:
         self.chunks = queue.Queue(maxsize=3)
         self.process = self.thread = self.audio = self.stream = None
         self.resampler = self.fifo = None
+        self._release_com = None
         try:
             if sys.platform == "win32":
                 self._windows()
@@ -56,6 +74,9 @@ class SystemAudioCapture:
         import pyaudiowpatch as pa
         from av import AudioFifo, AudioResampler
 
+        # PortAudio initialization is process-global. If another instance already
+        # exists, it does not initialize COM on this session's capture worker.
+        self._release_com = _windows_com()
         self.audio = pa.PyAudio()
         device = self.audio.get_default_wasapi_loopback()
         # Never substitute the default recording device (usually a microphone).
@@ -161,6 +182,9 @@ class SystemAudioCapture:
         if self.audio:
             with contextlib.suppress(Exception):
                 self.audio.terminate()
+        if self._release_com:
+            release, self._release_com = self._release_com, None
+            release()
         while not self.chunks.empty():
             with contextlib.suppress(queue.Empty):
                 self.chunks.get_nowait()

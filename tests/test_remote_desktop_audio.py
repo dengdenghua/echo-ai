@@ -219,10 +219,35 @@ def test_windows_never_falls_back_to_a_microphone(monkeypatch):
                              terminate=lambda: terminated.append(True),
                              open=lambda **_: pytest.fail("Must not open a recording device"))
     monkeypatch.setattr(audio.sys, "platform", "win32")
+    monkeypatch.setattr(audio, "_windows_com", lambda: None)
     monkeypatch.setitem(sys.modules, "pyaudiowpatch", SimpleNamespace(PyAudio=lambda: device))
     with pytest.raises(OSError, match="No speaker loopback"):
         audio.SystemAudioCapture()
     assert terminated == [True]
+
+
+@pytest.mark.parametrize("result,owns_reference", [(0, True), (1, True), (-2147417850, False)])
+def test_windows_audio_com_reference_is_balanced(monkeypatch, result, owns_reference):
+    import ctypes
+
+    released = []
+    ole32 = SimpleNamespace(CoInitializeEx=lambda *args: result,
+                            CoUninitialize=lambda: released.append(True))
+    monkeypatch.setattr(ctypes, "WinDLL", lambda _: ole32, raising=False)
+    release = audio._windows_com()
+    if release:
+        release()
+    assert released == ([True] if owns_reference else [])
+
+
+def test_windows_audio_com_failure_does_not_claim_a_reference(monkeypatch):
+    import ctypes
+
+    ole32 = SimpleNamespace(CoInitializeEx=lambda *args: -2147467259,
+                            CoUninitialize=lambda: pytest.fail("No COM reference was acquired"))
+    monkeypatch.setattr(ctypes, "WinDLL", lambda _: ole32, raising=False)
+    with pytest.raises(OSError, match="audio thread initialization"):
+        audio._windows_com()
 
 
 def test_linux_captures_only_the_default_output_monitor(monkeypatch):
