@@ -8,7 +8,12 @@ type HostStatus = {
   relayConfigured: boolean;
   inputFocusHints?: boolean;
   permissions: Record<string, Mode>;
-  active: { deviceId: string; state: string; permission: Mode }[];
+  active: {
+    deviceId: string;
+    state: string;
+    permission: Mode;
+    connectionPath?: "direct" | "turn" | "wss" | "unknown";
+  }[];
 };
 
 async function request(
@@ -80,7 +85,7 @@ export function RemoteDesktopHost({
         ? "当前主机没有可共享的桌面，请连接正在使用的电脑。"
         : status?.state === "network_config_invalid"
           ? "跨网连接配置需要修复。"
-          : "允许后，在手机的“电脑远控”中连接。手机可单独开启系统声音，结束远控即停止。直连失败时自动使用兼容连接。";
+          : "允许后，在手机的“电脑远控”中连接。手机可单独开启系统声音，结束远控即停止。优先直连，失败后尝试已配置的 TURN 中继，最后使用 WSS 兼容连接。";
   return (
     <section
       aria-label="手机控制这台电脑"
@@ -143,7 +148,20 @@ export function RemoteDesktopHost({
       )}
       {!!status?.active.length && (
         <p role="status" className="mt-2">
-          正在远控：{status.active.map((s) => s.deviceId).join("、")}
+          正在远控：
+          {status.active
+            .map(
+              (s) =>
+                s.deviceId +
+                " · " +
+                ({
+                  direct: "直连",
+                  turn: "TURN 中继",
+                  wss: "WSS 兼容连接",
+                  unknown: "路径检测中",
+                }[s.connectionPath ?? "unknown"] ?? "路径检测中"),
+            )
+            .join("、")}
         </p>
       )}
       {error && (

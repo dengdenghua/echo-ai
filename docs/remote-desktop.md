@@ -19,7 +19,11 @@ AI 管理接口位于 `/api/tentacle/remote-desktop`，复用现有 operator 身
 
 ## 连接与部署
 
-优先 WebRTC 视频和有序输入通道，首帧超时/连接失败后自动切到已有设备 WebSocket 的 JPEG 兼容连接。发送有背压，不堆积旧帧。画质设置为目标上限，实际帧率取决于主机和网络：
+按“打洞直连 → TURN 视频中继 → WSS 兼容连接”逐级尝试。直连阶段仅使用本地候选和 STUN，不分配 TURN；失败后，已配置 TURN 的主机继续建立 WebRTC 会话，手机强制只使用 relay 候选。没有配置 TURN 或该阶段失败时，才切到已有设备 WebSocket 的 JPEG 兼容连接。每次协商使用新的会话，失败释放旧画面、声音与按键，不重发旧输入；连接重建会重新尝试直连，修改画质或声音则保留当前工作阶段。
+
+手机连接栏和电脑设备互联中的当前会话显示“直连”“TURN 中继”或“WSS 兼容连接”。WebRTC 路径来自手机实际选中的 ICE candidate pair：任一端为 relay 即显示 TURN；两端均为 host/srflx/prflx 才显示直连。缺少统计时显示“路径检测中”，不根据 TURN 配置或尝试阶段推断。手机仅回传路径枚举，不回传 IP 地址或凭据；此信息只用于展示，不参与授权。旧手机继续使用原协商行为，旧主机的配置也会在新手机上按阶段过滤。
+
+发送有背压，不堆积旧帧。画质设置为目标上限，实际帧率取决于主机和网络：
 
 | 设置 | WebRTC 最大边长 / 目标帧率 | 兼容画面最大边长 / 目标帧率 |
 |---|---|---|
@@ -63,5 +67,7 @@ Windows 中文/表情使用原生 Unicode 输入事件；macOS 使用 Unicode �
 - `tests/test_remote_desktop_experience.py` 与 `tests/test_remote_desktop_actions.py`：画质约束、输入框状态隐私、探测失败、锁屏和桌面窗口操作。
 - `tests/test_remote_desktop_browser.py`：实际手机 HTML + 认证 WebSocket + WebRTC/兼容连接，中文输入确认和断线保留。设置 `ECHO_REMOTE_MOBILE_ASSETS` 为手机仓库 assets 目录；可设置 `ECHO_REMOTE_BROWSER_CHANNEL=msedge` 使用已安装浏览器。需安装 Playwright。测试使用合成画面和记录输入的测试驱动，不会操作真实桌面。
 - OS 另运行 `tests/appliance/test_remote_desktop.py`，手机仓库运行 `node --test scripts/test-remote-desktop.cjs scripts/test-remote-controls.cjs scripts/test-remote-audio.cjs` 及 Android 构建、lint、detekt、单元测试。
+
+`tests/test_remote_desktop_routing.py` 验证阶段配置隔离、缺失 TURN、非法参数及路径展示信息不越权；`tests/test_remote_desktop_routing_browser.py` 使用实际手机页面和可选本机 TURN 服务，验证直连优先、TURN UDP/TCP 真实媒体、TURN 认证失败后 WSS、中文输入确认、声音及会话恢复。设置 `ECHO_TEST_TURN_CONFIG` 指向包含 udp/tcp RTCIceServer 配置的私有 JSON 文件后启用；默认不访问公网中继。路径判断依据 [W3C WebRTC Stats](https://www.w3.org/TR/webrtc-stats/#dom-rtcicecandidatestats-candidatetype)。
 
 真实 Android 输入法与画中画、手机蜂窝网络、公网 TURN 延迟/丢包及 macOS 权限对话框仍需要设备环境实测。自动化测试通过不代表这些环境已验收。

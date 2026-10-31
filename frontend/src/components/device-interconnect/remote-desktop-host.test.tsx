@@ -10,6 +10,40 @@ vi.mock("@/core/config", () => ({
 }));
 afterEach(() => vi.unstubAllGlobals());
 
+it.each([
+  ["direct", "直连"],
+  ["turn", "TURN 中继"],
+  ["wss", "WSS 兼容连接"],
+  [undefined, "路径检测中"],
+])(
+  "shows the active %s path independently from configured TURN",
+  async (path, label) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          state: "ready",
+          permissions: {},
+          relayConfigured: true,
+          active: [
+            {
+              deviceId: "phone",
+              state: "connected",
+              permission: "view",
+              connectionPath: path,
+            },
+          ],
+        }),
+      }),
+    );
+    render(<RemoteDesktopHost deviceId="phone" online />);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "phone · " + label,
+    );
+  },
+);
+
 it("distinguishes configured video relay from a verified external gateway", async () => {
   vi.stubGlobal(
     "fetch",

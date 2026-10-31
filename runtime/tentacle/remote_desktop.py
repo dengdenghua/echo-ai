@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .remote_desktop_config import VIDEO_PROFILES, has_relay, ice_servers
+from .remote_desktop_config import VIDEO_PROFILES, has_relay, ice_servers, servers_for_mode
 from .remote_desktop_input import DesktopInput
 
 
@@ -40,6 +40,8 @@ class RemoteSession:
     transport: str = "webrtc"
     quality: str = "auto"
     audio: bool = False
+    ice_mode: str = "auto"
+    connection_path: str = "unknown"
 
 
 class RemoteDesktopHost:
@@ -90,10 +92,16 @@ class RemoteDesktopHost:
                 sys.platform.startswith("linux") and os.environ.get("XDG_SESSION_TYPE") != "wayland"
             ),
             "relayConfigured": relay,
+            "connectionStages": ["direct", "turn", "wss"] if relay else ["direct", "wss"],
             "qualityProfiles": list(VIDEO_PROFILES),
             "systemAudio": system_audio_available(),
             "active": [
-                {"deviceId": s.device_id, "state": s.state, "permission": s.permission}
+                {
+                    "deviceId": s.device_id,
+                    "state": s.state,
+                    "permission": s.permission,
+                    "connectionPath": "wss" if s.transport == "relay" else s.connection_path,
+                }
                 for s in self.sessions.values()
             ],
         }
@@ -146,7 +154,13 @@ class RemoteDesktopHost:
             request_id = params.get("requestId", "")
             quality = params.get("quality", "auto")
             audio = params.get("audio", False)
-            if type(audio) is not bool or not isinstance(quality, str) or quality not in VIDEO_PROFILES:
+            ice_mode = params.get("iceMode", "auto")
+            if (
+                type(audio) is not bool
+                or not isinstance(quality, str)
+                or quality not in VIDEO_PROFILES
+                or ice_mode not in ("auto", "direct", "relay")
+            ):
                 await self._send(ws, "remote_desktop/error", {"code": "invalid_settings"})
                 return
             if not isinstance(request_id, str) or not re.fullmatch(
@@ -158,6 +172,20 @@ class RemoteDesktopHost:
             if state["state"] != "ready":
                 await self._send(
                     ws, "remote_desktop/error", {"code": state["state"], "requestId": request_id}
+                )
+                return
+            if (
+                ice_mode == "relay"
+                and params.get("transport") != "relay"
+                and not state["relayConfigured"]
+            ):
+                await self._send(
+                    ws,
+                    "remote_desktop/error",
+                    {
+                        "code": "turn_unavailable",
+                        "requestId": request_id,
+                    },
                 )
                 return
             async with self.lock:
@@ -181,6 +209,7 @@ class RemoteDesktopHost:
                 session = RemoteSession(device_id, request_id, self.permissions[device_id], ws)
                 session.quality = quality
                 session.audio = audio
+                session.ice_mode = ice_mode
                 session.transport = "relay" if params.get("transport") == "relay" else "webrtc"
                 self.sessions[device_id] = session
                 session.task = asyncio.create_task(self._start(session))
@@ -227,7 +256,7 @@ class RemoteDesktopHost:
 
     async def _start(self, session: RemoteSession):
         try:
-            servers = ice_servers(session.device_id)
+            servers = servers_for_mode(ice_servers(session.device_id), session.ice_mode)
             factory = self.peer_factory
             if session.transport == "relay" and factory is None:
                 from .remote_desktop_media import RelayedDesktopPeer
@@ -254,12 +283,18 @@ class RemoteDesktopHost:
             if hasattr(session.peer, "configure_video"):
                 session.peer.configure_video(session.quality)
             if hasattr(session.peer, "configure_audio"):
+
                 async def audio_status(state):
                     if self.sessions.get(session.device_id) is session:
-                        await self._send(session.socket, "remote_desktop/audioStatus", {
-                            "requestId": session.request_id, "sessionId": session.id,
-                            "state": state,
-                        })
+                        await self._send(
+                            session.socket,
+                            "remote_desktop/audioStatus",
+                            {
+                                "requestId": session.request_id,
+                                "sessionId": session.id,
+                                "state": state,
+                            },
+                        )
 
                 session.peer.configure_audio(session.audio, audio_status)
             geometry = await asyncio.wait_for(session.peer.prepare(), 10)
@@ -284,6 +319,7 @@ class RemoteDesktopHost:
                     "requestId": session.request_id,
                     "sessionId": session.id,
                     "iceServers": servers,
+                    "iceMode": session.ice_mode,
                     "permission": session.permission,
                 },
             )
@@ -321,6 +357,12 @@ class RemoteDesktopHost:
             if event.get("action") == "ping":
                 session.deadline = asyncio.get_running_loop().time() + 30
                 session.peer.send(json.dumps({"type": "pong"}))
+                return
+            if event.get("action") == "connection_path":
+                # Presentation telemetry from this authenticated peer, never an authority signal.
+                path = event.get("path")
+                if path in ("direct", "turn", "unknown") and session.transport == "webrtc":
+                    session.connection_path = path
                 return
             sequence = event.get("seq")
             if type(sequence) is not int or sequence <= session.sequence:

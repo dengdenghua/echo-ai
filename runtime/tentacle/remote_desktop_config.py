@@ -71,3 +71,19 @@ def has_relay(servers: list[dict]) -> bool:
         for s in servers
         for url in ([s["urls"]] if isinstance(s["urls"], str) else s["urls"])
     )
+
+
+def servers_for_mode(servers: list[dict], mode: str) -> list[dict]:
+    """Keep TURN allocations out of the direct stage, including mixed URL entries."""
+    if mode == "auto":  # Existing clients retain their original ICE behavior.
+        return servers
+    if mode not in {"direct", "relay"}:
+        raise ValueError("Invalid remote ICE mode")
+    selected = []
+    for server in servers:
+        urls = server["urls"]
+        urls = [urls] if isinstance(urls, str) else urls
+        urls = [u for u in urls if u.startswith(("turn:", "turns:")) == (mode == "relay")]
+        if urls:
+            selected.append({**server, "urls": urls})
+    return selected
