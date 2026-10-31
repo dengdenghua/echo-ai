@@ -1,0 +1,13 @@
+{
+  "delivery_id": "20261031-r4",
+  "package_version": "0.2.3-preview.20261031",
+  "features": [
+    "direct ICE/STUN priority",
+    "TURN WebRTC stage",
+    "authenticated WSS fallback",
+    "measured connection path",
+    "Windows/Linux system audio"
+  ],
+  "public_deployment": false,
+  "physical_android_acceptance": false
+}
