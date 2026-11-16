@@ -150,6 +150,12 @@ READ_ONLY_SKILL_NAMES: frozenset[str] = frozenset(
         "grep_text",
         "tree",
         # code intelligence · read-only AST / index queries
+        # Desktop observations never focus a window or inject input. Keep
+        # screenshot-file writers and all desktop action tools excluded.
+        "computer_uia_status",
+        "computer_uia_tree",
+        "computer_uia_find",
+        "screen_info",
         "code_analyze",
         "code_search",
         "code_find_symbol",

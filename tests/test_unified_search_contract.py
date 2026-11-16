@@ -1,9 +1,10 @@
 from runtime.execution.suckers import web_skills as web
+from runtime.execution.suckers import web_skills_catalog as catalog
 
 
 def test_search_normalizes_and_deduplicates_without_hiding_fallback(monkeypatch):
     monkeypatch.setattr(
-        web,
+        catalog,
         "_web_search_impl",
         lambda *args, **kwargs: {
             "backend": "brave",
@@ -26,6 +27,6 @@ def test_search_normalizes_and_deduplicates_without_hiding_fallback(monkeypatch)
 
 def test_search_error_stays_an_error(monkeypatch):
     monkeypatch.setattr(
-        web, "_web_search_impl", lambda *args, **kwargs: {"error": "unavailable", "results": []}
+        catalog, "_web_search_impl", lambda *args, **kwargs: {"error": "unavailable", "results": []}
     )
     assert web._web_search("question")["error"] == "unavailable"

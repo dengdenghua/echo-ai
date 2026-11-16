@@ -1,0 +1,62 @@
+# Deterministic config for the frontend axe audit (CI + local).
+#
+# Local auth is enabled only so the audit can mint a short-lived actor for the
+# authenticated routes. The secret is a CI-only value, never a deployment key.
+name: echo-a11y
+version_compat: "0.2"
+preset: null
+
+planner:
+  type: llm
+  model: mock/planner
+  mock_response: "Offline accessibility audit response."
+
+budget:
+  max_tokens: 10000
+  max_usd: 0.10
+  max_latency_ms: 120000
+
+immunity:
+  trusted_sources:
+    - "skill://public/*"
+    - "skill://all_skills/plugin-creator"
+  self_whitelist:
+    - "cerebrum"
+    - "ganglia"
+    - "arms/*"
+    - "react_loop"
+    - "react_arm"
+  unknown_policy: quarantine
+  enable_adaptive: false
+
+safety:
+  allow_client_approval_bypass: true
+
+learn:
+  learn_from_journal: null
+  learn_memories_from_journal: null
+  learn_kg_from_journal: null
+  rewrite_from_journal: null
+  assess_recipe_from_journal: null
+
+intel_sources: []
+mcp_servers: []
+journal_file: null
+enable_web_skills: false
+default_arm_id: code_arm
+
+local_auth:
+  enabled: true
+  allow_any_username: true
+  jwt_secret: "echo-a11y-ci-only-secret-0123456789abcdef"
+  jwt_expire_seconds: 3600
+  jwt_issuer: octopus-agent
+  actor_prefix: "local:"
+  default_roles:
+    - user
+    - local
+  admin_usernames:
+    - "*"
+
+tentacle:
+  enabled: false

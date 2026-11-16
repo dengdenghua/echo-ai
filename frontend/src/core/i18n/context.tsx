@@ -25,10 +25,12 @@ export function I18nProvider({
   children,
   initialLocale,
   initialTranslations,
+  loadLocale = loadTranslations,
 }: {
   children: ReactNode;
   initialLocale: Locale;
   initialTranslations: Translations;
+  loadLocale?: (locale: Locale) => Promise<Translations>;
 }) {
   const [locale, setLocale] = useState<Locale>(initialLocale);
   const [t, setTranslations] = useState<Translations>(initialTranslations);
@@ -36,16 +38,23 @@ export function I18nProvider({
 
   primeTranslations(initialLocale, initialTranslations);
 
-  const handleSetLocale = useCallback(async (newLocale: Locale) => {
-    const requestId = ++requestSeqRef.current;
-    setLocale(newLocale);
-    setLocaleInCookie(newLocale);
-    const nextTranslations = await loadTranslations(newLocale);
-    if (requestId !== requestSeqRef.current) {
-      return;
-    }
-    setTranslations(nextTranslations);
-  }, []);
+  const handleSetLocale = useCallback(
+    async (newLocale: Locale) => {
+      const requestId = ++requestSeqRef.current;
+      // Commit locale, cookie and document language together, only after the
+      // bundle is available. A failed chunk load must leave the current
+      // language fully coherent instead of mixing chrome and copy.
+      const nextTranslations = await loadLocale(newLocale);
+      if (requestId !== requestSeqRef.current) {
+        return;
+      }
+      setLocale(newLocale);
+      setTranslations(nextTranslations);
+      setLocaleInCookie(newLocale);
+      document.documentElement.lang = newLocale.split("-")[0] ?? newLocale;
+    },
+    [loadLocale],
+  );
 
   const value = useMemo<I18nContextType>(
     () => ({ locale, t, setLocale: handleSetLocale }),

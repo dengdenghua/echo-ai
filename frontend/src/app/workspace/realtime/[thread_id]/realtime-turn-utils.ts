@@ -14,6 +14,28 @@ import {
 
 /** Pure projections of the live message list used by the realtime page. */
 
+const previewBlocksByMessage = new WeakMap<
+  Message,
+  ReturnType<typeof extractCodeBlocks>
+>();
+
+function previewBlocksOf(message: Message) {
+  const cached = previewBlocksByMessage.get(message);
+  if (cached) return cached;
+  const text =
+    typeof message.content === "string"
+      ? message.content
+      : message.content
+          .filter(
+            (c): c is { type: "text"; text: string } => c.type === "text",
+          )
+          .map((c) => c.text)
+          .join("\n");
+  const blocks = extractCodeBlocks(text);
+  previewBlocksByMessage.set(message, blocks);
+  return blocks;
+}
+
 export function latestTurnPreviewBlocks(messages: Message[]) {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -22,16 +44,7 @@ export function latestTurnPreviewBlocks(messages: Message[]) {
     // resultPreviewUrl below).
     if (msg && isHumanMessage(msg)) break;
     if (!msg || !isAIMessage(msg)) continue;
-    const text =
-      typeof msg.content === "string"
-        ? msg.content
-        : msg.content
-            .filter(
-              (c): c is { type: "text"; text: string } => c.type === "text",
-            )
-            .map((c) => c.text)
-            .join("\n");
-    const blocks = extractCodeBlocks(text);
+    const blocks = previewBlocksOf(msg);
     if (hasPreviewableBlocks(blocks)) return blocks;
   }
   return null;
@@ -56,6 +69,69 @@ export interface ConversationUserInput {
   attachments: Array<{ filename: string }>;
 }
 
+interface HumanInputContribution {
+  text: string;
+  files: Array<{ filename: string; path: string }>;
+  attachments: Array<{ filename: string }>;
+}
+
+const humanInputByMessage = new WeakMap<Message, HumanInputContribution>();
+
+function humanInputContribution(human: Message): HumanInputContribution {
+  const cached = humanInputByMessage.get(human);
+  if (cached) return cached;
+  const raw =
+    typeof human.content === "string"
+      ? human.content
+      : human.content
+          .filter(
+            (c): c is { type: "text"; text: string } => c.type === "text",
+          )
+          .map((c) => c.text)
+          .join("\n");
+  // Files ride the structured metadata channel (additional_kwargs.files) as
+  // the primary source; the <uploaded_files> content tag is only a backward
+  // compat fallback. Merge both, de-duplicated by filename.
+  const structuredFiles = (
+    Array.isArray(human.additional_kwargs?.files)
+      ? (human.additional_kwargs.files as FileInMessage[])
+      : []
+  )
+    .map((f) => ({ filename: f.filename, path: f.path ?? "" }))
+    .filter((f) => f.filename);
+  const contentFiles = parseUploadedFiles(raw)
+    .filter((f): f is typeof f & { path: string } => Boolean(f.path))
+    .map((f) => ({
+      filename: f.filename,
+      path: f.path,
+    }));
+  const rawAttachments = Array.isArray(human.additional_kwargs?.attachments)
+    ? (human.additional_kwargs.attachments as Array<{ filename?: string }>)
+    : [];
+  const contribution = {
+    text: stripUploadedFilesTag(raw),
+    files: [...structuredFiles, ...contentFiles],
+    attachments: rawAttachments
+      .filter((a): a is { filename: string } => Boolean(a.filename))
+      .map((a) => ({ filename: a.filename })),
+  };
+  humanInputByMessage.set(human, contribution);
+  return contribution;
+}
+
+let cachedUserInput: {
+  humans: Message[];
+  value: ConversationUserInput | null;
+} | null = null;
+
+function sameHumanRefs(left: Message[], right: Message[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
 export function collectConversationUserInput(
   messages: Message[],
 ): ConversationUserInput | null {
@@ -63,57 +139,42 @@ export function collectConversationUserInput(
   // 文件通常在对话开头喂入，后续轮次只发文字追问。因此跨所有 human 消息聚合
   // 上传文件与附件（按文件名去重），文本仍取最后一条 human 消息。
   const humanMessages = messages.filter(isHumanMessage);
-  if (humanMessages.length === 0) return null;
+  if (
+    cachedUserInput &&
+    sameHumanRefs(humanMessages, cachedUserInput.humans)
+  ) {
+    return cachedUserInput.value;
+  }
+  if (humanMessages.length === 0) {
+    cachedUserInput = { humans: humanMessages, value: null };
+    return null;
+  }
 
   const last = humanMessages[humanMessages.length - 1]!;
-  const rawOf = (m: (typeof humanMessages)[number]) =>
-    typeof m.content === "string"
-      ? m.content
-      : m.content
-          .filter(
-            (c): c is { type: "text"; text: string } => c.type === "text",
-          )
-          .map((c) => c.text)
-          .join("\n");
-  const text = stripUploadedFilesTag(rawOf(last));
+  const text = humanInputContribution(last).text;
 
   const seenFilenames = new Set<string>();
   const uploaded: Array<{ filename: string; path: string }> = [];
   const attachments: Array<{ filename: string }> = [];
   for (const human of humanMessages) {
-    const raw = rawOf(human);
-    // Files ride the structured metadata channel (additional_kwargs.files) as
-    // the primary source; the <uploaded_files> content tag is only a backward
-    // compat fallback. Merge both, de-duplicated by filename.
-    const structuredFiles = (
-      Array.isArray(human.additional_kwargs?.files)
-        ? (human.additional_kwargs.files as FileInMessage[])
-        : []
-    )
-      .map((f) => ({ filename: f.filename, path: f.path ?? "" }))
-      .filter((f) => f.filename);
-    const contentFiles = parseUploadedFiles(raw)
-      .filter((f): f is typeof f & { path: string } => Boolean(f.path))
-      .map((f) => ({
-        filename: f.filename,
-        path: f.path,
-      }));
-    for (const f of [...structuredFiles, ...contentFiles]) {
+    const contribution = humanInputContribution(human);
+    for (const f of contribution.files) {
       if (seenFilenames.has(f.filename)) continue;
       seenFilenames.add(f.filename);
       uploaded.push(f);
     }
-    const rawAttachments = Array.isArray(human.additional_kwargs?.attachments)
-      ? (human.additional_kwargs.attachments as Array<{ filename?: string }>)
-      : [];
-    for (const a of rawAttachments) {
+    for (const a of contribution.attachments) {
       if (!a.filename || seenFilenames.has(a.filename)) continue;
       seenFilenames.add(a.filename);
       attachments.push({ filename: a.filename });
     }
   }
-  if (!text && uploaded.length === 0 && attachments.length === 0) return null;
-  return { text, uploadedFiles: uploaded, attachments };
+  const value =
+    !text && uploaded.length === 0 && attachments.length === 0
+      ? null
+      : { text, uploadedFiles: uploaded, attachments };
+  cachedUserInput = { humans: humanMessages, value };
+  return value;
 }
 
 /** The newest settled answer of the turn, compacted for the Design Canvas. */

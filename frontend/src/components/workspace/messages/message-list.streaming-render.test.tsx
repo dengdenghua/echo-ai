@@ -251,4 +251,50 @@ describe("MessageList streaming render isolation", () => {
     expect(trackedItemProps("assistant-history")).toHaveLength(0);
     expect(trackedItemProps("assistant-active")).toHaveLength(0);
   });
+
+  test("rebuilds a settled historical turn when its content is edited", () => {
+    const history: Message[] = [];
+    for (let turn = 0; turn < 20; turn += 1) {
+      history.push({
+        id: `human-${turn}`,
+        type: "human",
+        content: `request ${turn}`,
+      } as Message);
+      history.push({
+        id: `assistant-${turn}`,
+        type: "ai",
+        content: `answer ${turn}`,
+        additional_kwargs: { message_kind: "answer" },
+      } as Message);
+    }
+    const streaming = (content: string) =>
+      ({
+        id: "assistant-streaming",
+        type: "ai",
+        content,
+        additional_kwargs: { message_kind: "answer", run_status: "streaming" },
+      }) as Message;
+
+    const view = renderWithProviders(
+      messageListTree(mockThread(history, streaming("a"), true)),
+    );
+    renderTracker.itemRender.mockClear();
+
+    view.rerender(
+      messageListTree(mockThread(history, streaming("b"), true)),
+    );
+    expect(trackedItemProps("assistant-18")).toHaveLength(0);
+
+    const edited = history.map((message) =>
+      message.id === "assistant-18"
+        ? ({ ...message, content: "edited answer" } as Message)
+        : message,
+    );
+    view.rerender(messageListTree(mockThread(edited, streaming("c"), true)));
+
+    expect(trackedItemProps("assistant-18")).toHaveLength(1);
+    expect(trackedItemProps("assistant-18")[0]?.message.content).toBe(
+      "edited answer",
+    );
+  });
 });

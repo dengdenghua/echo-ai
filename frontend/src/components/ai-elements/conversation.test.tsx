@@ -6,6 +6,7 @@ const stickState = vi.hoisted(() => ({
   escapedFromLock: true,
   isAtBottom: false,
   scrollToBottom: vi.fn(),
+  state: { escapedFromLock: false },
 }));
 
 vi.mock("use-stick-to-bottom", () => {
@@ -28,6 +29,7 @@ describe("ConversationScrollButton", () => {
     stickState.escapedFromLock = true;
     stickState.isAtBottom = false;
     stickState.scrollToBottom.mockReset();
+    stickState.state.escapedFromLock = false;
   });
 
   it("centers the affordance above the composer", () => {
@@ -56,8 +58,16 @@ describe("ConversationScrollButton", () => {
 
     expect(stickState.scrollToBottom).toHaveBeenCalledWith({
       animation: "instant",
-      ignoreEscapes: true,
+      ignoreEscapes: false,
     });
+  });
+
+  it("does not reacquire the lock between a wheel escape and its React render", () => {
+    stickState.escapedFromLock = false;
+    const { rerender } = render(<ConversationScrollButton activityKey="one" />);
+    stickState.state.escapedFromLock = true;
+    rerender(<ConversationScrollButton activityKey="two" />);
+    expect(stickState.scrollToBottom).not.toHaveBeenCalled();
   });
 
   it("keeps one unseen-content signal while the reader is away from the bottom", () => {

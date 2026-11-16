@@ -1,0 +1,4 @@
+interface:
+  display_name: "LCOS偏振与对比度"
+  short_description: "核对LCOS往返偏振基底，分解PBS、芯片与波片的亮暗态漏光"
+  default_prompt: "使用 $lcos-polarization-design，处理当前光学任务并给出适用条件、计算或验证依据。"

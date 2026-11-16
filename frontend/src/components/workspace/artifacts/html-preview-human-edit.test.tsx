@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -75,6 +75,8 @@ vi.mock("@/core/i18n/hooks", () => ({
         humanSave: "保存页面",
         humanCancel: "放弃修改",
         humanSaved: "页面修改已保存",
+        humanSaving: "正在保存…",
+        humanSaveUnconfirmed: "保存尚未确认，修改仍保留。请核对文件后再试。",
         humanUndo: "撤销上次保存",
         humanRestored: "已恢复到保存前版本",
         humanConflict: "Agent 已更新页面，你的修改尚未保存",
@@ -101,6 +103,27 @@ function bridgeTokenOf(iframe: HTMLIFrameElement): string {
 }
 
 describe("HtmlPreview human editing", () => {
+  it("ignores an old save response after switching to another artifact", async () => {
+    let complete!: (response: Response) => void;
+    const normalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => init?.method === "PUT" ? new Promise<Response>((resolve) => { complete = resolve; }) : normalFetch(input, init)));
+    const oldSaved = vi.fn(), newSaved = vi.fn();
+    const { rerender } = render(<HtmlPreview artifactRef="workspace-output:final:old.html" content="<h1>Old</h1>" filepath="old.html" threadId="t1" onSaved={oldSaved} />);
+    const frame = screen.getByTitle("Artifact preview") as HTMLIFrameElement;
+    const source = frame.contentWindow!;
+    const token = bridgeTokenOf(frame);
+    fireEvent(window, new MessageEvent("message", { source, data: { type: "echo:inspect:ready", echoBridgeToken: token } }));
+    await userEvent.click(screen.getByRole("button", { name: "直接编辑" }));
+    fireEvent(window, new MessageEvent("message", { source, data: { type: "echo:edit:state", active: true, dirty: true, echoBridgeToken: token } }));
+    fireEvent(window, new MessageEvent("message", { source, data: { type: "echo:edit:content", bodyHtml: "<h1>Edited</h1>", echoBridgeToken: token } }));
+    await waitFor(() => expect(complete).toBeTypeOf("function"));
+    expect(screen.getByRole("status")).toHaveTextContent("正在保存");
+    rerender(<HtmlPreview artifactRef="workspace-output:final:new.html" content="<h1>New</h1>" filepath="new.html" threadId="t1" onSaved={newSaved} />);
+    await act(async () => complete(new Response(JSON.stringify({ success: true, sha256: "saved", path: "old.html", bytes: 20 }), { headers: { "Content-Type": "application/json" } })));
+    expect(oldSaved).not.toHaveBeenCalled(); expect(newSaved).not.toHaveBeenCalled();
+    expect((screen.getByTitle("Artifact preview") as HTMLIFrameElement).srcdoc).toContain("<h1>New</h1>");
+    expect(screen.queryByText("页面修改已保存")).toBeNull();
+  });
   beforeEach(() => {
     artifactContext.clearSelection.mockReset();
     artifactContext.select.mockReset();

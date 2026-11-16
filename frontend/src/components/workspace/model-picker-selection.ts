@@ -166,7 +166,7 @@ export function contextWindowTokens(model: PickerModel): number {
 export function formatContextWindow(tokens: number): string {
   if (tokens >= 1_000_000) {
     const millions = tokens / 1_000_000;
-    return `${Number.isInteger(millions) ? millions : millions.toFixed(1)}M`;
+    return `${Number.isInteger(millions) ? millions : Number(millions.toFixed(2))}M`;
   }
   if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
   return tokens.toLocaleString();

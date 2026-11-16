@@ -36,6 +36,11 @@ import {
 } from "@/core/account";
 import { useI18n } from "@/core/i18n/hooks";
 import { useOctLink, useRefreshOctCredits } from "@/core/oct/hooks";
+import {
+  desktopAutoLoginAvailable,
+  isDesktopAutoLoginEnabled,
+  setDesktopAutoLoginEnabled,
+} from "@/core/auth/desktop-auto-login";
 import { useAuth } from "@/providers/AuthProvider";
 
 function formatCredits(
@@ -120,6 +125,7 @@ function CloudAccountSettings() {
 
   const [displayName, setDisplayName] = useState(profileDisplayName);
   const [bio, setBio] = useState(profileBio);
+  const [autoLogin, setAutoLogin] = useState(() => isDesktopAutoLoginEnabled());
   const [unlinkAccount, setUnlinkAccount] = useState<{
     provider: string;
     email?: string;
@@ -427,6 +433,41 @@ function CloudAccountSettings() {
           </p>
         </div>
       </section>
+
+      {/* Desktop local sign-in — only meaningful when the desktop bridge is
+          present; the web build has no owner account to sign in as. */}
+      {desktopAutoLoginAvailable() ? (
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-sm font-medium">
+              {t.accountSettings.autoLoginTitle}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t.accountSettings.autoLoginDescription}
+            </p>
+          </div>
+          <div className="rounded-lg border bg-card">
+            <div className="flex items-center justify-between px-5 py-4">
+              <div className="space-y-0.5 pr-4">
+                <Label className="text-sm">
+                  {t.accountSettings.autoLoginTitle}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t.accountSettings.autoLoginDescription}
+                </p>
+              </div>
+              <Switch
+                checked={autoLogin}
+                aria-label={t.accountSettings.autoLoginTitle}
+                onCheckedChange={(checked) => {
+                  setDesktopAutoLoginEnabled(checked);
+                  setAutoLogin(checked);
+                }}
+              />
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* Privacy */}
       <section className="space-y-3">

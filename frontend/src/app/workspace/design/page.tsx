@@ -1,6 +1,7 @@
 "use client";
 import { ChatInputBox } from "@/components/workspace/chat-input-box";
 import { useThreadSettings } from "@/core/settings";
+import { createDeferredJsonWriter } from "@/core/persistence/deferred-json-writer";
 import { AUTO_DESIGN_CAPABILITIES, resolveDesignCapabilities, type DesignCapabilities } from "@/core/design/capabilities";
 import { MediaModelSelectors } from "./media-model-selectors";
 import { TemplateCover } from "./template-cover";
@@ -4208,6 +4209,7 @@ export default function DesignPage({
     [],
   );
   const activeStorageKeyRef = useRef(storageKey);
+  const localCanvasWriter = useMemo(() => createDeferredJsonWriter(450), []);
   const documentRef = useRef(document);
   documentRef.current = document;
   const undoCanvas = useCallback(() => {
@@ -4661,6 +4663,7 @@ export default function DesignPage({
 
   useEffect(() => {
     if (activeStorageKeyRef.current !== storageKey) {
+      localCanvasWriter.flush();
       activeStorageKeyRef.current = storageKey;
       const raw = window.localStorage.getItem(storageKey);
       const next = parseDesignCanvas(raw);
@@ -4682,13 +4685,21 @@ export default function DesignPage({
       );
       return;
     }
-    window.localStorage.setItem(storageKey, JSON.stringify(document));
-  }, [canvasScopeName, document, storageKey]);
+    localCanvasWriter.schedule(storageKey, document);
+  }, [canvasScopeName, document, localCanvasWriter, storageKey]);
+  useEffect(() => {
+    const flush = () => localCanvasWriter.flush();
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [localCanvasWriter]);
   useEffect(() => {
     if (!canvasProjectId || !serverReadyRef.current) return;
-    const serialized = JSON.stringify(document);
-    if (serialized === lastSyncedDocumentRef.current) return;
     const timer = window.setTimeout(() => {
+      const serialized = JSON.stringify(document);
+      if (serialized === lastSyncedDocumentRef.current) return;
       serverSaveChainRef.current = serverSaveChainRef.current.then(async () => {
         if (
           !serverReadyRef.current ||
@@ -7554,14 +7565,17 @@ export default function DesignPage({
     </main>
   );
 
+  const designMenuTitle = activeDesignSection === "home" ? "创作空间" : document.title || "未命名作品";
+
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       <header data-testid="design-header" className="flex h-11 shrink-0 items-center gap-1 border-b border-border-subtle bg-background px-2.5">
+        <h1 className="sr-only">设计画布</h1>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button type="button" aria-label="作品菜单" className="flex h-9 min-w-0 max-w-72 items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <span className="truncate">{activeDesignSection === "home" ? "创作空间" : document.title || "未命名作品"}</span>
+              <button type="button" aria-label={`作品菜单：${designMenuTitle}`} className="flex h-9 min-w-0 max-w-72 items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <span className="truncate">{designMenuTitle}</span>
                 <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>

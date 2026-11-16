@@ -1,6 +1,8 @@
 import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 
+import { cn } from "@/lib/utils";
+
 export function AdvancedDisclosure({
   id,
   title,
@@ -8,6 +10,8 @@ export function AdvancedDisclosure({
   children,
   open,
   onOpenChange,
+  icon,
+  variant = "card",
 }: {
   id?: string;
   title: string;
@@ -15,6 +19,14 @@ export function AdvancedDisclosure({
   children: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Optional leading glyph; grouped rows read faster with one. */
+  icon?: React.ReactNode;
+  /**
+   * "card" stands alone (default). "row" drops the border so several
+   * disclosures can share one card with dividers — three identical bordered
+   * boxes for three account providers read as three unrelated features.
+   */
+  variant?: "card" | "row";
 }) {
   const [hasOpened, setHasOpened] = useState(Boolean(open));
   return (
@@ -26,17 +38,29 @@ export function AdvancedDisclosure({
         if (expanded) setHasOpened(true);
         onOpenChange?.(expanded);
       }}
-      className="group/advanced-item scroll-mt-6 rounded-lg border border-border bg-background/55 px-4 py-3"
+      className={cn(
+        "group/advanced-item scroll-mt-6",
+        variant === "card"
+          ? "rounded-lg border border-border bg-background/55 px-4 py-3"
+          : "px-4 py-3",
+      )}
     >
       <summary
         aria-label={title}
         className="cursor-pointer list-none rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-foreground">{title}</div>
-            <div className="mt-0.5 text-xs leading-5 text-muted-foreground">
-              {description}
+          <div className="flex min-w-0 items-center gap-2.5">
+            {icon ? (
+              <span className="shrink-0 text-muted-foreground">{icon}</span>
+            ) : null}
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-foreground">
+                {title}
+              </div>
+              <div className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                {description}
+              </div>
             </div>
           </div>
           <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open/advanced-item:rotate-90" />

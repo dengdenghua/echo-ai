@@ -62,6 +62,10 @@ import { ReaderView } from "@/components/browser/reader-view";
 import { useShellTabEvents } from "@/components/browser/use-shell-tab-events";
 import type { WebviewTabHandle } from "@/components/browser/webview-tab";
 import { WorkspaceSurfaceHeader } from "@/components/workspace/workspace-surface-header";
+import {
+  DesktopToolbarContent,
+  useDesktopShell,
+} from "@/components/workspace/desktop-shell-context";
 import { BrowserPreviewPanel } from "@/components/workspace/browser-preview-panel";
 import {
   isWindows,
@@ -91,6 +95,7 @@ const isBrowserDevice = (
   value === "desktop" || value === "tablet" || value === "mobile";
 
 function BrowserShell() {
+  const framed = useDesktopShell();
   const navigate = useNavigate();
   const { t } = useI18n();
   const activeAgentId = useActiveAgentId() ?? "general";
@@ -101,6 +106,7 @@ function BrowserShell() {
     updateSettings,
     bookmarks,
     activeTab,
+    mountedWebviewIds,
     patchTab,
     openTab,
     closeTab,
@@ -122,12 +128,7 @@ function BrowserShell() {
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const stageRef = useRef<HTMLDivElement>(null);
   const sidePanelCloseTimerRef = useRef<number | null>(null);
-  const {
-    titleBarHeight,
-    controlsSafeInset,
-    controlsSide,
-    macTrafficLightsWidth,
-  } = useElectronTitleBar();
+  const { contentTopInset } = useElectronTitleBar();
   const activeTabId = activeTab?.id ?? null;
   const activeTabUrl = activeTab?.url ?? "";
   const activeTabPrivate = Boolean(activeTab?.private);
@@ -546,7 +547,13 @@ function BrowserShell() {
   return (
     <div
       data-persona-theme={personaThemeId}
-      className="persona-shell browser-shell relative flex h-screen overflow-hidden bg-[linear-gradient(135deg,var(--muted)_0%,var(--background)_42%,var(--muted)_100%)] text-foreground"
+      role="main"
+      aria-label="AI 浏览器"
+      className={cn(
+        "persona-shell browser-shell relative flex overflow-hidden bg-background text-foreground",
+        framed ? "h-full" : "h-screen",
+      )}
+      style={{ paddingTop: framed ? 0 : contentTopInset }}
     >
       <BrowserSidePanel
         open={sidePanelOpen}
@@ -557,71 +564,73 @@ function BrowserShell() {
       {/* Implementation note. */}
       <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="relative z-[80] shrink-0">
-          <div
-            className="flex h-9 shrink-0 items-center gap-0.5 rounded-none border-x-0 border-t-0 border-b border-border-subtle px-1.5"
-            style={
-              {
-                paddingLeft:
-                  10 +
-                  (titleBarHeight && controlsSide === "left"
-                    ? macTrafficLightsWidth
-                    : 0),
-                paddingRight:
-                  titleBarHeight && controlsSafeInset !== "0px"
-                    ? controlsSafeInset
-                    : 6,
-                WebkitAppRegion: "drag",
-              } as React.CSSProperties
-            }
-          >
+          <DesktopToolbarContent>
             <div
-              className="flex h-8 shrink-0 items-center justify-start gap-2"
-              style={
-                {
-                  WebkitAppRegion: "no-drag",
-                } as React.CSSProperties
-              }
-            >
-              <WorkspaceSurfaceHeader active="browser" />
-            </div>
-            <div className="flex h-8 min-w-0 flex-1 items-center">
-              <TabBar />
-            </div>
-            <button
-              type="button"
-              title={
-                sidePanelPinned
-                  ? t.browser.sidePanel.unpin
-                  : t.browser.sidePanel.expand
-              }
-              aria-label={
-                sidePanelPinned
-                  ? t.browser.sidePanel.unpin
-                  : t.browser.sidePanel.expand
-              }
-              onMouseEnter={showSidePanel}
-              onMouseLeave={scheduleSidePanelClose}
-              onClick={() => {
-                clearSidePanelCloseTimer();
-                setSidePanelPinned((value) => {
-                  const nextPinned = !value;
-                  setSidePanelHovered(nextPinned);
-                  return nextPinned;
-                });
-              }}
+              data-testid="browser-tab-strip"
+              data-persona-theme={personaThemeId}
               className={cn(
-                "grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground",
-                sidePanelOpen && "bg-foreground/5 text-foreground",
+                "persona-shell flex min-w-0 flex-1 shrink-0 items-center gap-0.5 rounded-none border-x-0 border-t-0",
+                framed ? "h-[42px]" : "h-9 border-b border-border-subtle",
               )}
               style={
                 {
-                  WebkitAppRegion: "no-drag",
+                  paddingLeft: framed ? 0 : 10,
+                  paddingRight: 6,
+                  WebkitAppRegion: "drag",
                 } as React.CSSProperties
               }
             >
-              <MenuIcon className="size-3.5" />
-            </button>
-          </div>
+              {!framed && (
+                <div
+                  className="flex h-8 shrink-0 items-center justify-start gap-2"
+                  style={
+                    {
+                      WebkitAppRegion: "no-drag",
+                    } as React.CSSProperties
+                  }
+                >
+                  <WorkspaceSurfaceHeader active="browser" />
+                </div>
+              )}
+              <div className="flex h-8 min-w-0 flex-1 items-center">
+                <TabBar />
+              </div>
+              <button
+                type="button"
+                title={
+                  sidePanelPinned
+                    ? t.browser.sidePanel.unpin
+                    : t.browser.sidePanel.expand
+                }
+                aria-label={
+                  sidePanelPinned
+                    ? t.browser.sidePanel.unpin
+                    : t.browser.sidePanel.expand
+                }
+                onMouseEnter={showSidePanel}
+                onMouseLeave={scheduleSidePanelClose}
+                onClick={() => {
+                  clearSidePanelCloseTimer();
+                  setSidePanelPinned((value) => {
+                    const nextPinned = !value;
+                    setSidePanelHovered(nextPinned);
+                    return nextPinned;
+                  });
+                }}
+                className={cn(
+                  "grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground",
+                  sidePanelOpen && "bg-foreground/5 text-foreground",
+                )}
+                style={
+                  {
+                    WebkitAppRegion: "no-drag",
+                  } as React.CSSProperties
+                }
+              >
+                <MenuIcon className="size-3.5" />
+              </button>
+            </div>
+          </DesktopToolbarContent>
 
           {/* URL bar */}
           {!activeTab?.taskPreview && (
@@ -820,7 +829,7 @@ function BrowserShell() {
                             }}
                           />
                         ) : null
-                      ) : (
+                      ) : mountedWebviewIds.has(tab.id) ? (
                         <div
                           key={tab.id}
                           data-browser-pane={tab.id}
@@ -865,6 +874,14 @@ function BrowserShell() {
                             }}
                           />
                         </div>
+                      ) : (
+                        <div
+                          key={tab.id}
+                          data-browser-pane={tab.id}
+                          data-webview-suspended="true"
+                          aria-hidden="true"
+                          style={paneStyle(tab.id)}
+                        />
                       ),
                     )}
                   </Suspense>
@@ -1397,10 +1414,18 @@ function BrowserRouteQuery() {
 }
 
 export default function BrowserPage() {
+  const framed = useDesktopShell();
   // Implementation note.
   useEffect(() => {
     setAppMode("browser");
   }, []);
+  if (framed)
+    return (
+      <>
+        <BrowserRouteQuery />
+        <BrowserShell />
+      </>
+    );
   return (
     <BrowserStoreProvider>
       <BrowserRouteQuery />

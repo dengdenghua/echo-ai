@@ -320,7 +320,7 @@ def test_desktop_main_fails_closed_before_spawning_backend() -> None:
         source.index("function backendConfigPath") : source.index("function backendProgress")
     ]
     materialize = lifecycle.index("ensureDesktopConfig();")
-    spawn = lifecycle.index("spawnBackend(backendConfigPath()")
+    spawn = lifecycle.index("managedBackend.start(backendConfigPath()")
 
     assert "ensureDesktopConfigFile" in source
     assert "ensurePackagedResources();" in lifecycle
@@ -379,6 +379,11 @@ def test_desktop_backend_routes_mutable_state_to_user_data() -> None:
         {
             "from": "../extras/desktop/build/backend/echo-backend.exe",
             "to": "backend/echo-backend.exe",
+        },
+        {
+            "from": "../extras/desktop/build/backend/_internal",
+            "to": "backend/_internal",
+            "filter": ["**/*"],
         },
     ]
     for platform in ("mac", "linux"):
@@ -962,7 +967,6 @@ def test_release_reverifies_every_packaged_codex_executable_identity() -> None:
 def test_windows_backend_builder_uses_only_the_locked_uv_interpreter() -> None:
     source = BACKEND_BUILD.read_text(encoding="utf-8")
 
-    assert 'path.join(repoRoot, ".venv", "Scripts", "python.exe")' in source
     assert "const configuredPython = process.env.PYTHON_EXE;" in source
     assert "PYTHON_EXE must resolve to" in source
     assert "spawnSync(\n  lockedPython," in source

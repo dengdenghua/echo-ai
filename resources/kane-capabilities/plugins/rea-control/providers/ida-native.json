@@ -1,0 +1,6 @@
+{
+  "mode": "attached",
+  "protocol": "native",
+  "url": "http://127.0.0.1:13337/mcp",
+  "timeoutMs": 300000
+}

@@ -1122,8 +1122,8 @@ describe("MessageList failure visibility", () => {
       screen.queryByRole("button", { name: "好的回复" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "重新生成回复" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "重新生成回复" }),
+    ).toBeInTheDocument();
   });
 
   it("mounts audit actions on the final assistant group when changes live in the processing group", () => {
@@ -1215,4 +1215,19 @@ describe("MessageList failure visibility", () => {
     expect(banner).not.toHaveTextContent("boom exploded");
     expect(banner).not.toHaveTextContent(/This reply was interrupted/i);
   });
+});
+
+it('quota exhaustion offers engine switching without retry',()=>{
+ const retry=vi.fn();
+ renderWithProviders(<MessageOutputSummary messages={[{id:'quota-user',type:'human',content:'你好'}]} failure={{kind:'quota-exhausted',detail:'usageLimitExceeded',message:'引擎额度已耗尽'}} onRetryTask={retry}/>,{locale:'zh-CN'});
+ expect(screen.getByRole('button',{name:'切换引擎'})).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'重试'})).toBeNull();
+ expect(retry).not.toHaveBeenCalled();
+});
+it('raw quota failure renders actual reset time',()=>{
+ const detail=JSON.stringify({codexErrorInfo:'usageLimitExceeded',message:'Please try again at Nov 14th, 2026 8:33 AM.'});
+ renderMessageList(mockThread({messages:[{id:'quota-raw-user',type:'human',content:'你好'}],error:new Error(detail)}));
+ expect(screen.getByText(/Nov 14th, 2026 8:33 AM/)).toBeTruthy();
+ expect(screen.getByRole('button',{name:'切换引擎'})).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'重试'})).toBeNull();
 });

@@ -4,6 +4,7 @@ import { renderWithProviders } from "@/test/harness";
 import { OPEN_ARTIFACT_EVENT } from "@/core/artifacts/open-artifact";
 import { FileReferenceScope } from "@/core/navigation/file-reference";
 import { LinkedFileReference } from "./linked-file-reference";
+import { parseFilePreviewRef } from "@/core/artifacts/file-preview-ref";
 
 const conversation = vi.hoisted(() => ({ artifacts: [] as string[] }));
 vi.mock("@/components/workspace/artifacts/context", () => ({
@@ -27,6 +28,27 @@ function listenForArtifactOpens() {
     stop: () => window.removeEventListener(OPEN_ARTIFACT_EVENT, handle),
   };
 }
+
+it("routes ordinary file citations to the same workbench and preserves scope and lines", () => {
+  const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+  const listener = listenForArtifactOpens();
+  renderWithProviders(<FileReferenceScope.Provider value={{ threadId: "t1", basePath: "D:/project" }}><LinkedFileReference path="src/a.ts" lines="2-4" /></FileReferenceScope.Provider>);
+  fireEvent.click(screen.getByRole("button", { name: /a.ts/ }));
+  listener.stop();
+  expect(parseFilePreviewRef(listener.opened[0]!)).toEqual({ path: "src/a.ts", lines: "2-4", threadId: "t1", basePath: "D:/project" });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("renders the shared file reader inside the panel without a second dialog", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ content: "one\ntwo" }) }));
+  renderWithProviders(<FileReferenceScope.Provider value={{ threadId: "t1" }}><LinkedFileReference path="a.ts" lines="2" embedded /></FileReferenceScope.Provider>);
+  expect(await screen.findByText("two")).toHaveClass("bg-primary/10");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByRole("button", { name: "Reference this file" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Reference this file" }));
+  expect(screen.getByText("two")).toBeInTheDocument();
+});
 
 it("opens a file the run produced in the artifacts tab instead of reading the workspace", () => {
   conversation.artifacts = [

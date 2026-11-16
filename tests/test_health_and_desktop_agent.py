@@ -67,12 +67,14 @@ class TestDesktopOperatorAgent:
         assert agent.icon == "🖥️"
         assert "desktop" in agent.extra_affinity
 
-    def test_agent_has_one_bundled_arm(self):
-        # One bundled arm, plus the per-agent arm the loader synthesizes for
-        # the persona's ``private_skills`` (tool-registry.jsonc).
+    def test_agent_has_desktop_browser_and_private_arms(self):
+        # The loader adds shared browser abilities and the per-agent arm
+        # synthesized from the persona's private_skills.
         agent = make_desktop_operator_agent(_rt())
         assert [str(a.arm_id) for a in agent.arms] == [
             "desktop_operator_arm",
+            "browser_read_arm",
+            "browser_interact_arm",
             "raven_private_arm",
         ]
 

@@ -8,6 +8,8 @@ from runtime.execution.tool_engine.role_instructions import (
     resolve_explicit_skill_instructions,
 )
 
+from .result_emission import DYNAMIC_RESULT_CONTRACT
+
 
 def compose_codex_role_instructions(
     agent: Any,
@@ -30,6 +32,7 @@ def compose_codex_role_instructions(
         "by Echo before this turn.\n"
         "</echo-codex-role-contract>"
     )
+    sections.append(DYNAMIC_RESULT_CONTRACT)
     return "\n\n".join(sections)
 
 

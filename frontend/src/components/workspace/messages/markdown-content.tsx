@@ -30,6 +30,8 @@ import { AudioCard, VideoCard, mediaFromFence } from "./media-cards";
 import { parseFileReference } from "@/core/navigation/file-reference";
 import { remarkFileURLs } from "@/core/navigation/remark-file-urls";
 import { RoutedWebLink } from "@/components/ui/routed-web-link";
+import { GeneratedFileReference } from "./generated-file-reference";
+import { MarkdownTable } from "./markdown-table";
 import {
   artifactRefFromMarkdownHref,
   dispatchOpenArtifact,
@@ -67,6 +69,11 @@ const MermaidBlock = lazy(() =>
  * observe the settle without any remount.
  */
 const MarkdownStreamingContext = createContext(false);
+
+function StreamingTable(props: Parameters<typeof MarkdownTable>[0]) {
+  const isStreaming = useContext(MarkdownStreamingContext);
+  return <MarkdownTable {...props} isStreaming={isStreaming} />;
+}
 
 /**
  * Chat font-size → ``prose-*`` variant.
@@ -288,6 +295,7 @@ export const MarkdownContent = memo(
     );
     const components = useMemo(() => {
       return {
+        table: StreamingTable,
         a: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => {
           if (typeof props.children === "string") {
             const match = /^citation:(.+)$/.exec(props.children);
@@ -301,6 +309,17 @@ export const MarkdownContent = memo(
           const generatedArtifact = props.href
             ? artifactRefFromMarkdownHref(props.href)
             : null;
+          if (generatedArtifact?.startsWith("workspace-output:")) {
+            const label =
+              typeof props.children === "string" ? props.children : undefined;
+            return (
+              <GeneratedFileReference
+                artifactRef={generatedArtifact}
+                href={props.href}
+                label={label}
+              />
+            );
+          }
           const file =
             !external &&
             props.href &&

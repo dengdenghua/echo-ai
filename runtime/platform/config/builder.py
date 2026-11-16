@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from runtime.adapters.mcp_client import MCPClient
     from runtime.platform.config.schema import MCPServerConfigEntry
 
+
 from runtime.core.cerebrum import LLMPlanner, StaticPlanner
 from runtime.core.cerebrum.planner import Rule
 from runtime.core.graph_runtime import GraphRuntime
@@ -30,9 +31,11 @@ from runtime.platform.observability.redactor import Redactor
 from runtime.safety.auth import TrustEngine
 
 from ._lazy_planner import DeferredPlanner
+from ._mcp_bootstrap import MCPBootstrap
 from .schema import AgentConfig
 
 Planner = StaticPlanner | LLMPlanner | DeferredPlanner
+
 _INHERIT_APPROVAL_ROUTER = object()
 
 
@@ -74,6 +77,8 @@ class BuiltStack:
     runtime: GraphRuntime
     planner: Planner
     mcp_clients: list[Any] = field(default_factory=list)
+    # Owns asynchronous discovery and closes results arriving after shutdown.
+    mcp_bootstrap: MCPBootstrap | None = None
     # Host-owned PluginHub, prepared before automation tool registration.
     # Web composition attaches services to this same owner.
     plugin_hub: Any | None = None
@@ -132,6 +137,8 @@ class BuiltStack:
 
     def close_mcp_clients(self) -> None:
         """graceful shutdown · 逐个 close 长连 MCP client。"""
+        if self.mcp_bootstrap is not None:
+            self.mcp_bootstrap.close()
         if self.plugin_hub is not None:
             self.plugin_hub.stop_all()
             self.plugin_hub.unload_all()
@@ -178,13 +185,16 @@ def build_from_config(config: AgentConfig) -> BuiltStack:
     except Exception:  # noqa: BLE001 - governed candidates fail closed
         pass
 
-    # 2. MCP servers: connect configured servers one by one. Each server gets
-    #    a persistent client to avoid spawning a new process per tool call.
+    # 2. MCP servers: one persistent client per configured server, so a tool
+    #    call never re-spawns a process. Connecting them is *not* startup work:
+    #    each stdio server boots its own Python venv (seconds, 30-120 s timeout
+    #    when a command is missing), and the loop used to sit between the app
+    #    and uvicorn's bind. Measured 2026-10-22: 15.4 s of a 49 s first launch
+    #    was this loop, all of it before ``/readyz`` could answer. The tools
+    #    now stream in from a daemon thread; a session that needs one in the
+    #    first seconds misses it and finds it on the next turn.
     mcp_clients: list[Any] = []
-    for srv in config.mcp_servers:
-        client = _register_mcp_server(registry, srv)
-        if client is not None:
-            mcp_clients.append(client)
+    mcp_bootstrap = _start_mcp_bootstrap(config.mcp_servers, registry, mcp_clients)
 
     # 3. Journal
     # Default-on secret redaction: the journal is the source-of-truth audit log
@@ -315,6 +325,7 @@ def build_from_config(config: AgentConfig) -> BuiltStack:
         runtime=runtime,
         planner=planner,
         mcp_clients=mcp_clients,
+        mcp_bootstrap=mcp_bootstrap,
         plugin_hub=plugin_hub,
         approval_router=getattr(planner, "router", None),
     )
@@ -487,6 +498,27 @@ def _default_static_rules(*, enable_web_skills: bool) -> list[Rule]:
     return rules
 
 
+def _start_mcp_bootstrap(
+    servers: list[MCPServerConfigEntry],
+    registry: SkillRegistry,
+    mcp_clients: list[Any],
+) -> MCPBootstrap | None:
+    """Connect the configured MCP servers without blocking startup.
+
+    Every entry spawns its own subprocess and then lists its tools: seconds per
+    server, and up to ``connect_timeout_ms`` (30 s by default, 120 s for the
+    optics entry) when the command is missing. Inline, that delay landed before
+    uvicorn could bind — the UI's ``/readyz`` probe and therefore the login
+    screen waited on the slowest CAD server. Failed entries are logged, and
+    the bootstrap owner closes connections that finish after shutdown.
+    """
+    if not servers:
+        return None
+    thread = MCPBootstrap(servers, registry, mcp_clients, _register_mcp_server)
+    thread.start()
+    return thread
+
+
 def _register_mcp_server(
     registry: SkillRegistry,
     entry: MCPServerConfigEntry,
@@ -544,7 +576,7 @@ def _register_mcp_server(
         return None
     try:
         register_mcp_tools_as_skills(registry, client, name_prefix=entry.name_prefix)
-    except (OSError, TypeError, ValueError):
+    except (MCPClientError, OSError, TypeError, ValueError):
         # Release the client (subprocess / connection) when registration fails.
         # ``IOError`` is an alias of ``OSError`` on supported Python
         # versions; passing a tuple as one suppress argument is both redundant

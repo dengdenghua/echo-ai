@@ -42,6 +42,17 @@ def _events(log):
     return [{**row, **row.get("payload", {})} for row in rows]
 
 
+def test_handoff_output_namespace_uses_the_canonical_artifact_root(tmp_path):
+    final = tmp_path / "output/final"
+    final.mkdir(parents=True)
+    parent, _ = _host(final)
+    parent.metadata["_artifact_output_root"] = str(final)
+    handoff = ArtifactHandoff.prepare(parent, [], ["output/final/report.md"])
+    assert handoff.contract.output_paths == (final / "report.md",)
+    with pytest.raises(ArtifactHandoffError, match="outside"):
+        ArtifactHandoff.prepare(parent, [], ["output/final/../../../outside.md"])
+
+
 def test_missing_output_cannot_be_accepted_or_transfer_back(tmp_path):
     parent, log = _host(tmp_path)
     handoff = ArtifactHandoff.prepare(parent, [], ["missing.txt"])

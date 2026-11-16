@@ -13,6 +13,7 @@ module-level function.
 from __future__ import annotations
 
 import threading
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,10 @@ class ComputerRouterState:
     activity: list[dict[str, Any]] = field(default_factory=list)
     appshots: dict[str, dict[str, Any]] = field(default_factory=dict)
     screenshot_root: Path = field(
-        default_factory=lambda: Path("data/computer_automation/screenshots").resolve()
+        # Packaged cwd is under Roaming/AppData, which the file guard denies.
+        # Put generated captures in the OS temp area; the same guard still
+        # validates every capture and respects explicit user deny rules.
+        default_factory=lambda: (Path(tempfile.gettempdir()) / "echo-computer-automation" / "screenshots").resolve()
     )
     control_sessions: ControlSessionStore = field(default_factory=ControlSessionStore)
     # Optional side-channel: waiting_user escalation watchdog. When set,

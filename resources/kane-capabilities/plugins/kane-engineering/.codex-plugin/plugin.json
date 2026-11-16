@@ -1,0 +1,9 @@
+{
+  "name": "kane-engineering",
+  "version": "1.0.0",
+  "description": "Kane 工程资源、机械制造与睡眠温控产品评审技能",
+  "skills": "./skills/",
+  "author": {
+    "name": "Echo personal engineering"
+  }
+}

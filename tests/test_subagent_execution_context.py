@@ -100,6 +100,27 @@ def test_bridge_children_have_distinct_identity_and_contend_for_same_file(tmp_pa
     assert parent.metadata["_execution_task"].task_id == "parent-turn"
 
 
+def test_child_keeps_codebuddy_default_without_overriding_explicit_role(tmp_path):
+    from runtime.execution.parallel_agents.stack_runner import member_execution_backend
+
+    parent = _parent(tmp_path)
+    parent.metadata["_execution_task"] = replace(
+        parent.metadata["_execution_task"], execution_engine="codebuddy"
+    )
+
+    def runner(prompt, *, subagent_name, context):
+        stack = SimpleNamespace(
+            config=SimpleNamespace(execution=SimpleNamespace(member_engine="opencode"))
+        )
+        assert member_execution_backend(stack, SimpleNamespace(capabilities={})) == "codebuddy_cli"
+        explicit = SimpleNamespace(capabilities={"execution_backend": "codex_app_server"})
+        assert member_execution_backend(stack, explicit) == "codex_app_server"
+        return "verified"
+
+    result = call_subagent("coder", "Verify", session=parent, runner=runner, timeout_seconds=3)
+    assert result["success"], result
+
+
 def test_chat_members_inherit_read_workspace_without_requesting_write_access(tmp_path):
     project = tmp_path / "reference"
     output = tmp_path / "output"

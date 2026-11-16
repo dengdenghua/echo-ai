@@ -8,6 +8,13 @@ import pytest
 from runtime.execution import opencode_backend as backend
 
 
+@pytest.fixture(autouse=True)
+def _without_store_engine(monkeypatch):
+    """These cases exercise launcher/PATH fallback after the store lookup."""
+    monkeypatch.setattr(backend, "installed_executable", lambda _engine: None)
+    monkeypatch.setattr(backend, "engines_strict", lambda: False)
+
+
 @pytest.mark.parametrize("kind", ["valid", "outside", "missing", "malformed"])
 def test_pinned_discovery_is_confined_to_managed_installation(tmp_path, monkeypatch, kind):
     monkeypatch.delenv("ECHO_OPENCODE_BIN", raising=False)

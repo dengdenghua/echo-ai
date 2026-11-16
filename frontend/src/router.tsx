@@ -17,6 +17,7 @@ import {
   ElectronTitleBarProvider,
 } from "@/components/electron-title-bar";
 import { useI18n } from "@/core/i18n/hooks";
+import { sharesWorkspaceTitlebar } from "@/core/workspace/window-chrome";
 import { loadAgentsPage } from "@/core/navigation/workspace-route-preload";
 import { RouteTitle } from "@/core/navigation/route-title";
 import {
@@ -92,6 +93,11 @@ const PrivacyPage = lazy(() => import("./app/privacy/page"));
 const PublicThreadSharePage = lazy(() => import("./app/share/[token]/page"));
 const DesktopPage = lazy(() => import("./app/desktop/page"));
 const TopBrowserPage = lazy(() => import("./app/browser/page"));
+const DesktopWorkspaceShell = lazy(() =>
+  import("./components/workspace/desktop-workspace-shell").then((m) => ({
+    default: m.DesktopWorkspaceShell,
+  })),
+);
 const MediaAppPage = lazy(() => import("./app/apps/media/page"));
 
 const WorkspaceLayout = lazy(() => import("./app/workspace/layout"));
@@ -173,10 +179,13 @@ export function PageLoading() {
 }
 
 export function AppRouter() {
+  const { pathname, search } = useLocation();
   return (
     <ErrorBoundary>
       <RouteTitle />
-      <ElectronTitleBarProvider>
+      <ElectronTitleBarProvider
+        sharedToolbar={sharesWorkspaceTitlebar(pathname, search)}
+      >
         <ElectronTitleBar />
         <Suspense fallback={<PageLoading />}>
           <Routes>
@@ -194,7 +203,6 @@ export function AppRouter() {
             <Route element={<ProtectedRoute />}>
               <Route path="/settings" element={<SettingsRoute />} />
               <Route path="/desktop" element={<DesktopPage />} />
-              <Route path="/browser" element={<TopBrowserPage />} />
               <Route
                 path="/apps/photos"
                 element={<MediaAppPage kind="image" />}
@@ -208,142 +216,155 @@ export function AppRouter() {
                 element={<HubAssetRedirect tab="plugins" />}
               />
 
-              <Route path="/workspace" element={<WorkspaceLayout />}>
-                <Route index element={<Navigate to="realtime/new" replace />} />
-                <Route
-                  path="realtime"
-                  element={<Navigate to="/workspace/realtime/new" replace />}
-                />
-                <Route
-                  path="realtime/:threadId"
-                  element={
-                    <AssistantThreadAlias>
-                      <ChatPage />
-                    </AssistantThreadAlias>
-                  }
-                />
-                <Route path="team/join" element={<TeamJoinPage />} />
-                <Route path="organizations" element={<OrganizationsPage />} />
-                <Route path="devices" element={<DevicesPage />} />
-                {/* Browser previews stay in the Agent workbench. The complete
+              <Route element={<DesktopWorkspaceShell />}>
+                <Route path="/browser" element={<TopBrowserPage />} />
+                <Route path="/workspace" element={<WorkspaceLayout />}>
+                  <Route
+                    index
+                    element={<Navigate to="realtime/new" replace />}
+                  />
+                  <Route
+                    path="realtime"
+                    element={<Navigate to="/workspace/realtime/new" replace />}
+                  />
+                  <Route
+                    path="realtime/:threadId"
+                    element={
+                      <AssistantThreadAlias>
+                        <ChatPage />
+                      </AssistantThreadAlias>
+                    }
+                  />
+                  <Route path="team/join" element={<TeamJoinPage />} />
+                  <Route path="organizations" element={<OrganizationsPage />} />
+                  <Route path="devices" element={<DevicesPage />} />
+                  {/* Browser previews stay in the Agent workbench. The complete
                     desktop browser mode owns the top-level /browser route. */}
-                <Route
-                  path="browser"
-                  element={<Navigate to="/browser" replace />}
-                />
-                <Route
-                  path="computer"
-                  element={<Navigate to={LEGACY_REDIRECTS.computer} replace />}
-                />
-                <Route
-                  path="desktop-organizer"
-                  element={
-                    <Navigate
-                      to="/workspace/settings?section=desktopAutomation"
-                      replace
-                    />
-                  }
-                />
-                <Route
-                  path="mobile"
-                  element={<Navigate to={LEGACY_REDIRECTS.mobile} replace />}
-                />
-                <Route path="settings" element={<SettingsRoute />} />
-                <Route
-                  path="mcp"
-                  element={
-                    <Navigate to="/workspace/settings?section=tools" replace />
-                  }
-                />
-                <Route path="agents" element={<AgentsPage />} />
-                <Route path="agents/new" element={<AgentsNewPage />} />
-                <Route
-                  path="skills"
-                  element={<HubAssetRedirect tab="skills" />}
-                />
-                <Route
-                  path="community"
-                  element={<RemoteWorkbenchSurface app={COMMUNITY_APP} />}
-                />
-                <Route
-                  path="plugins"
-                  element={<HubAssetRedirect tab="plugins" />}
-                />
-                <Route
-                  path="store"
-                  element={<Navigate to={LEGACY_REDIRECTS.store} replace />}
-                />
-                <Route
-                  path="channels"
-                  element={
-                    <Navigate
-                      to="/workspace/realtime/echo-assistant?agent=echo&assistantPanel=channels"
-                      replace
-                    />
-                  }
-                />
-                <Route
-                  path="architecture"
-                  element={<Navigate to="/workspace/realtime/new" replace />}
-                />
-                <Route path="observability" element={<ObservabilityPage />} />
-                <Route
-                  path="intelligence"
-                  element={<RemoteWorkbenchSurface app={INTELLIGENCE_APP} />}
-                />
-                <Route path="knowledge" element={<KnowledgePage />} />
-                <Route path="storage" element={<StoragePage />} />
-                <Route path="nas" element={<StorageRedirect />} />
-                <Route path="database" element={<StorageRedirect />} />
-                <Route
-                  path="evolution"
-                  element={<RemoteWorkbenchSurface app={EVOLUTION_APP} />}
-                />
-                <Route
-                  path="projects"
-                  element={<RemoteWorkbenchSurface app={PROJECTS_APP} />}
-                />
-                <Route
-                  path="design"
-                  element={<RemoteWorkbenchSurface app={DESIGN_APP} />}
-                />
-                <Route
-                  path="narrative"
-                  element={<RemoteWorkbenchSurface app={NARRATIVE_APP} />}
-                />
-                <Route
-                  path="paper-trading"
-                  element={<Navigate to="/workspace/agents" replace />}
-                />
-                <Route path="mail" element={<MailPage />} />
-                <Route path="web-app" element={<WorkspaceWebAppPage />} />
-                <Route
-                  path="replay"
-                  element={<Navigate to={LEGACY_REDIRECTS.replay} replace />}
-                />
-                <Route
-                  path="workflows"
-                  element={<Navigate to={LEGACY_REDIRECTS.workflows} replace />}
-                />
-                <Route
-                  path="reflex"
-                  element={
-                    <Navigate
-                      to="/workspace/evolution?surface=chat&section=governance&detail=reflex"
-                      replace
-                    />
-                  }
-                />
-                <Route path="reflex/edit" element={<ReflexEditorPage />} />
-                <Route
-                  path="diagnostics"
-                  element={
-                    <Navigate
-                      to="/workspace/observability?tab=system"
-                      replace
-                    />
-                  }
-                />
+                  <Route
+                    path="browser"
+                    element={<Navigate to="/browser" replace />}
+                  />
+                  <Route
+                    path="computer"
+                    element={
+                      <Navigate to={LEGACY_REDIRECTS.computer} replace />
+                    }
+                  />
+                  <Route
+                    path="desktop-organizer"
+                    element={
+                      <Navigate
+                        to="/workspace/settings?section=desktopAutomation"
+                        replace
+                      />
+                    }
+                  />
+                  <Route
+                    path="mobile"
+                    element={<Navigate to={LEGACY_REDIRECTS.mobile} replace />}
+                  />
+                  <Route path="settings" element={<SettingsRoute />} />
+                  <Route
+                    path="mcp"
+                    element={
+                      <Navigate
+                        to="/workspace/settings?section=tools"
+                        replace
+                      />
+                    }
+                  />
+                  <Route path="agents" element={<AgentsPage />} />
+                  <Route path="agents/new" element={<AgentsNewPage />} />
+                  <Route
+                    path="skills"
+                    element={<HubAssetRedirect tab="skills" />}
+                  />
+                  <Route
+                    path="community"
+                    element={<RemoteWorkbenchSurface app={COMMUNITY_APP} />}
+                  />
+                  <Route
+                    path="plugins"
+                    element={<HubAssetRedirect tab="plugins" />}
+                  />
+                  <Route
+                    path="store"
+                    element={<Navigate to={LEGACY_REDIRECTS.store} replace />}
+                  />
+                  <Route
+                    path="channels"
+                    element={
+                      <Navigate
+                        to="/workspace/realtime/echo-assistant?agent=echo&assistantPanel=channels"
+                        replace
+                      />
+                    }
+                  />
+                  <Route
+                    path="architecture"
+                    element={<Navigate to="/workspace/realtime/new" replace />}
+                  />
+                  <Route path="observability" element={<ObservabilityPage />} />
+                  <Route
+                    path="intelligence"
+                    element={<RemoteWorkbenchSurface app={INTELLIGENCE_APP} />}
+                  />
+                  <Route path="knowledge" element={<KnowledgePage />} />
+                  <Route path="storage" element={<StoragePage />} />
+                  <Route path="nas" element={<StorageRedirect />} />
+                  <Route path="database" element={<StorageRedirect />} />
+                  <Route
+                    path="evolution"
+                    element={<RemoteWorkbenchSurface app={EVOLUTION_APP} />}
+                  />
+                  <Route
+                    path="projects"
+                    element={<RemoteWorkbenchSurface app={PROJECTS_APP} />}
+                  />
+                  <Route
+                    path="design"
+                    element={<RemoteWorkbenchSurface app={DESIGN_APP} />}
+                  />
+                  <Route
+                    path="narrative"
+                    element={<RemoteWorkbenchSurface app={NARRATIVE_APP} />}
+                  />
+                  <Route
+                    path="paper-trading"
+                    element={<Navigate to="/workspace/agents" replace />}
+                  />
+                  <Route path="mail" element={<MailPage />} />
+                  <Route path="web-app" element={<WorkspaceWebAppPage />} />
+                  <Route
+                    path="replay"
+                    element={<Navigate to={LEGACY_REDIRECTS.replay} replace />}
+                  />
+                  <Route
+                    path="workflows"
+                    element={
+                      <Navigate to={LEGACY_REDIRECTS.workflows} replace />
+                    }
+                  />
+                  <Route
+                    path="reflex"
+                    element={
+                      <Navigate
+                        to="/workspace/evolution?surface=chat&section=governance&detail=reflex"
+                        replace
+                      />
+                    }
+                  />
+                  <Route path="reflex/edit" element={<ReflexEditorPage />} />
+                  <Route
+                    path="diagnostics"
+                    element={
+                      <Navigate
+                        to="/workspace/observability?tab=system"
+                        replace
+                      />
+                    }
+                  />
+                </Route>
               </Route>
             </Route>
 

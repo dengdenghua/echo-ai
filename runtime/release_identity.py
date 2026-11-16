@@ -15,6 +15,8 @@ from typing import Any
 
 SCHEMA = "echo.kernel-release.v1"
 SUPPORTED_RELEASES = {
+    "1.0.9": "6278e170365147397427c1d978de4d33cc4ebc158f213fd0e8acc62a0c56d3bc",
+    "1.0.8": "e8dfbf5e0c2dfeff704c5f020664e06cecf48c5df5234c55c54e6336ccbd4bd7",
     "1.0.7": "4684abbe3cbdf790da40459a86ceff54ef0a58072f3e54b5dc88eb569813cb80",
     "1.0.6": "54d8c73e10c47e10348f5f7ac56625ea956c8f9dcd9582ce1faf2e230fd55ec4",
     "1.0.5": "96e8b28e1a1b477232d37b83f5b97de5e8196f1441770fa2d32fe496078c0f7e",

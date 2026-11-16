@@ -42,6 +42,10 @@ BROWSER_SKILL_NAMES = [
     "browser_state",
 ]
 
+# Empty URLs read the current live page. Registration self-tests must exercise
+# local validation without probing any browser backend or active session.
+_REGISTRATION_INVALID_URL = "file:///registration-check"
+
 
 def register_browser_skills(
     registry: SkillRegistry,
@@ -68,9 +72,9 @@ def register_browser_skills(
             handler=_browser_get,
             tests=[
                 SkillTestCase(
-                    name="missing_url_returns_error",
+                    name="unsupported_scheme_returns_error",
                     tier="golden",
-                    args={"url": ""},
+                    args={"url": _REGISTRATION_INVALID_URL},
                     expect=SkillExpect(schema_keys=["error"]),
                 ),
             ],
@@ -277,9 +281,9 @@ def register_browser_skills(
             handler=_browser_state,
             tests=[
                 SkillTestCase(
-                    name="missing_url_error",
+                    name="unsupported_scheme_returns_error",
                     tier="golden",
-                    args={"url": ""},
+                    args={"url": _REGISTRATION_INVALID_URL},
                     expect=SkillExpect(schema_keys=["error"]),
                 ),
             ],

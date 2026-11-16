@@ -61,10 +61,14 @@ def _isolate_execution_security_environment():
     into a commercial deployment.
     """
 
+    from runtime.safety.sandboxing.sandbox import _reset_process_backend_cache
+
+    _reset_process_backend_cache()
     keys = ("ECHO_DEPLOYMENT_MODE", "ECHO_PROCESS_SANDBOX")
     for key in keys:
         os.environ.pop(key, None)
     yield
+    _reset_process_backend_cache()
     for key in keys:
         os.environ.pop(key, None)
 

@@ -1243,6 +1243,8 @@ def test_shared_command_resolver_finds_packaged_chatgpt_binary(
     monkeypatch.delenv("ECHO_CODEX_EXECUTABLE", raising=False)
     monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
     monkeypatch.setattr(command_module, "login_shell_path", lambda: str(resources))
+    monkeypatch.setattr(command_module, "installed_executable", lambda _engine: None)
+    monkeypatch.setattr(command_module, "engines_strict", lambda: False)
 
     command = resolve_codex_app_server_command()
 

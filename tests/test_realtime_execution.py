@@ -458,3 +458,30 @@ def test_nested_client_metadata_cannot_override_gateway_grants(tmp_path):
             assert resolve_execution_scope(current_session()) == request.task.permissions
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("goal", "writable"),
+    [
+        (
+            "子智能体 A 写 output/final/agent-a.md；合并生成 output/final/report.md，不修改项目源码",
+            True,
+        ),
+        ("只读检查产物，不要生成文件或保存报告", False),
+    ],
+)
+def test_artifact_write_scope_preserves_source_only_prohibition(tmp_path, goal, writable):
+    from runtime.sensing.gateway.realtime_execution_context import RealtimeExecutionContext
+
+    turn = Turn(threadId="artifact-thread")
+    turn.execution_workspace_path = str(tmp_path)
+    intent = ParsedIntent(
+        raw=goal,
+        normalized_goal=goal,
+        intent_type="task",
+        user_context={"mode": "code", "workspace_path": str(tmp_path)},
+    )
+    context = RealtimeExecutionContext()
+    context._initialize(object(), turn, object(), intent)
+    assert context.task.permissions.allows_write(tmp_path / "output/final/report.md") is writable
+    assert bool(context.session.metadata.get("_read_only_turn_enforced")) is not writable

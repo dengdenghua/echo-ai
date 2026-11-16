@@ -87,14 +87,16 @@ export function ArtifactFileDetail({
   className,
   filepath: filepathFromProps,
   threadId,
+  initialLine,
 }: {
   className?: string;
   filepath: string;
   threadId: string;
+  initialLine?: number;
 }) {
   const { t } = useI18n();
   const streamdownPlugins = useStreamdownPlugins();
-  const { artifacts, select, clearSelection } = useArtifacts();
+  const { artifacts, select, clearSelection, registerNavigationGuard } = useArtifacts();
   const isWriteFile = useMemo(() => {
     return filepathFromProps.startsWith("write-file:");
   }, [filepathFromProps]);
@@ -149,14 +151,16 @@ export function ArtifactFileDetail({
   const isInstalling = installingFile === filepath;
   const { isMock } = useThread();
   useEffect(() => {
-    if (isWriteFile && isDiffAvailable) {
+    if (initialLine && isCodeFile) {
+      setViewMode("code");
+    } else if (isWriteFile && isDiffAvailable) {
       setViewMode("diff");
     } else if (isSupportPreview) {
       setViewMode("preview");
     } else {
       setViewMode("code");
     }
-  }, [isSupportPreview, isWriteFile, isDiffAvailable]);
+  }, [isSupportPreview, isWriteFile, isDiffAvailable, initialLine, isCodeFile]);
 
   const handleInstallSkill = useCallback(() => {
     void install(filepath);
@@ -178,16 +182,12 @@ export function ArtifactFileDetail({
 
   const selectArtifact = useCallback(
     async (nextFilepath: string) => {
-      if (
-        nextFilepath === filepathFromProps ||
-        !(await confirmHtmlEditDiscard())
-      )
-        return;
-      setHtmlEditProtected(false);
+      if (nextFilepath === filepathFromProps) return;
       select(nextFilepath);
     },
-    [confirmHtmlEditDiscard, filepathFromProps, select],
+    [filepathFromProps, select],
   );
+  useEffect(() => registerNavigationGuard?.(confirmHtmlEditDiscard), [registerNavigationGuard, confirmHtmlEditDiscard]);
 
   const changeViewMode = useCallback(
     async (nextMode: ViewMode) => {
@@ -382,6 +382,7 @@ export function ArtifactFileDetail({
             <CodeEditor
               className="size-full resize-none rounded-none border-none"
               value={effectiveContent ?? ""}
+              initialLine={initialLine}
               readonly={isWriteFile}
               filePath={isWriteFile ? undefined : filepath}
               threadId={threadId}

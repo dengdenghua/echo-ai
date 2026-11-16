@@ -77,8 +77,10 @@ describe("EngineStoreSection", () => {
       "Included with the app · 1.18.29",
     );
     expect(
-      within(screen.getByTestId("engine-opencode")).queryByRole("button"),
-    ).toBeNull();
+      within(screen.getByTestId("engine-opencode")).queryByRole("button", {
+        name: /Manage OpenCode/,
+      }),
+    ).not.toBeNull();
 
     await user.click(
       within(codex).getByRole("button", { name: "Install Codex" }),
@@ -134,4 +136,47 @@ describe("EngineStoreSection", () => {
       path: { engine_id: "opencode" },
     });
   });
+});
+
+it("updates a bundled engine independently and offers its previous version", async () => {
+  const user = userEvent.setup();
+  vi.mocked(apiGet).mockResolvedValue({
+    engines: [
+      engine({
+        state: "ready",
+        source: "bundled",
+        can_rollback: true,
+        previous_version: "0.161.0",
+      }),
+    ],
+  });
+  vi.mocked(apiPost).mockResolvedValue(engine({ state: "ready" }));
+  renderWithProviders(<EngineStoreSection />);
+  await user.click(await screen.findByRole("button", { name: "Manage Codex" }));
+  await user.click(screen.getByRole("menuitem", { name: /Check and update/ }));
+  expect(apiPost).toHaveBeenCalledWith("/api/engines/{engine_id}/update", {
+    path: { engine_id: "codex" },
+  });
+  await user.click(await screen.findByRole("button", { name: "Manage Codex" }));
+  await user.click(
+    screen.getByRole("menuitem", { name: /Roll back to v0.161.0/ }),
+  );
+  expect(apiPost).toHaveBeenCalledWith("/api/engines/{engine_id}/rollback", {
+    path: { engine_id: "codex" },
+  });
+});
+
+it("shows waiting tasks and prevents duplicate changes", async () => {
+  vi.mocked(apiGet).mockResolvedValue({
+    engines: [
+      engine({
+        state: "pending_activation",
+        pending_version: "0.167.0",
+        active_tasks: 2,
+      }),
+    ],
+  });
+  renderWithProviders(<EngineStoreSection />);
+  expect(await screen.findByText(/Waiting for 2 tasks/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Manage Codex" })).toBeNull();
 });

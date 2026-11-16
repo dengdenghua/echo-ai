@@ -44,6 +44,7 @@ export const enUS: Translations = {
     error: "Error",
     copy: "Copy",
     copied: "Copied",
+    tableContents: "Table contents",
     version: "Version",
     lastUpdated: "Last updated",
     code: "Code",
@@ -1962,6 +1963,9 @@ export const enUS: Translations = {
     humanSave: "Save page",
     humanCancel: "Discard changes",
     humanSaved: "Page changes saved",
+    humanSaving: "Saving…",
+    humanSaveUnconfirmed:
+      "Save is unconfirmed. Your edits are retained; check the file before retrying.",
     humanUndo: "Undo last save",
     humanRestored: "Restored the version from before the save",
     humanConflict: "The Agent updated this page; your changes are not saved",
@@ -7000,6 +7004,9 @@ Strategy:
     privacyUnavailable:
       "Privacy settings could not be read. Retry before making changes.",
     creditsBalance: "Credits Balance",
+    autoLoginTitle: "Sign in automatically at launch",
+    autoLoginDescription:
+      "Open straight into the app with the local account instead of clicking through every time.",
     octAccount: "Official Account",
     available: "Available",
     refreshing: "Refreshing",

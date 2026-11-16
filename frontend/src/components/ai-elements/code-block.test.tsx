@@ -42,4 +42,25 @@ describe("CodeBlockCopyButton", () => {
 
     expect(container.querySelector("button")).not.toBeNull();
   });
+
+  it("names the default copy action and announces a rejected copy without reporting success", async () => {
+    vi.stubGlobal("echo", {
+      clipboard: { writeText: vi.fn().mockResolvedValue({ ok: false }) },
+    });
+    vi.stubGlobal("navigator", {});
+    const onError = vi.fn();
+    renderWithProviders(
+      <CodeBlock code="print(2870)" language="python">
+        <CodeBlockCopyButton onError={onError} />
+      </CodeBlock>,
+      { locale: "zh-CN" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "复制到剪贴板" }));
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "复制到剪贴板失败" })).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent("复制到剪贴板失败");
+    expect(
+      screen.queryByRole("button", { name: "已复制到剪贴板" }),
+    ).not.toBeInTheDocument();
+  });
 });

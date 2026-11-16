@@ -113,6 +113,13 @@ def execute_native_tool_call(
         except (RuntimeError, ValueError, OSError) as exc:
             return (f"(skill error: {type(exc).__name__}: {exc})", True)
 
+    if image_items is None and isinstance(output, dict) and "_mcp_images" in output:
+        output = {key: value for key, value in output.items() if key != "_mcp_images"}
+        output["visual_observation"] = {
+            "attached": False,
+            "review_status": "unreviewed",
+            "reason": "This execution path has no image delivery channel.",
+        }
     if image_items is not None and not output_signals_error(output):
         from .tool_images import image_observation
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "光源架构与多通道设计"
+  short_description: "比较 LED、激光荧光粉与 RGB 激光，核对面角、时序和热接口"
+  default_prompt: "使用 $projection-source-architecture，比较 LED、激光荧光粉或 RGB 直接激光方案，列出通道、面角接受、时序与热约束。"

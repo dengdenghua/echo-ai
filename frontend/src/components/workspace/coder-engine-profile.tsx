@@ -59,6 +59,7 @@ export function compactProfileLabel(
 export function reasoningLabel(effort: ReasoningEffort, locale: string) {
   const language = locale.toLowerCase().slice(0, 2);
   const labels: Record<ReasoningEffort, Record<string, string>> = {
+    ultra: { zh: "极致", ja: "Ultra", ko: "Ultra", en: "Ultra" },
     off: { zh: "关闭", ja: "オフ", ko: "끔", en: "Off" },
     minimal: { zh: "极低", ja: "最小", ko: "최소", en: "Minimal" },
     low: { zh: "低", ja: "低", ko: "낮음", en: "Low" },
@@ -246,3 +247,4 @@ export function UsageStat({
     </div>
   );
 }
+

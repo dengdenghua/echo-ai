@@ -1,6 +1,6 @@
 import { CreateAssetButton } from "./create-asset-button";
 import { skillDescription } from "@/core/utils/display-value";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckIcon,
   CloudIcon,
@@ -88,6 +88,7 @@ export function CloudSkillsPanel({
   const [installedError, setInstalledError] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SkillEntry | null>(null);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -582,8 +583,10 @@ export function CloudSkillsPanel({
                       />
                       <button
                         type="button"
-                        onClick={() => setDetail(entry)}
-                        aria-label={`查看 ${entry.name} 详情`}
+                        onClick={(event) => {
+                          detailTriggerRef.current = event.currentTarget;
+                          setDetail(entry);
+                        }}
                         className="min-w-0 flex-1 cursor-pointer rounded-md text-left outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <span className="flex items-center gap-1.5">
@@ -692,7 +695,17 @@ export function CloudSkillsPanel({
                           <button
                             type="button"
                             className="flex max-w-full items-center rounded-md p-0.5 text-xs text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-                            aria-label={`查看 ${displayName(entry)} 的使用角色`}
+                            aria-label={`查看 ${displayName(entry)} 的使用角色：${usersFor(entry)
+                              .slice(0, 4)
+                              .map((user) => user.name)
+                              .join("、")} ${usersFor(entry)
+                              .slice(0, 4)
+                              .map((user) => user.name.slice(0, 1))
+                              .join("")}${
+                              usersFor(entry).length > 4
+                                ? ` +${usersFor(entry).length - 4}`
+                                : ""
+                            }`}
                             title={usersFor(entry)
                               .map((user) => user.name)
                               .join("、")}
@@ -701,7 +714,16 @@ export function CloudSkillsPanel({
                               setDetail(entry);
                             }}
                           >
-                            <span className="flex -space-x-1.5">
+                            <span className="sr-only">
+                              {usersFor(entry)
+                                .slice(0, 4)
+                                .map((user) => user.name)
+                                .join("、")}
+                            </span>
+                            <span
+                              className="flex -space-x-1.5"
+                              aria-hidden="true"
+                            >
                               {usersFor(entry)
                                 .slice(0, 4)
                                 .map((user) => (
@@ -803,7 +825,13 @@ export function CloudSkillsPanel({
         open={Boolean(detail)}
         onOpenChange={(open) => !open && setDetail(null)}
       >
-        <DialogContent className="flex flex-col overflow-y-clip">
+        <DialogContent
+          className="flex flex-col overflow-y-clip"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            detailTriggerRef.current?.focus();
+          }}
+        >
           <DialogHeader className="shrink-0 pr-8 text-left">
             <DialogTitle className="flex items-center gap-3 break-words">
               {detail && (
@@ -858,12 +886,12 @@ export function CloudSkillsPanel({
               </p>
               {isInstalled(detail) && (
                 <section className="space-y-2" aria-label="角色使用者">
-                  <h4 className="text-sm font-medium">
+                  <h3 className="text-sm font-medium">
                     角色使用者
                     {skillUsers !== undefined
                       ? ` · ${usersFor(detail).length}`
                       : ""}
-                  </h4>
+                  </h3>
                   <p className="text-xs text-muted-foreground">
                     按角色配置中的技能登记统计，不代表实际调用次数。
                   </p>

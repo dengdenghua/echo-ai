@@ -13,6 +13,26 @@ class CodeBuddyError(RuntimeError):
     """An engine failure safe to display without raw upstream output."""
 
 
+def tool_result_failed(value: Any, depth: int = 0) -> bool:
+    """The CLI may omit is_error while preserving an MCP failure envelope."""
+    from runtime.execution.tool_engine.tool_protocol import output_signals_error
+
+    if depth > 8:
+        return False
+    if isinstance(value, str):
+        try:
+            return tool_result_failed(json.loads(value), depth + 1)
+        except (ValueError, TypeError):
+            return False
+    if isinstance(value, list):
+        return any(tool_result_failed(part, depth + 1) for part in value)
+    if isinstance(value, dict):
+        return bool(value.get("isError") is True or output_signals_error(value)) or any(
+            tool_result_failed(value[key], depth + 1) for key in ("text", "content") if key in value
+        )
+    return False
+
+
 def tool_result_preview(value: Any, depth: int = 0) -> str:
     """Unwrap text transports before bounding the user-visible preview."""
     if depth > 8 or value is None:
@@ -26,6 +46,31 @@ def tool_result_preview(value: Any, depth: int = 0) -> str:
     if isinstance(value, list):
         return "\n".join(tool_result_preview(part, depth + 1) for part in value)[:2000]
     if isinstance(value, dict):
+        if "agent_id" in value and "success" in value:
+            # Continuation identity and failure receipts must reach the UI.
+            # Flattening a delegated result to its prose loses session_id and
+            # makes a successful worker impossible to follow up with.
+            receipt = {
+                key: value[key]
+                for key in (
+                    "agent_id",
+                    "success",
+                    "status",
+                    "session_id",
+                    "display_name",
+                    "role_display_name",
+                    "avatar",
+                    "avatar_url",
+                    "iteration_count",
+                )
+                if key in value
+            }
+            for key in ("output", "error", "summary"):
+                if isinstance(value.get(key), str):
+                    receipt[key] = value[key][:1200]
+            if isinstance(value.get("files_touched"), list):
+                receipt["files_touched"] = value["files_touched"][:5]
+            return json.dumps(receipt, ensure_ascii=False, default=str)
         parts = [
             tool_result_preview(value[key], depth + 1)
             for key in ("stdout", "stderr", "error", "output", "text", "content")
@@ -63,6 +108,8 @@ class CodeBuddyEvents:
     partial_by_message: dict[str, str] = field(default_factory=dict)
     active_message_id: str = ""
     completed: bool = False
+    compaction_count: int = 0
+    compacting: bool = False
     model: str = "auto"
 
     def __post_init__(self) -> None:
@@ -87,6 +134,13 @@ class CodeBuddyEvents:
             raise CodeBuddyError("CodeBuddy 在回合结束后发送了额外消息。")
         if message.get("parent_tool_use_id"):
             raise CodeBuddyError("CodeBuddy 返回了未授权的内置子代理消息。")
+        if kind == "system" and message.get("subtype") == "status":
+            if message.get("status") == "compacting" and not self.compacting:
+                self.compaction_count += 1
+                self.compacting = True
+            elif message.get("status") is None:
+                self.compacting = False
+            return []
         if kind == "stream_event":
             event = message.get("event") or {}
             if event.get("type") == "message_start":
@@ -184,7 +238,9 @@ class CodeBuddyEvents:
                 call_id = str(block.get("tool_use_id") or "")
                 if call_id in self.tools and call_id not in self.ended:
                     self.ended.add(call_id)
-                    success = not block.get("is_error", False)
+                    success = not block.get("is_error", False) and not tool_result_failed(
+                        block.get("content")
+                    )
                     events.append(
                         {
                             "type": "tool_end",
@@ -219,6 +275,7 @@ class CodeBuddyEvents:
                     "engine": "codebuddy",
                     "model": self.model,
                     "tokens": self._tokens(message.get("usage")),
+                    "compaction_count": self.compaction_count,
                 },
             }
         )

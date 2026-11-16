@@ -51,6 +51,24 @@ describe("placeTimelineEntries", () => {
     ]);
   });
 
+  it("finds the first anchor at scale without scanning every group", () => {
+    const anchors = Array.from({ length: 1000 }, (_, index) =>
+      new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
+    );
+    const slots = placeTimelineEntries(anchors, [
+      entry("middle", new Date(Date.UTC(2026, 0, 1, 0, 500, 30)).toISOString()),
+    ]);
+    expect(slots[501]?.map((item) => item.id)).toEqual(["middle"]);
+  });
+
+  it("falls back to chronological scan when anchors are out of order", () => {
+    const slots = placeTimelineEntries(
+      ["2026-08-21T01:02:00Z", "2026-08-21T01:00:00Z"],
+      [entry("between", "2026-08-21T01:01:00Z")],
+    );
+    expect(slots[0]?.map((item) => item.id)).toEqual(["between"]);
+  });
+
   it("keeps stable ordering and puts undated events at the tail", () => {
     const slots = placeTimelineEntries(
       ["2026-08-21T01:00:00Z"],

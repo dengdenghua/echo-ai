@@ -29,6 +29,70 @@ from runtime.sensing.model_router.models import (
 )
 
 
+def test_tool_session_is_hidden_and_host_injected():
+    from runtime.execution.tool_engine._executor_helpers import _prepare_scoped_args
+    from runtime.execution.tool_spec_builder import _input_schema_from_handler
+    from runtime.platform.models import SkillId
+
+    def handler(prompt: str, session=None):
+        return session
+
+    schema = _input_schema_from_handler(handler)[0]
+    assert "session" not in schema["properties"]
+    skill = Skill(
+        name="test_session",
+        description="test",
+        affinity=["test"],
+        trusted_source="skill://test/session",
+        handler=handler,
+    )
+    parent = Session(thread_id="real-parent", metadata={"_execution_task": object()})
+    with session_scope(parent):
+        for supplied in ("", None, {"thread_id": "forged"}):
+            args = _prepare_scoped_args(
+                skill, SkillId("test_session"), {"prompt": "test", "session": supplied}
+            )
+            assert args["session"] is parent
+
+
+def test_output_namespace_is_not_duplicated_under_artifact_write_root(tmp_path):
+    from runtime.execution.tool_engine._executor_helpers import _prepare_scoped_args
+    from runtime.platform.models import SkillId
+
+    final = tmp_path / "output/final"
+    final.mkdir(parents=True)
+
+    def handler(path: str, content: str, sandbox_dir=None):
+        from pathlib import Path
+
+        Path(path).write_text(content, encoding="utf-8")
+
+    skill = Skill(
+        name="write_report",
+        description="test",
+        affinity=["write"],
+        trusted_source="skill://test/write",
+        handler=handler,
+    )
+    session = Session(
+        thread_id="artifact",
+        metadata={
+            "mode": "chat",
+            "_artifact_output_root": str(final),
+            "workspace_path": str(tmp_path),
+        },
+    )
+    with session_scope(session):
+        args = _prepare_scoped_args(
+            skill,
+            SkillId("write_report"),
+            {"path": "output/final/report.md", "content": "verified"},
+        )
+        handler(**args)
+    assert (final / "report.md").read_text() == "verified"
+    assert not (final / "output").exists()
+
+
 def _agent():
     return SimpleNamespace(
         agent_id="coder",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+import os
 from pathlib import Path
 from typing import Any
 
@@ -98,8 +99,28 @@ def test_candidate_registry_cross_process_propose_is_one_line(tmp_path: Path) ->
         assert worker.exitcode == 0
 
     outcomes = [results.get(timeout=5) for _ in workers]
-    assert {status for status, _value in outcomes} == {"ok"}
+    assert {status for status, _value in outcomes} == {"ok"}, outcomes
     assert len({value for _status, value in outcomes}) == 1
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert len(rows) == 1
     assert CandidateRegistry(path).list()[0].candidate_id == outcomes[0][1]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows byte-range locking")
+def test_candidate_lock_does_not_write_before_acquiring(tmp_path, monkeypatch):
+    from runtime.platform.io import transactional
+
+    def reject_unlocked_write(*_args):
+        raise PermissionError("another process already holds the first lock byte")
+
+    # A competing opener can observe an empty sidecar just before another
+    # process locks it. Initializing that byte before locking races the owner.
+    monkeypatch.setattr(transactional.os, "write", reject_unlocked_write)
+    registry = CandidateRegistry(tmp_path / "candidates.jsonl")
+    candidate = registry.propose(
+        gene_type=GeneType.SKILL,
+        scope="skill.concurrent",
+        patch={"skill": "concurrent"},
+        proposer="test",
+    )
+    assert registry.list() == [candidate]

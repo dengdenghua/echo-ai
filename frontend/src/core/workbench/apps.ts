@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from "react";
 
+import { currentActorScope } from "@/core/auth/api";
+
 export type WorkbenchBuiltinIcon =
   | "mail"
   | "projects"
@@ -125,7 +127,29 @@ export function workspaceWebAppRoute(shortcut: {
 const STORAGE_KEY = "echo:workbench:workspace-web-shortcuts.v1";
 const CHANGE_EVENT = "echo:workbench-web-shortcuts-changed";
 const EMPTY_SHORTCUTS: readonly WorkspaceWebShortcut[] = [];
-let cache: readonly WorkspaceWebShortcut[] | null = null;
+let cache: {
+  scope: string;
+  items: readonly WorkspaceWebShortcut[];
+} | null = null;
+
+export function workspaceWebShortcutKey(
+  scope = currentActorScope(),
+): string {
+  return `${STORAGE_KEY}:${encodeURIComponent(scope)}`;
+}
+
+/** Remove the account's pinned web apps at explicit sign-out. */
+export function clearWorkspaceWebShortcutsForScope(
+  scope = currentActorScope(),
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(workspaceWebShortcutKey(scope));
+    cache = null;
+  } catch {
+    // Storage unavailable: there is nothing durable to clear.
+  }
+}
 
 function isWebUrl(value: string): boolean {
   try {
@@ -159,20 +183,28 @@ function sanitizeShortcut(value: unknown): WorkspaceWebShortcut | null {
 }
 
 function readShortcuts(): readonly WorkspaceWebShortcut[] {
-  if (cache) return cache;
+  const scope = currentActorScope();
+  if (cache?.scope === scope) return cache.items;
   if (typeof window === "undefined") return EMPTY_SHORTCUTS;
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
+    const parsed = JSON.parse(
+      window.localStorage.getItem(workspaceWebShortcutKey(scope)) || "[]",
+    );
     const items = Array.isArray(parsed)
       ? parsed
           .map(sanitizeShortcut)
           .filter((item): item is WorkspaceWebShortcut => Boolean(item))
       : [];
-    cache = Array.from(new Map(items.map((item) => [item.url, item])).values());
+    cache = {
+      scope,
+      items: Array.from(
+        new Map(items.map((item) => [item.url, item])).values(),
+      ),
+    };
   } catch {
-    cache = [];
+    cache = { scope, items: [] };
   }
-  return cache;
+  return cache.items;
 }
 
 function emitChange(): void {
@@ -182,7 +214,10 @@ function emitChange(): void {
 
 function writeShortcuts(items: readonly WorkspaceWebShortcut[]): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    window.localStorage.setItem(
+      workspaceWebShortcutKey(),
+      JSON.stringify(items),
+    );
     emitChange();
   } catch {
     // Private browsing or a full storage quota should not break navigation.
@@ -220,7 +255,7 @@ function subscribe(listener: () => void): () => void {
     listener();
   };
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) onChange();
+    if (event.key === workspaceWebShortcutKey()) onChange();
   };
   window.addEventListener(CHANGE_EVENT, onChange);
   window.addEventListener("storage", onStorage);

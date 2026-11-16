@@ -262,7 +262,10 @@ class TestMouseMove:
 
 
 class TestKeyboardType:
-    def test_types_text(self, fake_pyautogui):
+    def test_types_text(self, fake_pyautogui, monkeypatch):
+        # The non-Windows ASCII path retains the existing keyboard writer.
+        from runtime.execution.suckers import computer_skills
+        monkeypatch.setattr(computer_skills.sys, "platform", "linux")
         r = _keyboard_type(text="hello world")
         assert "error" not in r
         assert r["text_len"] == 11

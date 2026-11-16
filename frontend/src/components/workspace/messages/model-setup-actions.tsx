@@ -97,26 +97,28 @@ export function ModelSetupButtons({
 
 export function ModelSetupActions({
   noModel,
+  quota = false,
   indent = false,
 }: {
   noModel: boolean;
+  quota?: boolean;
   /** Line the row up with the message text after the card's status icon. */
   indent?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   if (!noModel) {
     return (
       <button
         type="button"
         onClick={() => emitOpenSettings("models")}
-        title={t.streaming.openModelSettings}
+        title={quota ? (locale.startsWith("zh") ? "切换引擎" : "Switch engine") : t.streaming.openModelSettings}
         className={cn(
           BUTTON,
           "border-warning/35 bg-warning/[0.08] text-warning hover:border-warning/55 hover:bg-warning/15",
         )}
       >
         <Settings2Icon className="size-3" />
-        {t.streaming.openModelSettings}
+        {quota ? (locale.startsWith("zh") ? "切换引擎" : "Switch engine") : t.streaming.openModelSettings}
       </button>
     );
   }

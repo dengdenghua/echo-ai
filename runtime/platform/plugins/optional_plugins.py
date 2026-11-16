@@ -51,6 +51,7 @@ class OptionalPlugin:
 
 
 OPTIONAL_PLUGINS: dict[str, OptionalPlugin] = {
+    "knowledge_storage": OptionalPlugin("0.2.0", "knowledge-storage"),
     "clip_studio": OptionalPlugin(
         "0.7.0",
         "design/clip-studio-projects",

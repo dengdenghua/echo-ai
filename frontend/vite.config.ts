@@ -6,6 +6,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "url";
 import { createRequire } from "module";
+import type { ClientRequest, IncomingMessage, ServerResponse } from "node:http";
 import path from "path";
 import fs from "fs";
 import { devSettings, devInstancePlugin } from "./scripts/dev-instance.mjs";
@@ -87,7 +88,7 @@ const proxyConfig = {
     timeout: 0,
     proxyTimeout: 0,
     on: {
-      proxyReq: (proxyReq: any) => {
+      proxyReq: (proxyReq: ClientRequest) => {
         proxyReq.setHeader("Connection", "keep-alive");
         proxyReq.setHeader("Cache-Control", "no-cache");
       },
@@ -100,7 +101,7 @@ const proxyConfig = {
     timeout: 0,
     proxyTimeout: 0,
     on: {
-      proxyReq: (proxyReq: any) => {
+      proxyReq: (proxyReq: ClientRequest) => {
         proxyReq.setHeader("Connection", "keep-alive");
         proxyReq.setHeader("Cache-Control", "no-cache");
       },
@@ -114,13 +115,21 @@ const proxyConfig = {
     proxyTimeout: 0,
     ws: true,
     on: {
-      proxyReq: (proxyReq: any, req: any, _res: any) => {
+      proxyReq: (
+        proxyReq: ClientRequest,
+        req: IncomingMessage,
+        _res: ServerResponse,
+      ) => {
         if (req.headers.accept?.includes("text/event-stream")) {
           proxyReq.setHeader("Connection", "keep-alive");
           proxyReq.setHeader("Cache-Control", "no-cache");
         }
       },
-      proxyRes: (proxyRes: any, req: any, _res: any) => {
+      proxyRes: (
+        proxyRes: IncomingMessage,
+        req: IncomingMessage,
+        _res: ServerResponse,
+      ) => {
         if (
           req.headers.accept?.includes("text/event-stream") ||
           (proxyRes.headers["content-type"] || "").includes("text/event-stream")
@@ -129,7 +138,7 @@ const proxyConfig = {
           proxyRes.headers["x-accel-buffering"] = "no";
         }
       },
-      error: (_err: any, _req: any, res: any) => {
+      error: (_err: Error, _req: IncomingMessage, res: ServerResponse) => {
         if (!res.headersSent) {
           res.writeHead(502, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "proxy_error" }));

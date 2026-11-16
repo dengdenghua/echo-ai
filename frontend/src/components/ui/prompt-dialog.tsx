@@ -52,11 +52,11 @@ export function PromptDialog({
       >
         <DialogHeader className="gap-1 text-left">
           <DialogTitle className="text-[15px]">{title}</DialogTitle>
-          {label ? (
-            <DialogDescription className="text-caption leading-5">
-              {label}
-            </DialogDescription>
-          ) : null}
+          <DialogDescription
+            className={label ? "text-caption leading-5" : "sr-only"}
+          >
+            {label ?? title}
+          </DialogDescription>
         </DialogHeader>
         <form
           onSubmit={(event) => {
@@ -67,6 +67,7 @@ export function PromptDialog({
         >
           <Input
             autoFocus
+            aria-label={label ?? title}
             value={value}
             placeholder={placeholder}
             onChange={(event) => setValue(event.target.value)}

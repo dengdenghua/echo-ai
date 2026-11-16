@@ -1,0 +1,4 @@
+interface:
+  display_name: "镜头处方复用"
+  short_description: "核处方来源指纹并准备工作副本，保留单位材料依赖和原生验证缺口"
+  default_prompt: "使用 $lens-prescription-reuse 从已有案例准备镜头工作副本，并检查原生验证条件。"

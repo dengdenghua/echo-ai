@@ -1,0 +1,7 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Echo 回芽玩伴</title><link rel="stylesheet" href="companion.css"></head><body>
+<main id="companion" data-mood="offline">
+ <div class="bubble" data-hit role="status" aria-live="polite"><span class="indicator"></span><span id="status">正在连接 Echo</span><span id="count"></span></div>
+ <button id="droplet" data-hit aria-label="和 Echo 聊聊，可拖动回芽移动" title="点击对话 · 拖动移动 · 右键收起"><img id="fallback" src="companion-assets/droplet.png" alt="" draggable="false"><canvas id="motion" width="320" height="320" aria-hidden="true" hidden></canvas></button>
+ <div id="detail" class="detail"></div>
+</main><script src="companion-assets/animations.js"></script><script src="companion-animation.js"></script><script src="companion-player.js"></script><script src="companion-renderer.js"></script></body></html>
+

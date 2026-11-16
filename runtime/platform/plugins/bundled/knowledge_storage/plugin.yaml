@@ -1,0 +1,11 @@
+name: knowledge_storage
+version: 0.2.0
+activation: startup
+display_name: 知识库
+description: 本地目录授权、中文全文检索与来源引用。可独立启停，升级和卸载保留数据。
+author: Echo
+tags: [knowledge, documents, search, local]
+provides: []
+config_schema:
+  type: object
+  properties: {}

@@ -5,10 +5,11 @@ import { isBackgroundResumePrompt } from "./background-resume";
  *
  * The composer keeps its draft in component state, which meant switching
  * threads or reloading the page silently discarded half-typed messages.
- * Drafts are mirrored to localStorage keyed by thread id (a dedicated key
- * for the not-yet-created "new thread" composer). Writes are debounced by
- * the caller; storage failures (quota, private mode) are swallowed — a
- * lost draft is annoying, a thrown exception mid-typing is worse.
+ * Drafts are mirrored to localStorage keyed by account scope and thread id
+ * (a dedicated key for the not-yet-created "new thread" composer). Writes
+ * are debounced by the caller; storage failures (quota, private mode) are
+ * swallowed — a lost draft is annoying, a thrown exception mid-typing is
+ * worse.
  *
  * Values are stored as a small JSON envelope carrying a write timestamp.
  * Thread ids can be ephemeral (e.g. the agent-creation page generates a
@@ -16,7 +17,7 @@ import { isBackgroundResumePrompt } from "./background-resume";
  * keep the key space from growing unboundedly.
  */
 
-const DRAFT_KEY_PREFIX = "echo:composer-draft:";
+const DRAFT_KEY_PREFIX = "echo:composer-draft:v2:";
 export const NEW_THREAD_DRAFT_KEY = "__new__";
 const DRAFT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -26,9 +27,17 @@ interface DraftEnvelope {
   savedAt: number;
 }
 
-function storageKey(threadId: string | undefined | null): string {
+function scopePrefix(scope: string): string {
+  return `${DRAFT_KEY_PREFIX}${encodeURIComponent(scope)}:`;
+}
+
+function storageKey(
+  scope: string,
+  threadId: string | undefined | null,
+): string {
   return (
-    DRAFT_KEY_PREFIX + (threadId?.trim() ? threadId : NEW_THREAD_DRAFT_KEY)
+    scopePrefix(scope) +
+    (threadId?.trim() ? threadId : NEW_THREAD_DRAFT_KEY)
   );
 }
 
@@ -68,11 +77,13 @@ function pruneExpiredDrafts(now: number): void {
 
 export function loadComposerDraft(
   threadId: string | undefined | null,
+  scope: string,
 ): string | null {
+  const key = storageKey(scope, threadId);
   try {
-    const draft = readDraft(window.localStorage.getItem(storageKey(threadId)));
+    const draft = readDraft(window.localStorage.getItem(key));
     if (draft && isBackgroundResumePrompt(draft)) {
-      window.localStorage.removeItem(storageKey(threadId));
+      window.localStorage.removeItem(key);
       return null;
     }
     return draft;
@@ -84,20 +95,34 @@ export function loadComposerDraft(
 export function saveComposerDraft(
   threadId: string | undefined | null,
   draft: string,
+  scope: string,
 ): void {
+  const key = storageKey(scope, threadId);
   try {
     if (draft && !isBackgroundResumePrompt(draft)) {
       const now = Date.now();
       const envelope: DraftEnvelope = { v: 1, text: draft, savedAt: now };
-      window.localStorage.setItem(
-        storageKey(threadId),
-        JSON.stringify(envelope),
-      );
+      window.localStorage.setItem(key, JSON.stringify(envelope));
       pruneExpiredDrafts(now);
     } else {
-      window.localStorage.removeItem(storageKey(threadId));
+      window.localStorage.removeItem(key);
     }
   } catch {
     // Storage unavailable (private mode / quota): drafts stay in-memory.
+  }
+}
+
+/** Erase one account's drafts at explicit sign-out. */
+export function clearComposerDrafts(scope: string): void {
+  try {
+    const prefix = scopePrefix(scope);
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    for (const key of keys) window.localStorage.removeItem(key);
+  } catch {
+    // Storage unavailable: nothing to erase.
   }
 }

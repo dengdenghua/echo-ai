@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
@@ -46,6 +47,23 @@ from runtime.sensing.gateway._realtime_react_stream_drive import (
 
 SPAWN_MARKER = ItemMarker.SUBAGENT_SPAWNED.value
 FINISH_MARKER = ItemMarker.SUBAGENT_FINISHED.value
+
+
+def test_lifecycle_projection_preserves_durable_continuation_identity():
+    for kind, marker in (("sub_tool_start", SPAWN_MARKER), ("sub_tool_end", FINISH_MARKER)):
+        event = SimpleNamespace(
+            event_type=kind,
+            tool_name=marker,
+            event_id="event-session",
+            session_id="session-reviewer-a",
+            args_preview='{"role":"reviewer"}',
+            output_preview='{"role":"reviewer","ok":true}',
+            ts=datetime.now(UTC),
+        )
+        item = _subagent_lifecycle_item_from_journal(event)
+        assert item is not None
+        payload = item.arguments if kind == "sub_tool_start" else item.result
+        assert payload["session_id"] == "session-reviewer-a"
 
 
 def _spawn_event(
@@ -125,6 +143,7 @@ def test_long_spawn_prompt_keeps_valid_identity_json() -> None:
             {
                 "agent_id": "researcher-a",
                 "requested_agent_id": "researcher-a",
+                "session_id": "durable-researcher-a",
                 "codename": "Spark-a1",
                 "role": "researcher",
                 "prompt_preview": "核对证据" * 2_000,
@@ -134,6 +153,9 @@ def test_long_spawn_prompt_keeps_valid_identity_json() -> None:
     assert len(written) == 1
     parsed = _parse_lifecycle_preview(written[0].args_preview)
     assert parsed["agent_id"] == "researcher-a"
+    assert written[0].session_id == "durable-researcher-a"
+    item = _subagent_lifecycle_item_from_journal(written[0])
+    assert item is not None and item.arguments["session_id"] == "durable-researcher-a"
     assert parsed["codename"] == "Spark-a1"
     assert parsed["role"] == "researcher"
     assert len(written[0].args_preview) <= 1000
@@ -152,6 +174,7 @@ def test_long_finish_output_keeps_valid_terminal_json() -> None:
             "subagent_finished",
             {
                 "agent_id": "reviewer-a",
+                "session_id": "durable-reviewer-a",
                 "codename": "Zenith-a1",
                 "role": "reviewer",
                 "ok": True,
@@ -162,6 +185,8 @@ def test_long_finish_output_keeps_valid_terminal_json() -> None:
     assert len(written) == 1
     parsed = _parse_lifecycle_preview(written[0].output_preview)
     assert parsed["agent_id"] == "reviewer-a"
+    item = _subagent_lifecycle_item_from_journal(written[0])
+    assert item is not None and item.result["session_id"] == "durable-reviewer-a"
     assert parsed["codename"] == "Zenith-a1"
     assert parsed["ok"] is True
     assert parsed["output"].startswith("已验证")

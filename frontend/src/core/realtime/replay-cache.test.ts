@@ -91,4 +91,16 @@ describe("createMemoryReplayCache", () => {
     await cache.clear("th");
     expect(await cache.load("th")).toBeNull();
   });
+
+  it("never exposes one account's thread cache to another", async () => {
+    const owner = createMemoryReplayCache(undefined, "local:owner");
+    const reader = createMemoryReplayCache(undefined, "local:reader");
+    await owner.append("shared-thread-id", [evt(1)], {
+      streamId: "s1",
+      cursor: 1,
+    });
+
+    expect(await owner.load("shared-thread-id")).not.toBeNull();
+    expect(await reader.load("shared-thread-id")).toBeNull();
+  });
 });

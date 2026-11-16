@@ -1,3 +1,5 @@
+import { CodexContextBudget } from "./codex-context-budget";
+import { CODEBUDDY_EFFORTS, readCodeBuddyPreferences, writeCodeBuddyPreferences, type CodeBuddyPreferences } from "@/core/models/codebuddy-preferences";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, SparklesIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -61,6 +63,14 @@ export function UnifiedModelControl({
   const { locale, t } = useI18n();
   const copy = modelSourceCopy(locale);
   const { user, isLoading: authLoading } = useAuth();
+  const principal = user?.actor_id || user?.user_id || "local";
+  const [buddyPreferences, setBuddyPreferences] = useState<CodeBuddyPreferences>({});
+  useEffect(() => { setBuddyPreferences(readCodeBuddyPreferences(principal, value || "auto")); }, [principal, value]);
+  const saveBuddyPreferences = (patch: CodeBuddyPreferences) => {
+    const next = { ...buddyPreferences, ...patch };
+    try { writeCodeBuddyPreferences(principal, value || "auto", next); setBuddyPreferences(next); }
+    catch { /* Keep the prior selection if persistence is unavailable. */ }
+  };
   const keys = coderQueryKeys(user?.actor_id || user?.user_id || "local");
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -99,13 +109,24 @@ export function UnifiedModelControl({
       ),
     staleTime: 60_000,
   });
+  const buddyCapability = codebuddy.data?.model_capabilities?.[(value || "").replace(/^codebuddy\//, "")];
+  useEffect(() => {
+    if (engine !== "codebuddy" || !buddyCapability) return;
+    const previous = readCodeBuddyPreferences(principal, value || "auto");
+    const next = {...previous};
+    if (next.effort && !buddyCapability.reasoning_efforts.includes(next.effort)) next.effort = parseReasoningEffort(buddyCapability.default_reasoning_effort);
+    if (next.autocompact && buddyCapability.context_window && next.autocompact > buddyCapability.context_window) next.autocompact = undefined;
+    if (JSON.stringify(previous) !== JSON.stringify(next)) {
+      try { writeCodeBuddyPreferences(principal, value || "auto", next); setBuddyPreferences(next); } catch { /* Preserve saved state on write failure. */ }
+    }
+  }, [buddyCapability, engine, principal, value]);
   const catalog = [
     ...routeNativeModels(models),
     ...(codebuddy.data?.models ?? []).map((id) =>
       routedModel(
         "codebuddy",
         `codebuddy/${id}`,
-        { name: id, display_name: id, supports_reasoning_effort: false },
+        { name: id, display_name: id, ...codebuddy.data?.model_capabilities?.[id], reasoning_efforts: codebuddy.data?.controls?.effort ? (codebuddy.data.model_capabilities?.[id]?.reasoning_efforts ?? []).filter(isReasoningEffort) : [] },
         copy.official,
       ),
     ),
@@ -116,6 +137,9 @@ export function UnifiedModelControl({
         {
           name: model.id,
           display_name: model.display_name || model.id,
+          context_window: model.context_window,
+          context_source: model.context_source,
+          default_reasoning_effort: model.default_reasoning_effort,
           reasoning_efforts: model.reasoning_efforts.filter(isReasoningEffort),
         },
         account.data?.account?.type === "apiKey" ? copy.api : copy.subscription,
@@ -225,9 +249,20 @@ export function UnifiedModelControl({
       ? wireValue.replace(/^codebuddy\//, "")
       : copy.default);
   const pending = disabled || save.isPending || effort.isPending;
+  const sourceModels = catalog.filter((model) => model.executionEngine === sourceFilter);
+  const sourceLoading = sourceFilter === "codebuddy"
+    ? codebuddy.isPending || codebuddy.isFetching
+    : sourceFilter === "codex"
+      ? account.isPending || account.isFetching || Boolean(account.data?.account && (codex.isPending || codex.isFetching))
+      : false;
+  const sourceError = sourceFilter === "codebuddy"
+    ? codebuddy.isError
+    : sourceFilter === "codex"
+      ? account.isError || codex.isError
+      : false;
   return (
     <ModelPicker
-      models={catalog.filter((model) => model.executionEngine === sourceFilter)}
+      models={sourceModels}
       value={selectedValue}
       onChange={(selection) => save.mutate(selection)}
       open={open}
@@ -239,11 +274,13 @@ export function UnifiedModelControl({
       showAutoOption={false}
       showSettingsLink={false}
       emptyMessage={
-        sourceFilter === "codebuddy"
-          ? codebuddy.isFetching
-            ? copy.loading
-            : copy.codebuddyEmpty
-          : copy.noModels
+        sourceLoading
+          ? copy.loading
+          : sourceError
+            ? copy.unavailable
+            : sourceFilter === "codebuddy"
+              ? copy.codebuddyEmpty
+              : copy.noModels
       }
       disabled={pending}
       header={
@@ -274,12 +311,15 @@ export function UnifiedModelControl({
       }
       reasoningEffort={
         engine === "codex"
-          ? parseReasoningEffort(profile.data?.reasoning_effort)
-          : reasoningEffort
+          ? parseReasoningEffort(profile.data?.reasoning_effort ?? selected?.default_reasoning_effort)
+          : engine === "codebuddy" ? buddyPreferences.effort : reasoningEffort
       }
+      reasoningEffortAutomatic={engine === "codebuddy" && !buddyPreferences.effort}
       reasoningEffortDisabled={pending}
       onReasoningEffortChange={
-        engine === "echo"
+        sourceFilter !== engine ? undefined : engine === "codebuddy" && codebuddy.data?.controls?.effort
+          ? (next) => saveBuddyPreferences({ effort: next })
+          : engine === "echo"
           ? onReasoningEffortChange
           : engine === "codex"
             ? (next) => effort.mutate(next)
@@ -305,20 +345,23 @@ export function UnifiedModelControl({
       }
       footer={
         <div className="mt-1 border-t border-border-subtle pt-1">
+          {sourceFilter === engine && engine === "codex" && <CodexContextBudget model={wireValue} disabled={pending} />}
+          {sourceFilter === engine && engine === "codebuddy" && (
+            <div className="space-y-2 px-2 py-2 text-xs">
+              {codebuddy.data?.controls?.autocompact && <label className="flex items-center justify-between gap-2">自动压缩预算
+                <select aria-label="自动压缩预算" disabled={pending} value={buddyPreferences.autocompact ?? "auto"} onChange={event => saveBuddyPreferences({ autocompact: event.target.value === "auto" ? undefined : Number(event.target.value) })} className="rounded-md border bg-background px-2 py-1">
+                  <option value="auto">跟随模型</option>{[100000, 200000, 300000, 500000, 1000000].filter(tokens => !buddyCapability?.context_window || tokens <= buddyCapability.context_window).map(tokens => <option key={tokens} value={tokens}>{tokens / 1000}K</option>)}
+                </select></label>}
+              {buddyPreferences.effort && <button type="button" disabled={pending} className="text-muted-foreground underline" onClick={() => saveBuddyPreferences({ effort: undefined })}>思考等级跟随引擎</button>}
+              <p className="text-muted-foreground">压缩预算不扩展模型上限；思考等级由官方引擎按模型能力应用，下次发送生效。</p>
+            </div>
+          )}
           {(save.isError || effort.isError) && (
             <p role="alert" className="px-2 py-1 text-xs text-destructive">
               {copy.failed}
             </p>
           )}
-          {codebuddy.isFetching && !codebuddy.data && (
-            <p
-              role="status"
-              className="px-2 py-1 text-xs text-muted-foreground"
-            >
-              {copy.loading}
-            </p>
-          )}
-          {(codebuddy.isError || codex.isError) && (
+          {sourceError && sourceModels.length > 0 && (
             <p
               role="status"
               className="px-2 py-1 text-xs text-muted-foreground"

@@ -243,7 +243,7 @@ describe("HUB market shell", () => {
       await screen.findByRole("button", { name: /展开全部 .* 个场景/ }),
     );
     expect(
-      await screen.findByRole("button", { name: "启动部门场景：白幽灵行动组" }),
+      await screen.findByRole("button", { name: /^启动部门场景：白幽灵行动组/ }),
     ).toBeVisible();
     expect(screen.queryByTestId("agent-role-profile-dialog")).toBeNull();
   });
@@ -337,7 +337,7 @@ describe("HUB market shell", () => {
       await screen.findByRole("button", { name: /展开全部 .* 个场景/ }),
     );
     const scene = await screen.findByRole("button", {
-      name: "启动部门场景：白幽灵行动组",
+      name: /^启动部门场景：白幽灵行动组/,
     });
     expect(scene).toHaveAttribute("title", expect.stringContaining("通用助手"));
     expect(screen.queryByText("法务合规分身")).toBeNull();

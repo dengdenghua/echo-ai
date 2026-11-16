@@ -323,7 +323,7 @@ export function VideoLibraryView({
         ))}
       </div>
 
-      <main className="min-h-0 flex-1 overflow-y-auto bg-card px-4 py-4 lg:px-6">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-card px-4 py-4 lg:px-6">
         {activeTab === "videos" && (
           <>
             <div className="mb-2 flex items-center gap-2">
@@ -584,7 +584,7 @@ export function VideoLibraryView({
             {selectedTag && renderVideoGrid(taggedVideos)}
           </>
         )}
-      </main>
+      </div>
 
       {playerTarget && (
         <VideoPlayerDialog

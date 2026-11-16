@@ -189,12 +189,17 @@ class _RealtimeGatewaySessionMixin:
                     payload = await ws.receive_text()
                 except WebSocketDisconnect:
                     break
-                if self._max_inbound_msg_bytes > 0 and len(payload) > self._max_inbound_msg_bytes:
+                payload_bytes = len(payload.encode("utf-8"))
+                if self._max_inbound_msg_bytes > 0 and payload_bytes > self._max_inbound_msg_bytes:
                     _logger.warning(
                         "realtime: dropping %d-byte inbound frame (limit %d)",
-                        len(payload),
+                        payload_bytes,
                         self._max_inbound_msg_bytes,
                     )
+                    await conn.notify("error", {
+                        "error": {"code": -32600, "message": "消息超过传输大小限制，请改用文件附件或拆分发送。", "data": {"kind": "inbound_frame_too_large", "limitBytes": self._max_inbound_msg_bytes}},
+                        "willRetry": False,
+                    })
                     continue
                 if _inbound_limiter is not None and not _inbound_limiter.allow(
                     actor_id or "<anon>"

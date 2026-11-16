@@ -8,6 +8,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from runtime.execution.misc.read_only_intent import workspace_read_only_text
+
 FULL_ACCESS_MARKERS: frozenset[str] = frozenset(
     {
         "*",
@@ -191,6 +193,12 @@ def audit_read_only_tool_denial(
     )
     if name in control_tools:
         return None
+    if name == "computer_observe":
+        # Observation only: this fixed wrapper cannot submit input or choose
+        # an output path. Its private screenshot/evidence cache is diagnostic
+        # bookkeeping, not a project edit. Do not extend the strict voter
+        # allow-list or allow screen_capture, which writes a caller-chosen file.
+        return None
     if name in {"run_tests", "lint_check"}:
         if name == "lint_check" and bool(payload.get("fix")):
             return (
@@ -271,7 +279,7 @@ def goal_forbids_local_workspace_access(value: str) -> bool:
 def goal_is_read_only(value: str) -> bool:
     """Whether the user requested a non-mutating workspace operation."""
 
-    text = str(value or "").lower()
+    text = workspace_read_only_text(value)
     return bool(
         re.search(r"\bread[- ]only\b", text)
         or re.search(

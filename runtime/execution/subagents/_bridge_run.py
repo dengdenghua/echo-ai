@@ -39,6 +39,7 @@ class _SubagentRunMixin:
         # exceptions never block the run.
         _spawn_event = {
             "type": "subagent_spawned",
+            "session_id": self._active_session.get("session_id"),
             "agent_id": self.agent_id,
             "requested_agent_id": self._requested_agent_id,
             "parent_tool_use_id": self._parent_tool_use_id or None,

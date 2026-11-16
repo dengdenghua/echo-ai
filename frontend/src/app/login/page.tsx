@@ -11,7 +11,6 @@ import {
   UserCircle2Icon,
 } from "lucide-react";
 
-import { BrandLoadingPanel } from "@/components/brand/brand-progress";
 import { EchoLockup } from "@/components/brand/echo-wordmark";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +22,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ErrorState } from "@/components/ui/state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type AuthProviderInfo,
@@ -44,6 +42,7 @@ import { toast } from "sonner";
 import "./login.css";
 import { EchoAgeField } from "./components/EchoAgeField";
 import { DesktopOwnerLogin, OwnerAccountForm } from "./local-account-login";
+import { LoginServiceStatus } from "./login-service-status";
 import {
   loginErrorMessage,
   normalizeEmailVerificationCode,
@@ -533,9 +532,8 @@ function LocalLoginForm({
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label={showPassword ? "隐藏密码" : "显示密码"}
-              tabIndex={-1}
             >
               {showPassword ? (
                 <EyeOffIcon className="size-4" />
@@ -671,7 +669,7 @@ export default function LoginPage() {
   // Auto-retry while the backend is unreachable: on a cold start the
   // gateway typically comes up a few seconds after the UI, and requiring
   // a manual click for that routine race is pure friction. Quiet retries
-  // keep the error card (and its manual button) on screen instead of
+  // keep one stable connection notice on screen instead of
   // flickering the full-screen loading state.
   useEffect(() => {
     if (!backendUnavailable) return;
@@ -839,23 +837,10 @@ export default function LoginPage() {
                     </div>
                   </div>
                 )}
-              {isLoading ? (
-                <BrandLoadingPanel
-                  label={t.common.loading}
-                  className="min-h-40"
-                />
-              ) : backendUnavailable ? (
-                <ErrorState
-                  className="min-h-40 rounded-xl border border-destructive/20 bg-destructive/5"
-                  title="暂时无法连接 ECHO AI 服务"
-                  detail="本地服务可能仍在启动或已停止，正在自动重试连接…"
-                  actionLabel="重试连接"
-                  onAction={retryBackend}
-                />
-              ) : !providersReady ? (
-                <BrandLoadingPanel
-                  label={t.common.loading}
-                  className="min-h-40"
+              {isLoading || backendUnavailable || !providersReady ? (
+                <LoginServiceStatus
+                  unavailable={backendUnavailable}
+                  onRetry={retryBackend}
                 />
               ) : hasOct && localProvider ? (
                 <Tabs

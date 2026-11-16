@@ -205,7 +205,9 @@ export function mergeOptimisticHumanMessages(
 }
 
 export function newClientMessageId(candidate?: string): string {
-  if (candidate && /^ui-[a-zA-Z0-9-]{1,80}$/.test(candidate)) return candidate;
+  // Keep the optimistic receipt coordinate only when the backend can accept
+  // it as TurnParams.userItemId (8..96 chars in the itm_ namespace).
+  if (candidate && candidate.length >= 8 && candidate.length <= 96 && /^itm_[A-Za-z0-9][A-Za-z0-9_-]*$/.test(candidate)) return candidate;
   const suffix =
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()

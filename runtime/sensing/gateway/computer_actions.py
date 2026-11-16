@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
 import time
 import uuid
 from typing import Any
@@ -108,7 +109,15 @@ def _execute(action: dict[str, Any]) -> dict[str, Any]:
     if kind != "wait" and isinstance(target, dict):
         from runtime.execution.suckers import computer_macos
 
-        if computer_macos.MACOS_NATIVE_AVAILABLE:
+        if sys.platform == "win32" and not computer_macos.MACOS_NATIVE_AVAILABLE:
+            from runtime.execution.suckers.computer_windows import activate_window_target
+
+            activated = activate_window_target(
+                target, point=(int(action["x"]), int(action["y"])) if kind in {"click", "move"} else None,
+            )
+            if activated.get("error"):
+                return {**activated, "automation_target": target}
+        elif computer_macos.MACOS_NATIVE_AVAILABLE:
             activated = computer_macos.activate_window_target(
                 app_id=str(target.get("app_id") or ""),
                 app_name=str(target.get("app_name") or ""),

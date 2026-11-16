@@ -2,13 +2,35 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ArrowDownIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
+import {
+  captureReadingPosition,
+  readReadingPosition,
+  restoreReadingPosition,
+  saveReadingPosition,
+} from "@/core/threads/conversation-view-state";
 
-export type ConversationProps = ComponentProps<typeof StickToBottom>;
+export type ConversationProps = ComponentProps<typeof StickToBottom> & {
+  storageKey?: string;
+  restorationReady?: boolean;
+};
 
-export const Conversation = ({ className, ...props }: ConversationProps) => (
+export const Conversation = ({
+  className,
+  storageKey,
+  restorationReady = true,
+  children,
+  ...props
+}: ConversationProps) => (
   <StickToBottom
+    key={storageKey}
     className={cn(
       "relative flex-1 overflow-x-hidden overflow-y-hidden",
       className,
@@ -18,12 +40,105 @@ export const Conversation = ({ className, ...props }: ConversationProps) => (
     // while the user is wheel-scrolling or when the latest button is pressed.
     // Keep resize reconciliation deterministic; explicit user navigation can
     // still opt into animation below.
-    initial="instant"
+    initial={
+      storageKey && readReadingPosition(storageKey)?.atBottom === false
+        ? false
+        : "instant"
+    }
     resize="instant"
     role="log"
     {...props}
-  />
+  >
+    {(context) => (
+      <>
+        {storageKey && (
+          <ConversationReadingPosition
+            storageKey={storageKey}
+            ready={restorationReady}
+          />
+        )}
+        {typeof children === "function" ? children(context) : children}
+      </>
+    )}
+  </StickToBottom>
 );
+
+export function ConversationReadingPosition({
+  storageKey,
+  ready,
+}: {
+  storageKey: string;
+  ready: boolean;
+}) {
+  const { scrollRef, contentRef, stopScroll, scrollToBottom } =
+    useStickToBottomContext();
+  useLayoutEffect(() => {
+    const saved = readReadingPosition(storageKey);
+    // Release the lock before passive stream effects run, even while the
+    // durable snapshot is still loading. Reconnection must not steal a reader.
+    if (saved?.atBottom === false) stopScroll();
+    const root = scrollRef.current;
+    if (!ready || !root) return;
+    let restoring = Boolean(saved && !saved.atBottom);
+    let frame = 0;
+    const started = performance.now();
+    const deadline = started + 2000;
+    let stableSince = started;
+    let previousHeight = -1;
+    const save = () => {
+      if (!restoring)
+        saveReadingPosition(storageKey, captureReadingPosition(root));
+    };
+    const restore = () => {
+      frame = 0;
+      if (!saved || !restoring) return;
+      const found = restoreReadingPosition(root, saved);
+      const now = performance.now();
+      if (!found || root.scrollHeight !== previousHeight) stableSince = now;
+      previousHeight = root.scrollHeight;
+      // Virtualized history mounts after intersection/layout observations.
+      // A few frames are not enough: keep the anchor until that layout settles.
+      if (
+        (found && now - started >= 400 && now - stableSince >= 120) ||
+        now >= deadline
+      ) {
+        restoring = false;
+        save();
+      } else frame = requestAnimationFrame(restore);
+    };
+    const onScroll = () => {
+      if (restoring || frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        save();
+      });
+    };
+    const onUserInput = () => {
+      restoring = false;
+      cancelAnimationFrame(frame);
+      frame = 0;
+    };
+    if (restoring) frame = requestAnimationFrame(restore);
+    else if (saved?.atBottom) void scrollToBottom({ animation: "instant" });
+    root.addEventListener("scroll", onScroll, { passive: true });
+    root.addEventListener("wheel", onUserInput, { passive: true });
+    root.addEventListener("touchstart", onUserInput, { passive: true });
+    root.addEventListener("keydown", onUserInput);
+    root.addEventListener("pointerdown", onUserInput);
+    window.addEventListener("pagehide", save);
+    return () => {
+      save();
+      cancelAnimationFrame(frame);
+      root.removeEventListener("scroll", onScroll);
+      root.removeEventListener("wheel", onUserInput);
+      root.removeEventListener("touchstart", onUserInput);
+      root.removeEventListener("keydown", onUserInput);
+      root.removeEventListener("pointerdown", onUserInput);
+      window.removeEventListener("pagehide", save);
+    };
+  }, [storageKey, ready, scrollRef, contentRef, stopScroll, scrollToBottom]);
+  return null;
+}
 
 export type ConversationContentProps = ComponentProps<
   typeof StickToBottom.Content
@@ -96,7 +211,7 @@ export const ConversationScrollButton = ({
   children,
   ...props
 }: ConversationScrollButtonProps) => {
-  const { escapedFromLock, isAtBottom, scrollToBottom } =
+  const { escapedFromLock, isAtBottom, scrollToBottom, state } =
     useStickToBottomContext();
   const previousActivityKey = useRef(activityKey);
   const [pendingActivityCount, setPendingActivityCount] = useState(0);
@@ -108,9 +223,10 @@ export const ConversationScrollButton = ({
     // streamed response grows from shorter than the viewport to taller than
     // it. That left a brand-new task parked at scrollTop=0 even though the
     // reader never moved away. Preserve the library's explicit escape signal:
-    // only force-follow when no wheel/selection/up-scroll released the lock.
-    if (!escapedFromLock) {
-      void scrollToBottom({ animation: "instant", ignoreEscapes: true });
+    // Read the synchronous escape signal as well: a wheel event can precede
+    // React's next render. Auto-follow must itself remain interruptible.
+    if (!escapedFromLock && !state.escapedFromLock) {
+      void scrollToBottom({ animation: "instant", ignoreEscapes: false });
       return;
     }
     // activityKey can advance once per streamed frame. Treat unseen activity
@@ -118,7 +234,7 @@ export const ConversationScrollButton = ({
     // long answer produces labels such as "685 new updates" and keeps
     // re-rendering this control while the reader is browsing older content.
     if (!isAtBottom) setPendingActivityCount(1);
-  }, [activityKey, escapedFromLock, isAtBottom, scrollToBottom]);
+  }, [activityKey, escapedFromLock, isAtBottom, scrollToBottom, state]);
 
   useEffect(() => {
     if (isAtBottom) setPendingActivityCount(0);

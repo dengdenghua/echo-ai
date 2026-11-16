@@ -90,6 +90,11 @@ class GatewayApprovalProvider(ApprovalProvider):
         except (ConnectionError, OSError, RuntimeError) as exc:
             return self._deny(req, reason=f"error: {exc}", label="error")
         action = (decision or {}).get("action", "decline")
+        # The client can expire first (e.g. a timer races the gateway).
+        # Preserve known lifecycle reasons instead of recording a human refusal.
+        reason = (decision or {}).get("reason")
+        if action != "accept" and isinstance(reason, str) and reason in {"timeout", "connection_lost"}:
+            return self._deny(req, reason=reason, label=reason)
         result = ApprovalDecision(
             approved=(action == "accept"),
             reason=action,

@@ -28,6 +28,7 @@ from runtime.platform.ui._app_routers_extra import _load_startup_plugins
 BUNDLED = Path(__file__).parents[1] / "runtime/platform/plugins/bundled"
 CORE = {"computer_control", "browser_control"}
 LONG_TAIL = {
+    "knowledge_storage",
     "clip_studio",
     "comfyui_bridge",
     "director_stage",

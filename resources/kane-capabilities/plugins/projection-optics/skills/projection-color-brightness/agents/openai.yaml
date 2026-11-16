@@ -1,0 +1,4 @@
+interface:
+  display_name: "配色与亮度预算"
+  short_description: "核对光谱、XYZ白点、占空比与分段效率，审计配色亮度算表"
+  default_prompt: "使用 $projection-color-brightness，处理当前光学任务并给出适用条件、计算或验证依据。"

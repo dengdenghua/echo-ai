@@ -6,6 +6,8 @@ export type InlineSubagentStatus = "running" | "done" | "error" | "waiting";
 
 export interface InlineSubagentInfo {
   id: string;
+  /** Durable continuation identity; a role/name/lane id is never a session. */
+  sessionId?: string;
   name: string;
   role?: string;
   avatar?: string;

@@ -91,7 +91,7 @@ it("filters and opens an existing app, and retains the desktop manager entry", a
 it("persists wallpaper and applies the selected search engine", async () => {
   const user = userEvent.setup();
   renderWithProviders(<Home />, { locale: "zh-CN" });
-  await user.click(screen.getByRole("button", { name: "主页设置" }));
+  await user.click(screen.getByRole("button", { name: "主页外观" }));
   await user.click(screen.getByRole("button", { name: "森林" }));
   expect(localStorage.getItem("echo.browser.start.wallpaper.v2")).toBe(
     "forest",
@@ -119,7 +119,7 @@ it("uploads, selects and restores a custom wallpaper", async () => {
   try {
     const user = userEvent.setup();
     const view = renderWithProviders(<Home />, { locale: "zh-CN" });
-    await user.click(screen.getByRole("button", { name: "主页设置" }));
+    await user.click(screen.getByRole("button", { name: "主页外观" }));
     await user.upload(screen.getByLabelText("上传自定义壁纸"), new File(["image"], "wallpaper.png", {type: "image/png"}));
     await waitFor(() => expect(screen.getByRole("button", {name: "自定义"})).toHaveAttribute("aria-pressed", "true"));
     const saved = localStorage.getItem("echo.browser.start.custom-wallpaper.v1");
@@ -128,7 +128,7 @@ it("uploads, selects and restores a custom wallpaper", async () => {
     view.unmount();
     const restored = renderWithProviders(<Home />, { locale: "zh-CN" });
     expect(restored.container.querySelector(".browser-start-wallpaper")).toHaveAttribute("src", saved);
-    await user.click(screen.getByRole("button", { name: "主页设置" }));
+    await user.click(screen.getByRole("button", { name: "主页外观" }));
     await user.click(screen.getByRole("button", { name: "星海" }));
     expect(localStorage.getItem("echo.browser.start.wallpaper.v2")).toBe("ocean");
   } finally { vi.unstubAllGlobals(); }
@@ -137,7 +137,7 @@ it("uploads, selects and restores a custom wallpaper", async () => {
 it("rejects oversized uploads without changing the wallpaper", async () => {
   const user = userEvent.setup();
   renderWithProviders(<Home />, { locale: "zh-CN" });
-  await user.click(screen.getByRole("button", { name: "主页设置" }));
+  await user.click(screen.getByRole("button", { name: "主页外观" }));
   await user.upload(screen.getByLabelText("上传自定义壁纸"), new File([new Uint8Array(2 * 1024 * 1024 + 1)], "large.png", {type: "image/png"}));
   expect(screen.getByRole("alert")).toHaveTextContent("图片不能超过 2 MB");
   expect(localStorage.getItem("echo.browser.start.custom-wallpaper.v1")).toBeNull();

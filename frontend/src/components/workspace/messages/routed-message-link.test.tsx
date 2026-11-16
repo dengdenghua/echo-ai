@@ -114,7 +114,7 @@ it("opens a generated Office link in the current artifact workbench", () => {
     <RoutedMessageLink href="out/deck.pptx">下载 PPT</RoutedMessageLink>,
   );
 
-  fireEvent.click(screen.getByRole("link", { name: "下载 PPT" }));
+  fireEvent.click(screen.getByRole("button", { name: "下载 PPT" }));
 
   expect(opened).toEqual({ path: "workspace-output:final:out/deck.pptx" });
   window.removeEventListener(OPEN_ARTIFACT_EVENT, handleOpen);

@@ -1257,3 +1257,30 @@ describe("CoderEngineSettings", () => {
     );
   });
 });
+
+
+it("keeps account authorization available when model profile fails", async () => {
+  fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    const url = urlOf(input);
+    if (url.includes("/model-profile")) return jsonResponse({ detail: "unavailable" }, 503);
+    if (url.includes("/account")) return jsonResponse({ account: { type: "chatgpt", email: "test@example.com" }, requires_openai_auth: false });
+    if (url.includes("/models")) return jsonResponse(models);
+    return jsonResponse({});
+  });
+  renderWithProviders(<CoderEngineSettings authorizationOnly />, { locale: "zh-CN" });
+  expect(await screen.findByText(/test@example.com/)).toBeVisible();
+  expect(screen.getByRole("button", { name: /切换账号/ })).toBeVisible();
+});
+
+it("keeps sign-in controls available when account transport fails", async () => {
+  fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+    const url = urlOf(input);
+    if (url.includes("/account")) return jsonResponse({ detail: "transport closed" }, 503);
+    if (url.includes("/model-profile")) return jsonResponse(systemProfile);
+    return jsonResponse({});
+  });
+  renderWithProviders(<CoderEngineSettings authorizationOnly />, { locale: "zh-CN" });
+  expect(await screen.findByText(/Codex 连接暂时不可用/)).toBeVisible();
+  expect(screen.queryByText("账号已连接")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("button").some(b => /登录/.test(b.textContent || ""))).toBe(true);
+});

@@ -108,6 +108,49 @@ export function jsonAuthHeaders(): Record<string, string> {
   return { "Content-Type": "application/json", ...authHeaders() };
 }
 
+function storedActorId(): { actor: string | null; provider: string | null } {
+  if (!canUseBrowserStorage()) return { actor: null, provider: null };
+  _migrateLegacyLocalStorage();
+  try {
+    const raw = window.sessionStorage.getItem(USER_KEY);
+    if (!raw) return { actor: null, provider: null };
+    const parsed: unknown = JSON.parse(raw);
+    if (!isObjectLike(parsed)) return { actor: null, provider: null };
+    const candidates = ["actor_id", "user_id", "id", "username", "phone"];
+    const actorKey = candidates.find(
+      (key) => typeof parsed[key] === "string" && parsed[key].length > 0,
+    );
+    const actor = actorKey ? parsed[actorKey] : null;
+    return {
+      actor: typeof actor === "string" ? actor : null,
+      provider:
+        typeof parsed.provider === "string" && parsed.provider.length > 0
+          ? parsed.provider
+          : null,
+    };
+  } catch {
+    return { actor: null, provider: null };
+  }
+}
+
+/**
+ * Stable, provider-aware namespace for account-scoped browser caches.
+ * Unlike {@link currentActorId}, this must never collapse two providers
+ * with the same local user id into one bucket.
+ */
+export function currentActorScope(user?: User | null): string {
+  const authenticatedActor =
+    user?.actor_id?.trim() || user?.user_id?.trim() || null;
+  const authenticatedProvider = user?.provider?.trim() || null;
+  const stored = storedActorId();
+  const actor = authenticatedActor || stored.actor;
+  if (!actor) return "anonymous";
+  // Canonical actor ids are already globally namespaced (e.g. "local:123").
+  if (actor.includes(":")) return actor;
+  const provider = authenticatedProvider || stored.provider;
+  return provider ? `${provider}:${actor}` : actor;
+}
+
 /**
  * Best-effort current actor id for cross-thread analytics (mention
  * history ranking, etc.). Reads from the persisted USER_KEY blob; if

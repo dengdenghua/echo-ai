@@ -196,6 +196,9 @@ class TestListAgents:
         coder = next(a for a in data if a["name"] == "kane")
         assert coder["tool_groups"] == [
             "web_read_arm",
+            "browser_read_arm",
+            "browser_interact_arm",
+            "desktop_operator_arm",
             "fs_writer_arm",
             "git_arm",
             "shell_arm",
@@ -265,10 +268,13 @@ class TestAgentDetail:
         assert data["name"] == "kane"
         assert data["display_name"] == "Kane"
         # Implementation note.
-        assert len(data["arms"]) == 5
+        assert len(data["arms"]) == 8
         arm_ids = [a["arm_id"] for a in data["arms"]]
         assert arm_ids == [
             "web_read_arm",
+            "browser_read_arm",
+            "browser_interact_arm",
+            "desktop_operator_arm",
             "fs_writer_arm",
             "git_arm",
             "shell_arm",

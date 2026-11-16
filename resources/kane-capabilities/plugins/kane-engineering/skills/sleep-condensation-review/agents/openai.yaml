@@ -1,0 +1,4 @@
+interface:
+  display_name: "冷凝与水汽管理"
+  short_description: "检查冷凝与水汽管理，区分标准适用性、工程经验与台架试验及实装证据"
+  default_prompt: "使用 $sleep-condensation-review 审查我们的水循环睡眠温控产品，列出设计问题、标准候选与试验确认项。"

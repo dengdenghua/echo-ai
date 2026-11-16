@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lighttools-control"
+version = "0.1.0"
+description = "Unofficial local LightTools MCP using the vendor LTAPI4 COM interface"
+requires-python = ">=3.10"
+dependencies = ["mcp==1.26.0", "pywin32>=308; sys_platform == 'win32'", "psutil>=6"]
+
+[project.scripts]
+lighttools-mcp = "lighttools_control.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["lighttools_control"]

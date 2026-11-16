@@ -26,6 +26,7 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { AgentWorkbenchSnapshot } from "@/components/workspace/agent-workbench-snapshot";
+import { currentActorScope } from "@/core/auth/api";
 import type { LiveToolEvent } from "@/components/workspace/live-tool-timeline";
 
 // ============================================================================
@@ -36,6 +37,7 @@ interface WorkbenchCacheDB extends DBSchema {
   snapshots: {
     key: string; // threadId:turnId
     value: {
+      scope: string;
       threadId: string;
       turnId: string;
       snapshot: AgentWorkbenchSnapshot;
@@ -51,13 +53,54 @@ interface WorkbenchCacheDB extends DBSchema {
 }
 
 const DB_NAME = "echo-workbench-cache";
-const DB_VERSION = 1;
+// v2 namespaces snapshots by account and drops the old unscoped rows.
+const DB_VERSION = 2;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟
 // This version covers both the serialized shape and the semantics used to
 // derive it. Bump whenever phase/agent normalization changes; an event-only
 // fingerprint cannot tell that an older client interpreted the same events
 // differently.
 const CACHE_VERSION = 2;
+
+function openWorkbenchCacheDb(): Promise<IDBPDatabase<WorkbenchCacheDB>> {
+  return openDB<WorkbenchCacheDB>(DB_NAME, DB_VERSION, {
+    upgrade(db, oldVersion, _newVersion, transaction) {
+      const store = db.objectStoreNames.contains("snapshots")
+        ? transaction.objectStore("snapshots")
+        : db.createObjectStore("snapshots");
+      if (!store.indexNames.contains("by-thread")) {
+        store.createIndex("by-thread", "threadId");
+      }
+      if (!store.indexNames.contains("by-timestamp")) {
+        store.createIndex("by-timestamp", "timestamp");
+      }
+      if (oldVersion > 0 && oldVersion < 2) void store.clear();
+    },
+  });
+}
+
+export function workbenchSnapshotKey(
+  scope: string,
+  threadId: string,
+  turnId: string,
+): string {
+  return JSON.stringify([scope, threadId, turnId]);
+}
+
+/** Remove one account's snapshots without touching another account's rows. */
+export async function clearWorkbenchCacheForScope(
+  scope = currentActorScope(),
+): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const db = await openWorkbenchCacheDb();
+  const tx = db.transaction("snapshots", "readwrite");
+  let cursor = await tx.store.openCursor();
+  while (cursor) {
+    if (cursor.value.scope === scope) await cursor.delete();
+    cursor = await cursor.continue();
+  }
+  await tx.done;
+}
 
 // ============================================================================
 // 工作台快照缓存
@@ -80,15 +123,7 @@ export class WorkbenchSnapshotCache {
       return Promise.reject(new Error("IndexedDB not available"));
     }
 
-    if (!this.db) {
-      this.db = openDB<WorkbenchCacheDB>(DB_NAME, DB_VERSION, {
-        upgrade(db) {
-          const store = db.createObjectStore("snapshots");
-          store.createIndex("by-thread", "threadId");
-          store.createIndex("by-timestamp", "timestamp");
-        },
-      });
-    }
+    if (!this.db) this.db = openWorkbenchCacheDb();
 
     return this.db;
   }
@@ -106,11 +141,13 @@ export class WorkbenchSnapshotCache {
 
     try {
       const db = await this._getDB();
-      const key = this._makeKey(threadId, turnId);
+      const scope = currentActorScope();
+      const key = this._makeKey(scope, threadId, turnId);
 
       await db.put(
         "snapshots",
         {
+          scope,
           threadId,
           turnId,
           snapshot,
@@ -139,10 +176,11 @@ export class WorkbenchSnapshotCache {
 
     try {
       const db = await this._getDB();
-      const key = this._makeKey(threadId, turnId);
+      const scope = currentActorScope();
+      const key = this._makeKey(scope, threadId, turnId);
       const cached = await db.get("snapshots", key);
 
-      if (!cached) return null;
+      if (!cached || cached.scope !== scope) return null;
 
       // 检查版本兼容性
       if (cached.version !== CACHE_VERSION) {
@@ -175,14 +213,20 @@ export class WorkbenchSnapshotCache {
 
     try {
       const db = await this._getDB();
+      const scope = currentActorScope();
       const keys = await db.getAllKeysFromIndex(
         "snapshots",
         "by-thread",
         threadId,
       );
+      const rows = await Promise.all(keys.map((key) => db.get("snapshots", key)));
+      const ownedKeys = keys.filter((_, index) => rows[index]?.scope === scope);
 
       const tx = db.transaction("snapshots", "readwrite");
-      await Promise.all([...keys.map((key) => tx.store.delete(key)), tx.done]);
+      await Promise.all([
+        ...ownedKeys.map((key) => tx.store.delete(key)),
+        tx.done,
+      ]);
     } catch (error) {
       console.warn("[WorkbenchCache] Failed to clear thread", error);
     }
@@ -280,8 +324,12 @@ export class WorkbenchSnapshotCache {
   /**
    * 生成缓存键
    */
-  private _makeKey(threadId: string, turnId: string): string {
-    return `${threadId}:${turnId}`;
+  private _makeKey(
+    scope: string,
+    threadId: string,
+    turnId: string,
+  ): string {
+    return workbenchSnapshotKey(scope, threadId, turnId);
   }
 }
 

@@ -232,6 +232,25 @@
     "mcp_optics_workbench_optics_stats",
     "mcp_optics_workbench_optics_sync_graph",
     "mcp_optics_workbench_optics_sync_knowledge",
-    "mcp_optics_workbench_optics_trace_scene"
+    "mcp_optics_workbench_optics_trace_scene",
+    "kane-engineering__engineering-resource-hygiene",
+    "kane-engineering__internal-stack-safety",
+    "kane-engineering__kane-personal-memory",
+    "kane-engineering__mechanical-assembly-service-review",
+    "kane-engineering__mechanical-dfm-review",
+    "kane-engineering__mechanical-drawing-standard",
+    "kane-engineering__mechanical-stack-review",
+    "kane-engineering__mechanical-thermal-airflow-review",
+    "kane-engineering__mechanical-tolerance-review",
+    "kane-engineering__sleep-acoustic-vibration-review",
+    "kane-engineering__sleep-condensation-review",
+    "kane-engineering__sleep-contact-sensing-review",
+    "kane-engineering__sleep-fill-prime-service-review",
+    "kane-engineering__sleep-flexible-waterpad-review",
+    "kane-engineering__sleep-fluid-hygiene-review",
+    "kane-engineering__sleep-hydraulic-leak-review",
+    "kane-engineering__sleep-structural-review",
+    "kane-engineering__sleep-temperature-fault-review",
+    "rea-control__rea-reverse-engineering"
   ]
 }

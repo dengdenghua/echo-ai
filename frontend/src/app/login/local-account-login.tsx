@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRightIcon,
@@ -14,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { AuthProviderInfo } from "@/core/auth/api";
+import {
+  clearDesktopAutoLoginSuppression,
+  shouldAutoLoginDesktopOwner,
+} from "@/core/auth/desktop-auto-login";
 import { useAuth } from "@/providers/AuthProvider";
 
 import { loginErrorMessage } from "./login-utils";
@@ -36,18 +40,30 @@ export function DesktopOwnerLogin() {
   const { desktopLogin } = useAuth();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoStarted = useRef(false);
 
-  const signIn = async () => {
+  const signIn = useCallback(async () => {
     setPending(true);
     setError(null);
     try {
       await desktopLogin();
+      // A successful sign-in ends the "explicitly signed out" state; the next
+      // launch is allowed to come straight back in.
+      clearDesktopAutoLoginSuppression();
     } catch (err) {
       setError(err instanceof Error ? err.message : "本机登录失败，请重试");
     } finally {
       setPending(false);
     }
-  };
+  }, [desktopLogin]);
+
+  // Desktop installs: sign the owner in without the extra click. The button
+  // stays for the cases where this is switched off or fails.
+  useEffect(() => {
+    if (autoStarted.current || !shouldAutoLoginDesktopOwner()) return;
+    autoStarted.current = true;
+    void signIn();
+  }, [signIn]);
 
   return (
     <div className="mb-5 space-y-3">
@@ -140,9 +156,8 @@ function PasswordInput({
       <button
         type="button"
         onClick={() => setVisible((prev) => !prev)}
-        className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
+        className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         aria-label={visible ? "隐藏密码" : "显示密码"}
-        tabIndex={-1}
       >
         {visible ? (
           <EyeOffIcon className="size-4" />

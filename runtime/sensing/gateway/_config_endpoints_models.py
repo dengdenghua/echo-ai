@@ -233,10 +233,10 @@ def _register_models(router: Any, ctx: _ConfigCtx) -> None:
                 # at least appears (the user can edit the entry to
                 # add a real model id).
                 variants = [entry_id]
-            context_window = _entry_context_window(e, variants)
-            enable_1m_context = _entry_1m_enabled(e, variants)
 
             for variant in variants:
+                context_window = _entry_context_window(e, [variant])
+                enable_1m_context = _entry_1m_enabled(e, [variant])
                 # Show the concrete variant name only — no entry-id
                 # prefix, since the variant id is already unique. The
                 # entry id is still surfaced via ``entry_id`` for

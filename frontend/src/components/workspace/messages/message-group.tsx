@@ -110,6 +110,7 @@ import {
   stepDetailText,
 } from "./process-step-detail";
 import { formatProcessReplayLabel } from "./process-replay-label";
+import { readProcessChoice, saveProcessChoice } from "@/core/threads/conversation-view-state";
 
 const HIDDEN_TIMELINE_TOOL_NAMES = new Set([
   "task",
@@ -616,6 +617,13 @@ export function MessageGroup({
   // Keep the live turn focused on the current frame. Older steps move behind
   // a replay disclosure so streaming never becomes a long historical pile.
   const isLiveTimeline = isLoading || keepOpen;
+  const threadMeta = useContext(ThreadMetaContext);
+  const processStorageThread = threadMeta?.threadId ?? "";
+  const processStorageGroup = messages[0]?.id ?? "";
+  const storedProcessChoice = useMemo(
+    () => readProcessChoice(processStorageThread, processStorageGroup),
+    [processStorageThread, processStorageGroup],
+  );
   const steps = useMemo(() => convertToSteps(messages), [messages]);
   const replayDurationMs = useMemo(() => {
     for (const message of messages) {
@@ -643,17 +651,24 @@ export function MessageGroup({
     ) &&
     !steps.some((step) => stepHasError(step) || stepIsWaiting(step));
   const [processReplayOpen, setProcessReplayOpen] = useState(
-    isLiveTimeline || !shouldAutoCollapseProcess,
+    storedProcessChoice ?? (isLiveTimeline || !shouldAutoCollapseProcess),
   );
   const processWasLiveRef = useRef(isLiveTimeline);
+  const processReplayChoiceRef = useRef<boolean | null>(storedProcessChoice);
   useEffect(() => {
-    if (isLiveTimeline) {
+    if (isLiveTimeline && !processWasLiveRef.current && processReplayChoiceRef.current === null) {
+      // The same group can become live again after hydration/reconnection.
+      // Only a new group gets a fresh default; never erase a reader's choice.
       setProcessReplayOpen(true);
-    } else if (processWasLiveRef.current) {
+    } else if (
+      !isLiveTimeline &&
+      processWasLiveRef.current &&
+      processReplayChoiceRef.current === null
+    ) {
       setProcessReplayOpen(!shouldAutoCollapseProcess);
     }
     processWasLiveRef.current = isLiveTimeline;
-  }, [isLiveTimeline, shouldAutoCollapseProcess]);
+  }, [isLiveTimeline, shouldAutoCollapseProcess, processStorageThread, processStorageGroup]);
   const [expandedAggregatedGroups, setExpandedAggregatedGroups] = useState<
     Record<string, boolean>
   >({});
@@ -731,7 +746,6 @@ export function MessageGroup({
       .filter((value): value is string => Boolean(value?.trim()))
       .join("\n\n");
   }, [steps]);
-  const threadMeta = useContext(ThreadMetaContext);
   const effectiveClarificationContent = hasNativeQuestionnaire(messages, threadMeta?.threadId, locale)
     ? "" : clarificationContent || externalClarificationContent || "";
   const timelineItems = useMemo(
@@ -881,9 +895,12 @@ export function MessageGroup({
     answerSplitIndex >= 0 ? compactTimelineItems.slice(answerSplitIndex) : [];
   const hasVisibleProcessReplay =
     detailConfig.level !== "low" && compactTimelineItems.length > 0;
-  const processReplayExpanded = isLiveTimeline || processReplayOpen;
+  const processReplayExpanded = processReplayOpen;
   const showProcessReplayDisclosure =
-    !isLiveTimeline && shouldAutoCollapseProcess && hasVisibleProcessReplay;
+    hasVisibleProcessReplay &&
+    (isLiveTimeline ||
+      shouldAutoCollapseProcess ||
+      processReplayChoiceRef.current !== null);
   // 最终回答视觉分层：流式结束后，在过程段落与最终回答正文之间加分界。
   // 判定口径与 groupMessages 一致（tool_calls + isLikelyFinalAnswerContent 的
   // 消息会以独立 assistant 组在下方渲染正文），且必须是同组最后一条可见正文，
@@ -1913,7 +1930,11 @@ export function MessageGroup({
           className="group/process-replay flex min-w-0 items-center gap-1.5 py-0.5 text-left text-xs leading-5 text-muted-foreground transition-colors hover:text-muted-foreground"
           aria-expanded={processReplayExpanded}
           data-testid="process-replay-toggle"
-          onClick={() => setProcessReplayOpen((open) => !open)}
+          onClick={() => {
+            processReplayChoiceRef.current = !processReplayExpanded;
+            saveProcessChoice(processStorageThread, processStorageGroup, !processReplayExpanded);
+            setProcessReplayOpen(!processReplayExpanded);
+          }}
         >
           <ChevronRightIcon
             className={cn(
@@ -1933,6 +1954,7 @@ export function MessageGroup({
         </button>
       )}
       {(processReplayExpanded ||
+        streamingAnswerText ||
         visibleBeforeAnswer.length > 0 ||
         visibleAfterAnswer.length > 0) && (
         <div data-testid="process-replay-content">
@@ -1944,7 +1966,7 @@ export function MessageGroup({
               {renderCompactTimelineItems(visibleBeforeAnswer, "before")}
             </div>
           )}
-          {processReplayExpanded && streamingAnswerText && (
+          {streamingAnswerText && (
             <MarkdownContent
               content={streamingAnswerText}
               isLoading={isLoading}

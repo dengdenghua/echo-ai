@@ -109,6 +109,9 @@ describe("ShareMenu · public task sharing", () => {
 
     const trigger = screen.getByRole("button", { name: "分享" });
     expect(trigger).toHaveAttribute("data-slot", "share-menu-trigger");
+    await user.hover(trigger);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("分享");
+    expect(createPublicThreadShare).not.toHaveBeenCalled();
     await user.click(trigger);
 
     expect(await screen.findByText("分享任务")).toBeInTheDocument();
@@ -118,6 +121,7 @@ describe("ShareMenu · public task sharing", () => {
     expect(screen.getByText("二维码")).toBeInTheDocument();
     expect(screen.getByText("浏览器")).toBeInTheDocument();
     expect(screen.queryByText("存为图片")).not.toBeInTheDocument();
+    expect(createPublicThreadShare).not.toHaveBeenCalled();
   });
 
   it("creates one public snapshot lazily and copies its link", async () => {

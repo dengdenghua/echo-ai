@@ -93,6 +93,9 @@ def key_for(request: Any, context: Any, *, wrapped: bool) -> str | None:
         return None
     material = {
         "command": list(request.command),
+        "model": getattr(request, "model", None),
+        "context_window": getattr(request, "model_context_window", None),
+        "compact_budget": getattr(request, "auto_compact_token_limit", None),
         "codex_home": str(context.codex_home),
         "workspace": str(context.workspace),
         "sandbox_mode": context.sandbox_mode,

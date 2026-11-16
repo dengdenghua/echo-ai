@@ -55,6 +55,8 @@ import {
 } from "./session-background-tasks";
 import { toWorkBlocks } from "./work-blocks";
 
+import { HeaderActionTooltip, headerActionClass } from "./header-action";
+
 interface Source {
   title: string;
   path?: string;
@@ -236,6 +238,10 @@ export function WorkspaceContextMenu({
     context?.maxContextTokens ?? 0,
   );
 
+  const contextHint = context
+    ? `${copy.context} · ${usage.summary}${context.measured ? "" : ` · ${copy.estimated}`} · ${menuTitle}`
+    : menuTitle;
+
   return (
     <>
     <DropdownMenu
@@ -246,14 +252,14 @@ export function WorkspaceContextMenu({
         else setOpen(false);
       }}
     >
+      <HeaderActionTooltip label={contextHint}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           ref={triggerRef}
           data-slot="workspace-context-trigger"
           aria-label={menuTitle}
-          title={context ? `${menuTitle} · ${usage.summary}` : menuTitle}
-          className="header-icon-hit-area flex h-[42px] min-w-[42px] shrink-0 items-center justify-center gap-1 rounded-lg px-1.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/70 data-[state=open]:text-foreground sm:h-8 sm:min-w-8"
+          className={headerActionClass}
         >
           {context ? (
             <span
@@ -262,22 +268,14 @@ export function WorkspaceContextMenu({
                 ringColorClass(usage.progress),
               )}
             >
-              {/* A fixed mark, not a dial: the level is in the tooltip and
-                  the popover, so an empty window shows the same glyph as a
-                  full one instead of a bare track. */}
               <SessionStatusGlyph />
-              {/* The number appears once there is something to count. */}
-              {usage.percentage >= 1 ? (
-                <span className="font-mono text-xs tabular-nums">
-                  {usage.percentage}%
-                </span>
-              ) : null}
             </span>
           ) : (
             <ListFilterIcon className="size-4" />
           )}
         </button>
       </DropdownMenuTrigger>
+      </HeaderActionTooltip>
       <DropdownMenuContent
         align="end"
         alignOffset={alignOffset}

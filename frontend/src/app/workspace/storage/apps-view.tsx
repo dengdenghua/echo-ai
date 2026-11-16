@@ -7,6 +7,8 @@ import {
   SlidersHorizontalIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
+import { useDesktopApps } from "@/core/apps/desktop-apps";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/core/i18n/hooks";
@@ -29,8 +31,10 @@ export function AppsView({
   runSearch,
   isSearching,
   manifest,
+  error,
 }: {
   apps: NASApp[];
+  error?: string | null;
   query: string;
   setQuery: (value: string) => void;
   runSearch: () => void;
@@ -39,6 +43,7 @@ export function AppsView({
 }) {
   const { t } = useI18n();
   const copy = t.storage;
+  const echoApps = useDesktopApps(t).filter(app => app.placement === "workbench");
   const [category, setCategory] = useState<"all" | "office" | "system">("all");
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -151,13 +156,24 @@ export function AppsView({
           </Button>
         </div>
       </div>
-      <main
+      <div
         className="min-h-0 flex-1 overflow-y-auto bg-card px-5 py-5"
         onPointerDown={() => setSelectedAppId(null)}
         onContextMenu={(event) => {
           if (event.target === event.currentTarget) event.preventDefault();
         }}
       >
+        <section className="mb-8" aria-label="Echo 应用">
+          <h2 className="mb-3 text-sm font-medium">Echo 应用</h2>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+            {echoApps.map((app, index) => <Link key={app.id} to={app.route} className="flex items-center gap-3 rounded-xl border border-border p-3 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: ["linear-gradient(145deg,#4089fa,#2459c8)","linear-gradient(145deg,#9b70ef,#6541bd)","linear-gradient(145deg,#38baaa,#157e79)","linear-gradient(145deg,#f2ae46,#ce711e)","linear-gradient(145deg,#ef799a,#c34271)"][index % 5] }}><app.icon className="size-6" strokeWidth={1.7} /></span><span className="text-sm">{app.name}</span>
+            </Link>)}
+          </div>
+          <Link to="/workspace/plugins" className="mt-3 inline-block text-xs text-muted-foreground underline">管理应用与插件</Link>
+        </section>
+        <h2 className="mb-3 text-sm font-medium">本机软件</h2>
+        {error && <p role="alert" className="mb-4 rounded-lg bg-muted p-3 text-sm">{error}</p>}
         <div className="mb-6 flex items-center gap-7 text-sm">
           {(
             [
@@ -204,11 +220,11 @@ export function AppsView({
             ))
           ) : (
             <div className="col-span-full px-4 py-10 text-center text-sm text-muted-foreground">
-              {copy.apps.registeredSubtitle}
+              {error ? "本机应用列表暂不可用" : "没有找到匹配的本机应用"}
             </div>
           )}
         </div>
-      </main>
+      </div>
       {contextMenu && (
         <div
           data-app-context-menu
@@ -242,7 +258,7 @@ export function AppsView({
             onClick={() => void revealApp(contextMenu.item)}
           >
             <FolderSearchIcon className="size-3.5" />
-            在访达中显示
+            在文件管理器中显示
           </button>
           <button
             type="button"
@@ -272,6 +288,7 @@ function AppListRow({
 }) {
   const Icon = item.icon;
   const iconUrl = useNASAsset(item.iconUrl);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   return (
     <button
       type="button"
@@ -289,8 +306,8 @@ function AppListRow({
       )}
     >
       <span className="flex size-14 items-center justify-center overflow-hidden rounded-xl bg-black/[0.025] transition-transform group-hover:-translate-y-0.5 group-active:scale-95">
-        {iconUrl ? (
-          <img src={iconUrl} alt="" className="size-14 object-contain" />
+        {iconUrl && failedUrl !== iconUrl ? (
+          <img src={iconUrl} alt="" className="size-14 object-contain" onError={() => setFailedUrl(iconUrl)} />
         ) : (
           <Icon className="size-7 text-muted-foreground" />
         )}

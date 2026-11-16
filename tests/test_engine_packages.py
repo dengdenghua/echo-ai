@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from runtime.execution.engine_packages.versions import release_folder
+
 import base64
 import hashlib
 import io
@@ -129,7 +131,7 @@ def test_install_falls_back_to_upstream_and_becomes_the_codex_used(engines_dir, 
     assert (job.state, job.source, job.error) == ("done", "upstream", None)
     assert "ai.echo-age.com/marketplace/engines/codex/0.162.0/" in seen[0]
     assert seen[1].startswith("https://registry.npmjs.org/")
-    installed = engines_dir / "codex"
+    installed = release_folder(engines_dir, "codex")
     assert (installed / "bin" / "codex").read_bytes() == ELF
     assert not (installed / "codex-resources" / "voice").exists()
     manifest = json.loads((installed / "echo-engine.json").read_text(encoding="utf-8"))
@@ -152,13 +154,13 @@ def test_a_failed_update_keeps_the_previous_engine(engines_dir, monkeypatch):
     _fake_codex(monkeypatch, data)
     good, _ = _serving(data)
     EngineInstaller(fetch=good).install_now("codex")
-    before = (engines_dir / "codex" / "echo-engine.json").read_bytes()
+    before = (release_folder(engines_dir, "codex") / "echo-engine.json").read_bytes()
 
     broken, seen = _serving(b"", failing={"https://"})
     job = EngineInstaller(fetch=broken).install_now("codex")
     assert (job.state, job.error) == ("failed", "download_failed")
     assert len(seen) == 2
-    assert (engines_dir / "codex" / "echo-engine.json").read_bytes() == before
+    assert (release_folder(engines_dir, "codex") / "echo-engine.json").read_bytes() == before
 
 
 def test_uninstall_removes_only_the_store_install(engines_dir, monkeypatch):
@@ -168,7 +170,7 @@ def test_uninstall_removes_only_the_store_install(engines_dir, monkeypatch):
     installer = EngineInstaller(fetch=fetch)
     installer.install_now("codex")
     assert installer.uninstall("codex") is True
-    assert not (engines_dir / "codex").exists()
+    assert not (release_folder(engines_dir, "codex")).exists()
     assert installer.uninstall("codex") is False
     with pytest.raises(EngineInstallError):
         installer.uninstall("not-an-engine")
@@ -327,19 +329,19 @@ def test_engines_api_lists_installs_and_requires_admin(engines_dir, monkeypatch)
     assert TestClient(locked).post("/api/engines/codex/install").status_code == 401
 
 
-def test_installed_engine_of_an_older_pin_is_not_used(engines_dir, monkeypatch):
+def test_installed_engine_version_is_independent_of_desktop_pin(engines_dir, monkeypatch):
     data = _codex_tarball()
     _fake_codex(monkeypatch, data)
     fetch, _ = _serving(data)
     EngineInstaller(fetch=fetch).install_now("codex")
-    manifest_path = engines_dir / "codex" / "echo-engine.json"
+    manifest_path = release_folder(engines_dir, "codex") / "echo-engine.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["version"] = "0.100.0"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    assert store.installed_executable("codex") is None
+    assert store.installed_executable("codex") is not None
     status = engine_status("codex", EngineInstaller(fetch=fetch))
-    assert status["update_available"] is True
+    assert status["update_available"] is False
     assert status["installed_version"] == "0.100.0"
 
 

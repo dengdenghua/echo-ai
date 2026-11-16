@@ -71,9 +71,11 @@ export function useThreadStopController({
   isStopping: boolean;
 } {
   const activeThreadIdRef = useRef(threadId);
+  const onFailureRef = useRef(onFailure);
   useLayoutEffect(() => {
     activeThreadIdRef.current = threadId;
-  }, [threadId]);
+    onFailureRef.current = onFailure;
+  }, [threadId, onFailure]);
   const operationRef = useRef<StopOperation | null>(null);
   const [stopState, setStopState] = useState<StopVisualState | null>(null);
 
@@ -113,8 +115,9 @@ export function useThreadStopController({
     setStopState(null);
   }, [isRunning, stopState, threadId]);
 
+  const stoppingThreadId = stopState?.threadId;
   useEffect(() => {
-    if (stopState?.threadId !== threadId || isRunning !== true) {
+    if (stoppingThreadId !== threadId || isRunning !== true) {
       return;
     }
     const timer = window.setTimeout(() => {
@@ -128,13 +131,15 @@ export function useThreadStopController({
         current?.threadId === threadId ? null : current,
       );
       try {
-        onFailure(new Error("stop acknowledgement did not become terminal"));
+        onFailureRef.current(
+          new Error("stop acknowledgement did not become terminal"),
+        );
       } catch (error) {
         swallow(error);
       }
     }, terminalWaitMs);
     return () => window.clearTimeout(timer);
-  }, [isRunning, onFailure, stopState, terminalWaitMs, threadId]);
+  }, [isRunning, stoppingThreadId, terminalWaitMs, threadId]);
 
   const stop = useCallback((): Promise<void> => {
     window.dispatchEvent(new CustomEvent("echo:pause-followups", { detail: { threadId } }));

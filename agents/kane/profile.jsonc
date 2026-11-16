@@ -1,4 +1,3 @@
-// Echo Agent profile · Kane / Paladin
 {
   "id": "kane",
   "templateId": "coder",
@@ -101,5 +100,8 @@
       "optics_workbench"
     ],
     "connectors": []
+  },
+  "systemPrompt": {
+    "includeAgentsMd": true
   }
 }

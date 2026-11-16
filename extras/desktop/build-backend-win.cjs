@@ -67,6 +67,22 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
+// PyInstaller's COLLECT (onedir) writes <distpath>/echo-backend/{exe,_internal}.
+// Flatten it so the packaged layout stays resources/backend/echo-backend.exe
+// with _internal/ beside it — the desktop spawn path and the electron-builder
+// extraResources entry both assume that shape. Onefile unpacked ~230 MB into
+// %TEMP% on every launch (~10 s of the cold start), which is why this moved.
+const collectedDir = path.join(backendOut, "echo-backend");
+if (fs.existsSync(collectedDir)) {
+  for (const entry of fs.readdirSync(collectedDir)) {
+    fs.renameSync(
+      path.join(collectedDir, entry),
+      path.join(backendOut, entry),
+    );
+  }
+  fs.rmdirSync(collectedDir);
+}
+
 if (!fs.existsSync(expectedExe)) {
   throw new Error(`PyInstaller finished but ${expectedExe} was not created`);
 }

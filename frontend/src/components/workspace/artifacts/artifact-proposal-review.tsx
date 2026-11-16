@@ -58,6 +58,12 @@ export function ArtifactProposalReview({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saveRef = useRef(false);
+  const resource = useRef({ filepath, threadId });
+  useEffect(() => {
+    const identity = { filepath, threadId };
+    resource.current = identity;
+    return () => { if (resource.current === identity) resource.current = { filepath: "", threadId: "" }; };
+  }, [filepath, threadId]);
   useEffect(() => {
     const controller = new AbortController();
     setError(null);
@@ -105,6 +111,7 @@ export function ArtifactProposalReview({
   async function decide(action: "accept" | "reject") {
     if (!proposal || saveRef.current || disabled) return;
     saveRef.current = true;
+    const identity = resource.current;
     setSaving(true);
     onBusyChange(true);
     setError(null);
@@ -116,6 +123,7 @@ export function ArtifactProposalReview({
         action,
         reviewedSha256: proposal.candidate_sha256,
       });
+      if (resource.current !== identity) return;
       if (result.status !== (action === "accept" ? "accepted" : "rejected"))
         throw new Error("操作结果尚未确认，请重新比较。");
       if (
@@ -134,6 +142,7 @@ export function ArtifactProposalReview({
       );
       setOpen(false);
     } catch (failure) {
+      if (resource.current !== identity) return;
       onReload?.();
       setError(
         failure instanceof Error
@@ -142,9 +151,11 @@ export function ArtifactProposalReview({
       );
       setProposal(null); // A stale comparison must not remain actionable.
     } finally {
-      saveRef.current = false;
-      setSaving(false);
-      onBusyChange(false);
+      if (resource.current === identity) {
+        saveRef.current = false;
+        setSaving(false);
+        onBusyChange(false);
+      }
     }
   }
   const pending = items.filter(

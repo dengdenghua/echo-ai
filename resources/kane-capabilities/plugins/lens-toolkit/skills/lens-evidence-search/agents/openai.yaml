@@ -1,0 +1,4 @@
+interface:
+  display_name: "镜头证据检索"
+  short_description: "查本地知识卡、镜头处方与逐页证据，保留来源、单位和核读范围"
+  default_prompt: "使用 $lens-evidence-search 查找我的镜头资料，并给出具体来源和证据范围。"

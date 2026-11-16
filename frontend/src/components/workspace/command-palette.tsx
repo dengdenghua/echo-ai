@@ -15,7 +15,7 @@ import {
   SparklesIcon,
   StoreIcon,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -43,6 +43,7 @@ import { useGlobalShortcuts } from "@/hooks/use-global-shortcuts";
 export function CommandPalette() {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isMac, setIsMac] = useState(false);
@@ -59,8 +60,9 @@ export function CommandPalette() {
 
   const handleOpenSettings = useCallback(() => {
     setOpen(false);
-    emitOpenSettings();
-  }, []);
+    if (pathname === "/browser") void navigate("/workspace/settings");
+    else emitOpenSettings();
+  }, [navigate, pathname]);
 
   const handleShowShortcuts = useCallback(() => {
     setOpen(false);
@@ -209,9 +211,10 @@ export function CommandPalette() {
           onOpenChange={setOpen}
           title={t.shortcuts.openCommandPalette}
           description={t.shortcuts.commandPaletteDescription}
+          className="top-[min(18vh,160px)] translate-y-0"
         >
           <CommandInput placeholder={t.shortcuts.searchActions} />
-          <CommandList>
+          <CommandList className="h-[min(300px,60dvh)]">
             <CommandEmpty>{t.shortcuts.noResults}</CommandEmpty>
             <CommandGroup heading={t.shortcuts.actions}>
               <CommandItem onSelect={handleNewChat}>

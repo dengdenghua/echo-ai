@@ -225,9 +225,11 @@ def _prepare_scoped_args(
     except (TypeError, ValueError):
         handler_params = {}
 
-    if "session" in handler_params and "session" not in args:
+    if "session" in handler_params:
         from runtime.platform.process.session import current_session
 
+        # Session is a host object, never a model-authored tool argument.
+        # Even an empty string from a provider would suppress inheritance.
         args = {**args, "session": current_session()}
 
     _root_params = (
@@ -289,6 +291,21 @@ def _prepare_scoped_args(
                 break
             _supplied_str = str(_supplied)
             if not Path(_supplied_str).is_absolute():
+                artifact_root = _sess.metadata.get("_artifact_output_root")
+                artifact_relative = _supplied_str.replace("\\", "/").removeprefix("./")
+                if artifact_root and artifact_relative.startswith("output/final/"):
+                    base = Path(artifact_root)
+                    normalized = normalize_scoped_relative_path(
+                        artifact_relative[len("output/final/") :], base
+                    )
+                    target = base / normalized
+                    allowed = (
+                        scope.allows_write(target) if _mutates_files else scope.allows_read(target)
+                    )
+                    if not allowed:
+                        raise PermissionError("artifact path escapes the authorized task scope")
+                    args = {**args, _pp: str(target)}
+                    break
                 normalized = normalize_scoped_relative_path(_supplied_str, arg_primary)
                 args = {**args, _pp: str(arg_primary / normalized)}
                 break

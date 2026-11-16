@@ -17,6 +17,76 @@ function deferred() {
 }
 
 describe("useThreadStopController", () => {
+  it("pauses the durable task even when the realtime stop never acknowledges", async () => {
+    const interrupt = deferred();
+    const pause = vi.fn().mockResolvedValue(undefined);
+    const failure = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ running }) => useThreadStopController({
+        threadId: "independent-stop-paths",
+        stopThread: () => interrupt.promise,
+        pauseActiveTask: pause,
+        isRunning: running,
+        onFailure: failure,
+      }),
+      { initialProps: { running: true } },
+    );
+    await act(async () => result.current.stop());
+    expect(pause).toHaveBeenCalledOnce();
+    expect(result.current.isStopping).toBe(true);
+    expect(failure).not.toHaveBeenCalled();
+    rerender({ running: false });
+    expect(result.current.isStopping).toBe(false);
+    interrupt.resolve();
+    await act(async () => interrupt.promise);
+  });
+
+  it("reports a failed realtime stop when there is no durable task to pause", async () => {
+    const failure = vi.fn();
+    const { result } = renderHook(() => useThreadStopController({
+      threadId: "no-durable-task",
+      stopThread: () => Promise.reject(new Error("disconnected")),
+      isRunning: true,
+      onFailure: failure,
+    }));
+    await act(async () => result.current.stop());
+    expect(failure).toHaveBeenCalledOnce();
+    expect(result.current.isStopping).toBe(false);
+  });
+
+  it("keeps the original stop deadline across streaming renders and a late acknowledgement", async () => {
+    vi.useFakeTimers();
+    try {
+      const interrupt = deferred();
+      const failures = vi.fn();
+      const { result, rerender } = renderHook(() =>
+        useThreadStopController({
+          threadId: "thread-a",
+          stopThread: () => interrupt.promise,
+          isRunning: true,
+          onFailure: (error) => failures(error),
+        }),
+      );
+      let stopping!: Promise<void>;
+      act(() => {
+        stopping = result.current.stop();
+      });
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      rerender();
+      interrupt.resolve();
+      await act(async () => stopping);
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(result.current.isStopping).toBe(false);
+      expect(failures).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shares one operation and clears busy after the first stop path succeeds", async () => {
     const interrupt = deferred();
     const pause = deferred();

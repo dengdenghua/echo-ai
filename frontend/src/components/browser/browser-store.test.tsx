@@ -6,6 +6,8 @@ import { renderWithProviders } from "@/test/harness";
 import {
   BrowserStoreProvider,
   browserReducer,
+  browserScopedStorageKey,
+  loadInitial,
   persistableState,
   useBrowserStore,
   type BrowserAction,
@@ -14,11 +16,18 @@ import {
 } from "./browser-store";
 
 function StoreHarness() {
-  const { state, activeTab, openTab, closeTab, restoreClosedTab } =
-    useBrowserStore();
+  const {
+    state,
+    activeTab,
+    mountedWebviewIds,
+    openTab,
+    closeTab,
+    restoreClosedTab,
+  } = useBrowserStore();
   return (
     <div>
       <div data-testid="open-count">{state.tabs.length}</div>
+      <div data-testid="mounted-webviews">{mountedWebviewIds.size}</div>
       <div data-testid="closed-count">{state.closedTabs.length}</div>
       <div data-testid="active-url">{activeTab?.url}</div>
       <div data-testid="active-loading">{String(activeTab?.isLoading)}</div>
@@ -85,9 +94,67 @@ describe("browser tab recovery", () => {
     );
   });
 
+  it("keeps storage keys disjoint across account scopes", () => {
+    expect(browserScopedStorageKey("echo:browser-history", "local:owner")).not.toBe(
+      browserScopedStorageKey("echo:browser-history", "local:reader"),
+    );
+    expect(browserScopedStorageKey("echo:browser-state", "local:owner")).toContain(
+      encodeURIComponent("local:owner"),
+    );
+  });
+
+  it("caps live webviews while keeping the active tab mounted", () => {
+    const tabs = Array.from({ length: 20 }, (_, index) => ({
+      id: `tab-${index}`,
+      url: `https://example.com/${index}`,
+      title: `Tab ${index}`,
+      isLoading: false,
+      device: "desktop",
+    }));
+    window.localStorage.setItem(
+      browserScopedStorageKey("echo:browser-state", "anonymous"),
+      JSON.stringify({
+        tabs,
+        closedTabs: [],
+        activeId: "tab-19",
+        homeSeeded: true,
+      }),
+    );
+
+    renderWithProviders(
+      <BrowserStoreProvider>
+        <StoreHarness />
+      </BrowserStoreProvider>,
+    );
+    expect(screen.getByTestId("mounted-webviews")).toHaveTextContent("8");
+  });
+
+  it("does not load tabs saved under another account scope", () => {
+    window.localStorage.setItem(
+      browserScopedStorageKey("echo:browser-state", "local:owner"),
+      JSON.stringify({
+        tabs: [{
+          id: "owner-only",
+          url: "https://private.example/",
+          title: "Owner only",
+          isLoading: false,
+          device: "desktop",
+        }],
+        closedTabs: [],
+        activeId: "owner-only",
+        homeSeeded: true,
+      }),
+    );
+
+    const owner = loadInitial("local:owner");
+    const reader = loadInitial("local:reader");
+    expect(owner.tabs[0]?.url).toBe("https://private.example/");
+    expect(reader.tabs.some((tab) => tab.id === "owner-only")).toBe(false);
+  });
+
   it("loads a previous unclean session without resuming a loading spinner", () => {
     window.localStorage.setItem(
-      "echo:browser-state",
+      "echo:browser-state:anonymous",
       JSON.stringify({
         tabs: [
           {

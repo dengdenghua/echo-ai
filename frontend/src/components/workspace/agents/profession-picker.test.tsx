@@ -11,10 +11,10 @@ vi.mock("@/core/agents/api", () => ({ listAgents: vi.fn().mockResolvedValue([
 it("filters local professions and passes the original duties without changing templates", async () => {
  const onSelect = vi.fn(); const user = userEvent.setup();
  renderWithProviders(<ProfessionPicker onSelect={onSelect} />, { locale: "zh-CN" });
- await user.click(screen.getByRole("button", { name: "选择职业模板" }));
+ await user.click(screen.getByRole("button", { name: /^选择职业模板/ }));
  await screen.findByRole("button", { name: /结构工程师/ });
  await user.type(screen.getByRole("textbox", { name: "搜索职业" }), "嵌入式");
  expect(screen.queryByRole("button", { name: /结构工程师/ })).not.toBeInTheDocument();
- await user.click(screen.getByRole("button", { name: "嵌入式工程师" }));
+ await user.click(screen.getByRole("button", { name: /^嵌入式工程师/ }));
  await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ name: "嵌入式工程师", id: "embedded", description: "固件与RTOS" }));
 });

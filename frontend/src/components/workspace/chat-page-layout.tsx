@@ -547,10 +547,6 @@ export function ChatPageLayout({
           )}
           style={
             {
-              paddingRight:
-                controlsSide === "right" && !secondaryPanel && !sidebarOpen
-                  ? "calc(var(--window-controls-safe-inset, 138px) + 0.75rem)"
-                  : undefined,
               WebkitAppRegion: controlsSide === "right" ? "drag" : undefined,
             } as CSSProperties
           }
@@ -579,7 +575,7 @@ export function ChatPageLayout({
             } as CSSProperties
           }
         >
-          {pageTitle && <h1 className="sr-only">{pageTitle}</h1>}
+          <h1 className="sr-only">{pageTitle ?? t.sidebar.actionNewTask}</h1>
           {modeSwitcher && !fullWorkbench && (
             <div className="pointer-events-auto absolute top-2 left-1/2 z-50 -translate-x-1/2">
               {modeSwitcher}

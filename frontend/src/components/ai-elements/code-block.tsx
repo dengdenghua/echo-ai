@@ -4,6 +4,7 @@ import { swallow } from "@/core/utils/log";
 import { copyTextToClipboard } from "@/core/clipboard";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/core/i18n/hooks";
+import { horizontalScrollKey } from "@/components/ui/horizontal-scroll-region";
 import { ArrowLeftRight, CheckIcon, CopyIcon, WrapText } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useLocalStorage } from "@/hooks/use-local-storage";
@@ -85,7 +86,8 @@ const PRE_CLASS_OVERRIDES =
   "[&>pre]:m-0 [&>pre]:p-4 [&>pre]:text-sm [&>pre]:leading-6 " +
   "[&>pre]:bg-transparent! [&_code]:font-mono [&_code]:text-sm";
 
-const WRAP_PRE_CLASS = "[&>pre]:whitespace-pre-wrap";
+const WRAP_PRE_CLASS =
+  "[&>pre]:whitespace-pre-wrap [&>pre]:[overflow-wrap:anywhere]";
 const SCROLL_PRE_CLASS = "[&>pre]:whitespace-pre";
 
 function LightweightCodeBlock({ code, wrap }: { code: string; wrap: boolean }) {
@@ -96,7 +98,9 @@ function LightweightCodeBlock({ code, wrap }: { code: string; wrap: boolean }) {
     <pre
       className={cn(
         "m-0 p-4 text-sm leading-6 bg-transparent font-mono",
-        wrap ? "whitespace-pre-wrap" : "whitespace-pre",
+        wrap
+          ? "whitespace-pre-wrap [overflow-wrap:anywhere]"
+          : "whitespace-pre",
       )}
     >
       <code>{code}</code>
@@ -152,12 +156,14 @@ export const CodeBlock = ({
 
   useEffect(() => {
     mountedRef.current = true;
+    const requestRef = highlightRequestRef;
+    const timerRef = highlightTimerRef;
     return () => {
       mountedRef.current = false;
-      highlightRequestRef.current++;
-      if (highlightTimerRef.current) {
-        clearTimeout(highlightTimerRef.current);
-        highlightTimerRef.current = null;
+      requestRef.current++;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, []);
@@ -218,14 +224,16 @@ export const CodeBlock = ({
   return (
     <CodeBlockContext.Provider value={{ code, isStreaming }}>
       <div
+        data-testid="code-block"
+        data-language={language}
         className={cn(
-          "group bg-muted/30 text-foreground relative size-full overflow-hidden rounded-lg border",
+          "group bg-muted/30 text-foreground relative min-w-0 w-full overflow-hidden rounded-lg border",
           className,
         )}
         {...props}
       >
-        <div className="flex h-8 items-center justify-between gap-2 border-b bg-muted/40 px-3">
-          <div className="flex items-center gap-2">
+        <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-1">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="text-micro text-muted-foreground font-mono uppercase">
               {language}
             </span>
@@ -244,7 +252,7 @@ export const CodeBlock = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="shrink-0 h-6 w-6"
+                className="shrink-0 size-8"
                 title={
                   wrap ? t.streaming.codeBlockScroll : t.streaming.codeBlockWrap
                 }
@@ -260,19 +268,27 @@ export const CodeBlock = ({
           </div>
         </div>
 
-        <div className="relative size-full">
+        <div className="relative min-w-0 w-full">
           {showHighlighted ? (
             <div
               className={cn(
-                "size-full overflow-auto",
+                "w-full min-w-0 overflow-auto overscroll-x-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 PRE_CLASS_OVERRIDES,
                 wrap ? WRAP_PRE_CLASS : SCROLL_PRE_CLASS,
               )}
+              role="region"
+              tabIndex={0}
+              aria-label={`${language} · ${wrap ? t.streaming.codeBlockWrap : t.streaming.codeBlockScroll}`}
+              data-testid="code-block-scroll"
+              onKeyDown={horizontalScrollKey}
               // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized via DOMPurify (audit C3/M4).
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
             />
           ) : isStreaming ? (
-            <div className="size-full overflow-auto">
+            <div
+              className="w-full min-w-0 overflow-auto overscroll-x-contain"
+              data-testid="code-block-scroll"
+            >
               <LightweightCodeBlock code={code} wrap={wrap} />
             </div>
           ) : (
@@ -303,7 +319,9 @@ export const CodeBlockCopyButton = ({
   className,
   ...props
 }: CodeBlockCopyButtonProps) => {
+  const { t } = useI18n();
   const [isCopied, setIsCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const { code, isStreaming } = useContext(CodeBlockContext);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -313,34 +331,56 @@ export const CodeBlockCopyButton = ({
     };
   }, []);
 
+  useEffect(() => {
+    setIsCopied(false);
+    setCopyFailed(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, [code]);
+
   const copyToClipboard = async () => {
     try {
+      setCopyFailed(false);
       await copyTextToClipboard(code);
       setIsCopied(true);
       onCopy?.();
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setIsCopied(false), timeout);
     } catch (error) {
+      setIsCopied(false);
+      setCopyFailed(true);
       swallow(error);
       onError?.(error as Error);
     }
   };
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
+  const label = copyFailed
+    ? t.clipboard.failedToCopyToClipboard
+    : isCopied
+      ? t.clipboard.copiedToClipboard
+      : t.clipboard.copyToClipboard;
 
   if (isStreaming && !showWhileStreaming) {
     return null;
   }
 
   return (
-    <Button
-      className={cn("shrink-0 h-6 w-6", className)}
-      onClick={copyToClipboard}
-      size="icon"
-      variant="ghost"
-      {...props}
-    >
-      {children ?? <Icon size={12} />}
-    </Button>
+    <>
+      <Button
+        type="button"
+        aria-label={label}
+        title={label}
+        className={cn("shrink-0 size-8", className)}
+        onClick={copyToClipboard}
+        size="icon"
+        variant="ghost"
+        {...props}
+      >
+        {children ?? <Icon size={12} />}
+      </Button>
+      <span className="sr-only" role="status" aria-live="polite">
+        {isCopied || copyFailed ? label : ""}
+      </span>
+    </>
   );
 };

@@ -1947,6 +1947,7 @@ describe("<AgentWorkbenchPanel />", () => {
       </ThreadStreamingContext.Provider>,
     );
 
+    fireEvent.click(await screen.findByText("任务说明"));
     await waitFor(() => {
       expect(screen.getByText("复核上一轮的前端视觉回归")).toBeInTheDocument();
     });

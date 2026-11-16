@@ -22,9 +22,9 @@ import atexit
 import contextlib
 import logging
 import os
-import shlex
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -78,23 +78,35 @@ def _storage_port() -> str:
 def resolve_storage_command() -> list[str] | None:
     """Resolve the argv that launches ``echo-storage serve``, or ``None`` if
     it can't be found. Priority: ``ECHO_STORAGE_CMD`` (explicit) → the sibling
-    repo's ``.venv`` console script → a console script on PATH. Always argv lists
-    (no shell)."""
+    repo's ``.venv`` console script → the current Python environment → PATH.
+    Always argv lists (no shell)."""
     port = _storage_port()
 
     explicit = (os.environ.get("ECHO_STORAGE_CMD") or "").strip()
     if explicit:
-        argv = shlex.split(explicit)
+        # POSIX shlex removes backslashes from unquoted Windows paths. Reuse
+        # the platform-aware, shell-free parser used by local command tools.
+        from runtime.execution.suckers._write_skills_common import _parse_command
+
+        argv, error = _parse_command(explicit)
+        if error or not argv or not argv[0].strip():
+            _LOG.warning("ECHO_STORAGE_CMD is not a valid executable command")
+            return None
         return argv if "serve" in argv else [*argv, "serve", "--port", port]
 
+    script = Path("Scripts/echo-storage.exe" if sys.platform == "win32" else "bin/echo-storage")
     # Sibling layout: <…>/echo/echo-ai/runtime/… → <…>/echo/echo-storage
     here = Path(__file__).resolve()
     for parent in here.parents:
         if (parent / "runtime").is_dir():
-            sibling = parent.parent / "echo-storage" / ".venv" / "bin" / "echo-storage"
-            if sibling.exists():
+            sibling = parent.parent / "echo-storage" / ".venv" / script
+            if sibling.is_file():
                 return [str(sibling), "serve", "--port", port]
             break
+
+    installed = Path(sys.prefix) / script
+    if installed.is_file():
+        return [str(installed), "serve", "--port", port]
 
     found = shutil.which("echo-storage")
     if found:

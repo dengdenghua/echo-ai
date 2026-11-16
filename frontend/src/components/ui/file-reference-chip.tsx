@@ -52,7 +52,6 @@ export function FileReferenceChip({
       <InferredIcon className="size-3 shrink-0 opacity-60" />
     ) : typeof icon === "function" ? (
       // Treat LucideIcon (function component) uniformly.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (() => {
         const Ic = icon;
         return <Ic className="size-3 shrink-0 opacity-60" />;
@@ -67,41 +66,47 @@ export function FileReferenceChip({
   const content = (
     <>
       {iconNode}
-      <span className="font-mono text-mini leading-none">
+      <span className="min-w-0 truncate font-mono text-xs leading-5">
         {label || displayName}
       </span>
       {lines && (
-        <span className="text-muted-foreground/80 text-micro leading-none">
-          ({lines.includes("-") ? `L${lines}` : `line ${lines}`})
+        <span className="shrink-0 whitespace-nowrap text-xs leading-5 text-muted-foreground">
+          (L{lines})
         </span>
       )}
     </>
   );
 
   const cls = cn(
-    "inline-flex items-center gap-1 rounded-md border border-border-default bg-muted/40 px-1.5 py-0.5",
-    "align-[2px]", // vertical align to sit nicely in text runs
-    "transition-colors hover:border-border hover:bg-muted/70",
+    "inline-flex min-h-6 max-w-full items-center gap-1 rounded-md border border-border-default bg-muted/40 px-1.5 py-0.5",
+    "align-middle",
+    "transition-colors hover:border-border hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     (href || onClick) && "cursor-pointer",
     className,
   );
 
   if (href) {
     return (
-      <a href={href} title={path} className={cls}>
+      <a href={href} title={path} data-file-reference={path} className={cls}>
         {content}
       </a>
     );
   }
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} title={path} className={cls}>
+      <button
+        type="button"
+        onClick={onClick}
+        title={path}
+        data-file-reference={path}
+        className={cls}
+      >
         {content}
       </button>
     );
   }
   return (
-    <span title={path} className={cls}>
+    <span title={path} data-file-reference={path} className={cls}>
       {content}
     </span>
   );

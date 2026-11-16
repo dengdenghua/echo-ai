@@ -20,9 +20,11 @@ export interface ArtifactsContextType {
 
   selectedArtifact: string | null;
   autoSelect: boolean;
-  select: (artifact: string, autoSelect?: boolean) => void;
+  select: (artifact: string, autoSelect?: boolean, lines?: string) => void;
+  selectedLines?: string;
   deselect: () => void;
   clearSelection: () => void;
+  registerNavigationGuard: (guard: () => Promise<boolean>) => () => void;
 
   open: boolean;
   autoOpen: boolean;
@@ -47,17 +49,32 @@ export function ArtifactsProvider({
 }: ArtifactsProviderProps) {
   const [artifacts, setArtifacts] = useState<string[]>([]);
   const [selectedArtifact, setSelectedArtifact] = useState<string | null>(null);
+  const [selectedLines, setSelectedLines] = useState<string>();
   const [autoSelect, setAutoSelect] = useState(true);
   const [open, setOpen] = useState(env.STATIC_WEBSITE_ONLY);
   const [autoOpen, setAutoOpen] = useState(true);
   const { setOpen: setSidebarOpen } = useSidebar();
+  const navigationGuard = useRef<(() => Promise<boolean>) | null>(null);
+  const selectionRequest = useRef(0);
+  const registerNavigationGuard = useCallback(
+    (guard: () => Promise<boolean>) => {
+      navigationGuard.current = guard;
+      return () => {
+        if (navigationGuard.current === guard) navigationGuard.current = null;
+      };
+    },
+    [],
+  );
 
   const prevThreadIdRef = useRef(threadId);
   useEffect(() => {
     if (prevThreadIdRef.current !== threadId) {
       prevThreadIdRef.current = threadId;
+      selectionRequest.current++;
+      navigationGuard.current = null;
       setArtifacts([]);
       setSelectedArtifact(null);
+      setSelectedLines(undefined);
       setAutoSelect(true);
       setOpen(env.STATIC_WEBSITE_ONLY);
       setAutoOpen(true);
@@ -74,20 +91,31 @@ export function ArtifactsProvider({
   // chat-box, so React Query deduplicates requests. This fallback only runs
   // when the shared query hasn't populated the list yet.
   const { data: fallbackArtifacts } = useWorkspaceArtifacts(threadId, {
-    enabled:
-      threadExists && !env.STATIC_WEBSITE_ONLY && artifacts.length === 0,
+    enabled: threadExists && !env.STATIC_WEBSITE_ONLY && artifacts.length === 0,
   });
 
   useEffect(() => {
     if (!fallbackArtifacts || fallbackArtifacts.length === 0) return;
     setArtifacts((prev) =>
-      prev.length === 0 ? fallbackArtifacts : Array.from(new Set([...prev, ...fallbackArtifacts])),
+      prev.length === 0
+        ? fallbackArtifacts
+        : Array.from(new Set([...prev, ...fallbackArtifacts])),
     );
   }, [fallbackArtifacts]);
 
   const select = useCallback(
-    (artifact: string, autoSelect = false) => {
-      setSelectedArtifact(artifact);
+    (artifact: string, autoSelect = false, lines?: string) => {
+      const request = ++selectionRequest.current;
+      const apply = () => {
+        if (request !== selectionRequest.current) return;
+        setSelectedArtifact(artifact);
+        setSelectedLines(lines);
+      };
+      if (artifact !== selectedArtifact && navigationGuard.current) {
+        void navigationGuard.current().then((allowed) => {
+          if (allowed) apply();
+        });
+      } else apply();
       if (!env.STATIC_WEBSITE_ONLY) {
         setSidebarOpen(false);
       }
@@ -95,16 +123,18 @@ export function ArtifactsProvider({
         setAutoSelect(false);
       }
     },
-    [setSidebarOpen, setSelectedArtifact, setAutoSelect],
+    [setSidebarOpen, setSelectedArtifact, setAutoSelect, selectedArtifact],
   );
 
   const deselect = useCallback(() => {
+    selectionRequest.current++;
     setSelectedArtifact(null);
     setAutoSelect(true);
     setOpen(false);
   }, []);
 
   const clearSelection = useCallback(() => {
+    selectionRequest.current++;
     setSelectedArtifact(null);
     setAutoSelect(true);
   }, []);
@@ -125,9 +155,11 @@ export function ArtifactsProvider({
     },
 
     selectedArtifact,
+    selectedLines,
     select,
     deselect,
     clearSelection,
+    registerNavigationGuard,
   };
 
   return (

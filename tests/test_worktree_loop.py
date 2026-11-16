@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from runtime.execution.subagents.worktree_loop import (
+    _WORKTREE_LOCK,
     is_git_repo,
     run_worktree_loop,
     shell_worktree_worker,
@@ -51,13 +52,17 @@ def _init_repo(tmp_path: Path) -> Path:
 
 
 def _worktree_count(repo: Path) -> int:
-    out = subprocess.run(
-        ["git", "-C", str(repo), "worktree", "list"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    return len([line for line in out.splitlines() if line.strip()])
+    # A cancelled worker removes its directory before Git finishes removing
+    # the registry entry. Observe settled cleanup, not a half-removed entry.
+    with _WORKTREE_LOCK:
+        result = subprocess.run(
+            ["git", "-C", str(repo), "worktree", "list"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    assert result.returncode == 0, result.stderr
+    return len([line for line in result.stdout.splitlines() if line.strip()])
 
 
 def test_not_a_git_repo(tmp_path: Path):

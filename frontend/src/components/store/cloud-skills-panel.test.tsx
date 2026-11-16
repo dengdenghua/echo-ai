@@ -51,7 +51,9 @@ describe("CloudSkillsPanel", () => {
     });
     renderWithProviders(<CloudSkillsPanel />);
     await userEvent.click(
-      await screen.findByRole("button", { name: "查看 技能创建器 的使用角色" }),
+      await screen.findByRole("button", {
+        name: /^查看 技能创建器 的使用角色/,
+      }),
     );
     const roleSection = within(screen.getByRole("dialog")).getByRole("region", {
       name: "角色使用者",
@@ -366,7 +368,7 @@ describe("CloudSkillsPanel", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
     expect(screen.getByText("已安装 1 · 当前目录 1")).toBeVisible();
     await userEvent.click(
-      screen.getByRole("button", { name: "查看 pdf 详情" }),
+      screen.getByRole("button", { name: /^pdf/ }),
     );
     const dialog = screen.getByRole("dialog");
     const select = within(dialog).getByRole("combobox", { name: "来源版本" });
@@ -461,7 +463,7 @@ describe("CloudSkillsPanel", () => {
     );
     expect(screen.getByRole("button", { name: "安装" })).toBeEnabled();
     await userEvent.click(
-      screen.getByRole("button", { name: "查看 external-design-story 详情" }),
+      screen.getByRole("button", { name: /短剧分镜/ }),
     );
     const dialog = screen.getByRole("dialog");
     expect(
@@ -756,7 +758,7 @@ describe("CloudSkillsPanel", () => {
     );
     expect(screen.queryByText("research")).not.toBeInTheDocument();
     await userEvent.click(
-      screen.getByRole("button", { name: "查看 writing 详情" }),
+      screen.getByRole("button", { name: /^writing/ }),
     );
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).queryByText("|")).not.toBeInTheDocument();

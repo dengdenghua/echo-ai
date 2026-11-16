@@ -4,6 +4,7 @@ import type { Message } from "@/core/api/types";
 import {
   backgroundResumeMessageId,
   isBackgroundResumePrompt,
+  isBackgroundResumeMessageId,
   conversationMessageIndexes,
   visibleConversationMessages,
 } from "./background-resume";
@@ -13,6 +14,18 @@ import {
 } from "./optimistic-messages";
 
 describe("background continuation", () => {
+  it("uses a protocol-valid item id and recognizes both current and legacy hidden sends", () => {
+    const id = backgroundResumeMessageId();
+    expect(id).toMatch(/^itm_[A-Za-z0-9][A-Za-z0-9_-]*$/);
+    expect(id.length).toBeLessThanOrEqual(96);
+    expect(newClientMessageId(id)).toBe(id);
+    expect(newClientMessageId("ui-resume-invalid")).toMatch(/^itm_/);
+    expect(isBackgroundResumeMessageId(id)).toBe(true);
+    expect(isBackgroundResumeMessageId("ui-resume-old")).toBe(true);
+    expect(isBackgroundResumeMessageId("itm_user_manual")).toBe(false);
+    expect(visibleConversationMessages([{ id: "ui-resume-old", type: "human", content: "internal" }], "Continue")).toEqual([]);
+  });
+
   it("preserves fork/feedback positions after hiding a continuation", () => {
     const messages: Message[] = [
       { type: "human", id: backgroundResumeMessageId(), content: "internal" },

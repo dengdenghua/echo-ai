@@ -1,5 +1,6 @@
 /* Implementation note. */
 
+import { currentActorScope } from "@/core/auth/api";
 import { swallow } from "@/core/utils/log";
 import {
   createContext,
@@ -20,10 +21,12 @@ import type { DevicePreset } from "../workspace/embedded-browser/browser-context
 import {
   arrangeTabs,
   clampSplitRatio,
+  MAX_MOUNTED_BROWSER_WEBVIEWS,
   moveTab,
   nearestOutsideGroup,
   nextGroupColor,
   pruneGroups,
+  selectMountedWebviewTabIds,
   validSplit,
   type BrowserSplit,
   type BrowserTabGroup,
@@ -46,6 +49,12 @@ export const BROWSER_EDIT_HOME_EVENT = "echo:browser-edit-home";
 export const BROWSER_HOME_URL = "echo://home";
 const LEGACY_DEFAULT_HOMEPAGE = "https://www.google.com";
 const DEFAULT_HOMEPAGE = BROWSER_HOME_URL;
+
+/** Browser history and tabs can reveal what an account was doing. Keep every
+ * persisted browser surface in a per-account namespace. */
+export function browserScopedStorageKey(base: string, scope: string): string {
+  return `${base}:${encodeURIComponent(scope)}`;
+}
 
 export interface BrowserSettings {
   homepage: string;
@@ -70,10 +79,12 @@ export const SEARCH_ENGINE_URLS: Record<
   duckduckgo: "https://duckduckgo.com/?q=",
 };
 
-function loadSettings(): BrowserSettings {
+function loadSettings(scope = currentActorScope()): BrowserSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
+    const raw = localStorage.getItem(
+      browserScopedStorageKey(SETTINGS_KEY, scope),
+    );
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
     const next = { ...DEFAULT_SETTINGS, ...parsed };
@@ -87,10 +98,16 @@ function loadSettings(): BrowserSettings {
   }
 }
 
-function saveSettings(s: BrowserSettings): void {
+function saveSettings(
+  s: BrowserSettings,
+  scope = currentActorScope(),
+): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    localStorage.setItem(
+      browserScopedStorageKey(SETTINGS_KEY, scope),
+      JSON.stringify(s),
+    );
   } catch (e) {
     swallow(e, "storage");
   }
@@ -113,10 +130,12 @@ export interface Bookmark {
   addedAt: number;
 }
 
-function loadHistory(): HistoryEntry[] {
+function loadHistory(scope = currentActorScope()): HistoryEntry[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(HISTORY_KEY);
+    const raw = localStorage.getItem(
+      browserScopedStorageKey(HISTORY_KEY, scope),
+    );
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -126,11 +145,14 @@ function loadHistory(): HistoryEntry[] {
   }
 }
 
-function saveHistory(items: HistoryEntry[]): void {
+function saveHistory(
+  items: HistoryEntry[],
+  scope = currentActorScope(),
+): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(
-      HISTORY_KEY,
+      browserScopedStorageKey(HISTORY_KEY, scope),
       JSON.stringify(items.slice(0, MAX_HISTORY)),
     );
   } catch (e) {
@@ -138,10 +160,12 @@ function saveHistory(items: HistoryEntry[]): void {
   }
 }
 
-function loadBookmarks(): Bookmark[] {
+function loadBookmarks(scope = currentActorScope()): Bookmark[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(BOOKMARKS_KEY);
+    const raw = localStorage.getItem(
+      browserScopedStorageKey(BOOKMARKS_KEY, scope),
+    );
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -151,11 +175,14 @@ function loadBookmarks(): Bookmark[] {
   }
 }
 
-function saveBookmarks(items: Bookmark[]): void {
+function saveBookmarks(
+  items: Bookmark[],
+  scope = currentActorScope(),
+): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(
-      BOOKMARKS_KEY,
+      browserScopedStorageKey(BOOKMARKS_KEY, scope),
       JSON.stringify(items.slice(0, MAX_BOOKMARKS)),
     );
   } catch (e) {
@@ -522,7 +549,7 @@ export function persistableState(state: BrowserState): BrowserState {
   };
 }
 
-export function loadInitial(): BrowserState {
+export function loadInitial(scope = currentActorScope()): BrowserState {
   if (typeof window === "undefined") {
     return {
       tabs: [],
@@ -536,7 +563,9 @@ export function loadInitial(): BrowserState {
     };
   }
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(
+      browserScopedStorageKey(STORAGE_KEY, scope),
+    );
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<BrowserState>;
       const tabs = Array.isArray(parsed.tabs)
@@ -623,6 +652,8 @@ export function loadInitial(): BrowserState {
 interface BrowserStoreContextType {
   state: BrowserState;
   activeTab: BrowserTab | null;
+  /** Tabs whose <webview> should stay mounted this render. */
+  mountedWebviewIds: ReadonlySet<string>;
   openTab: (url?: string, patch?: Partial<BrowserTab>) => void;
   closeTab: (id: string) => void;
   restoreClosedTab: (id?: string) => void;
@@ -663,20 +694,50 @@ interface BrowserStoreContextType {
 const BrowserStoreContext = createContext<BrowserStoreContextType | null>(null);
 
 export function BrowserStoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(browserReducer, undefined, loadInitial);
-  const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => loadBookmarks());
-  const [settings, setSettings] = useState<BrowserSettings>(() =>
-    loadSettings(),
+  const actorScope = useMemo(() => currentActorScope(), []);
+  const [state, dispatch] = useReducer(browserReducer, actorScope, loadInitial);
+  const [history, setHistory] = useState<HistoryEntry[]>(() =>
+    loadHistory(actorScope),
   );
-
-  const updateSettings = useCallback((patch: Partial<BrowserSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      saveSettings(next);
-      return next;
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() =>
+    loadBookmarks(actorScope),
+  );
+  const [settings, setSettings] = useState<BrowserSettings>(() =>
+    loadSettings(actorScope),
+  );
+  const [recentWebviewIds, setRecentWebviewIds] = useState<string[]>(() =>
+    state.activeId ? [state.activeId] : [],
+  );
+  useEffect(() => {
+    const id = state.activeId;
+    if (!id) return;
+    setRecentWebviewIds((previous) =>
+      [id, ...previous.filter((item) => item !== id)].slice(
+        0,
+        MAX_MOUNTED_BROWSER_WEBVIEWS,
+      ),
+    );
+  }, [state.activeId]);
+  const mountedWebviewIds = useMemo(() => {
+    const order = selectMountedWebviewTabIds({
+      tabs: state.tabs,
+      activeId: state.activeId,
+      split: state.split,
+      recentIds: recentWebviewIds,
     });
-  }, []);
+    return new Set(order);
+  }, [recentWebviewIds, state.activeId, state.split, state.tabs]);
+
+  const updateSettings = useCallback(
+    (patch: Partial<BrowserSettings>) => {
+      setSettings((prev) => {
+        const next = { ...prev, ...patch };
+        saveSettings(next, actorScope);
+        return next;
+      });
+    },
+    [actorScope],
+  );
   // Implementation note.
   const [, setReady] = useState(false);
   useEffect(() => {
@@ -689,7 +750,7 @@ export function BrowserStoreProvider({ children }: { children: ReactNode }) {
     const t = setTimeout(() => {
       try {
         localStorage.setItem(
-          STORAGE_KEY,
+          browserScopedStorageKey(STORAGE_KEY, actorScope),
           JSON.stringify(persistableState(state)),
         );
       } catch (e) {
@@ -697,41 +758,50 @@ export function BrowserStoreProvider({ children }: { children: ReactNode }) {
       }
     }, 200);
     return () => clearTimeout(t);
-  }, [state]);
+  }, [actorScope, state]);
 
-  const recordVisit = useCallback((entry: Omit<HistoryEntry, "visitedAt">) => {
-    if (!entry.url || entry.url.startsWith("about:")) return;
-    setHistory((prev) => {
-      // Implementation note.
-      const next: HistoryEntry[] = [
-        { ...entry, visitedAt: Date.now() },
-        ...prev.filter((h) => h.url !== entry.url),
-      ].slice(0, MAX_HISTORY);
-      saveHistory(next);
-      return next;
-    });
-  }, []);
+  const recordVisit = useCallback(
+    (entry: Omit<HistoryEntry, "visitedAt">) => {
+      if (!entry.url || entry.url.startsWith("about:")) return;
+      setHistory((prev) => {
+        // Implementation note.
+        const next: HistoryEntry[] = [
+          { ...entry, visitedAt: Date.now() },
+          ...prev.filter((h) => h.url !== entry.url),
+        ].slice(0, MAX_HISTORY);
+        saveHistory(next, actorScope);
+        return next;
+      });
+    },
+    [actorScope],
+  );
 
-  const addBookmark = useCallback((b: Omit<Bookmark, "addedAt">) => {
-    if (!b.url) return;
-    setBookmarks((prev) => {
-      if (prev.some((x) => x.url === b.url)) return prev;
-      const next: Bookmark[] = [{ ...b, addedAt: Date.now() }, ...prev].slice(
-        0,
-        MAX_BOOKMARKS,
-      );
-      saveBookmarks(next);
-      return next;
-    });
-  }, []);
+  const addBookmark = useCallback(
+    (b: Omit<Bookmark, "addedAt">) => {
+      if (!b.url) return;
+      setBookmarks((prev) => {
+        if (prev.some((x) => x.url === b.url)) return prev;
+        const next: Bookmark[] = [{ ...b, addedAt: Date.now() }, ...prev].slice(
+          0,
+          MAX_BOOKMARKS,
+        );
+        saveBookmarks(next, actorScope);
+        return next;
+      });
+    },
+    [actorScope],
+  );
 
-  const removeBookmark = useCallback((url: string) => {
-    setBookmarks((prev) => {
-      const next = prev.filter((x) => x.url !== url);
-      saveBookmarks(next);
-      return next;
-    });
-  }, []);
+  const removeBookmark = useCallback(
+    (url: string) => {
+      setBookmarks((prev) => {
+        const next = prev.filter((x) => x.url !== url);
+        saveBookmarks(next, actorScope);
+        return next;
+      });
+    },
+    [actorScope],
+  );
 
   const isBookmarked = useCallback(
     (url: string) => bookmarks.some((x) => x.url === url),
@@ -740,8 +810,8 @@ export function BrowserStoreProvider({ children }: { children: ReactNode }) {
 
   const clearHistory = useCallback(() => {
     setHistory([]);
-    saveHistory([]);
-  }, []);
+    saveHistory([], actorScope);
+  }, [actorScope]);
 
   const activeTab = useMemo(
     () => state.tabs.find((t) => t.id === state.activeId) ?? null,
@@ -752,6 +822,7 @@ export function BrowserStoreProvider({ children }: { children: ReactNode }) {
     () => ({
       state,
       activeTab,
+      mountedWebviewIds,
       openTab: (url?: string, patch?: Partial<BrowserTab>) =>
         dispatch({ type: "OPEN_TAB", url: url ?? settings.homepage, patch }),
       closeTab: (id: string) => {
@@ -802,6 +873,7 @@ export function BrowserStoreProvider({ children }: { children: ReactNode }) {
     [
       state,
       activeTab,
+      mountedWebviewIds,
       history,
       bookmarks,
       recordVisit,

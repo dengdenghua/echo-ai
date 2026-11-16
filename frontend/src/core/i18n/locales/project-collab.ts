@@ -37,7 +37,12 @@ export interface ProjectCollabCopy {
     sandboxPromptIntro: string;
     followUp: string;
     followUpHint: string;
+    followUpUnavailableHint: string;
     followUpToast: (name: string) => string;
+    awaitingConfirmation: string;
+    viewDetails: string;
+    sendUnconfirmed: string;
+    resultUnknown: string;
     openWorkbench: string;
     openWorkbenchHint: string;
   };
@@ -79,7 +84,7 @@ const zhCN: ProjectCollabCopy = {
     recordDecision: "固化为决策",
     decisionRecorded: "已固化为决策",
     decisionHint:
-      "将该并列协作者的交付成果作为长项目的核心决策固化沉淀到 Project OS 事实库",
+      "将该协作者的交付成果作为决策记录发布到当前项目对话，收到保存回执后确认",
     decisionToast: (name) => `已将【${name}】的成果固化为长项目核心决策`,
     decisionAdopted: (name) => `采纳并列协作者【${name}】交付成果：`,
     decisionGoal: (name) => `确立并列协作者【${name}】推进目标：`,
@@ -90,7 +95,12 @@ const zhCN: ProjectCollabCopy = {
     sandboxPromptIntro: "针对前序长项目任务展开独立概念验证（POC）与方案推演：",
     followUp: "定向追问",
     followUpHint: "在主输入框定向 @该协作者 发起追问",
+    followUpUnavailableHint: "此记录没有可续接的会话，请打开工作台查看。",
     followUpToast: (name) => `已将针对【${name}】的对话装填入主输入框`,
+    awaitingConfirmation: "等待确认…",
+    viewDetails: "查看详情",
+    sendUnconfirmed: "未确认发送，请检查输入框草稿后重试。",
+    resultUnknown: "结果尚未确认，请先检查对话记录，避免重复提交。",
     openWorkbench: "在大屏工作台查看完整流",
     openWorkbenchHint: "在右侧工作台大屏查看完整的工具调用流与执行画面",
   },
@@ -136,7 +146,7 @@ const enUS: ProjectCollabCopy = {
     recordDecision: "Record as decision",
     decisionRecorded: "Recorded as decision",
     decisionHint:
-      "Save this collaborator's deliverable to the Project OS fact base as a core project decision",
+      "Post this collaborator's deliverable as a decision record in this conversation and confirm after it is saved",
     decisionToast: (name) =>
       `Recorded ${name}'s results as a core project decision`,
     decisionAdopted: (name) =>
@@ -151,7 +161,15 @@ const enUS: ProjectCollabCopy = {
     followUp: "Follow up",
     followUpHint:
       "@mention this collaborator in the main composer to follow up",
+    followUpUnavailableHint:
+      "No continuable session is available. Open the workbench for details.",
     followUpToast: (name) => `Added @${name} to the main composer`,
+    awaitingConfirmation: "Awaiting confirmation…",
+    viewDetails: "View details",
+    sendUnconfirmed:
+      "Sending was not confirmed. Check the composer draft before retrying.",
+    resultUnknown:
+      "Result is unknown. Check the conversation before submitting again.",
     openWorkbench: "View the full run in the workbench",
     openWorkbenchHint:
       "Open the full tool-call stream and run view in the workbench on the right",
@@ -196,7 +214,7 @@ const jaJP: ProjectCollabCopy = {
     recordDecision: "決定として記録",
     decisionRecorded: "決定として記録済み",
     decisionHint:
-      "このコラボレーターの成果物を、プロジェクトの主要な決定として Project OS のファクトベースに記録します",
+      "このコラボレーターの成果物を現在の会話に決定として投稿し、保存後に確認します",
     decisionToast: (name) =>
       `${name} の成果をプロジェクトの主要な決定として記録しました`,
     decisionAdopted: (name) => `並列コラボレーター「${name}」の成果物を採用：`,
@@ -210,7 +228,15 @@ const jaJP: ProjectCollabCopy = {
     followUp: "直接質問",
     followUpHint:
       "メイン入力欄でこのコラボレーターを @メンションして質問します",
+    followUpUnavailableHint:
+      "継続できるセッションがありません。ワークベンチで詳細を確認してください。",
     followUpToast: (name) => `メイン入力欄に @${name} を入れました`,
+    awaitingConfirmation: "確認待ち…",
+    viewDetails: "詳細を表示",
+    sendUnconfirmed:
+      "送信を確認できませんでした。入力欄の下書きを確認して再試行してください。",
+    resultUnknown:
+      "結果を確認できません。重複送信を避けるため、会話履歴を確認してください。",
     openWorkbench: "ワークベンチで全体の流れを表示",
     openWorkbenchHint:
       "右側のワークベンチで、ツール呼び出しの流れと実行画面をすべて表示します",
@@ -254,7 +280,7 @@ const koKR: ProjectCollabCopy = {
     recordDecision: "결정으로 기록",
     decisionRecorded: "결정으로 기록됨",
     decisionHint:
-      "이 협업자의 산출물을 프로젝트 핵심 결정으로 Project OS 사실 저장소에 기록합니다",
+      "이 협업자의 산출물을 현재 대화에 결정으로 게시하고 저장 후 확인합니다",
     decisionToast: (name) =>
       `${name}의 결과를 프로젝트 핵심 결정으로 기록했습니다`,
     decisionAdopted: (name) => `병렬 협업자 「${name}」의 산출물 채택:`,
@@ -267,7 +293,15 @@ const koKR: ProjectCollabCopy = {
       "이전 프로젝트 작업에 대해 독립적인 개념 증명(POC)과 방안 검토를 진행하세요:",
     followUp: "직접 질문",
     followUpHint: "메인 입력창에서 이 협업자를 @멘션해 질문합니다",
+    followUpUnavailableHint:
+      "이어갈 세션이 없습니다. 워크벤치에서 세부 정보를 확인하세요.",
     followUpToast: (name) => `메인 입력창에 @${name} 멘션을 추가했습니다`,
+    awaitingConfirmation: "확인 대기 중…",
+    viewDetails: "상세 보기",
+    sendUnconfirmed:
+      "전송이 확인되지 않았습니다. 입력창 초안을 확인한 후 다시 시도하세요.",
+    resultUnknown:
+      "결과가 확인되지 않았습니다. 중복 제출을 피하려면 대화 기록을 확인하세요.",
     openWorkbench: "워크벤치에서 전체 흐름 보기",
     openWorkbenchHint:
       "오른쪽 워크벤치에서 전체 도구 호출 흐름과 실행 화면을 봅니다",

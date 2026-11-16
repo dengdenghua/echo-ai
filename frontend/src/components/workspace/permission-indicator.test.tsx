@@ -123,3 +123,37 @@ describe("<PermissionIndicator />", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+it("labels future permissions during an active task and keeps full-access confirmation", async () => {
+  const onModeChange = vi.fn();
+  renderWithProviders(
+    <PermissionIndicator
+      mode="default"
+      activeTask
+      onModeChange={onModeChange}
+    />,
+  );
+  const trigger = screen.getByTestId("permission-mode-trigger");
+  expect(trigger).toHaveAccessibleName(
+    "Next task permissions: Ask for approval",
+  );
+  expect(trigger).toHaveTextContent("Next · Ask for approval");
+  expect(trigger.title).toContain(
+    "pending approvals still need a separate decision",
+  );
+  openPermissionMenu(trigger);
+  expect(await screen.findByTestId("permission-scope-hint")).toHaveTextContent(
+    "The running task and follow-up instructions keep their existing permissions",
+  );
+  fireEvent.click(
+    screen.getByTestId("permission-mode-option-bypassPermissions"),
+  );
+  expect(
+    await screen.findByRole("dialog", { name: "Switch to Full access?" }),
+  ).toHaveTextContent("This setting applies to future tasks");
+  expect(onModeChange).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Enable Full access" }));
+  await waitFor(() =>
+    expect(onModeChange).toHaveBeenCalledWith("bypassPermissions"),
+  );
+});

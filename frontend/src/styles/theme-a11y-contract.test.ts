@@ -336,10 +336,11 @@ describe("header icon hit area", () => {
   });
 
   it("keeps every header icon button on the shared hit-area class", () => {
+    expect(readFileSync(join(root, "src/components/workspace/header-action.tsx"), "utf8")).toContain("header-icon-hit-area");
     const missing: string[] = [];
     for (const file of HEADER_BUTTON_FILES) {
       const source = readFileSync(join(root, file), "utf8");
-      if (!source.includes("header-icon-hit-area")) missing.push(file);
+      if (!source.includes("headerActionClass")) missing.push(file);
     }
     expect(
       missing,
@@ -397,10 +398,8 @@ describe("session status glyph", () => {
 });
 
 describe("share affordance icon", () => {
-  // "Share" was drawn as Share2 — three dots wired together — which reads as a
-  // network or a link rather than as sending something out of the
-  // conversation. It is now the arrow leaving a box, everywhere the verb is
-  // share / publish / broadcast, so one meaning has one mark.
+  // The conversation toolbar distinguishes sharing from opening an external
+  // window. Existing publish/broadcast surfaces retain their outbound mark.
   const SHARE_ICON = "SquareArrowOutUpRightIcon";
   const SHARE_FILES = [
     "src/components/workspace/share-menu.tsx",
@@ -410,12 +409,13 @@ describe("share affordance icon", () => {
     "src/components/workspace/agent-workbench-panel/subagent-process-view.tsx",
   ];
 
-  it("uses the arrow-out-of-a-box mark at every share site", () => {
+  it("distinguishes the toolbar share action from outbound actions", () => {
     const missing: string[] = [];
     const stale: string[] = [];
     for (const file of SHARE_FILES) {
       const source = readFileSync(join(root, file), "utf8");
-      if (!source.includes(SHARE_ICON)) missing.push(file);
+      const expected = file.endsWith("/share-menu.tsx") ? "Share2Icon" : SHARE_ICON;
+      if (!source.includes(expected)) missing.push(file);
       // Match the import specifier and the JSX tag, not prose: the comment
       // explaining the switch names the old icon on purpose.
       const usesOldIcon =
@@ -437,7 +437,7 @@ describe("share affordance icon", () => {
       join(root, "src/components/workspace/share-menu.tsx"),
       "utf8",
     );
-    expect(source).toContain("header-icon-hit-area");
+    expect(source).toContain("headerActionClass");
   });
 });
 

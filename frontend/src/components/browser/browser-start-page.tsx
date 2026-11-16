@@ -15,7 +15,7 @@ import {
   PlaneTakeoff,
   Scale,
   Search,
-  Settings,
+  Palette,
   Sparkles,
   UserRound,
   ArrowUpRight,
@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/providers/AuthProvider";
+import { useDesktopShell } from "@/components/workspace/desktop-shell-context";
 import { cn } from "@/lib/utils";
 import { StaticEchoCosmos } from "./StaticEchoCosmos";
 import { resolveBrowserInput } from "./task-browser-start";
@@ -169,6 +170,7 @@ export function BrowserStartPage({
   topSites = [],
 }: Props) {
   const { user, isAuthenticated } = useAuth();
+  const framed = useDesktopShell();
   const navigate = useNavigate();
   const [panel, setPanel] = useState<
     "apps" | "settings" | "account" | "weather" | null
@@ -401,30 +403,32 @@ export function BrowserStartPage({
           <button
             type="button"
             className="browser-start-icon"
-            aria-label="主页设置"
-            title="主页设置"
+            aria-label="主页外观"
+            title="主页外观"
             aria-haspopup="dialog"
             onClick={() => setPanel("settings")}
           >
-            <Settings size={20} strokeWidth={1.75} />
+            <Palette size={20} strokeWidth={1.75} />
           </button>
-          <button
-            type="button"
-            className="browser-start-account"
-            aria-label={isAuthenticated ? "账号" : "登录"}
-            title={isAuthenticated ? "账号" : "登录"}
-            onClick={() =>
-              isAuthenticated
-                ? setPanel("account")
-                : navigate("/login?returnTo=%2Fbrowser")
-            }
-          >
-            {isAuthenticated ? (
-              <UserRound size={20} strokeWidth={1.75} aria-hidden="true" />
-            ) : (
-              "登录"
-            )}
-          </button>
+          {!framed && (
+            <button
+              type="button"
+              className="browser-start-account"
+              aria-label={isAuthenticated ? "账号" : "登录"}
+              title={isAuthenticated ? "账号" : "登录"}
+              onClick={() =>
+                isAuthenticated
+                  ? setPanel("account")
+                  : navigate("/login?returnTo=%2Fbrowser")
+              }
+            >
+              {isAuthenticated ? (
+                <UserRound size={20} strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                "登录"
+              )}
+            </button>
+          )}
         </div>
       </header>
       <div className="browser-start-main">

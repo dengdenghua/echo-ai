@@ -155,7 +155,7 @@ export function ExecutionEnginePicker({
   const visibleEngine = value === "auto" ? resolvedEngine : value;
   // An engine this computer does not have yet installs right from the menu.
   const store = engineStoreCopy(locale);
-  const engines = useEngines(!codexAvailable || !opencodeAvailable);
+  const engines = useEngines();
   const engineAction = useEngineAction();
   // A download of 60–170 MB starts on the second click of the row, so a
   // stray click (or one meant to pick the engine) only asks.

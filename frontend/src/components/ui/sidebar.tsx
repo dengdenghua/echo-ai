@@ -156,6 +156,8 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  inFlow = false,
+  expandedWidth = SIDEBAR_WIDTH,
   className,
   children,
   ...props
@@ -163,6 +165,8 @@ function Sidebar({
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  inFlow?: boolean;
+  expandedWidth?: string;
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
   const { t } = useI18n();
@@ -171,6 +175,8 @@ function Sidebar({
     return (
       <div
         data-slot="sidebar"
+        role="navigation"
+        aria-label="Sidebar"
         className={cn(
           "bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
           className,
@@ -227,55 +233,66 @@ function Sidebar({
         ? variant === "floating" || variant === "inset"
           ? `calc(${SIDEBAR_WIDTH_ICON} + 1rem)`
           : SIDEBAR_WIDTH_ICON
-        : SIDEBAR_WIDTH;
+        : expandedWidth;
   const containerWidth =
     state === "collapsed" && collapsible === "icon"
       ? variant === "floating" || variant === "inset"
         ? `calc(${SIDEBAR_WIDTH_ICON} + 1rem + 2px)`
         : SIDEBAR_WIDTH_ICON
-      : SIDEBAR_WIDTH;
+      : expandedWidth;
   const containerLeft =
     side === "left" && collapsible === "offcanvas" && state === "collapsed"
-      ? `calc(${SIDEBAR_WIDTH} * -1)`
+      ? `calc(${expandedWidth} * -1)`
       : side === "left"
         ? "0"
         : undefined;
   const containerRight =
     side === "right" && collapsible === "offcanvas" && state === "collapsed"
-      ? `calc(${SIDEBAR_WIDTH} * -1)`
+      ? `calc(${expandedWidth} * -1)`
       : side === "right"
         ? "0"
         : undefined;
 
   return (
     <div
-      className="group peer text-sidebar-foreground hidden md:block"
+      className="group peer text-sidebar-foreground hidden shrink-0 md:block"
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
+      style={
+        inFlow && collapsible === "offcanvas" && state === "collapsed"
+          ? { display: "none" }
+          : undefined
+      }
     >
       {/* Gap = invisible spacer that takes flex space so the inset
           column (chat content) gets pushed right by the correct
           amount. Width animates on collapse/expand. */}
-      <div
-        data-slot="sidebar-gap"
-        style={{ width: gapWidth }}
-        className={cn(
-          "relative bg-transparent transition-[width] duration-base ease-linear",
-          "group-data-[side=right]:rotate-180",
-        )}
-      />
+      {!inFlow && (
+        <div
+          data-slot="sidebar-gap"
+          style={{ width: gapWidth }}
+          className={cn(
+            "relative bg-transparent transition-[width] duration-base ease-linear",
+            "group-data-[side=right]:rotate-180",
+          )}
+        />
+      )}
       <div
         data-slot="sidebar-container"
+        role="navigation"
+        aria-label="Sidebar"
         style={{
           width: containerWidth,
-          left: containerLeft,
-          right: containerRight,
+          left: inFlow ? undefined : containerLeft,
+          right: inFlow ? undefined : containerRight,
         }}
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh transition-[left,right,width] duration-base ease-linear md:flex",
+          inFlow
+            ? "relative z-10 hidden h-full transition-[width] duration-base ease-linear md:flex"
+            : "fixed inset-y-0 z-10 hidden h-svh transition-[left,right,width] duration-base ease-linear md:flex",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2"

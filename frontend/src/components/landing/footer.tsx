@@ -80,6 +80,7 @@ export function Footer() {
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="GitHub"
             className="text-[var(--echo-ink-muted)] transition-colors hover:text-[var(--echo-ink)]"
           >
             <GitHubLogoIcon className="size-4" />

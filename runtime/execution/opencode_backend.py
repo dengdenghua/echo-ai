@@ -34,6 +34,7 @@ from runtime.execution.engine_packages.store import (
     missing_status,
 )
 from runtime.execution.host_mcp_connection import HostMCPConnection
+from runtime.execution.engine_packages.versions import leased
 
 # One turn against a running server; re-exported because callers and tests
 # import these from here.
@@ -110,6 +111,8 @@ atexit.register(_terminate_warm_server_at_exit)
 
 
 def executable() -> str | None:
+    if managed := installed_executable("opencode"):
+        return managed
     configured = os.environ.get("ECHO_OPENCODE_BIN")
     if configured:
         path = Path(configured).expanduser()
@@ -752,6 +755,7 @@ async def _discard_idle_warm_server(root: Path) -> None:
 
 
 @asynccontextmanager
+@leased("opencode")
 async def managed_server(
     command: str,
     root: Path,
@@ -768,6 +772,8 @@ async def managed_server(
     native process's cold start. With an Echo-routed model the warm process
     keeps its TurnBoundResponsesProxy, bound to one turn at a time.
     """
+    from runtime.execution.engine_packages.store import refresh_managed_command
+    command = refresh_managed_command("opencode", command)
     if (
         shared_provider is None
         and host_mcp is None

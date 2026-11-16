@@ -1,4 +1,5 @@
 import { RemovedThreadsButton } from "./removed-threads-button";
+import { isMainConversationRoute } from "@/core/workspace/knowledge-application";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
@@ -155,6 +156,7 @@ import { basename, isAbsolutePath } from "@/lib/path-utils";
 import { cn } from "@/lib/utils";
 import { preloadWorkspaceRoute } from "@/core/navigation/workspace-route-preload";
 import { WorkspaceSurfaceHeader } from "@/components/workspace/workspace-surface-header";
+import { useDesktopShell } from "./desktop-shell-context";
 import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
 import {
   setWorkspaceWebShortcut,
@@ -432,6 +434,7 @@ export function syncedSidebarPathname(
 }
 
 export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
+  const framed = useDesktopShell();
   const { pathname, search, state: routeState } = useLocation();
   const navigateSettings = useNavigate();
   const { t } = useI18n();
@@ -465,6 +468,7 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
     }
   }, [pathname, pendingThreadPath]);
   const sidebarPathname = syncedSidebarPathname(pathname, pendingThreadPath);
+  const conversationNavigation = isMainConversationRoute(pathname);
 
   // Resolve a NavRoute's labelKey against the sidebar namespace; a key
   // with no string entry falls back to the key itself.
@@ -990,118 +994,143 @@ export function WorkspaceSidebar(props: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <>
-      <Sidebar
-        variant="sidebar"
-        collapsible="icon"
-        className={cn(
-          "border-r bg-sidebar",
-          controlsSide === "left" &&
-            "top-[var(--window-content-top-inset)] h-[calc(100svh-var(--window-content-top-inset))]",
-        )}
-        {...props}
-      >
-        {/* Implementation note. */}
-        <SidebarHeader
-          className="h-10 shrink-0 border-b border-border/50 bg-transparent p-0 pr-2 py-0 group-data-[collapsible=icon]:px-0"
-          style={
-            {
-              paddingLeft: sidebarState === "collapsed" ? 0 : 10,
-              WebkitAppRegion: electron ? "drag" : undefined,
-            } as React.CSSProperties
-          }
+      {(!framed || conversationNavigation) && (
+        <Sidebar
+          variant="sidebar"
+          collapsible={framed ? "offcanvas" : "icon"}
+          inFlow={framed}
+          expandedWidth={framed ? "248px" : undefined}
+          className={cn(
+            "border-r bg-sidebar",
+            !framed &&
+              (controlsSide === "left" || controlsSide === "right") &&
+              "top-[var(--window-content-top-inset)] h-[calc(100svh-var(--window-content-top-inset))]",
+          )}
+          {...props}
         >
-          <div
-            className="grid h-full w-full grid-cols-[auto_minmax(0,1fr)] items-center group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
+          {/* Implementation note. */}
+          <SidebarHeader
+            className={cn(
+              framed ? "h-[56px]" : "h-10 border-b border-border/50",
+              "shrink-0 bg-transparent p-0 pr-2 py-0 group-data-[collapsible=icon]:px-0",
+            )}
             style={
-              electron
-                ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties)
-                : undefined
+              {
+                paddingLeft: sidebarState === "collapsed" ? 0 : 10,
+                WebkitAppRegion: electron ? "drag" : undefined,
+              } as React.CSSProperties
             }
           >
-            <WorkspaceSurfaceHeader
-              active={
-                pathname === BROWSER_WORKSPACE_ROUTE ? "browser" : "agent"
+            <div
+              className="grid h-full w-full grid-cols-[auto_minmax(0,1fr)] items-center group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
+              style={
+                electron
+                  ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties)
+                  : undefined
               }
-              className="group-data-[collapsible=icon]:hidden"
-            />
-            <div className="flex shrink-0 items-center justify-self-end">
-              <CollapseToggle compact />
+            >
+              {framed ? (
+                <span className="px-1 text-base font-semibold group-data-[collapsible=icon]:hidden">
+                  Echo AI
+                </span>
+              ) : (
+                <WorkspaceSurfaceHeader
+                  active={
+                    pathname === BROWSER_WORKSPACE_ROUTE ? "browser" : "agent"
+                  }
+                  className="group-data-[collapsible=icon]:hidden"
+                />
+              )}
+              <div className="flex shrink-0 items-center justify-self-end">
+                <CollapseToggle compact />
+              </div>
             </div>
-          </div>
-        </SidebarHeader>
+          </SidebarHeader>
 
-        {/* Tight body: px-1.5 py-1.5 instead of default p-2/px-2 so groups
+          {/* Tight body: px-1.5 py-1.5 instead of default p-2/px-2 so groups
           sit closer to the header and we win a few rows of vertical
           space back. */}
-        <SidebarContent className="gap-1 px-2.5 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-1.5">
-          {/* Workspace switcher — sits at the very top so users can flip
+          <SidebarContent className="gap-1 px-2.5 py-2 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-1.5">
+            {/* Workspace switcher — sits at the very top so users can flip
               between local folders and registered remote mounts without
               diving into a settings page. Hidden when the sidebar is
               collapsed to icon-only mode (the trigger label would clip). */}
-          <SidebarGroup className="p-0 px-1 pb-0.5 group-data-[collapsible=icon]:hidden">
-            <WorkspaceSwitcher
-              activeWorkspaceId={activeWorkspaceId}
-              onSwitch={handleSwitchWorkspace}
-            />
-          </SidebarGroup>
-          <SidebarGroup className="p-0 px-1 pb-0.5 group-data-[collapsible=icon]:px-0">
-            <SurfaceCreateButton
-              agentId={activeAgentId}
-              workspacePath={activeTaskWorkspacePath}
-            />
-          </SidebarGroup>
-          {/* Primary destinations stay visible; operational tools live in More. */}
-          <NavSection
-            items={workbenchCapabilityItems}
-            pathname={pathname}
-            search={search}
-          />
-          <NavSection items={communityItems} pathname={pathname} />
-          <LocalDatabaseSection
-            title={resolveLabel("navDatabase")}
-            items={nasLibraryItems}
-            pathname={pathname}
-            search={search}
-          />
-          <EditModulesButton onOpen={() => setModuleEditorOpen(true)} />
-          {fileExplorerTarget ? (
-            <ProjectFileExplorerView
-              target={fileExplorerTarget}
-              fallbackWorkDir={activeWorkDir}
-              onBack={() => setFileExplorerTarget(null)}
-            />
-          ) : (
-            <>
-              <ProjectsSection
-                groups={projectOrder}
-                byProject={byProject}
-                projectIcons={projectOsSidebar.projectIconByName}
-                pathname={sidebarPathname}
-                deletableProjects={deletableProjects}
-                deletingProject={deletingProject}
-                groupingEnabled={projectGroupingEnabled}
-                runStatusByHref={runStatusByHref}
-                onDeleteProject={deleteProject}
-                onToggleGrouping={toggleProjectGrouping}
-                onOpenFiles={openThreadFiles}
-                onNewProject={() => void pickProjectFolder()}
-              />
-              <ChatsSection
-                threads={sidebarHistoryThreads}
-                pathname={sidebarPathname}
-                label={t.sidebar.sectionChats}
-                agentId={activeAgentId}
-                workspacePath={activeTaskWorkspacePath}
-                runStatusByHref={runStatusByHref}
-              />
-            </>
-          )}
-        </SidebarContent>
+            {conversationNavigation && (
+              <>
+                <SidebarGroup className="p-0 px-1 pb-0.5 group-data-[collapsible=icon]:hidden">
+                  <WorkspaceSwitcher
+                    activeWorkspaceId={activeWorkspaceId}
+                    onSwitch={handleSwitchWorkspace}
+                  />
+                </SidebarGroup>
+                <SidebarGroup className="p-0 px-1 pb-0.5 group-data-[collapsible=icon]:px-0">
+                  <SurfaceCreateButton
+                    agentId={activeAgentId}
+                    workspacePath={activeTaskWorkspacePath}
+                  />
+                </SidebarGroup>
+              </>
+            )}
+            {/* Primary destinations stay visible; operational tools live in More. */}
+            {!framed && (
+              <>
+                <NavSection
+                  items={workbenchCapabilityItems}
+                  pathname={pathname}
+                  search={search}
+                />
+                <NavSection items={communityItems} pathname={pathname} />
+                <LocalDatabaseSection
+                  title={resolveLabel("navDatabase")}
+                  items={nasLibraryItems}
+                  pathname={pathname}
+                  search={search}
+                />
+                <EditModulesButton onOpen={() => setModuleEditorOpen(true)} />
+              </>
+            )}
+            {conversationNavigation &&
+              (fileExplorerTarget ? (
+                <ProjectFileExplorerView
+                  target={fileExplorerTarget}
+                  fallbackWorkDir={activeWorkDir}
+                  onBack={() => setFileExplorerTarget(null)}
+                />
+              ) : (
+                <>
+                  <ProjectsSection
+                    groups={projectOrder}
+                    byProject={byProject}
+                    projectIcons={projectOsSidebar.projectIconByName}
+                    pathname={sidebarPathname}
+                    deletableProjects={deletableProjects}
+                    deletingProject={deletingProject}
+                    groupingEnabled={projectGroupingEnabled}
+                    runStatusByHref={runStatusByHref}
+                    onDeleteProject={deleteProject}
+                    onToggleGrouping={toggleProjectGrouping}
+                    onOpenFiles={openThreadFiles}
+                    onNewProject={() => void pickProjectFolder()}
+                  />
+                  <ChatsSection
+                    threads={sidebarHistoryThreads}
+                    pathname={sidebarPathname}
+                    label={t.sidebar.sectionChats}
+                    agentId={activeAgentId}
+                    workspacePath={activeTaskWorkspacePath}
+                    runStatusByHref={runStatusByHref}
+                  />
+                </>
+              ))}
+          </SidebarContent>
 
-        <SidebarFooter className="border-t border-border-subtle p-1.5">
-          <AgentFooter />
-        </SidebarFooter>
-      </Sidebar>
+          {!framed && (
+            <SidebarFooter className="border-t border-border-subtle p-1.5">
+              <AgentFooter />
+            </SidebarFooter>
+          )}
+        </Sidebar>
+      )}
       {/* Keep the settings host outside the responsive Sidebar sheet.
           Radix unmounts a closed mobile SheetContent, which previously also
           unmounted this dialog and made every narrow-screen settings event a
@@ -1200,7 +1229,6 @@ function LocalDatabaseSection({
   pathname: string;
   search: string;
 }) {
-  const { t } = useI18n();
   const { state: sidebarState, setOpen: setSidebarOpen } = useSidebar();
   const [open, setOpen] = useState(false);
   const active = isStorageRouteActive(pathname);
@@ -1214,11 +1242,7 @@ function LocalDatabaseSection({
             tooltip={title}
             aria-current={active ? "page" : undefined}
             aria-expanded={open}
-            aria-label={
-              open
-                ? t.sidebar.ariaCollapseLocalDatabase
-                : t.sidebar.ariaExpandLocalDatabase
-            }
+            aria-label={sidebarState === "collapsed" ? title : undefined}
             onClick={() => {
               if (sidebarState === "collapsed") {
                 setSidebarOpen(true);
@@ -2577,13 +2601,19 @@ function ChatsSection({
 }
 
 export function CollapseToggle({ compact = false }: { compact?: boolean }) {
-  const { open, toggleSidebar, state } = useSidebar();
+  const {
+    open: desktopOpen,
+    openMobile,
+    isMobile,
+    toggleSidebar,
+  } = useSidebar();
+  const open = isMobile ? openMobile : desktopOpen;
   const { t } = useI18n();
   const Icon = open ? PanelLeftCloseIcon : PanelLeftOpenIcon;
-  const isCollapsed = state === "collapsed";
+  const isCollapsed = !open;
 
   return (
-    <Tooltip>
+    <Tooltip open={isMobile ? false : undefined}>
       <TooltipTrigger asChild>
         <button
           type="button"

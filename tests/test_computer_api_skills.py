@@ -28,6 +28,20 @@ def test_computer_api_base_url_defaults_to_local_gateway(monkeypatch) -> None:
     assert computer_api_skills._computer_api_diagnostics()["configured_by"] == "default"
 
 
+def test_desktop_gateway_is_used_and_explicit_computer_override_wins(monkeypatch) -> None:
+    monkeypatch.delenv("ECHO_COMPUTER_API_BASE_URL", raising=False)
+    monkeypatch.setenv("ECHO_PUBLIC_BASE_URL", "https://public.example.test")
+    for port in (18310, 8000, 18317):
+        gateway = f"http://127.0.0.1:{port}"
+        monkeypatch.setenv("ECHO_INTERNAL_GATEWAY_BASE_URL", gateway)
+        assert computer_api_skills._computer_api_base_url() == gateway + "/api/computer"
+        assert computer_api_skills._computer_api_diagnostics()["configured_by"] == (
+            "ECHO_INTERNAL_GATEWAY_BASE_URL"
+        )
+    monkeypatch.setenv("ECHO_COMPUTER_API_BASE_URL", "http://127.0.0.1:19000")
+    assert computer_api_skills._computer_api_base_url() == "http://127.0.0.1:19000/api/computer"
+
+
 def test_computer_api_base_url_accepts_gateway_or_api_paths(monkeypatch) -> None:
     cases = {
         "http://localhost:8123": "http://localhost:8123/api/computer",

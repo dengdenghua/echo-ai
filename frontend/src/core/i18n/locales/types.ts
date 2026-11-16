@@ -32,6 +32,7 @@ export interface Translations {
     error: string;
     copy: string;
     copied: string;
+    tableContents: string;
     version: string;
     lastUpdated: string;
     code: string;
@@ -1702,6 +1703,8 @@ export interface Translations {
     humanSave: string;
     humanCancel: string;
     humanSaved: string;
+    humanSaving: string;
+    humanSaveUnconfirmed: string;
     humanUndo: string;
     humanRestored: string;
     humanConflict: string;
@@ -6032,6 +6035,8 @@ export interface Translations {
     localAccountDescription: string;
     localPrivacyDescription: string;
     privacyUnavailable: string;
+    autoLoginTitle: string;
+    autoLoginDescription: string;
     creditsBalance: string;
     octAccount: string;
     available: string;

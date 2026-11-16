@@ -48,6 +48,14 @@ export function DefaultModelControl({
     (value.startsWith("codebuddy/")
       ? "codebuddy"
       : native?.executionEngine || lastChoice || "echo");
+  const engineLabel =
+    engine === "codebuddy"
+      ? "CodeBuddy"
+      : engine === "codex"
+        ? "Codex"
+        : engine === "opencode"
+          ? "OpenCode"
+          : "Echo";
   return (
     <UnifiedModelControl
       models={models}
@@ -65,19 +73,13 @@ export function DefaultModelControl({
       renderTrigger={(selectedLabel, disabled) => (
         <button
           type="button"
-          aria-label={label}
+          aria-label={`${label}：${engineLabel}${selectedLabel}`}
           disabled={disabled}
           className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="min-w-0 truncate">
             <span className="mr-2 text-xs font-normal text-muted-foreground">
-              {engine === "codebuddy"
-                ? "CodeBuddy"
-                : engine === "codex"
-                  ? "Codex"
-                  : engine === "opencode"
-                    ? "OpenCode"
-                    : "Echo"}
+              {engineLabel}
             </span>
             {selectedLabel}
           </span>

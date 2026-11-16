@@ -70,6 +70,12 @@ export function useAttachmentUploads(
   // fresh closure over the map.
   const filesRef = useRef<Map<string, File>>(new Map());
   const attemptsRef = useRef<Map<string, symbol>>(new Map());
+  const controllersRef = useRef<Map<string, AbortController>>(new Map());
+  const cancelUploads = useCallback(() => {
+    for (const controller of controllersRef.current.values())
+      controller.abort();
+    controllersRef.current.clear();
+  }, []);
   const generationRef = useRef(0);
   const threadIdRef = useRef(threadId);
   useLayoutEffect(() => {
@@ -78,7 +84,8 @@ export function useAttachmentUploads(
     generationRef.current += 1;
     filesRef.current.clear();
     attemptsRef.current.clear();
-  }, [threadId]);
+    cancelUploads();
+  }, [threadId, cancelUploads]);
   const disposedRef = useRef(false);
 
   // Never expose the previous thread's ledger for even the render before the
@@ -97,8 +104,9 @@ export function useAttachmentUploads(
       generationRef.current += 1;
       attempts.clear();
       files.clear();
+      cancelUploads();
     };
-  }, []);
+  }, [cancelUploads]);
 
   useLayoutEffect(() => {
     setState((current) => {
@@ -115,6 +123,9 @@ export function useAttachmentUploads(
     const generation = generationRef.current;
     const attempt = Symbol(key);
     attemptsRef.current.set(key, attempt);
+    controllersRef.current.get(key)?.abort();
+    const controller = new AbortController();
+    controllersRef.current.set(key, controller);
     const patch = (changes: Partial<AttachmentUpload>) => {
       if (
         disposedRef.current ||
@@ -134,6 +145,7 @@ export function useAttachmentUploads(
       });
     };
     if (!tid) {
+      controllersRef.current.delete(key);
       patch({
         status: "error",
         error: "No conversation to upload into",
@@ -142,6 +154,7 @@ export function useAttachmentUploads(
     }
     void uploadFilesWithProgress(tid, [file], {
       onProgress: (percent) => patch({ progress: percent }),
+      signal: controller.signal,
     })
       .then((response) => {
         const uploaded = response.files?.[0];
@@ -159,6 +172,11 @@ export function useAttachmentUploads(
           status: "error",
           error: error instanceof Error ? error.message : "Upload failed",
         });
+      })
+      .finally(() => {
+        if (controllersRef.current.get(key) === controller) {
+          controllersRef.current.delete(key);
+        }
       });
   }, []);
 
@@ -211,6 +229,8 @@ export function useAttachmentUploads(
   const remove = useCallback((key: string) => {
     filesRef.current.delete(key);
     attemptsRef.current.delete(key);
+    controllersRef.current.get(key)?.abort();
+    controllersRef.current.delete(key);
     const tid = threadIdRef.current;
     setState((current) => {
       if (!Object.is(current.threadId, tid) || !current.uploads.has(key)) {
@@ -226,13 +246,14 @@ export function useAttachmentUploads(
     generationRef.current += 1;
     filesRef.current.clear();
     attemptsRef.current.clear();
+    cancelUploads();
     const tid = threadIdRef.current;
     setState((current) =>
       Object.is(current.threadId, tid) && current.uploads.size === 0
         ? current
         : { threadId: tid, uploads: new Map() },
     );
-  }, []);
+  }, [cancelUploads]);
 
   const completed = useCallback(() => {
     const out: UploadedFileInfo[] = [];

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import sys
+
+import pytest
+
 import runtime.sensing.gateway.storage_supervisor as ss
 
 
@@ -32,6 +36,80 @@ def test_resolve_port_comes_from_storage_url(monkeypatch) -> None:
     monkeypatch.setenv("ECHO_STORAGE_CMD", "echo-storage")
     monkeypatch.setenv("ECHO_STORAGE_URL", "http://127.0.0.1:9999")
     assert ss.resolve_storage_command() == ["echo-storage", "serve", "--port", "9999"]
+
+
+@pytest.mark.parametrize(
+    ("platform", "relative_script"),
+    [("win32", "Scripts/echo-storage.exe"), ("linux", "bin/echo-storage")],
+)
+def test_resolve_sibling_virtualenv(monkeypatch, tmp_path, platform, relative_script) -> None:
+    runtime = tmp_path / "echo-ai" / "runtime"
+    runtime.mkdir(parents=True)
+    sibling = tmp_path / "echo-storage" / ".venv" / relative_script
+    sibling.parent.mkdir(parents=True)
+    sibling.touch()
+    monkeypatch.setattr(ss, "__file__", str(runtime / "storage_supervisor.py"))
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.delenv("ECHO_STORAGE_CMD", raising=False)
+    monkeypatch.delenv("ECHO_STORAGE_URL", raising=False)
+    monkeypatch.setattr(ss.shutil, "which", lambda _: None)
+    assert ss.resolve_storage_command() == [str(sibling), "serve", "--port", "8767"]
+
+
+@pytest.mark.parametrize(
+    ("platform", "relative_script"),
+    [("win32", "Scripts/echo-storage.exe"), ("linux", "bin/echo-storage")],
+)
+def test_resolve_current_virtualenv_without_path(
+    monkeypatch, tmp_path, platform, relative_script
+) -> None:
+    prefix = tmp_path / "venv"
+    executable = prefix / relative_script
+    executable.parent.mkdir(parents=True)
+    executable.touch()
+    monkeypatch.setattr(ss, "__file__", str(tmp_path / "frozen" / "storage_supervisor.py"))
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(sys, "prefix", str(prefix))
+    monkeypatch.delenv("ECHO_STORAGE_CMD", raising=False)
+    monkeypatch.delenv("ECHO_STORAGE_URL", raising=False)
+    monkeypatch.setattr(ss.shutil, "which", lambda _: None)
+    assert ss.resolve_storage_command() == [str(executable), "serve", "--port", "8767"]
+
+
+def test_resolve_rejects_directory_then_uses_path(monkeypatch, tmp_path) -> None:
+    runtime = tmp_path / "echo-ai" / "runtime"
+    runtime.mkdir(parents=True)
+    # A directory with the executable's name must never be passed to Popen.
+    for relative in ("Scripts/echo-storage.exe", "bin/echo-storage"):
+        (tmp_path / "echo-storage" / ".venv" / relative).mkdir(parents=True)
+    monkeypatch.setattr(ss, "__file__", str(runtime / "storage_supervisor.py"))
+    monkeypatch.setattr(sys, "prefix", str(tmp_path / "missing-venv"))
+    monkeypatch.delenv("ECHO_STORAGE_CMD", raising=False)
+    monkeypatch.delenv("ECHO_STORAGE_URL", raising=False)
+    monkeypatch.setattr(ss.shutil, "which", lambda _: "on-path/echo-storage")
+    assert ss.resolve_storage_command() == ["on-path/echo-storage", "serve", "--port", "8767"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows native command-line parser")
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        (r"C:\Echo\Scripts\echo-storage.exe", [r"C:\Echo\Scripts\echo-storage.exe"]),
+        (
+            r'"C:\Echo Storage\Scripts\echo-storage.exe" --data-dir "D:\知识资料"',
+            [r"C:\Echo Storage\Scripts\echo-storage.exe", "--data-dir", r"D:\知识资料"],
+        ),
+    ],
+)
+def test_resolve_windows_command_preserves_backslashes(monkeypatch, command, expected) -> None:
+    monkeypatch.setenv("ECHO_STORAGE_CMD", command)
+    monkeypatch.delenv("ECHO_STORAGE_URL", raising=False)
+    assert ss.resolve_storage_command() == [*expected, "serve", "--port", "8767"]
+
+
+def test_resolve_empty_quoted_command_is_not_launchable(monkeypatch) -> None:
+    monkeypatch.setenv("ECHO_STORAGE_CMD", '""')
+    assert ss.resolve_storage_command() is None
 
 
 def test_disabled_does_not_spawn(monkeypatch) -> None:

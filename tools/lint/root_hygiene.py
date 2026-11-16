@@ -92,6 +92,7 @@ ROOT_ALLOWLIST: set[str] = {
     # ── Configuration files ─────────────────────────────────
     "config.example.yaml",
     "config.e2e.yaml",
+    "config.a11y.yaml",
     "permissions.example.json",
     "skills.lock.json",
     ".env.example",

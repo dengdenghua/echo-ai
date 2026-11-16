@@ -50,6 +50,44 @@ type LayoutTab = { id: string; pinned?: boolean; groupId?: string };
 export const SPLIT_MIN_RATIO = 0.2;
 export const SPLIT_MAX_RATIO = 0.8;
 
+/** Electron keeps one renderer per mounted <webview>; cap the background set. */
+export const MAX_MOUNTED_BROWSER_WEBVIEWS = 8;
+
+interface MountableTab {
+  id: string;
+  taskPreview?: unknown;
+}
+
+/** Active and split tabs always mount; remaining slots follow activation LRU. */
+export function selectMountedWebviewTabIds({
+  tabs,
+  activeId,
+  split,
+  recentIds,
+  limit = MAX_MOUNTED_BROWSER_WEBVIEWS,
+}: {
+  tabs: readonly MountableTab[];
+  activeId: string | null;
+  split: BrowserSplit | null;
+  recentIds: readonly string[];
+  limit?: number;
+}): string[] {
+  const eligible = new Set(
+    tabs.filter((tab) => !tab.taskPreview).map((tab) => tab.id),
+  );
+  const selected: string[] = [];
+  const add = (id: string | null | undefined) => {
+    if (!id || !eligible.has(id) || selected.includes(id)) return;
+    if (selected.length < limit) selected.push(id);
+  };
+  add(activeId);
+  add(split?.leftId);
+  add(split?.rightId);
+  for (const id of recentIds) add(id);
+  for (const tab of tabs) add(tab.id);
+  return selected;
+}
+
 export function clampSplitRatio(ratio: number): number {
   if (!Number.isFinite(ratio)) return 0.5;
   return Math.min(SPLIT_MAX_RATIO, Math.max(SPLIT_MIN_RATIO, ratio));

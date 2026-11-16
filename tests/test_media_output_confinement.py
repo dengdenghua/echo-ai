@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 import runtime.execution.suckers.kimi_compat_skills as kcs
+import runtime.execution.suckers.kimi_media_skills as media
 
 
 class _Resp:
@@ -57,7 +58,7 @@ def media_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _image_client(monkeypatch: pytest.MonkeyPatch) -> _Client:
     client = _Client(_Resp(json={"data": [{"b64_json": base64.b64encode(b"PNG").decode()}]}))
-    monkeypatch.setattr(kcs, "_client", lambda **_k: client)
+    monkeypatch.setattr(media, "_client", lambda **_k: client)
     return client
 
 
@@ -91,7 +92,7 @@ def test_generate_speech_rejects_credential_file_targets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, media_key: None, name: str
 ) -> None:
     client = _Client(_Resp(content=b"AUDIO"))
-    monkeypatch.setattr(kcs, "_client", lambda **_k: client)
+    monkeypatch.setattr(media, "_client", lambda **_k: client)
     target = tmp_path / name
     # Even without a bound sandbox the credential-file denylist applies.
     out = kcs._generate_speech("hi", output_path=str(target))
@@ -109,7 +110,7 @@ def test_generate_speech_format_cannot_traverse(
     data = tmp_path / "data"
     monkeypatch.setattr(pp, "app_paths", lambda: type("P", (), {"data_dir": data})())
     client = _Client(_Resp(content=b"AUDIO"))
-    monkeypatch.setattr(kcs, "_client", lambda **_k: client)
+    monkeypatch.setattr(media, "_client", lambda **_k: client)
     out = kcs._generate_speech("hi", format="../../../../evil")
     assert out["ok"] is True
     written = Path(out["path"]).resolve()

@@ -72,8 +72,9 @@ def _os_lock(target: Path) -> Iterator[None]:
             try:
                 import msvcrt
 
-                if os.fstat(fd).st_size == 0:
-                    os.write(fd, b"\0")
+                # Windows permits byte-range locks beyond EOF. Writing an
+                # initializer before acquiring the lock races another opener
+                # that has already locked the same (initially empty) sidecar.
                 os.lseek(fd, 0, os.SEEK_SET)
                 msvcrt.locking(fd, msvcrt.LK_LOCK, 1)  # type: ignore[attr-defined]
             except (ImportError, OSError) as exc:

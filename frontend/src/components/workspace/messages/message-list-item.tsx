@@ -183,6 +183,8 @@ export const MessageListItem = memo(function MessageListItem({
     messageMetadata?.message_kind !== "commentary" &&
     messageMetadata?.public_progress !== true &&
     messageMetadata?.response_state !== "interrupted" &&
+    messageMetadata?.response_state !== "cancelled" &&
+    messageMetadata?.response_state !== "paused" &&
     messageMetadata?.response_state !== "failed" &&
     messageMetadata?.run_status !== "streaming";
   const clipboardText = useMemo(() => messageClipboardText(message), [message]);
@@ -380,6 +382,19 @@ export const MessageListItem = memo(function MessageListItem({
           />
         ) : null}
         {afterContent}
+        {!isLoading &&
+          isLastMessage &&
+          (messageMetadata?.response_state === "interrupted" ||
+            messageMetadata?.response_state === "cancelled") && (
+            <button
+              type="button"
+              onClick={editOrRegenerate}
+              className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
+            >
+              <RefreshCwIcon className="size-3.5" />
+              {t.conversation.regenerateResponse}
+            </button>
+          )}
         {showMessageActions && (
           <div
             data-testid="message-actions"
@@ -739,10 +754,8 @@ function MessageContent_({
         active={enableClarificationActions && !isCurrentlyStreaming}
         messageId={message.id}
       />
-      {/* Terminal receipt for an interrupted answer. The incomplete draft is
-          intentionally absent from the transcript; tools and checkpoints
-          remain available through the process workbench. Legacy persisted
-          `run_status=streaming` messages retain the same honest receipt. */}
+      {/* Keep the unfinished answer readable while explicitly marking its
+          interruption. Legacy persisted streaming messages use this receipt too. */}
       {!isCurrentlyStreaming && showInterruptedReceipt && (
         <div className="mt-2 text-xs leading-5 text-muted-foreground">
           {typeof interruptReason === "string" && interruptReason.trim()

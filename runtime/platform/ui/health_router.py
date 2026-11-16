@@ -182,11 +182,25 @@ def create_health_router(
         return out
 
     @router.get("/api/storage/status", dependencies=[Depends(_capability_auth)])
-    def api_storage_status() -> dict[str, Any]:
+    def api_storage_status(request: Request) -> dict[str, Any]:
         """Liveness of the echo-storage sibling (本地数据库 / File Agent), as the
         co-launch heartbeat last observed it. ``up=false`` means search_documents
         degrades; the heartbeat relaunches it when autostart owns its lifecycle."""
         from runtime.sensing.gateway.storage_supervisor import storage_status
+
+        hub = getattr(request.app.state, "plugin_hub", None)
+        if hub is not None:
+            detail = hub.get_plugin_detail("knowledge_storage") or {}
+            plugin = hub.get_plugin("knowledge_storage")
+            return {
+                "up": bool(plugin and plugin.active and plugin.service.running),
+                "installed": bool(detail.get("installed")),
+                "enabled": bool(detail.get("enabled")),
+                "version": detail.get("version"),
+                "installed_version": detail.get("installed_version"),
+                "error": plugin.service.error if plugin else None,
+                "heartbeat": False,
+            }
 
         with contextlib.suppress(Exception):
             return storage_status()

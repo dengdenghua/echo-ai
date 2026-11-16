@@ -210,6 +210,7 @@ export function KimiStyleSubagentCard({
           : t.message.statusViewing;
   const openInWorkbench = (trigger?: HTMLElement) => {
     setPreviewSuppressed(true);
+    setReportOpen(false);
     trigger?.blur();
     // Open the agent in the workbench
     emitAgentWorkbenchFocus({
@@ -272,18 +273,22 @@ export function KimiStyleSubagentCard({
         type="button"
         onClick={handleClick}
         aria-label={`${agent.name} · ${agent.role ?? t.message.agent} · ${agent.task || t.message.noTaskDescription} · ${statusLabel}`}
-        aria-describedby={detailId}
+        aria-describedby={
+          previewEnabled && !previewSuppressed && !reportOpen
+            ? detailId
+            : undefined
+        }
         className={cn(
           "group/agent-row flex min-w-0 flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors",
           "hover:bg-background/80 focus-visible:bg-background/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-background/25 dark:hover:bg-background/40",
         )}
       >
         <AgentAvatar agent={agent} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+        <span
+          title={agent.name}
+          className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+        >
           {agent.name}
-        </span>
-        <span className="shrink-0 rounded border border-border/50 bg-background/50 px-1 py-0.2 text-xs text-muted-foreground">
-          我的协作者
         </span>
         <span
           className={cn(
@@ -350,7 +355,7 @@ export function KimiStyleSubagentCard({
         </div>
       )}
 
-      {previewEnabled && !previewSuppressed && (
+      {previewEnabled && !previewSuppressed && !reportOpen && (
         <div
           id={detailId}
           role="tooltip"

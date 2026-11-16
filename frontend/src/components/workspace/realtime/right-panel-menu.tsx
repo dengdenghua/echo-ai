@@ -3,10 +3,14 @@
  * (P3 decomposition). Behavior-preserving move.
  */
 import { PanelRightIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/core/i18n/hooks";
+import { readRightPanelPreference, rememberRightPanel, type RightPanelPreference } from "@/core/workspace/right-panel-preference";
 import { cn } from "@/lib/utils";
+import type { AgentWorkbenchTabId } from "../agent-workbench-utils";
+import { HeaderActionTooltip, headerActionClass } from "../header-action";
 
 export type RightPanelPage =
   | "agent"
@@ -17,6 +21,9 @@ export type RightPanelPage =
   | "history";
 
 export function RightPanelMenu({
+  threadId = "",
+  workbenchTab = "agent",
+  onRestoreWorkbench,
   activePage,
   onClosePanel,
   onOpenAgent,
@@ -32,6 +39,9 @@ export function RightPanelMenu({
   hasResearchHistory,
   artifactCount,
 }: {
+  threadId?: string;
+  workbenchTab?: AgentWorkbenchTabId;
+  onRestoreWorkbench?: (tab: AgentWorkbenchTabId) => void;
   activePage: RightPanelPage | null;
   artifactCount: number;
   hasAgentWorkbench: boolean;
@@ -48,6 +58,13 @@ export function RightPanelMenu({
   onOpenResearchHistory: () => void;
 }) {
   const { t } = useI18n();
+  const remembered = useRef<RightPanelPreference | null>(null);
+  useEffect(() => {
+    if (!activePage) return;
+    const preference = { threadId, page: activePage, tab: workbenchTab };
+    remembered.current = preference;
+    rememberRightPanel(preference);
+  }, [activePage, threadId, workbenchTab]);
   const hasAnyPanel =
     hasAgentWorkbench ||
     hasPlan ||
@@ -78,6 +95,35 @@ export function RightPanelMenu({
       onClosePanel();
       return;
     }
+    const previous = remembered.current?.threadId === threadId
+      ? remembered.current
+      : readRightPanelPreference(threadId);
+    if (previous) {
+      const available = {
+        agent: hasAgentWorkbench,
+        artifacts: artifactCount > 0,
+        plan: hasPlan,
+        preview: hasPreview,
+        research: hasResearch,
+        history: hasResearchHistory,
+      };
+      if (available[previous.page]) {
+        if (previous.page === "agent" && onRestoreWorkbench) {
+          onRestoreWorkbench(previous.tab);
+        } else {
+          const openers = {
+            agent: onOpenAgent,
+            artifacts: onOpenArtifacts,
+            plan: onOpenPlan,
+            preview: onOpenPreview,
+            research: onOpenResearch,
+            history: onOpenResearchHistory,
+          };
+          openers[previous.page]();
+        }
+        return;
+      }
+    }
     openDefaultPanel();
   };
 
@@ -86,21 +132,21 @@ export function RightPanelMenu({
     : t.realtime.panelToggle.open;
 
   return (
+    <HeaderActionTooltip label={panelToggleLabel}>
     <Button
       type="button"
       aria-label={panelToggleLabel}
       aria-pressed={Boolean(activePage)}
       data-state={activePage ? "open" : "closed"}
-      title={panelToggleLabel}
       onClick={handleTogglePanel}
       className={cn(
-        "header-icon-hit-area flex size-[42px] items-center justify-center rounded-lg border shadow-none transition-all duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 sm:size-8",
-        activePage
-          ? "border-border-default bg-muted/60 text-foreground hover:bg-muted/75 hover:text-foreground"
-          : "border-transparent bg-transparent text-muted-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground",
+        headerActionClass,
+        "w-[42px] px-0 sm:w-8",
+        activePage && "bg-muted/60 text-foreground",
       )}
     >
       <PanelRightIcon className="size-4" />
     </Button>
+    </HeaderActionTooltip>
   );
 }

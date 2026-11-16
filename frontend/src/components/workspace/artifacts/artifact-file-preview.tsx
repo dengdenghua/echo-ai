@@ -119,7 +119,16 @@ function createHtmlBridgeToken(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function HtmlPreview({
+export function HtmlPreview(props: Parameters<typeof HtmlPreviewSession>[0]) {
+  return (
+    <HtmlPreviewSession
+      key={`${props.threadId}:${props.artifactRef}:${props.filepath}`}
+      {...props}
+    />
+  );
+}
+
+function HtmlPreviewSession({
   artifactRef,
   content,
   filepath,
@@ -154,6 +163,14 @@ export function HtmlPreview({
     restoredContent: string;
   } | null>(null);
   const humanSavingRef = useRef(false);
+  const active = useRef(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const proposalRequestRef = useRef<AbortController | null>(null);
   const [proposalRefresh, setProposalRefresh] = useState(0);
   useEffect(
@@ -229,6 +246,7 @@ export function HtmlPreview({
       const updated = replaceHtmlBodyContent(effectiveContent, bodyHtml);
       humanSavingRef.current = true;
       setHumanSaving(true);
+      setSaveStatus(t.livePreview.humanSaving);
       try {
         const result = await saveWorkspaceOutputContent({
           filepath: artifactRef,
@@ -236,6 +254,8 @@ export function HtmlPreview({
           content: updated,
           expectedContent: effectiveContent,
         });
+        if (!active.current) return;
+        setSaveStatus(t.livePreview.humanSaved);
         setUndoRevision(
           result.revision_id
             ? {
@@ -254,6 +274,12 @@ export function HtmlPreview({
         toast.success(t.livePreview.humanSaved);
         onSaved?.(updated);
       } catch (error) {
+        if (!active.current) return;
+        setSaveStatus(
+          error instanceof ArtifactSaveError && error.status === 409
+            ? t.livePreview.humanConflict
+            : t.livePreview.humanSaveUnconfirmed,
+        );
         if (error instanceof ArtifactSaveError && error.status === 409) {
           setHumanConflict(error.message);
         }
@@ -261,8 +287,10 @@ export function HtmlPreview({
           error instanceof Error ? error.message : t.codeEditor.fileSaveFailed,
         );
       } finally {
-        humanSavingRef.current = false;
-        setHumanSaving(false);
+        if (active.current) {
+          humanSavingRef.current = false;
+          setHumanSaving(false);
+        }
       }
     },
     [
@@ -271,8 +299,11 @@ export function HtmlPreview({
       onSaved,
       postBridgeMessage,
       t.codeEditor.fileSaveFailed,
+      t.livePreview.humanSaveUnconfirmed,
       t.livePreview.humanSaved,
+      t.livePreview.humanSaving,
       threadId,
+      t.livePreview.humanConflict,
     ],
   );
 
@@ -365,17 +396,25 @@ export function HtmlPreview({
         revisionId: undoRevision.revisionId,
         expectedContent: undoRevision.expectedContent,
       });
+      if (!active.current) return;
+      setSaveStatus(t.livePreview.humanRestored);
       setLocalContent(undoRevision.restoredContent);
       setUndoRevision(null);
       toast.success(t.livePreview.humanRestored);
       onSaved?.(undoRevision.restoredContent);
     } catch (error) {
+      if (!active.current) return;
+      setSaveStatus(
+        error instanceof Error ? error.message : t.codeEditor.fileSaveFailed,
+      );
       toast.error(
         error instanceof Error ? error.message : t.codeEditor.fileSaveFailed,
       );
     } finally {
-      humanSavingRef.current = false;
-      setHumanSaving(false);
+      if (active.current) {
+        humanSavingRef.current = false;
+        setHumanSaving(false);
+      }
     }
   }, [artifactRef, onSaved, t, threadId, undoRevision]);
 
@@ -446,8 +485,17 @@ export function HtmlPreview({
   );
 
   return (
-    <div className="relative size-full">
+    <div className="relative flex size-full min-h-0 flex-col">
+      {saveStatus && !humanConflict && (
+        <p
+          role="status"
+          className="shrink-0 border-b border-border-subtle bg-muted/30 px-3 py-2 text-xs"
+        >
+          {saveStatus}
+        </p>
+      )}
       <InspectOverlay
+        className="min-h-0 flex-1"
         bridgeToken={bridgeToken}
         enabled={canInspect && !humanEditing}
         filepath={filepath}
@@ -457,6 +505,143 @@ export function HtmlPreview({
           url && !inspectionMode ? () => setInspectionMode(true) : undefined
         }
         onRequestAiEdit={canHumanEdit ? requestAiEdit : undefined}
+        toolbar={
+          canHumanEdit ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              {humanEditing ? (
+                <>
+                  <span className="rounded-md bg-background/95 px-2 py-1 text-xs font-medium shadow-md backdrop-blur">
+                    {humanConflict
+                      ? t.livePreview.humanConflict
+                      : humanDirty
+                        ? t.livePreview.humanUnsaved
+                        : t.livePreview.humanEditing}
+                  </span>
+                  <Button
+                    aria-label={t.livePreview.humanSave}
+                    className="pointer-events-auto h-7 gap-1.5 px-2 text-xs shadow-md"
+                    disabled={
+                      humanSaving || isLoading || Boolean(humanConflict)
+                    }
+                    onClick={() => postBridgeMessage("echo:edit:request-save")}
+                    size="sm"
+                    type="button"
+                  >
+                    {humanSaving ? (
+                      <LoaderIcon className="size-3 animate-spin" />
+                    ) : (
+                      <SaveIcon className="size-3" />
+                    )}
+                    {t.livePreview.humanSave}
+                  </Button>
+                  {humanConflict && (
+                    <Button
+                      className="pointer-events-auto h-7 gap-1.5 px-2 text-xs shadow-md"
+                      disabled={humanSaving || isLoading}
+                      onClick={reloadAfterConflict}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
+                      <RefreshCwIcon className="size-3" />
+                      {t.livePreview.humanReloadLatest}
+                    </Button>
+                  )}
+                  <Button
+                    aria-label={t.livePreview.humanCancel}
+                    className="pointer-events-auto size-7 shadow-md"
+                    disabled={humanSaving}
+                    onClick={cancelHumanEdit}
+                    size="icon-sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    <XIcon className="size-3.5" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    className="pointer-events-auto h-7 gap-1.5 px-2 text-xs shadow-md"
+                    disabled={isLoading || pendingHumanEdit || humanSaving}
+                    onClick={beginHumanEdit}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {pendingHumanEdit ? (
+                      <LoaderIcon className="size-3 animate-spin" />
+                    ) : (
+                      <PencilIcon className="size-3" />
+                    )}
+                    {t.livePreview.humanEdit}
+                  </Button>
+                  {undoRevision && (
+                    <Button
+                      className="pointer-events-auto h-7 gap-1.5 px-2 text-xs shadow-md"
+                      disabled={isLoading || humanSaving}
+                      onClick={() => void undoLastHumanSave()}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
+                      {humanSaving ? (
+                        <LoaderIcon className="size-3 animate-spin" />
+                      ) : (
+                        <Undo2Icon className="size-3" />
+                      )}
+                      {t.livePreview.humanUndo}
+                    </Button>
+                  )}
+                  {artifactRef && threadId && (
+                    <ArtifactProposalReview
+                      key={`proposals:${threadId}:${artifactRef}`}
+                      filepath={artifactRef}
+                      threadId={threadId}
+                      running={isLoading}
+                      refreshKey={proposalRefresh}
+                      onReload={onReload}
+                      disabled={humanSaving || pendingHumanEdit}
+                      onBusyChange={(busy) => {
+                        humanSavingRef.current = busy;
+                        setHumanSaving(busy);
+                      }}
+                      onApplied={(applied) => {
+                        setLocalContent(applied);
+                        setUndoRevision(null);
+                        setBridgeReady(false);
+                        setBridgeRevision((value) => value + 1);
+                        onSaved?.(applied);
+                        toast.success(t.livePreview.humanSaved);
+                      }}
+                    />
+                  )}
+                  {artifactRef && threadId && (
+                    <ArtifactRevisionHistory
+                      key={`${threadId}:${artifactRef}`}
+                      filepath={artifactRef}
+                      threadId={threadId}
+                      currentContent={effectiveContent ?? ""}
+                      disabled={isLoading || humanSaving || pendingHumanEdit}
+                      onBusyChange={(busy) => {
+                        humanSavingRef.current = busy;
+                        setHumanSaving(busy);
+                      }}
+                      onRestored={(restored) => {
+                        setLocalContent(restored);
+                        setUndoRevision(null);
+                        setBridgeReady(false);
+                        setBridgeRevision((value) => value + 1);
+                        onSaved?.(restored);
+                        toast.success(t.livePreview.humanRestored);
+                      }}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          ) : undefined
+        }
       >
         <iframe
           key={`${inspectionMode ? "inspect" : "live"}-${bridgeRevision}`}
@@ -475,139 +660,6 @@ export function HtmlPreview({
                 : {})}
         />
       </InspectOverlay>
-      {canHumanEdit && (
-        <div className="pointer-events-none absolute top-2 left-2 z-20 flex items-center gap-1.5">
-          {humanEditing ? (
-            <>
-              <span className="rounded-md bg-background/95 px-2 py-1 text-xs font-medium shadow-md backdrop-blur">
-                {humanConflict
-                  ? t.livePreview.humanConflict
-                  : humanDirty
-                    ? t.livePreview.humanUnsaved
-                    : t.livePreview.humanEditing}
-              </span>
-              <Button
-                aria-label={t.livePreview.humanSave}
-                className="pointer-events-auto h-7 gap-1.5 px-2 text-xs shadow-md"
-                disabled={humanSaving || isLoading || Boolean(humanConflict)}
-                onClick={() => postBridgeMessage("echo:edit:request-save")}
-                size="sm"
-                type="button"
-              >
-                {humanSaving ? (
-                  <LoaderIcon className="size-3 animate-spin" />
-                ) : (
-                  <SaveIcon className="size-3" />
-                )}
-                {t.livePreview.humanSave}
-              </Button>
-              {humanConflict && (
-                <Button
-                  className="pointer-events-auto h-7 gap-1.5 px-2 text-xs shadow-md"
-                  disabled={humanSaving || isLoading}
-                  onClick={reloadAfterConflict}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  <RefreshCwIcon className="size-3" />
-                  {t.livePreview.humanReloadLatest}
-                </Button>
-              )}
-              <Button
-                aria-label={t.livePreview.humanCancel}
-                className="pointer-events-auto size-7 shadow-md"
-                disabled={humanSaving}
-                onClick={cancelHumanEdit}
-                size="icon-sm"
-                type="button"
-                variant="secondary"
-              >
-                <XIcon className="size-3.5" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                className="pointer-events-auto h-7 gap-1.5 px-2 text-xs shadow-md"
-                disabled={isLoading || pendingHumanEdit || humanSaving}
-                onClick={beginHumanEdit}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                {pendingHumanEdit ? (
-                  <LoaderIcon className="size-3 animate-spin" />
-                ) : (
-                  <PencilIcon className="size-3" />
-                )}
-                {t.livePreview.humanEdit}
-              </Button>
-              {undoRevision && (
-                <Button
-                  className="pointer-events-auto h-7 gap-1.5 px-2 text-xs shadow-md"
-                  disabled={isLoading || humanSaving}
-                  onClick={() => void undoLastHumanSave()}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  {humanSaving ? (
-                    <LoaderIcon className="size-3 animate-spin" />
-                  ) : (
-                    <Undo2Icon className="size-3" />
-                  )}
-                  {t.livePreview.humanUndo}
-                </Button>
-              )}
-              {artifactRef && threadId && (
-                <ArtifactProposalReview
-                  key={`proposals:${threadId}:${artifactRef}`}
-                  filepath={artifactRef}
-                  threadId={threadId}
-                  running={isLoading}
-                  refreshKey={proposalRefresh}
-                  onReload={onReload}
-                  disabled={humanSaving || pendingHumanEdit}
-                  onBusyChange={(busy) => {
-                    humanSavingRef.current = busy;
-                    setHumanSaving(busy);
-                  }}
-                  onApplied={(applied) => {
-                    setLocalContent(applied);
-                    setUndoRevision(null);
-                    setBridgeReady(false);
-                    setBridgeRevision((value) => value + 1);
-                    onSaved?.(applied);
-                    toast.success(t.livePreview.humanSaved);
-                  }}
-                />
-              )}
-              {artifactRef && threadId && (
-                <ArtifactRevisionHistory
-                  key={`${threadId}:${artifactRef}`}
-                  filepath={artifactRef}
-                  threadId={threadId}
-                  currentContent={effectiveContent ?? ""}
-                  disabled={isLoading || humanSaving || pendingHumanEdit}
-                  onBusyChange={(busy) => {
-                    humanSavingRef.current = busy;
-                    setHumanSaving(busy);
-                  }}
-                  onRestored={(restored) => {
-                    setLocalContent(restored);
-                    setUndoRevision(null);
-                    setBridgeReady(false);
-                    setBridgeRevision((value) => value + 1);
-                    onSaved?.(restored);
-                    toast.success(t.livePreview.humanRestored);
-                  }}
-                />
-              )}
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 }

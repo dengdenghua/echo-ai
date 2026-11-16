@@ -1,9 +1,23 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
 
-const artifact = vi.hoisted(() => ({ content: "" }));
+const artifact = vi.hoisted(() => ({
+  content: "",
+  files: [] as string[],
+  selected: null as string | null,
+  select: vi.fn(),
+  clearSelection: vi.fn(),
+}));
+vi.mock("@/components/workspace/artifacts/context", () => ({
+  useArtifacts: () => ({
+    artifacts: [...artifact.files],
+    selectedArtifact: artifact.selected,
+    select: artifact.select,
+    clearSelection: artifact.clearSelection,
+  }),
+}));
 
 vi.mock("@/core/artifacts/hooks", () => ({
   useArtifactContent: () => ({
@@ -39,7 +53,10 @@ vi.mock("@/components/workspace/code-editor", () => ({
   ),
 }));
 
-import { PreviewPane } from "./artifact-inline-preview";
+import {
+  ArtifactInlinePreviewEmbedded,
+  PreviewPane,
+} from "./artifact-inline-preview";
 
 function renderPreview(filepath: string) {
   return renderWithProviders(
@@ -55,6 +72,44 @@ function renderPreview(filepath: string) {
 
 beforeEach(() => {
   artifact.content = "";
+  artifact.files = [];
+  artifact.select.mockClear();
+  artifact.selected = null;
+  artifact.clearSelection.mockReset().mockImplementation(() => {
+    artifact.selected = null;
+  });
+});
+
+it("stays on the list after returning from an externally selected file across artifact refreshes", () => {
+  artifact.files = ["workspace-output:final:check.txt"];
+  artifact.selected = artifact.files[0]!;
+  const view = renderWithProviders(
+    <ArtifactInlinePreviewEmbedded threadId="thread-1" />,
+    { locale: "zh-CN" },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "返回", exact: true }));
+  view.rerender(<ArtifactInlinePreviewEmbedded threadId="thread-1" />);
+  expect(artifact.clearSelection).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: "check.txt" })).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "返回", exact: true }),
+  ).not.toBeInTheDocument();
+});
+
+it("distinguishes same-name artifacts by directory and opens the selected reference", () => {
+  artifact.files = [
+    "workspace-output:final:reports/check.txt",
+    "workspace-output:final:review/check.txt",
+  ];
+  renderWithProviders(<ArtifactInlinePreviewEmbedded threadId="thread-1" />);
+  expect(
+    screen.getByRole("button", { name: "reports/check.txt" }),
+  ).toHaveAttribute("title", "reports/check.txt");
+  fireEvent.click(screen.getByRole("button", { name: "review/check.txt" }));
+  expect(artifact.select).toHaveBeenCalledWith(
+    "workspace-output:final:review/check.txt",
+  );
+  expect(screen.getByTitle("review/check.txt")).toHaveTextContent("check.txt");
 });
 
 it("shows a produced Python file as read-only highlighted code", async () => {

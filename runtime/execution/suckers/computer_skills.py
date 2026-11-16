@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import contextlib
 import importlib.util
+import sys
+import time
 from pathlib import Path
 from typing import Any
 
 from . import computer_macos
 from .computer_api_skills import register_computer_api_skills
+from .computer_feedback import desktop_feedback
 from .computer_uia_skills import UIA_SKILL_NAMES, register_computer_uia_skills
 from .registry import Skill, SkillRegistry
 from .testing import SkillExpect, SkillTestCase
@@ -75,10 +78,10 @@ def _check_coord(x: int, y: int) -> str | None:
 
 
 def _screen_capture(
-    path: str = "",
+    path: str,
     *,
     sandbox_dir: str | None = None,
-    region: list[int] | None = None,
+    region: list = None,
     **_kw: Any,
 ) -> dict[str, Any]:
     if not path:
@@ -158,6 +161,7 @@ def _screen_info(**_kw: Any) -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════
 
 
+@desktop_feedback("click")
 def _mouse_click(
     x: int = -1,
     y: int = -1,
@@ -195,6 +199,7 @@ def _mouse_click(
     }
 
 
+@desktop_feedback("move")
 def _mouse_move(
     x: int = -1,
     y: int = -1,
@@ -224,6 +229,7 @@ def _mouse_move(
 # ═══════════════════════════════════════════════════════════
 
 
+@desktop_feedback("type")
 def _keyboard_type(
     text: str = "",
     *,
@@ -247,12 +253,27 @@ def _keyboard_type(
     if err:
         return {"error": err}
     try:
-        pyautogui.write(text, interval=interval)
+        if sys.platform == "win32" or not text.isascii():
+            from runtime.tentacle.remote_desktop_input import type_unicode
+
+            # On Windows, physical ASCII key presses enter IME composition
+            # when a Chinese keyboard is active. Text insertion uses Unicode
+            # packets for ASCII too; shortcuts remain physical key events.
+            # Reuse the remote desktop's native Unicode writer, preserving
+            # the clipboard and the existing emergency-stop semantics.
+            for index, char in enumerate(text):
+                pyautogui.failSafeCheck()
+                type_unicode(char)
+                if interval and index + 1 < len(text):
+                    time.sleep(interval)
+        else:
+            pyautogui.write(text, interval=interval)
     except Exception as e:  # noqa: BLE001
         return {"error": f"type_failed: {type(e).__name__}: {e}"}
     return {"text_len": len(text), "interval": interval}
 
 
+@desktop_feedback("key")
 def _keyboard_press(
     keys: list[str] | None = None,
     **_kw: Any,
@@ -314,7 +335,11 @@ def register_computer_skills(
     registry.register(
         Skill(
             name="screen_capture",
-            description="Capture screen (or region [x,y,w,h]) to PNG · path_guard enforced.",
+            description=(
+                "Capture screen to a PNG file. Required path: output filename inside the "
+                "authorized workspace. Optional region: JSON array [x,y,w,h], not a string. "
+                "Omit region for the full screen. path_guard enforced."
+            ),
             affinity=["desktop", "capture"],
             cost_profile="low",
             trusted_source="skill://public/screen_capture",

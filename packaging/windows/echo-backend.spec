@@ -46,6 +46,13 @@ datas = [
         )
     )
 ]
+# Skills invoke these helpers by filesystem path; PYZ modules cannot satisfy
+# `python scripts/foo.py`. Preserve their package-relative paths as data.
+datas += collect_data_files(
+    "runtime",
+    include_py_files=True,
+    includes=["execution/all_skills/**/*.py", "sensing/gateway/agent_market_sources/**/*.py"],
+)
 reflex_rules = repo_root / "data" / "reflex_rules.yaml"
 if reflex_rules.exists():
     datas.append((str(reflex_rules), "data"))
@@ -124,9 +131,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="echo-backend",
     debug=False,
     bootloader_ignore_signals=False,
@@ -140,4 +146,19 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+# onedir, not onefile: the onefile build unpacked ~230 MB into %TEMP% on every
+# launch, which measured ~10 s of the 49 s desktop cold start (2026-10-22).
+# COLLECT keeps the same entry point (``echo-backend.exe``) with its payload
+# beside it in ``_internal/``; ``build-backend-win.cjs`` flattens the extra
+# COLLECT directory so the packaged layout stays resources/backend/<exe>.
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name="echo-backend",
 )

@@ -38,7 +38,7 @@ interface WorkbenchPanelOpenersInput extends WorkbenchSurfaceSetters {
   agentWorkbenchTab: AgentWorkbenchTabId;
   artifacts: string[];
   setArtifacts: StateSetter<string[]>;
-  selectArtifact: (artifact: string, autoSelect?: boolean) => void;
+  selectArtifact: (artifact: string, autoSelect?: boolean, lines?: string) => void;
   setFocusedWorkbenchEffectKey: StateSetter<string | null>;
   setFocusedWorkbenchAgentId: StateSetter<string | null>;
   setFocusedWorkbenchAgentView: StateSetter<AgentWorkbenchFocusView | null>;
@@ -191,14 +191,14 @@ export function useWorkbenchPanelOpeners({
   ]);
 
   const openWorkbenchArtifact = useCallback(
-    (path: string) => {
+    (path: string, lines?: string) => {
       closeSpecialUtilityPanels();
       const normalizedPath = normalizeWorkspaceArtifactRef(path, threadId);
       if (path) {
-        if (!artifacts.includes(normalizedPath)) {
+        if (!normalizedPath.startsWith("file-reference:") && !artifacts.includes(normalizedPath)) {
           setArtifacts((prev) => [...prev, normalizedPath]);
         }
-        selectArtifact(normalizedPath, true);
+        selectArtifact(normalizedPath, true, lines);
       }
       // Route to the embedded artifacts tab inside the workbench
       // (same surface as terminal / browser). Auto-open the workbench
@@ -242,24 +242,27 @@ export function useWorkbenchPanelOpeners({
  * deliverable notice open the file in the workbench's artifacts tab.
  */
 export function useArtifactOpenRequests({
+  threadId,
   openWorkbenchArtifact,
   finalArtifactEntries,
 }: {
-  openWorkbenchArtifact: (path: string) => void;
+  threadId?: string;
+  openWorkbenchArtifact: (path: string, lines?: string) => void;
   finalArtifactEntries: ReturnType<typeof finalOutputArtifactEntries>;
 }) {
   useEffect(() => {
     const handleOpenArtifact = (event: Event) => {
       const detail = (event as CustomEvent<OpenArtifactDetail>).detail;
+      if (detail?.threadId && detail.threadId !== threadId) return;
       const path = typeof detail?.path === "string" ? detail.path.trim() : "";
       if (!path) return;
       event.preventDefault();
-      openWorkbenchArtifact(path);
+      openWorkbenchArtifact(path, detail.lines);
     };
     window.addEventListener(OPEN_ARTIFACT_EVENT, handleOpenArtifact);
     return () =>
       window.removeEventListener(OPEN_ARTIFACT_EVENT, handleOpenArtifact);
-  }, [openWorkbenchArtifact]);
+  }, [openWorkbenchArtifact, threadId]);
 
   const openFinalArtifactPanel = useCallback(() => {
     const firstEntry = finalArtifactEntries[0];

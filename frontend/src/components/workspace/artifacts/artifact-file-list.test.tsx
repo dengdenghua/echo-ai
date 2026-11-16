@@ -1,7 +1,9 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/test/harness";
+const selection = vi.hoisted(() => ({ select: vi.fn(), setOpen: vi.fn() }));
+vi.mock("./context", () => ({ useArtifacts: () => selection }));
 
 vi.mock("@/core/artifacts/hooks", () => ({
   useArtifactContent: () => ({
@@ -29,7 +31,24 @@ vi.mock("./artifact-file-detail", () => ({
   ),
 }));
 
-import { ArtifactInlinePreview } from "./artifact-file-list";
+import { ArtifactInlinePreview, ArtifactFileList } from "./artifact-file-list";
+
+it("keeps file opening and downloading as independent keyboard targets", () => {
+  const file = "workspace-output:final:reports/design.md";
+  const { container } = renderWithProviders(
+    <ArtifactFileList files={[file]} threadId="t1" />,
+  );
+  expect(container.querySelector("button a, button button")).toBeNull();
+  const open = screen.getByRole("button", { name: /design.md/ });
+  expect(open).toHaveAttribute("title", "reports/design.md");
+  fireEvent.click(open);
+  expect(selection.select).toHaveBeenCalledWith(file);
+  selection.select.mockClear();
+  const download = screen.getByRole("link", { name: "Download" });
+  expect(download.closest("button")).toBeNull();
+  fireEvent.click(download);
+  expect(selection.select).not.toHaveBeenCalled();
+});
 
 it("surfaces office and PDF files in the preview tab", () => {
   renderWithProviders(

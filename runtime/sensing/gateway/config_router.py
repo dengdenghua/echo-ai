@@ -257,6 +257,9 @@ def create_config_router(
         # supplies a non-null principal. Shared/server modes keep strict
         # principal-scoped ChatGPT credentials and never inherit host auth.
         allow_local_principal_inheritance=resolved_deployment == "local",
+        cooperative_lease_timeout_s=(
+            8.0 if resolved_deployment == "local" and os.environ.get("ECHO_DESKTOP") == "1" else 0
+        ),
     )
     codex_preferences = codex_preference_store or CodexModelPreferenceStore(
         Path(codex_preferences_path).expanduser().resolve(strict=False)

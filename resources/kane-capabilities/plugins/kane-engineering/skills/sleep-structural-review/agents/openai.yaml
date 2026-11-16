@@ -1,0 +1,4 @@
+interface:
+  display_name: "智能睡眠产品结构评审"
+  short_description: "按研发阶段组织水循环睡眠产品专项评审，统一问题风险与试验待办"
+  default_prompt: "使用 $sleep-structural-review 按当前研发阶段评审我们的智能睡眠温控结构，输出专项覆盖、问题清单、风险等级和试验待办。"

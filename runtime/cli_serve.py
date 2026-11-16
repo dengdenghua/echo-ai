@@ -581,8 +581,10 @@ def run_serve(
     try:
         from runtime.sensing.gateway import storage_supervisor as storage
 
-        storage_start = storage.maybe_start_storage()
-        storage.start_storage_heartbeat()
+        storage_start = "plugin_managed"
+        if getattr(app.state, "plugin_hub", None) is None:
+            storage_start = storage.maybe_start_storage()
+            storage.start_storage_heartbeat()
         # Stop supervising (and reap our child) with the ASGI lifespan.
         app.router.add_event_handler("shutdown", storage.shutdown_storage)
         if storage_start in {"started", "already_running"}:

@@ -1,0 +1,36 @@
+{
+  "source": "Echo-Huibud-Illustrated.blend",
+  "technique": "fixed-camera 2.5D with original artwork projection",
+  "bones": [
+    "root",
+    "body",
+    "head",
+    "tip",
+    "hand.L",
+    "hand.R",
+    "foot.L",
+    "foot.R"
+  ],
+  "actions": {
+    "idle": 96,
+    "greet": 48,
+    "drag": 48,
+    "land": 24,
+    "work": 72,
+    "wait": 72,
+    "success": 48
+  },
+  "vertices": 50414,
+  "faces": 100184,
+  "watertight": true,
+  "connected_components": 1,
+  "separate_limb_meshes": 0,
+  "reference_packed": true,
+  "free_view_back_reconstructed": false,
+  "referenceCrop": [
+    560,
+    195,
+    955,
+    685
+  ]
+}

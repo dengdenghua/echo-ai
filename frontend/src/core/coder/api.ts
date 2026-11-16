@@ -48,6 +48,8 @@ export interface CoderModelOption extends Omit<
   "reasoning_efforts" | "input_modalities"
 > {
   reasoning_efforts: string[];
+  context_window?: number | null;
+  context_source?: string;
   input_modalities: string[];
 }
 

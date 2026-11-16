@@ -302,7 +302,7 @@ export default function ChannelsPage({
                 </div>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
                   {t.channels.pageDescription}
-                  <span className="ml-1 text-muted-foreground/80">
+                  <span className="ml-1 text-muted-foreground">
                     {t.channels.localDataNote}
                   </span>
                 </p>

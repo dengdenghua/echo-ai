@@ -62,6 +62,44 @@ def host(tmp_path, monkeypatch):
     )
 
 
+def test_sync_member_emits_write_receipts_for_subagent_tracking(host, monkeypatch):
+    from runtime.execution.request import execution_request_scope
+    from runtime.platform.process.session import session_scope
+
+    async def stream(*args, **kwargs):
+        yield {
+            "type": "tool_start",
+            "tool_name": "write_text_file",
+            "tool_call_id": "write-a",
+            "input_preview": {"path": "output/final/a.md"},
+        }
+        yield {
+            "type": "tool_end",
+            "tool_name": "write_text_file",
+            "tool_call_id": "write-a",
+            "success": True,
+        }
+        yield {"type": "text_delta", "delta": "verified"}
+        yield {"type": "react_completed", "success": True}
+
+    monkeypatch.setattr(roles, "stream_role", stream)
+    events = []
+    with execution_request_scope(host.request), session_scope(host.session):
+        assert (
+            roles.run_role_sync(
+                host.stack,
+                host.agent,
+                "Write",
+                context={"event_emitter": events.append},
+                interrupted=lambda: False,
+            )
+            == "verified"
+        )
+    assert events[-1]["type"] == "sub_tool_end"
+    assert events[-1]["status"] == "success"
+    assert events[-1]["args"]["path"] == "output/final/a.md"
+
+
 @pytest.mark.parametrize("tenant_id", [None, "acme"])
 def test_tool_bridge_preserves_identity_for_local_and_tenant_delegation(
     host, monkeypatch, tmp_path, tenant_id

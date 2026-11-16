@@ -96,9 +96,20 @@ def register_mcp_tools_as_skills(
         # tests/third-party adapters may not carry the field.
         annotations = getattr(tool, "annotations", None)
         read_declared = isinstance(annotations, dict) and annotations.get("readOnlyHint") is True
+        # Several MCP servers (blmcp among them) ship a headless twin for every
+        # tool — ``*_for_cli`` — which shells out to ``<app> -b``. The two names
+        # look interchangeable to a model, so "open Blender and read the scene"
+        # silently ran headless with no window (2026-10-22). Label the twin
+        # instead of hiding it: the capability stays, the choice gets informed.
+        headless_hint = (
+            " [headless: runs the app with `-b`, no window — prefer the tool"
+            " without the _for_cli suffix when the user expects the UI]"
+            if tool.name.endswith("_for_cli")
+            else ""
+        )
         skill = Skill(
             name=skill_name,
-            description=tool.description or f"MCP tool from {tool.server_name}",
+            description=(tool.description or f"MCP tool from {tool.server_name}") + headless_hint,
             affinity=(["mcp", "external", "read"] if read_declared else ["mcp", "external"]),
             cost_profile="mid",
             trusted_source=f"mcp://{tool.server_name}/{tool.name}",

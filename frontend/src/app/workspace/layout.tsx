@@ -1,9 +1,24 @@
-import { Fragment, lazy, Suspense, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Fragment,
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Banner } from "@/components/ui/banner";
 import { AttentionNotifierHost } from "@/components/workspace/attention-notifier-host";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import {
+  SidebarInset,
+  SidebarProvider,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import {
+  DesktopSidebarState,
+  useDesktopShell,
+} from "@/components/workspace/desktop-shell-context";
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 import { WorkspaceRouteOutlet } from "@/components/workspace/workspace-route-outlet";
 import { useElectronTitleBar } from "@/components/electron-title-bar";
@@ -22,6 +37,12 @@ import { taskWorkspaceRoute } from "@/core/router/task-workspace-route";
 import { useActiveAgentId } from "@/core/agents/active";
 import { workspacePresetForAgent } from "@/core/workspace/workspace-presets";
 import { useWorkbenchAvailabilitySync } from "@/core/workbench/availability";
+import {
+  isKnowledgeApplication,
+  isMainConversationRoute,
+  useConversationReturnRoute,
+} from "@/core/workspace/knowledge-application";
+import { KnowledgeApplicationLayout } from "@/components/workspace/knowledge-application-layout";
 
 const CommandPalette = lazy(() =>
   import("@/components/workspace/command-palette").then((m) => ({
@@ -33,8 +54,7 @@ function showStubResponseBanner(): boolean {
   if (typeof window === "undefined") return false;
   try {
     return (
-      window.localStorage?.getItem?.("echo.debug.showStubResponses") ===
-      "true"
+      window.localStorage?.getItem?.("echo.debug.showStubResponses") === "true"
     );
   } catch (e) {
     swallow(e);
@@ -74,17 +94,26 @@ function StubResponseBannerHost() {
   );
 }
 
+function DesktopSidebarBridge() {
+  const { toggleSidebar } = useSidebar();
+  useEffect(() => {
+    const toggle = () => toggleSidebar();
+    window.addEventListener("echo:desktop-sidebar", toggle);
+    return () => window.removeEventListener("echo:desktop-sidebar", toggle);
+  }, [toggleSidebar]);
+  return null;
+}
+
 export default function WorkspaceLayout() {
-  const {
-    titleBarHeight,
-    titleBarInset,
-    contentTopInset,
-    controlsSafeInset,
-    controlsSide,
-  } = useElectronTitleBar();
-  // Windows draws min/max/close over the top band, which is also the window's
-  // drag strip. Pages without a chat-style header reserve it with this.
-  const titleBarReserve = controlsSide === "right" ? titleBarInset : "0px";
+  const { pathname } = useLocation();
+  const conversationReturn = useConversationReturnRoute();
+  const conversationNavigation = isMainConversationRoute(pathname);
+  const framed = useDesktopShell();
+  const desktopSidebar = useContext(DesktopSidebarState);
+  const { titleBarHeight, contentTopInset, controlsSafeInset } =
+    useElectronTitleBar();
+  // The shell reserves the title row once, including pages without a header.
+  const titleBarReserve = "0px";
   const navigate = useNavigate();
   const activeAgentId = useActiveAgentId() ?? "general";
   const personaThemeId = workspacePresetForAgent(activeAgentId).themeId;
@@ -116,6 +145,25 @@ export default function WorkspaceLayout() {
     },
     [navigate],
   );
+  if (isKnowledgeApplication(pathname) && !embeddedWorkspace) {
+    return (
+      <SidebarProvider
+        className={`workspace-shell ${framed ? "h-full min-h-0" : "h-screen"} overflow-hidden`}
+        defaultOpen={false}
+        style={!framed ? { paddingTop: contentTopInset } : undefined}
+      >
+        <AttentionNotifierHost />
+        <KnowledgeApplicationLayout returnTo={conversationReturn}>
+          <WorkspaceRouteOutlet />
+        </KnowledgeApplicationLayout>
+        {!framed && (
+          <Suspense fallback={null}>
+            <CommandPalette />
+          </Suspense>
+        )}
+      </SidebarProvider>
+    );
+  }
   return (
     <Fragment>
       {embeddedWorkspace ? (
@@ -144,10 +192,18 @@ export default function WorkspaceLayout() {
           <AttentionNotifierHost />
           <SidebarProvider
             data-persona-theme={personaThemeId}
-            className="persona-shell workspace-shell h-screen overflow-hidden"
+            className={`persona-shell workspace-shell ${framed ? "h-full min-h-0" : "h-screen"} overflow-hidden`}
             defaultOpen
+            open={
+              framed && !conversationNavigation ? false : desktopSidebar?.open
+            }
+            onOpenChange={
+              framed && !conversationNavigation
+                ? () => {}
+                : desktopSidebar?.setOpen
+            }
             style={
-              titleBarHeight > 0
+              titleBarHeight > 0 && !framed
                 ? ({
                     paddingTop: contentTopInset,
                     "--window-content-top-inset": contentTopInset,
@@ -157,6 +213,7 @@ export default function WorkspaceLayout() {
                 : undefined
             }
           >
+            {conversationNavigation && <DesktopSidebarBridge />}
             <WorkspaceSidebar />
             <SidebarInset className="relative z-[1] flex min-w-0 flex-col overflow-hidden">
               <StubResponseBannerHost />
@@ -165,9 +222,7 @@ export default function WorkspaceLayout() {
               </div>
             </SidebarInset>
           </SidebarProvider>
-          <Suspense fallback={null}>
-            <CommandPalette />
-          </Suspense>
+          <Suspense fallback={null}>{!framed && <CommandPalette />}</Suspense>
         </>
       )}
     </Fragment>

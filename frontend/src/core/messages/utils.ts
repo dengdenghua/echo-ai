@@ -2,13 +2,12 @@ import { isAIMessage, isToolMessage, type Message } from "@/core/api/types";
 import { isObjectLike } from "@/core/utils/guards";
 
 import {
-  extractContentFromMessage,
+  extractContentFromMessage as extractContentUncached,
   extractTextFromMessage,
   splitInlineReasoning,
 } from "./visible-content";
 
 export {
-  extractContentFromMessage,
   extractTextFromMessage,
   extractURLFromImageURLContent,
   isLegacyInternalAgentError,
@@ -52,18 +51,57 @@ function normalizedNarrativeText(value: unknown): string {
     : "";
 }
 
+// Message objects are immutable and reference-stable for untouched realtime
+// items. Cache the expensive content extraction and classification once per
+// object so a token delta only reparses the one message that changed.
+const contentTextCache = new WeakMap<Message, string>();
+const narrativeTextCache = new WeakMap<Message, string>();
+const narrativeCandidatesCache = new WeakMap<Message, string[]>();
+const likelyFinalAnswerCache = new WeakMap<Message, boolean>();
+const processPreludeCache = new WeakMap<Message, boolean>();
+const reasoningCache = new WeakMap<Message, boolean>();
+
+function contentTextOf(message: Message): string {
+  const cached = contentTextCache.get(message);
+  if (cached !== undefined) return cached;
+  const text = extractContentUncached(message);
+  contentTextCache.set(message, text);
+  return text;
+}
+
+/**
+ * Public cached form of the visible-content extractor. Messages are immutable
+ * and reference-stable between realtime deltas, so every row/header/grouper
+ * can share one parse instead of re-walking the same content.
+ */
+export function extractContentFromMessage(message: Message): string {
+  return contentTextOf(message);
+}
+
+function narrativeTextOf(message: Message): string {
+  const cached = narrativeTextCache.get(message);
+  if (cached !== undefined) return cached;
+  const narrative = normalizedNarrativeText(contentTextOf(message));
+  narrativeTextCache.set(message, narrative);
+  return narrative;
+}
+
 function publicNarrativeCandidates(message: Message): string[] {
   if (message.type !== "ai") return [];
+  const cached = narrativeCandidatesCache.get(message);
+  if (cached) return cached;
   const additional = message.additional_kwargs;
   const echoField = additional?.echo;
   const echo = isObjectLike(echoField) ? echoField : null;
-  return [
-    extractContentFromMessage(message),
+  const candidates = [
+    contentTextOf(message),
     additional?.public_reasoning_summary,
     echo?.public_reasoning_summary,
   ]
     .map(normalizedNarrativeText)
     .filter(Boolean);
+  narrativeCandidatesCache.set(message, candidates);
+  return candidates;
 }
 
 const PROCESS_PRELUDE_NARRATIVE_RE =
@@ -78,13 +116,17 @@ const TERMINAL_OUTCOME_NARRATIVE_RE =
  * observable prelude shape so it does not become a premature answer bubble.
  */
 function hasProcessPreludeNarrative(message: Message): boolean {
-  const narrative = normalizedNarrativeText(extractContentFromMessage(message));
-  return Boolean(
+  const cached = processPreludeCache.get(message);
+  if (cached !== undefined) return cached;
+  const narrative = narrativeTextOf(message);
+  const result = Boolean(
     narrative &&
     narrative.length <= 480 &&
     PROCESS_PRELUDE_NARRATIVE_RE.test(narrative) &&
     !TERMINAL_OUTCOME_NARRATIVE_RE.test(narrative),
   );
+  processPreludeCache.set(message, result);
+  return result;
 }
 
 /**
@@ -185,9 +227,7 @@ function indexFutureMessageSignals(messages: Message[]): FutureMessageSignals {
     hasLaterProcessMessage[index] = laterProcessMessage;
     if (message.type !== "ai") continue;
 
-    const narrative = normalizedNarrativeText(
-      extractContentFromMessage(message),
-    );
+    const narrative = narrativeTextOf(message);
     hasLaterDuplicateNarrative[index] = Boolean(
       narrative && laterProcessNarratives.has(narrative),
     );
@@ -405,11 +445,13 @@ export function groupMessages<T>(
             messages: [message],
           });
         }
-      } else if (message.additional_kwargs?.response_state === "interrupted") {
-        // The final draft is intentionally blank in the transcript, but the
-        // turn still needs a small terminal receipt. Keep this as an ordinary
-        // assistant group so MessageListItem can render that status without
-        // inventing user-visible answer text.
+      } else if (
+        message.additional_kwargs?.response_state === "interrupted" ||
+        message.additional_kwargs?.response_state === "cancelled" ||
+        message.additional_kwargs?.response_state === "paused"
+      ) {
+        // Keep terminal receipts in the assistant lane even before the first
+        // answer token. Process folding must not hide status or recovery.
         groups.push({ id: message.id, type: "assistant", messages: [message] });
       } else if (
         message.additional_kwargs?.response_state === "failed" ||
@@ -477,7 +519,7 @@ export function isSettledAssistantAnswer(
     return false;
   }
   if (!allowToolCalls && hasToolCalls(message)) return false;
-  return extractContentFromMessage(message).trim().length >= minTextLength;
+  return contentTextOf(message).trim().length >= minTextLength;
 }
 
 export type AssistantTerminalState =
@@ -531,9 +573,7 @@ export function assistantAnswerRequestsUserInput(messages: Message[]): boolean {
     ) {
       continue;
     }
-    const content = extractContentFromMessage(message)
-      .replace(/\s+/g, " ")
-      .trim();
+    const content = contentTextOf(message).replace(/\s+/g, " ").trim();
     if (!content) continue;
     return /(?:请|麻烦)(?:你)?(?:确认|提供|告诉|选择|回复|上传|授权|补充)|(?:需要|还需要)(?:你|您)(?:来)?(?:确认|提供|告诉|选择|回复|上传|授权|补充)|等待(?:你|您|用户)(?:的)?(?:输入|确认|回复)|(?:please|could you|can you)\s+(?:confirm|provide|tell|choose|reply|upload|authorize|share)|(?:i|we)\s+need\s+you\s+to\s+(?:confirm|provide|tell|choose|reply|upload|authorize|share)/i.test(
       content,
@@ -573,51 +613,64 @@ export function removeReasoningContentFromMessage(message: Message) {
 
 export function hasContent(message: Message) {
   if (typeof message.content === "string") {
-    return extractContentFromMessage(message).length > 0;
+    return contentTextOf(message).length > 0;
   }
   if (Array.isArray(message.content)) {
-    return extractContentFromMessage(message).length > 0;
+    return contentTextOf(message).length > 0;
   }
   return false;
 }
 
 export function isLikelyFinalAnswerContent(message: Message) {
+  const cached = likelyFinalAnswerCache.get(message);
+  if (cached !== undefined) return cached;
   const messageKind = message.additional_kwargs?.message_kind;
   // Realtime protocol semantics are authoritative. This keeps a short answer
   // in one stable lane from its first streamed token and prevents commentary
   // from being promoted merely because it contains a heading or grows long.
-  if (messageKind === "answer") return hasContent(message);
-  if (messageKind === "commentary") return false;
+  if (messageKind === "answer") {
+    const result = hasContent(message);
+    likelyFinalAnswerCache.set(message, result);
+    return result;
+  }
+  if (messageKind === "commentary") {
+    likelyFinalAnswerCache.set(message, false);
+    return false;
+  }
 
   // Compatibility only for legacy/API messages that predate messageKind.
-  const text = extractContentFromMessage(message);
-  if (!text) return false;
-  if (text.length > 320) return true;
-  if (/^#{1,3}\s+\S+/m.test(text)) return true;
-  if (/^\s*[一二三四五六七八九十]+[、.．]\s*\S+/m.test(text)) return true;
-  if (/^\s*\d+[.)、]\s+\S+/m.test(text) && text.split(/\n+/).length >= 4) {
-    return true;
+  const text = contentTextOf(message);
+  let result = false;
+  if (text) {
+    result =
+      text.length > 320 ||
+      /^#{1,3}\s+\S+/m.test(text) ||
+      /^\s*[一二三四五六七八九十]+[、.．]\s*\S+/m.test(text) ||
+      (/^\s*\d+[.)、]\s+\S+/m.test(text) && text.split(/\n+/).length >= 4) ||
+      (/\|.+\|/.test(text) && /-{3,}/.test(text));
   }
-  if (/\|.+\|/.test(text) && /-{3,}/.test(text)) return true;
-  return false;
+  likelyFinalAnswerCache.set(message, result);
+  return result;
 }
 
 export function hasReasoning(message: Message) {
   if (message.type !== "ai") {
     return false;
   }
+  const cached = reasoningCache.get(message);
+  if (cached !== undefined) return cached;
+  let result = false;
   if (typeof message.additional_kwargs?.reasoning_content === "string") {
-    return true;
-  }
-  if (Array.isArray(message.content)) {
+    result = true;
+  } else if (Array.isArray(message.content)) {
     const part = message.content[0];
     // Compatible with the Anthropic gateway
-    return part?.type === "thinking";
+    result = part?.type === "thinking";
+  } else if (typeof message.content === "string") {
+    result = splitInlineReasoning(message.content).reasoning !== null;
   }
-  if (typeof message.content === "string") {
-    return splitInlineReasoning(message.content).reasoning !== null;
-  }
-  return false;
+  reasoningCache.set(message, result);
+  return result;
 }
 
 export function hasToolCalls(message: Message) {

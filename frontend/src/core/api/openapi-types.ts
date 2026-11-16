@@ -21,26 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/.well-known/agent-card.json": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Agent Card
-         * @description Returns the public AgentCard describing this agent's capabilities, supported transports, and skills.
-         */
-        get: operations["_get_agent_card__well_known_agent_card_json_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/a2a/agents": {
         parameters: {
             query?: never;
@@ -222,429 +202,6 @@ export interface paths {
         get: operations["status_api_a2a_hotspot_status_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/published-roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Status */
-        get: operations["status_api_a2a_published_roles_get"];
-        put?: never;
-        /** Create */
-        post: operations["create_api_a2a_published_roles_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/rpc": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * A2A JSON-RPC endpoint
-         * @description A2A JSON-RPC 2.0 endpoint. The `method` field selects the operation;
-         *     `params` must match that method's schema (see the `oneOf` below).
-         *
-         *     **Supported methods:**
-         *
-         *     - `SendMessage` — Send a message to the agent (returns a Task or response Message).
-         *     - `SendStreamingMessage` — Send a message and receive a Server-Sent Events stream.
-         *     - `GetTask` — Fetch a task by ID.
-         *     - `ListTasks` — List tasks with pagination and filtering.
-         *     - `CancelTask` — Cancel an in-progress task.
-         *     - `CreateTaskPushNotificationConfig` — Register a push-notification config on a task.
-         *     - `GetTaskPushNotificationConfig` — Read a single push-notification config.
-         *     - `ListTaskPushNotificationConfigs` — List all push-notification configs for a task.
-         *     - `DeleteTaskPushNotificationConfig` — Delete a push-notification config.
-         *     - `SubscribeToTask` — Subscribe to task events via Server-Sent Events.
-         *     - `GetExtendedAgentCard` — Fetch the authenticated extended agent card.
-         */
-        post: operations["handle_requests_api_a2a_rpc_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/extendedAgentCard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Handle Authenticated Agent Card
-         * @description Handles the 'agentCard' REST method.
-         */
-        get: operations["handle_authenticated_agent_card_api_a2a_server_extendedAgentCard_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/message:send": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * On Message Send
-         * @description Handles the 'message/send' REST method.
-         */
-        post: operations["on_message_send_api_a2a_server_message_send_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/message:stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * On Message Send Stream
-         * @description Handles the 'message/stream' REST method.
-         */
-        post: operations["on_message_send_stream_api_a2a_server_message_stream_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/tasks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Tasks
-         * @description Handles the 'tasks/list' REST method.
-         */
-        get: operations["list_tasks_api_a2a_server_tasks_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/tasks/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * On Get Task
-         * @description Handles the 'tasks/{id}' REST method.
-         */
-        get: operations["on_get_task_api_a2a_server_tasks__id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/tasks/{id}/pushNotificationConfigs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Push Notifications
-         * @description Handles the 'tasks/pushNotificationConfig/list' REST method.
-         */
-        get: operations["list_push_notifications_api_a2a_server_tasks__id__pushNotificationConfigs_get"];
-        put?: never;
-        /**
-         * Set Push Notification
-         * @description Handles the 'tasks/pushNotificationConfig/set' REST method.
-         */
-        post: operations["set_push_notification_api_a2a_server_tasks__id__pushNotificationConfigs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/tasks/{id}/pushNotificationConfigs/{push_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Push Notification
-         * @description Handles the 'tasks/pushNotificationConfig/get' REST method.
-         */
-        get: operations["get_push_notification_api_a2a_server_tasks__id__pushNotificationConfigs__push_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Push Notification
-         * @description Handles the 'tasks/pushNotificationConfig/delete' REST method.
-         */
-        delete: operations["delete_push_notification_api_a2a_server_tasks__id__pushNotificationConfigs__push_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/tasks/{id}:cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * On Cancel Task
-         * @description Handles the 'tasks/cancel' REST method.
-         */
-        post: operations["on_cancel_task_api_a2a_server_tasks__id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/tasks/{id}:subscribe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * On Subscribe To Task
-         * @description Handles the 'SubscribeToTask' REST method.
-         */
-        get: operations["on_subscribe_to_task_api_a2a_server_tasks__id__subscribe_get"];
-        put?: never;
-        /**
-         * On Subscribe To Task
-         * @description Handles the 'SubscribeToTask' REST method.
-         */
-        post: operations["on_subscribe_to_task_api_a2a_server_tasks__id__subscribe_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/v1/card": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        get: operations["partial_api_a2a_server_v1_card_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/v1/message:send": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        post: operations["partial_api_a2a_server_v1_message_send_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/v1/message:stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        post: operations["partial_api_a2a_server_v1_message_stream_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/v1/tasks/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        get: operations["partial_api_a2a_server_v1_tasks__id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/v1/tasks/{id}/pushNotificationConfigs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        get: operations["partial_api_a2a_server_v1_tasks__id__pushNotificationConfigs_get"];
-        put?: never;
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        post: operations["partial_api_a2a_server_v1_tasks__id__pushNotificationConfigs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/v1/tasks/{id}/pushNotificationConfigs/{push_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        get: operations["partial_api_a2a_server_v1_tasks__id__pushNotificationConfigs__push_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/v1/tasks/{id}:cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        post: operations["partial_api_a2a_server_v1_tasks__id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/a2a/server/v1/tasks/{id}:subscribe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        get: operations["partial_api_a2a_server_v1_tasks__id__subscribe_get"];
-        put?: never;
-        /**
-         * Partial
-         * @description partial(func, *args, **keywords) - new function with partial application
-         *     of the given arguments and keywords.
-         */
-        post: operations["partial_api_a2a_server_v1_tasks__id__subscribe_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7225,6 +6782,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engines/{engine_id}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rollback Engine */
+        post: operations["rollback_engine_api_engines__engine_id__rollback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engines/{engine_id}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update Engine */
+        post: operations["update_engine_api_engines__engine_id__update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/evolution/agent-benchmark": {
         parameters: {
             query?: never;
@@ -11804,6 +11395,23 @@ export interface paths {
          * @description Unload a plugin.
          */
         post: operations["unload_plugin_api_plugin_hub_plugins__name__unload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plugin-hub/plugins/{name}/upgrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upgrade Plugin */
+        post: operations["upgrade_plugin_api_plugin_hub_plugins__name__upgrade_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -16691,14 +16299,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        A2ARequest: {
-            id?: string | number | null;
-            /** @enum {string} */
-            jsonrpc: "2.0";
-            /** @enum {string} */
-            method: "SendMessage" | "SendStreamingMessage" | "GetTask" | "ListTasks" | "CancelTask" | "CreateTaskPushNotificationConfig" | "GetTaskPushNotificationConfig" | "ListTaskPushNotificationConfigs" | "DeleteTaskPushNotificationConfig" | "SubscribeToTask" | "GetExtendedAgentCard";
-            params?: components["schemas"]["SendMessageRequest"] | components["schemas"]["GetTaskRequest"] | components["schemas"]["ListTasksRequest"] | components["schemas"]["CancelTaskRequest"] | components["schemas"]["TaskPushNotificationConfig"] | components["schemas"]["GetTaskPushNotificationConfigRequest"] | components["schemas"]["ListTaskPushNotificationConfigsRequest"] | components["schemas"]["DeleteTaskPushNotificationConfigRequest"] | components["schemas"]["SubscribeToTaskRequest"] | components["schemas"]["GetExtendedAgentCardRequest"];
-        };
         /** AcquireLeaseBody */
         AcquireLeaseBody: {
             /** File Path */
@@ -17044,12 +16644,6 @@ export interface components {
             /** Providers */
             providers: components["schemas"]["AuthProvider"][];
         };
-        AuthenticationInfo: {
-            /** @example  */
-            credentials?: string;
-            /** @example scheme */
-            scheme?: string;
-        };
         /** AutomationPolicyRuleInstallBody */
         AutomationPolicyRuleInstallBody: {
             /**
@@ -17236,13 +16830,6 @@ export interface components {
         CancelLoopRunRequest: {
             /** Reason */
             reason?: string | null;
-        };
-        CancelTaskRequest: {
-            /** @example id */
-            id?: string;
-            metadata?: Record<string, never>;
-            /** @example  */
-            tenant?: string;
         };
         /** CandidateCanaryOutcomeBody */
         CandidateCanaryOutcomeBody: {
@@ -18194,14 +17781,6 @@ export interface components {
             /** Urls */
             urls?: string[];
         };
-        DeleteTaskPushNotificationConfigRequest: {
-            /** @example id */
-            id?: string;
-            /** @example task_id */
-            task_id?: string;
-            /** @example  */
-            tenant?: string;
-        };
         /** DesignCapabilityRequest */
         DesignCapabilityRequest: {
             /**
@@ -18490,7 +18069,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "downloading" | "installing" | "done" | "failed";
+            state: "checking" | "downloading" | "installing" | "done" | "failed";
             /** Total */
             total: number;
             /** Version */
@@ -18503,6 +18082,16 @@ export interface components {
         };
         /** EngineStatus */
         EngineStatus: {
+            /**
+             * Active Tasks
+             * @default 0
+             */
+            active_tasks: number;
+            /**
+             * Can Rollback
+             * @default false
+             */
+            can_rollback: boolean;
             /** Can Uninstall */
             can_uninstall: boolean;
             /** Download Size */
@@ -18520,13 +18109,22 @@ export interface components {
             license: string;
             /** Name */
             name: string;
+            /** Pending Version */
+            pending_version?: string | null;
+            /** Previous Version */
+            previous_version?: string | null;
+            /**
+             * Revision
+             * @default 0
+             */
+            revision: number;
             /** Source */
             source?: ("bundled" | "installed" | "configured" | "system") | null;
             /**
              * State
              * @enum {string}
              */
-            state: "ready" | "installing" | "update_available" | "not_installed";
+            state: "ready" | "installing" | "pending_activation" | "update_available" | "not_installed";
             /** Supported */
             supported: boolean;
             /** Update Available */
@@ -18685,26 +18283,6 @@ export interface components {
              * @default
              */
             style_prompt: string;
-        };
-        GetExtendedAgentCardRequest: {
-            /** @example  */
-            tenant?: string;
-        };
-        GetTaskPushNotificationConfigRequest: {
-            /** @example id */
-            id?: string;
-            /** @example task_id */
-            task_id?: string;
-            /** @example  */
-            tenant?: string;
-        };
-        GetTaskRequest: {
-            /** Format: int32 */
-            history_length?: number;
-            /** @example id */
-            id?: string;
-            /** @example  */
-            tenant?: string;
         };
         /** GitWorktree */
         GitWorktree: {
@@ -18949,37 +18527,6 @@ export interface components {
         LinkRoomBody: {
             /** Room Id */
             room_id: string;
-        };
-        ListTaskPushNotificationConfigsRequest: {
-            /** Format: int32 */
-            page_size?: number;
-            /** @example  */
-            page_token?: string;
-            /** @example task_id */
-            task_id?: string;
-            /** @example  */
-            tenant?: string;
-        };
-        ListTasksRequest: {
-            /** @example  */
-            context_id?: string;
-            /** Format: int32 */
-            history_length?: number;
-            /** @example false */
-            include_artifacts?: boolean;
-            /** Format: int32 */
-            page_size?: number;
-            /** @example  */
-            page_token?: string;
-            /**
-             * @example TASK_STATE_SUBMITTED
-             * @enum {string}
-             */
-            status?: "TASK_STATE_UNSPECIFIED" | "TASK_STATE_SUBMITTED" | "TASK_STATE_WORKING" | "TASK_STATE_COMPLETED" | "TASK_STATE_FAILED" | "TASK_STATE_CANCELED" | "TASK_STATE_INPUT_REQUIRED" | "TASK_STATE_REJECTED" | "TASK_STATE_AUTH_REQUIRED";
-            /** Format: date-time */
-            status_timestamp_after?: string;
-            /** @example  */
-            tenant?: string;
         };
         /** LoopAttempt */
         LoopAttempt: {
@@ -19322,40 +18869,6 @@ export interface components {
              */
             summary: string;
         };
-        Message: {
-            /** @example  */
-            context_id?: string;
-            /**
-             * @example [
-             *       ""
-             *     ]
-             */
-            extensions?: string[];
-            /** @example message_id */
-            message_id?: string;
-            metadata?: Record<string, never>;
-            /**
-             * @example [
-             *       {
-             *         "text": ""
-             *       }
-             *     ]
-             */
-            parts?: components["schemas"]["Part"][];
-            /**
-             * @example [
-             *       ""
-             *     ]
-             */
-            reference_task_ids?: string[];
-            /**
-             * @example ROLE_USER
-             * @enum {string}
-             */
-            role?: "ROLE_UNSPECIFIED" | "ROLE_USER" | "ROLE_AGENT";
-            /** @example  */
-            task_id?: string;
-        };
         /** MessageProjectActionBody */
         MessageProjectActionBody: {
             /** Acceptance Criteria */
@@ -19605,29 +19118,6 @@ export interface components {
             /** Pieces */
             pieces: string[];
         };
-        /**
-         * @example {
-         *       "text": ""
-         *     }
-         */
-        Part: {
-            /** @example  */
-            filename?: string;
-            /** @example  */
-            media_type?: string;
-            metadata?: Record<string, never>;
-        } & ({
-            /** @example  */
-            text: string;
-        } | {
-            /** Format: byte */
-            raw: string;
-        } | {
-            /** @example  */
-            url: string;
-        } | {
-            data: unknown;
-        });
         /** PauseTaskBody */
         PauseTaskBody: {
             /**
@@ -20170,28 +19660,6 @@ export interface components {
              */
             to: string;
         };
-        SendMessageConfiguration: {
-            /**
-             * @example [
-             *       ""
-             *     ]
-             */
-            accepted_output_modes?: string[];
-            /** Format: int32 */
-            history_length?: number;
-            /** @example false */
-            return_immediately?: boolean;
-            /** @example null */
-            task_push_notification_config?: components["schemas"]["TaskPushNotificationConfig"] | null;
-        };
-        SendMessageRequest: {
-            /** @example null */
-            configuration?: components["schemas"]["SendMessageConfiguration"] | null;
-            message?: components["schemas"]["Message"];
-            metadata?: Record<string, never>;
-            /** @example  */
-            tenant?: string;
-        };
         /** SkillWire */
         SkillWire: {
             /** Affinity */
@@ -20728,12 +20196,6 @@ export interface components {
              */
             reason: string;
         };
-        SubscribeToTaskRequest: {
-            /** @example id */
-            id?: string;
-            /** @example  */
-            tenant?: string;
-        };
         /** TaskAction */
         TaskAction: {
             /**
@@ -20813,20 +20275,6 @@ export interface components {
              * @default false
              */
             run: boolean;
-        };
-        TaskPushNotificationConfig: {
-            /** @example null */
-            authentication?: components["schemas"]["AuthenticationInfo"] | null;
-            /** @example  */
-            id?: string;
-            /** @example  */
-            task_id?: string;
-            /** @example  */
-            tenant?: string;
-            /** @example  */
-            token?: string;
-            /** @example url */
-            url?: string;
         };
         /**
          * TaskResumeExecutionRequest
@@ -21524,26 +20972,6 @@ export interface operations {
             };
         };
     };
-    _get_agent_card__well_known_agent_card_json_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     list_agents_api_a2a_agents_get: {
         parameters: {
             query?: never;
@@ -21883,625 +21311,6 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    status_api_a2a_published_roles_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    create_api_a2a_published_roles_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    handle_requests_api_a2a_rpc_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        /** @description A2A JSON-RPC 2.0 request */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["A2ARequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    handle_authenticated_agent_card_api_a2a_server_extendedAgentCard_get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    on_message_send_api_a2a_server_message_send_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        /** @description A2A SendMessageRequest */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SendMessageRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    on_message_send_stream_api_a2a_server_message_stream_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        /** @description A2A SendMessageRequest */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SendMessageRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    list_tasks_api_a2a_server_tasks_get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    on_get_task_api_a2a_server_tasks__id__get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    list_push_notifications_api_a2a_server_tasks__id__pushNotificationConfigs_get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    set_push_notification_api_a2a_server_tasks__id__pushNotificationConfigs_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        /** @description A2A TaskPushNotificationConfig */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TaskPushNotificationConfig"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_push_notification_api_a2a_server_tasks__id__pushNotificationConfigs__push_id__get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    delete_push_notification_api_a2a_server_tasks__id__pushNotificationConfigs__push_id__delete: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    on_cancel_task_api_a2a_server_tasks__id__cancel_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    on_subscribe_to_task_api_a2a_server_tasks__id__subscribe_get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    on_subscribe_to_task_api_a2a_server_tasks__id__subscribe_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_card_get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_message_send_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        /** @description A2A SendMessageRequest */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SendMessageRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_message_stream_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        /** @description A2A SendMessageRequest */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SendMessageRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_tasks__id__get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_tasks__id__pushNotificationConfigs_get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_tasks__id__pushNotificationConfigs_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        /** @description A2A TaskPushNotificationConfig */
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TaskPushNotificationConfig"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_tasks__id__pushNotificationConfigs__push_id__get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_tasks__id__cancel_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_tasks__id__subscribe_get: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    partial_api_a2a_server_v1_tasks__id__subscribe_post: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @example 1.0 */
-                "A2A-Version": "1.0";
-            };
             path?: never;
             cookie?: never;
         };
@@ -35342,6 +34151,68 @@ export interface operations {
             };
         };
     };
+    rollback_engine_api_engines__engine_id__rollback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                engine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_engine_api_engines__engine_id__update_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                engine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_agent_benchmark_api_evolution_agent_benchmark_get: {
         parameters: {
             query?: never;
@@ -44315,6 +43186,37 @@ export interface operations {
         };
     };
     unload_plugin_api_plugin_hub_plugins__name__unload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upgrade_plugin_api_plugin_hub_plugins__name__upgrade_post: {
         parameters: {
             query?: never;
             header?: never;

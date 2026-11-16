@@ -50,6 +50,8 @@ files:
 # main.cjs 在启动后端前会先将配置和可变资源安全物化到
 # userData。Python 运行时及依赖由 PyInstaller 后端固定，不从系统或网络获取。
 extraResources:
+  - from: ../extras/desktop/build/knowledge-runtime/echo-storage
+    to: knowledge-storage
   - from: ../extensions/echo-browser-relay
     to: extensions/echo-browser-relay
     filter:
@@ -119,6 +121,13 @@ win:
   extraResources:
     - from: ../extras/desktop/build/backend/echo-backend.exe
       to: backend/echo-backend.exe
+    # onedir build (2026-10-22): onefile unpacked ~230 MB into %TEMP% on every
+    # launch (~10 s of the desktop cold start). The payload now ships beside
+    # the exe; build-backend-win.cjs flattens PyInstaller's COLLECT directory.
+    - from: ../extras/desktop/build/backend/_internal
+      to: backend/_internal
+      filter:
+        - "**/*"
 
 linux:
   target:

@@ -48,10 +48,13 @@ def test_codex_group_reply_never_loads_native_planner(monkeypatch, enabled):
 async def test_tool_free_reasserts_no_environments_on_thread_and_turn(tmp_path, resumed):
     from tests.test_codex_execution_backend import _binding, _make_session
 
-    session, security, context, _, client = _make_session(
-        tmp_path, binding=_binding() if resumed else None
-    )
+    binding = _binding() if resumed else None
+    session, security, context, _, client = _make_session(tmp_path, binding=binding)
     session.request = replace(session.request, tool_free=True)
+    if binding is not None:
+        from runtime.execution.codex_backend import catalog_state
+
+        catalog_state.remember(context, binding.inner_thread_id, session.request)
     await session.start()
     assert security.prepare_kwargs["realm_id"] == session.request.realm_id + "/codex-tool-free-v2"
     assert security.prepare_kwargs["thread_id"] == session.request.outer_thread_id
@@ -61,13 +64,14 @@ async def test_tool_free_reasserts_no_environments_on_thread_and_turn(tmp_path, 
         params = next(value for name, value in client.calls if name == "thread/resume")[1][
             "extra_params"
         ]
+        assert not {"dynamicTools", "selectedCapabilityRoots", "environments"} & set(params)
     else:
         params = next(value for name, value in client.calls if name == "thread/start")[
             "extra_params"
         ]
-    assert params["dynamicTools"] == []
-    assert params["selectedCapabilityRoots"] == []
-    assert params["environments"] == []
+        assert params["dynamicTools"] == []
+        assert params["selectedCapabilityRoots"] == []
+        assert params["environments"] == []
     turn = next(value for name, value in client.calls if name == "turn/start")
     assert turn[2]["extra_params"]["environments"] == []
     await session.close()

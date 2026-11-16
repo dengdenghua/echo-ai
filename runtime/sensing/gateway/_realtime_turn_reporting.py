@@ -479,6 +479,9 @@ async def _handle_turn_cancellation(ctx: _TurnContext) -> None:
     # propagate.
     if ctx.turn.status == lifecycle.TurnStatus.IN_PROGRESS:
         ctx.turn.status = lifecycle.TurnStatus.INTERRUPTED
+    # External drivers can mark CANCELLED before propagating CancelledError.
+    # That terminal state still needs a durable boundary for replay/retry.
+    if ctx.turn.completed_at is None:
         with lifecycle.contextlib.suppress(Exception):
             lifecycle._close_turn(ctx.log, ctx.thread_id, ctx.turn)
     if ctx.turn.completed_at is None:

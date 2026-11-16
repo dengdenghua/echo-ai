@@ -129,6 +129,7 @@ const api = {
   },
 
   backend: {
+    getStatus: invoke("backend:getStatus"),
     getBaseURL: invoke("backend:getBaseURL"),
     restart: invoke("backend:restart"),
     ensureOptionalDeps: invoke("backend:ensureOptionalDeps"),

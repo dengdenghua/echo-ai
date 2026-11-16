@@ -1147,3 +1147,13 @@ describe("toWebSocketURL", () => {
     });
   });
 });
+
+
+it("rejects oversized UTF-8 requests immediately without queueing or sending", async () => {
+  const client = new RealtimeClient({ url: "ws://localhost/api/realtime" });
+  await expect(client.request("turn/start", { text: "中".repeat(22_000) })).rejects.toThrow("文件附件");
+  client.connect();
+  FakeWebSocket.lastInstance!.open();
+  expect(FakeWebSocket.lastInstance!.sentRaw.some((raw) => raw.includes("turn/start"))).toBe(false);
+  client.close();
+});

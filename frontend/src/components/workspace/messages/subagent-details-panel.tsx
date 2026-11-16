@@ -115,7 +115,7 @@ export function SubagentDetailsPanel({
                 </div>
                 <div className="mt-1 font-semibold">
                   {isCompleted && t.subagents.completed}
-                  {isFailed && t.subagents.failed}
+                  {isFailed && (task.status === "cancelled" ? t.subagents.cancelled : task.status === "timed_out" ? t.subagents.timed_out : t.subagents.failed)}
                   {isRunning && t.subagents.in_progress}
                   {!isCompleted &&
                     !isFailed &&

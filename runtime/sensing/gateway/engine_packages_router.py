@@ -30,7 +30,7 @@ _REFUSALS = {
 class EngineInstallJob(BaseModel):
     engine: str
     version: str
-    state: Literal["downloading", "installing", "done", "failed"]
+    state: Literal["checking", "downloading", "installing", "done", "failed"]
     received: int
     total: int
     source: Literal["mirror", "upstream"] | None = None
@@ -46,13 +46,18 @@ class EngineStatus(BaseModel):
     homepage: str
     supported: bool
     download_size: int | None = None
-    state: Literal["ready", "installing", "update_available", "not_installed"]
+    state: Literal["ready", "installing", "pending_activation", "update_available", "not_installed"]
     source: Literal["bundled", "installed", "configured", "system"] | None = None
     installed_version: str | None = None
     installed_size: int | None = None
     update_available: bool
     can_uninstall: bool
     job: EngineInstallJob | None = None
+    can_rollback: bool = False
+    previous_version: str | None = None
+    pending_version: str | None = None
+    active_tasks: int = 0
+    revision: int = 0
 
 
 class EngineListResponse(BaseModel):
@@ -127,6 +132,28 @@ def create_engine_packages_router(
         _known(engine_id)
         try:
             _installer().start(engine_id)
+        except EngineInstallError as exc:
+            raise _refuse(exc) from exc
+        return EngineStatus(**await asyncio.to_thread(engine_status, engine_id, _installer()))
+
+    @router.post("/api/engines/{engine_id}/update", response_model=EngineStatus)
+    async def update_engine(engine_id: str, request: Request) -> EngineStatus:
+        _auth(request)
+        _require_admin(request)
+        _known(engine_id)
+        try:
+            _installer().start(engine_id, update=True)
+        except EngineInstallError as exc:
+            raise _refuse(exc) from exc
+        return EngineStatus(**await asyncio.to_thread(engine_status, engine_id, _installer()))
+
+    @router.post("/api/engines/{engine_id}/rollback", response_model=EngineStatus)
+    async def rollback_engine(engine_id: str, request: Request) -> EngineStatus:
+        _auth(request)
+        _require_admin(request)
+        _known(engine_id)
+        try:
+            await asyncio.to_thread(_installer().rollback, engine_id)
         except EngineInstallError as exc:
             raise _refuse(exc) from exc
         return EngineStatus(**await asyncio.to_thread(engine_status, engine_id, _installer()))

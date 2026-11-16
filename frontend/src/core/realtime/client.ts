@@ -1,3 +1,4 @@
+import { createCompanionActivityObserver } from "./companion-activity";
 // Realtime WebSocket client.
 //
 // One client per thread (or per conversation). Owns:
@@ -114,6 +115,7 @@ const BATCHED_METHODS = new Set([
 ]);
 
 export class RealtimeClient {
+  private companionActivity = createCompanionActivityObserver();
   private ws: WebSocket | null = null;
   private nextId = 1;
   private pending = new Map<JsonRpcId, PendingRequest>();
@@ -204,6 +206,7 @@ export class RealtimeClient {
       // transport epoch must not tear down the replacement socket, fail its
       // pending requests, or schedule a second reconnect.
       if (this.ws !== ws) return;
+      this.companionActivity.disconnect();
       this.ws = null;
       this.stopHeartbeat();
       this.flushDeltaBuffer();
@@ -223,6 +226,7 @@ export class RealtimeClient {
   }
 
   close(): void {
+    this.companionActivity.disconnect();
     this.closed = true;
     this.stopHeartbeat();
     if (typeof document !== "undefined") {
@@ -249,9 +253,14 @@ export class RealtimeClient {
     }
     const id = this.nextId++;
     const envelope: JsonRpcRequest = { jsonrpc: "2.0", id, method, params };
+    // Match the gateway's UTF-8 frame limit before registering a pending request.
+    // Otherwise a rejected long paste can leave the composer waiting forever.
+    if (new TextEncoder().encode(JSON.stringify(envelope)).byteLength > 65_536) {
+      return Promise.reject(new Error("消息超过传输大小限制，请改用文件附件或拆分发送。"));
+    }
     return new Promise<R>((resolve, reject) => {
       const pending: PendingRequest = {
-        resolve: (v: unknown) => resolve(v as R),
+        resolve: (v: unknown) => { this.companionActivity.response(method, v); resolve(v as R); },
         reject,
       };
       const timeoutMs = options.timeoutMs;
@@ -409,6 +418,7 @@ export class RealtimeClient {
       return;
     }
     if (isNotification(env)) {
+      this.companionActivity.notification(env);
       // Server-side liveness reply. Updating the watermark must happen
       // *before* any further routing — pong should never reach the
       // application reducer.

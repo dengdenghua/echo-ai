@@ -31,7 +31,10 @@ vi.mock("@/core/cowork/api", () => ({
   createCollabAnnotation: vi.fn(),
 }));
 
-vi.mock("@/core/auth/api", () => ({ getToken: () => "room-token" }));
+vi.mock("@/core/auth/api", () => ({
+  getToken: () => "room-token",
+  currentActorScope: () => "test-actor",
+}));
 vi.mock("@/core/config", () => ({
   getBackendBaseURL: () => "",
   getBackendWebSocketBaseURL: () => "ws://collab.test",

@@ -64,6 +64,7 @@ from ._sidecar_paths import _sidecar_state_paths, _validate_context_layout, code
 from .executable_policy import ALLOWED_ENABLED_FEATURES as _ALLOWED_ENABLED_FEATURES
 from .executable_policy import LOCKED_OFF_FEATURES as _LOCKED_OFF_FEATURES
 from .executable_policy import executable_policy, skills_toml, validate_skills
+from .feature_support import supported_codex_features
 from .types import CodexProviderProfile
 
 CodexSandboxMode = Literal["read-only", "workspace-write", "danger-full-access"]
@@ -201,6 +202,7 @@ class CodexSidecarContext:
     _launch_env: Mapping[str, str] = field(repr=False)
     provider_profile: CodexProviderProfile | None = field(default=None, repr=False)
     selected_app_ids: tuple[str, ...] = ()
+    prefer_mxc: bool = False
     _scratch_allocation: _CleanupAllocation | None = field(default=None, repr=False)
     _task_allocation: _CleanupAllocation | None = field(default=None, repr=False)
     # The base list plus any versioned features this executable defines.
@@ -311,10 +313,14 @@ class CodexSidecarContext:
             for feature_name, enabled in features.items():
                 if (
                     feature_name not in self.locked_off_features
+                    and not (feature_name == "prefer_mxc" and self.prefer_mxc)
                     and feature_name not in _ALLOWED_ENABLED_FEATURES
                     and enabled not in (None, False)
                 ):
                     errors.append(f"unknown executable feature is enabled: features.{feature_name}")
+
+        if self.prefer_mxc and features is not None:
+            _expect_value(features, "prefer_mxc", True, errors, prefix="features.")
 
         agents = _mapping_at(config, "agents", errors)
         if agents is not None and _non_null_items(agents) != {"enabled": False}:
@@ -644,6 +650,7 @@ class CodexSidecarSecurity:
             task_key=task_key,
             provider_profile=provider_profile,
             selected_app_ids=tuple(dict.fromkeys(selected_app_ids)),
+            prefer_mxc=(os.name == "nt" and "prefer_mxc" in (supported_codex_features(codex_executable) or ())),
             _launch_env=MappingProxyType(launch_env),
             _scratch_allocation=_capture_cleanup_allocation(
                 scratch_root, root=state_root, kind="scratch"
@@ -714,6 +721,13 @@ def _build_launch_env(
             "no_proxy": "127.0.0.1,localhost,::1",
         }
     )
+    if os.name == "nt":
+        system_root = result.get("SYSTEMROOT") or result.get("WINDIR")
+        if system_root:
+            result["SYSTEMDRIVE"] = os.path.splitdrive(system_root)[0]
+        local_data = app_home / "local-app-data"
+        local_data.mkdir(parents=True, exist_ok=True)
+        result["LOCALAPPDATA"] = str(local_data)
     return result
 
 
@@ -726,6 +740,7 @@ def _tool_environment(context: CodexSidecarContext) -> dict[str, str]:
         "PATH": path_value,
         "HOME": str(context.tool_home),
         "USERPROFILE": str(context.tool_home),
+        **({"LOCALAPPDATA": str(context.tool_home)} if os.name == "nt" else {}),
         "TMPDIR": str(context.tool_tmp),
         "TMP": str(context.tool_tmp),
         "TEMP": str(context.tool_tmp),
@@ -744,6 +759,7 @@ def _tool_environment(context: CodexSidecarContext) -> dict[str, str]:
             "TERM",
             "COLORTERM",
             "SYSTEMROOT",
+            "SYSTEMDRIVE",
             "COMSPEC",
             "PATHEXT",
             "WINDIR",
@@ -827,6 +843,7 @@ def _render_codex_config(context: CodexSidecarContext) -> str:
             ),
             "",
             "[features]",
+            *(("prefer_mxc = true",) if context.prefer_mxc else ()),
             *[
                 f"{name} = {str(bool(context.selected_app_ids) if name == 'apps' else False).lower()}"
                 for name in context.locked_off_features

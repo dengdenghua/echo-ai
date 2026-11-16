@@ -44,7 +44,7 @@ def _safe_storage_path(path: str) -> str:
     return clean
 
 
-def _upstream_headers(request: Request) -> dict[str, str]:
+def _upstream_headers(request: Request, token: str | None = None) -> dict[str, str]:
     headers = {
         name: value
         for name, value in request.headers.items()
@@ -52,7 +52,7 @@ def _upstream_headers(request: Request) -> dict[str, str]:
     }
     from runtime.execution.suckers.storage_skills import _storage_token
 
-    token = _storage_token()
+    token = _storage_token() if token is None else token
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
@@ -118,19 +118,27 @@ def create_storage_proxy_router(
             raise HTTPException(413, "storage request body too large")
 
         from runtime.execution.suckers.storage_skills import _base_url
+        from runtime.platform.plugins.knowledge_storage import managed_service
+
+        try:
+            service = managed_service(request)
+            base_url, token = service.endpoint() if service else (_base_url(), None)
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
 
         owns_client = http_client is None
         client = http_client or httpx.AsyncClient(
             timeout=httpx.Timeout(connect=3.0, read=300.0, write=30.0, pool=3.0),
             follow_redirects=False,
+            trust_env=False,
         )
-        url = f"{_base_url().rstrip('/')}/{safe_path}"
+        url = f"{base_url.rstrip('/')}/{safe_path}"
         try:
             upstream_request = client.build_request(
                 request.method,
                 url,
                 params=list(request.query_params.multi_items()),
-                headers=_upstream_headers(request),
+                headers=_upstream_headers(request, token),
                 content=body,
             )
             upstream = await client.send(upstream_request, stream=True)

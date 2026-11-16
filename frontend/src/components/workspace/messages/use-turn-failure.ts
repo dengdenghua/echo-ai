@@ -1,3 +1,4 @@
+import { modelLimitMessage } from "./model-limit";
 /**
  * The failure card of the latest turn: whether the turn failed, how to word
  * it, where it mounts and what the retry and audit actions need.
@@ -134,8 +135,9 @@ export function useTurnFailure({
       return {
         ...failure,
         kind,
-        message:
-          /refusing to clean (?:outside sidecar state_root|unsafe sidecar path|sidecar tree with invalid marker)/i.test(
+        message: (kind === "quota-exhausted" || kind === "rate-limit")
+          ? modelLimitMessage(failure.detail, kind === "quota-exhausted", locale)
+          : /refusing to clean (?:outside sidecar state_root|unsafe sidecar path|sidecar tree with invalid marker)/i.test(
             failure.detail,
           )
             ? t.streaming.sidecarCleanupBlocked
@@ -197,11 +199,12 @@ export function useTurnFailure({
     isNetworkError ||
     failureReceipt?.kind === "auth" ||
     failureReceipt?.kind === "capability" ||
+    failureReceipt?.kind === "quota-exhausted" ||
     failureReceipt?.kind === "rate-limit" ||
     isBackpressureError ||
     failureReceipt?.kind === "environment" ||
     failureReceipt?.kind === "blocked";
-  const failureHeaderText = noModelFailure
+  const failureHeaderText = failureReceipt?.kind === "quota-exhausted" ? (locale.startsWith("zh") ? "引擎额度已耗尽" : "Engine quota exhausted") : noModelFailure
     ? turnFailureCopy(locale).noModelTitle
     : failureReceipt?.kind === "blocked"
       ? t.streaming.blockedOnUser

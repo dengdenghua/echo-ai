@@ -3,7 +3,11 @@ import { decodeMarkdownFileURL } from "@/core/navigation/markdown-file-url";
 
 export const OPEN_ARTIFACT_EVENT = "echo:open-artifact";
 
-export type OpenArtifactDetail = { path: string };
+export type OpenArtifactDetail = {
+  path: string;
+  threadId?: string;
+  lines?: string;
+};
 
 const ARTIFACT_EXTENSION =
   /\.(?:pdf|docx?|xlsx?|pptx?|csv|tsv|html?|md|markdown|txt|json|svg|png|jpe?g|webp)(?:[?#].*)?$/i;
@@ -63,7 +67,10 @@ export function artifactRefFromMarkdownHref(href: string): string | null {
   // Absolute local paths are normalized against the current thread by the
   // realtime page. Relative filenames without an output marker remain native
   // links because guessing their workspace area would open the wrong file.
-  return value.startsWith("/") && !value.startsWith("//") ? value : null;
+  return (value.startsWith("/") && !value.startsWith("//")) ||
+    /^[a-z]:[\\/]/i.test(value)
+    ? value
+    : null;
 }
 
 function artifactRefFromOutputApiUrl(url: URL): string | null {
@@ -87,10 +94,13 @@ function safeDecodeURIComponent(value: string): string {
   }
 }
 
-export function dispatchOpenArtifact(path: string): boolean {
+export function dispatchOpenArtifact(
+  path: string,
+  location?: { threadId?: string; lines?: string },
+): boolean {
   const event = new CustomEvent<OpenArtifactDetail>(OPEN_ARTIFACT_EVENT, {
     cancelable: true,
-    detail: { path },
+    detail: { path, ...location },
   });
   return !window.dispatchEvent(event);
 }

@@ -762,3 +762,33 @@ async def test_command_folder_outside_the_scope_is_refused_before_the_approval_c
     assert result["success"] is False
     assert "cwd_outside_write_scope" in result["contentItems"][0]["text"]
     assert approver.requests == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason,code", [
+    ("timeout", "approval_timeout"),
+    ("connection_lost", "approval_connection_lost"),
+])
+async def test_approval_failure_reports_no_execution(tmp_path, reason, code):
+    from runtime.safety.approval.approval_gate import ApprovalDecision
+
+    calls = []
+    class PendingApproval:
+        def request(self, req, *, timeout=120.0):
+            return ApprovalDecision(approved=False, reason=reason)
+
+    registry = SkillRegistry()
+    registry.register(Skill(
+        name="exec_shell", description="Execute a shell command.",
+        trusted_source="skill://public/exec_shell",
+        handler=lambda command: calls.append(command),
+    ), verify_tests=False)
+    broker = _broker(tmp_path, registry, names=("exec_shell",),
+                     context={"permission_mode": "bypassPermissions"})
+    broker._approval_provider = PendingApproval()
+    result = await broker(_request(broker.catalog.names[0], {"command": "true"}))
+    assert result["success"] is False
+    text = result["contentItems"][0]["text"]
+    assert code in text
+    assert "this tool call was not executed" in text
+    assert calls == []

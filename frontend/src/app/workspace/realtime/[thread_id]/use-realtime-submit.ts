@@ -92,6 +92,7 @@ export function useRealtimeSubmit({
   return useCallback(
     (message: {
       text: string;
+      clientMessageId?: string;
       images?: File[];
       files?: File[];
       uploaded?: UploadedFileInfo[];
@@ -100,6 +101,8 @@ export function useRealtimeSubmit({
       // this click reached the mutation boundary. Returning false tells the
       // composer to preserve the complete draft for the recovered session.
       if (!readyForMutations || !canWriteConversation) return false;
+      // Scoped collaboration requests must never be handed off to another chat.
+      if (message.clientMessageId && legacyOnDemandThreadOwnerId) return false;
       const images = message.images ?? [];
       const attachedFiles = message.files ?? [];
       const browserFiles = [...attachedFiles, ...images];
@@ -161,6 +164,7 @@ export function useRealtimeSubmit({
       const autoNewSessionHours = settings.session?.auto_new_session_hours ?? 0;
       if (
         isEchoAssistant &&
+        !message.clientMessageId &&
         autoNewSessionHours > 0 &&
         message.text.trim().length > 0 &&
         browserFiles.length === 0 &&
@@ -177,7 +181,7 @@ export function useRealtimeSubmit({
 
       markSidebarThreadRunning(threadId);
       if (browserFiles.length === 0) {
-        void sendMessage(threadId, { text: message.text, files: [] });
+        void sendMessage(threadId, { text: message.text, files: [], ...(message.clientMessageId ? { clientMessageId: message.clientMessageId } : {}) });
         setReplyTarget(null);
         if (isGroupConversation) {
           // Task strategy is a one-turn intent. Returning to auto avoids a

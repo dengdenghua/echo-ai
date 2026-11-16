@@ -30,7 +30,7 @@ const isWindows = (): boolean =>
     : typeof navigator !== "undefined" &&
       navigator.userAgent.includes("Windows");
 
-function useTitleBarThemeSync() {
+function useTitleBarThemeSync(integratedToolbar: boolean) {
   useEffect(() => {
     if (
       !isWindows() ||
@@ -42,7 +42,11 @@ function useTitleBarThemeSync() {
     const apply = () => {
       const root = document.documentElement;
       const cs = getComputedStyle(root);
-      const bg = cs.getPropertyValue("--background").trim();
+      const bg = cs
+        .getPropertyValue(
+          integratedToolbar ? "--desktop-window-chrome" : "--background",
+        )
+        .trim();
       const fg = cs.getPropertyValue("--foreground").trim();
       const wrap = (v: string, fb: string) => {
         if (!v) return fb;
@@ -64,10 +68,11 @@ function useTitleBarThemeSync() {
       attributeFilter: ["data-theme", "class"],
     });
     return () => obs.disconnect();
-  }, []);
+  }, [integratedToolbar]);
 }
 
 interface ElectronTitleBarContextValue {
+  integratedToolbar: boolean;
   fullScreen: boolean;
   macTrafficLightsWidth: number;
   titleBarHeight: number;
@@ -82,8 +87,10 @@ const ElectronTitleBarContext =
 
 export function ElectronTitleBarProvider({
   children,
+  sharedToolbar = false,
 }: {
   children: ReactNode;
+  sharedToolbar?: boolean;
 }) {
   const [fullScreen, setFullScreen] = useState(false);
 
@@ -110,7 +117,9 @@ export function ElectronTitleBarProvider({
   }, []);
 
   return (
-    <ElectronTitleBarContext.Provider value={desktopWindowChrome(fullScreen)}>
+    <ElectronTitleBarContext.Provider
+      value={desktopWindowChrome(fullScreen, sharedToolbar)}
+    >
       {children}
     </ElectronTitleBarContext.Provider>
   );
@@ -121,10 +130,11 @@ export function useElectronTitleBar() {
 }
 
 export function ElectronTitleBar() {
-  const { titleBarHeight, titleBarInset, controlsSide } = useElectronTitleBar();
-  useTitleBarThemeSync();
+  const { titleBarHeight, titleBarInset, controlsSide, integratedToolbar } =
+    useElectronTitleBar();
+  useTitleBarThemeSync(integratedToolbar);
 
-  if (!titleBarHeight) return null;
+  if (!titleBarHeight || integratedToolbar) return null;
 
   return (
     <>
@@ -133,11 +143,7 @@ export function ElectronTitleBar() {
       <div
         aria-hidden
         data-window-titlebar={controlsSide}
-        className={
-          controlsSide === "right"
-            ? "pointer-events-none fixed inset-x-0 top-0 z-[60] bg-transparent"
-            : "pointer-events-none fixed inset-x-0 top-0 z-[60] border-b border-border bg-background"
-        }
+        className="pointer-events-none fixed inset-x-0 top-0 z-[60] border-b border-border-subtle bg-background"
         style={
           {
             height: titleBarInset,

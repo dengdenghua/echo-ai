@@ -9,6 +9,7 @@ from runtime.core.cerebrum._visibility_trace import (
     active_trace,
     new_trace,
 )
+from runtime.execution.misc.desktop_intent import desktop_capture_requested
 
 _PATHISH_RE = re.compile(
     r"([A-Za-z]:\\|/[\w.-]+|\.{1,2}/|[\w.-]+\.(?:py|ts|tsx|js|jsx|go|rs|md|json|yaml|yml|css|html))"
@@ -136,7 +137,18 @@ def filter_surface_compatible_skills(
 
     values = list(names)
     if not browser_tools_requested(user_context, goal=goal):
-        return [name for name in values if not _is_browser_ui_tool(name)]
+        # Screen observation serves native desktop tasks too. Do not remove it
+        # merely because the turn did not request an interactive browser.
+        text, mode = _context_text(goal, user_context)
+        desktop_rule = next(rule for rule in _RULES if rule["label"] == "desktop-ui")
+        desktop_requested = desktop_capture_requested(text) or mode in desktop_rule["modes"] or any(
+            str(keyword).lower() in text for keyword in desktop_rule["keywords"]
+        )
+        return [
+            name for name in values
+            if not _is_browser_ui_tool(name)
+            or (desktop_requested and name in _BROWSER_UI_TOOLS)
+        ]
     if isolated_code_ui_regression(user_context):
         return [name for name in values if not name.startswith("live_browser_")]
     return values
@@ -460,6 +472,18 @@ _RULES: tuple[dict[str, Any], ...] = (
             "桌面操作",
             "控制电脑",
             "操作电脑",
+            "电脑控制",
+            "操控",
+            "桌面状态",
+            "computer_observe",
+            "computer_uia_",
+            "screen_capture",
+            "desktop screenshot",
+            "window screenshot",
+            "屏幕截图",
+            "桌面截图",
+            "窗口截图",
+            "截图回读",
         ),
         "skills": (
             "computer_observe",
@@ -690,6 +714,8 @@ def activate_capabilities(
     for rule in _RULES:
         mode_hit = bool(mode and mode in rule["modes"])
         keyword_hits = [kw for kw in rule["keywords"] if str(kw).lower() in text]
+        if rule["label"] == "desktop-ui" and desktop_capture_requested(text):
+            keyword_hits.append("desktop-capture-action")
         if not mode_hit and not keyword_hits:
             continue
         labels.append(rule["label"])

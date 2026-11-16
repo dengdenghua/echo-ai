@@ -1,3 +1,4 @@
+import { currentActorScope } from "@/core/auth/api";
 import type { CoworkRoomReplyReference } from "@/core/cowork/types";
 
 export interface RoomMessage {
@@ -47,18 +48,28 @@ export interface QueuedRoomMessage {
 
 const ROOM_OUTBOX_PREFIX = "echo:room-outbox:";
 
-export function roomOutboxKey(teamId: string, participantId: string): string {
-  return `${ROOM_OUTBOX_PREFIX}${teamId}:${participantId}`;
+function roomOutboxScopePrefix(scope: string): string {
+  return `${ROOM_OUTBOX_PREFIX}${encodeURIComponent(scope)}:`;
+}
+
+export function roomOutboxKey(
+  teamId: string,
+  participantId: string,
+  scope = currentActorScope(),
+): string {
+  return `${roomOutboxScopePrefix(scope)}${teamId}:${participantId}`;
 }
 
 export function readRoomOutbox(
   teamId?: string | null,
   participantId?: string | null,
+  scope = currentActorScope(),
 ): QueuedRoomMessage[] {
   if (!teamId || !participantId || typeof window === "undefined") return [];
   try {
     const parsed = JSON.parse(
-      window.localStorage.getItem(roomOutboxKey(teamId, participantId)) ?? "[]",
+      window.localStorage.getItem(roomOutboxKey(teamId, participantId, scope)) ??
+        "[]",
     );
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
@@ -78,15 +89,32 @@ export function writeRoomOutbox(
   teamId: string,
   participantId: string,
   messages: QueuedRoomMessage[],
+  scope = currentActorScope(),
 ) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(
-      roomOutboxKey(teamId, participantId),
+      roomOutboxKey(teamId, participantId, scope),
       JSON.stringify(messages.slice(-100)),
     );
   } catch {
     // Storage may be disabled or full; in-memory delivery still works.
+  }
+}
+
+/** Drop unsent room messages when their owner explicitly signs out. */
+export function clearRoomOutboxForScope(scope = currentActorScope()): void {
+  if (typeof window === "undefined") return;
+  try {
+    const prefix = roomOutboxScopePrefix(scope);
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    for (const key of keys) window.localStorage.removeItem(key);
+  } catch {
+    // Storage unavailable: no durable outbox to clear.
   }
 }
 

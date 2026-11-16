@@ -72,6 +72,7 @@ export type FailurePresentation = {
   /** A later user turn completed successfully, so this is historical audit. */
   resolved?: boolean;
   kind:
+    | "quota-exhausted"
     | "error"
     | "auth"
     | "capability"

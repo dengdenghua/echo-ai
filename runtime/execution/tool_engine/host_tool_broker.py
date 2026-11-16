@@ -779,6 +779,20 @@ class HostToolBroker:
             if not decision.approved:
                 self._network_denials.note_denial(entry.skill_name, risk, arguments)
                 reason = decision.reason or "user declined the tool request"
+                # These failures occur before _execute_sync. Distinguish an
+                # unanswered approval from an uncertain handler timeout so the
+                # model cannot imply that a click/key might already have run.
+                if reason == "timeout":
+                    reason = (
+                        "Echo approval timed out (approval_timeout); this tool call "
+                        "was not executed. Do not report a handler timeout or retry "
+                        "the action automatically."
+                    )
+                elif reason == "connection_lost":
+                    reason = (
+                        "Echo approval connection was lost (approval_connection_lost); "
+                        "this tool call was not executed."
+                    )
                 if is_network_risk(risk):
                     reason += (
                         " — this network access was refused; do not retry it or reach "
@@ -888,6 +902,21 @@ class HostToolBroker:
             f"write. Write under {scope.primary_write} instead; a relative path "
             "lands there."
         )
+
+    def completed_result(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any] | None:
+        """Read the host receipt for an exact call echoed by an external driver."""
+        fingerprint = hashlib.sha256(
+            json.dumps(arguments, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+        ).hexdigest()
+        matched = None
+        for advertised, recorded, result in reversed(self._results.values()):
+            if advertised == tool and recorded == fingerprint:
+                if matched is not None and matched != result:
+                    # Identical concurrent arguments do not establish a
+                    # unique worker/session identity. Keep the driver result.
+                    return None
+                matched = result
+        return dict(matched) if matched is not None else None
 
     def _execution_session(self, *, auto_approve: bool) -> Session:
         metadata = dict(self._metadata)

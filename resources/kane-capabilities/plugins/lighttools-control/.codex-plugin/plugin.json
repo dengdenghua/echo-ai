@@ -1,0 +1,26 @@
+{
+  "name": "lighttools-control",
+  "version": "0.1.1+echo.20261113",
+  "description": "Control local LightTools through official LTAPI4 COM, with optical modeling skills and MCP tools.",
+  "author": {
+    "name": "Personal"
+  },
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "LightTools 本地控制",
+    "shortDescription": "LightTools 光学建模、追迹与接收器数据提取",
+    "longDescription": "通过本地 LTAPI4/COM 操作 LightTools，支持模型和参数编辑、照明光线追迹、接收器网格读取、CSV 导出及官方文档查询。包含会话识别、任务状态、恢复副本与许可证故障排查。需要 Windows、已安装 LightTools 和可用许可证。",
+    "developerName": "Personal",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "检查本机 LightTools 环境并连接当前模型。",
+      "读取接收器网格结果并导出 CSV。",
+      "根据光学需求建立模型并执行照明追迹。"
+    ]
+  }
+}

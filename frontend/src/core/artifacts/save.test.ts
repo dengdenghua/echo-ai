@@ -87,6 +87,11 @@ describe("workspace output saving", () => {
     );
   });
 
+  it("does not treat an HTTP 200 without a successful write receipt as saved", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: false }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    await expect(saveWorkspaceOutputContent({ filepath: "workspace-output:final:site.html", threadId: "t1", content: "new", expectedContent: "old" })).rejects.toMatchObject({ status: 0 });
+  });
+
   it("restores a saved revision through the scoped endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

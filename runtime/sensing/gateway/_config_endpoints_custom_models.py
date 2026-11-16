@@ -151,7 +151,7 @@ def _register_custom_models(router: Any, ctx: _ConfigCtx) -> None:
         except (TypeError, ValueError):
             context_window = 0
         if not 8_192 <= context_window <= 2_000_000:
-            context_window = _entry_context_window({}, models)
+            context_window = None  # Resolve per model at read time; never persist the first variant as a global limit.
         enable_1m_context = (
             bool(body["enable_1m_context"])
             if "enable_1m_context" in body
@@ -425,3 +425,4 @@ def _register_custom_models(router: Any, ctx: _ConfigCtx) -> None:
                 "latency_ms": None,
                 "error": f"{type(e).__name__}: {e}",
             }
+

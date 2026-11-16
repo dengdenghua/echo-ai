@@ -17,9 +17,14 @@ from typing import Any
 
 from runtime.execution.codebuddy_events import CodeBuddyError, CodeBuddyEvents
 from runtime.execution.host_mcp_connection import HostMCPConnection
+from runtime.execution.engine_packages.store import installed_executable
+from runtime.execution.engine_packages.versions import leased
+from runtime.execution.engine_packages.node_runtime import node_executable
 
 
 def executable() -> str | None:
+    if managed := installed_executable("codebuddy"):
+        return managed
     if configured := os.environ.get("ECHO_CODEBUDDY_BIN"):
         path = Path(configured).expanduser()
         return str(path.resolve()) if path.is_file() else None
@@ -36,12 +41,12 @@ def command(binary: str) -> list[str]:
         # Never execute a shell command string. Invoke the npm package with Node,
         # preserving empty --tools arguments and paths with spaces on Windows.
         entry = path.parent / "node_modules/@tencent-ai/codebuddy-code/bin/codebuddy"
-        node = shutil.which("node.exe") or shutil.which("node")
+        node = node_executable()
         if not node or not entry.is_file():
             raise CodeBuddyError("CodeBuddy npm 安装不完整，请重新安装官方 CLI。")
         return [node, str(entry)]
-    if path.suffix.lower() in {".js", ".mjs", ".cjs"}:
-        if not (node := shutil.which("node")):
+    if path.suffix.lower() in {".js", ".mjs", ".cjs"} or path.name == "codebuddy":
+        if not (node := node_executable()):
             raise CodeBuddyError("CodeBuddy 需要 Node.js。")
         return [node, str(path)]
     return [binary]
@@ -75,10 +80,11 @@ def inspect_readiness(scope: Any = None) -> dict[str, Any]:
 
 
 @lru_cache(maxsize=4)
-def _models(binary: str, modified: float) -> tuple[str, ...]:
+def _models(binary: str, modified: tuple) -> tuple[str, ...]:
     try:
         result = subprocess.run(
             command(binary) + ["--help"],
+            env=child_environment(),
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -99,13 +105,44 @@ def _models(binary: str, modified: float) -> tuple[str, ...]:
         raise CodeBuddyError("无法读取 CodeBuddy 官方模型列表，请重试。") from exc
 
 
+def _catalog_signature(binary: str) -> tuple:
+    # Official login changes account/product routing without changing the CLI.
+    # Fingerprint file metadata only; never load or expose account credentials.
+    paths = [*map(Path, command(binary)), Path.home() / ".codebuddy/settings.json"]
+    signature = []
+    for path in paths:
+        try:
+            info = path.stat()
+            signature.append((str(path), info.st_mtime_ns, info.st_size))
+        except FileNotFoundError:
+            signature.append((str(path), None, None))
+    return tuple(signature)
+
+
+@lru_cache(maxsize=4)
+def _control_capabilities(binary: str, signature: tuple) -> dict:
+    try:
+        result = subprocess.run(command(binary) + ["--help"], env=child_environment(),
+            capture_output=True, text=True, encoding="utf8", errors="replace", timeout=10,
+            **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}))
+        help_text = result.stdout if result.returncode == 0 else ""
+        return {"effort": "--effort <" in help_text, "autocompact": "--autocompact <" in help_text}
+    except (OSError, subprocess.SubprocessError, CodeBuddyError):
+        return {"effort": False, "autocompact": False}
+
+
+def control_capabilities() -> dict:
+    binary = executable()
+    return _control_capabilities(binary, _catalog_signature(binary)) if binary else {"effort": False, "autocompact": False}
+
+
 def model_catalog() -> list[str]:
     if not inspect_readiness()["available"] or not (binary := executable()):
         return []
     try:
         return [
             model
-            for model in _models(binary, Path(binary).stat().st_mtime)
+            for model in _models(binary, _catalog_signature(binary))
             if not model.startswith("custom-local:")
         ]
     except (OSError, CodeBuddyError):
@@ -162,6 +199,8 @@ def child_environment() -> dict[str, str]:
             "CODEBUDDY_DISABLE_SHELL_SNAPSHOT": "1",
         }
     )
+    if node := node_executable():
+        env["PATH"] = str(Path(node).parent) + os.pathsep + env.get("PATH", "")
     return env
 
 
@@ -178,6 +217,7 @@ async def _stop(process: asyncio.subprocess.Process) -> None:
         await process.wait()
 
 
+@leased("codebuddy")
 async def stream_prompt(
     *,
     text: str,
@@ -186,12 +226,27 @@ async def stream_prompt(
     interrupted: Callable[[], bool],
     host_mcp: HostMCPConnection | None = None,
     tool_names: dict[str, str] | None = None,
+    reasoning_effort: str | None = None,
+    autocompact: int | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
+    if reasoning_effort is not None and reasoning_effort not in {"minimal", "low", "medium", "high", "xhigh", "max"}:
+        raise CodeBuddyError("不支持的 CodeBuddy 思考等级")
+    if autocompact is not None and (type(autocompact) is not int or not 100000 <= autocompact <= 1000000):
+        raise CodeBuddyError("自动压缩预算必须在 100K 到 1M 之间")
     ready = inspect_readiness()
     if not ready["available"]:
         raise CodeBuddyError(ready["reason"])
     if interrupted():
         raise asyncio.CancelledError()
+    from runtime.execution.codebuddy_model_capabilities import model_capabilities
+    capability = await asyncio.to_thread(model_capabilities, [model])
+    selected = capability.get(model)
+    if selected is not None:
+        if reasoning_effort not in selected["reasoning_efforts"]:
+            reasoning_effort = selected.get("default_reasoning_effort")
+        window = selected.get("context_window")
+        if autocompact is not None and window and autocompact > window:
+            autocompact = window if window >= 100000 else None
     reducer = CodeBuddyEvents(tool_names=tool_names or {}, model=model)
     # Fresh cwd: no repository hooks/configs/plugins; Echo supplies instructions
     # and conversation history explicitly. The temporary MCP bearer never enters
@@ -243,6 +298,10 @@ async def stream_prompt(
         ]
         if reducer.tool_names:
             argv += ["--allowedTools", ",".join(reducer.tool_names)]
+        if reasoning_effort is not None:
+            argv += ["--effort", reasoning_effort]
+        if autocompact is not None:
+            argv += ["--autocompact", str(autocompact)]
         if model != "auto":
             argv += ["--model", model]
         process = await asyncio.create_subprocess_exec(
@@ -280,6 +339,11 @@ async def stream_prompt(
                 for event in reducer.consume(message):
                     if event["type"] == "react_completed":
                         terminal = event
+                        terminal["completion_receipt"]["effective_controls"] = {
+                            "reasoning_effort": reasoning_effort,
+                            "auto_compact_token_limit": autocompact,
+                            "context_window": selected.get("context_window") if selected else None,
+                        }
                     else:
                         yield event
             if await process.wait() != 0 or terminal is None:

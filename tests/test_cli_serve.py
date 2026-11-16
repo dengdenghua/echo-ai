@@ -65,9 +65,7 @@ class TestServeBasics:
 
         monkeypatch.delenv("ECHO_DEPLOYMENT_MODE", raising=False)
         monkeypatch.delenv("ECHO_PROCESS_SANDBOX", raising=False)
-        monkeypatch.setattr(sandbox_mod.BubblewrapBackend, "available", staticmethod(lambda: False))
-        monkeypatch.setattr(sandbox_mod.LandlockBackend, "available", staticmethod(lambda: False))
-        monkeypatch.setattr(sandbox_mod.SeatbeltBackend, "available", staticmethod(lambda: False))
+        monkeypatch.setattr(sandbox_mod, "_hard_backend_candidates", lambda _mode: [])
 
         error, previous = _prepare_execution_security(
             AgentConfig.model_validate({"execution": {"deployment_mode": "commercial"}})

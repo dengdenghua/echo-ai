@@ -1,4 +1,11 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Loader2Icon, PackageIcon } from "lucide-react";
 import {
   Dialog,
@@ -31,20 +38,82 @@ import { MediaReference } from "./media-reference";
 import { fileReferenceParams } from "@/core/navigation/conversation-file";
 import { fileReadError } from "@/core/i18n/locales/conversation-files";
 import { isRecord } from "@/core/utils/guards";
+import { filePreviewRef } from "@/core/artifacts/file-preview-ref";
+
+function FilePreviewSurface({
+  embedded,
+  path,
+  description,
+  onClose,
+  children,
+}: {
+  embedded: boolean;
+  path: string;
+  description: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  if (embedded)
+    return (
+      <section
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4"
+        aria-label={path}
+      >
+        <header className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="font-medium">{path.split(/[\\/]/).pop()}</h2>
+            <p className="break-all text-xs text-muted-foreground">
+              {description}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close file preview"
+          >
+            ×
+          </button>
+        </header>
+        {children}
+      </section>
+    );
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>{path.split(/[\\/]/).pop()}</DialogTitle>
+          <DialogDescription className="break-all">
+            {description}
+          </DialogDescription>
+        </DialogHeader>
+        {children}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function LinkedFileReference({
   path,
   lines,
   label,
+  embedded = false,
+  onClose,
 }: {
   path: string;
   lines?: string;
   label?: string;
+  embedded?: boolean;
+  onClose?: () => void;
 }) {
   const scope = useContext(FileReferenceScope);
   const { locale } = useI18n();
   const zh = locale === "zh-CN";
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [content, setContent] = useState<string>();
   const [error, setError] = useState<string>();
   const [truncated, setTruncated] = useState(false);
@@ -175,189 +244,208 @@ export function LinkedFileReference({
     const outputRef = artifactRefFromMarkdownHref(path);
     if (
       outputRef?.startsWith("workspace-output:") &&
-      dispatchOpenArtifact(outputRef)
+      dispatchOpenArtifact(outputRef, { threadId: scope.threadId, lines })
     )
       return;
     // Same hand-off as the status menu's 产出 list: the 产物 tab.
-    if (artifact && dispatchOpenArtifact(artifact)) return;
+    if (
+      artifact &&
+      dispatchOpenArtifact(artifact, { threadId: scope.threadId, lines })
+    )
+      return;
+    if (
+      scope.threadId &&
+      dispatchOpenArtifact(
+        filePreviewRef({
+          path,
+          lines,
+          basePath: scope.basePath,
+          threadId: scope.threadId,
+        }),
+        { threadId: scope.threadId },
+      )
+    )
+      return;
     setOpen(true);
   };
   return (
     <>
-      <FileReferenceChip
-        path={path}
-        lines={lines}
-        label={label}
-        onClick={openFile}
-        className="text-primary"
-      />
+      {!embedded && (
+        <FileReferenceChip
+          path={path}
+          lines={lines}
+          label={label}
+          onClick={openFile}
+          className="text-primary"
+        />
+      )}
       {open && (
-        <Dialog open onOpenChange={setOpen}>
-          <DialogContent className="sm:max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>{path.split(/[\\/]/).pop()}</DialogTitle>
-              <DialogDescription className="break-all">
-                {loadedPath ?? resolvedPath}
-              </DialogDescription>
-            </DialogHeader>
-            {error ? (
-              <>
-                <p role="alert">{error}</p>
-                {candidates.map((candidate) => (
-                  <button
-                    key={candidate}
-                    type="button"
-                    className="break-all rounded border p-2 text-left text-sm"
-                    onClick={() =>
-                      setChosenFile({
-                        reference: path,
-                        threadId: scope.threadId,
-                        path: candidate,
-                      })
-                    }
-                  >
-                    {candidate}
-                  </button>
-                ))}
+        <FilePreviewSurface
+          embedded={embedded}
+          path={path}
+          description={loadedPath ?? resolvedPath}
+          onClose={() => {
+            setOpen(false);
+            onClose?.();
+          }}
+        >
+          {error ? (
+            <>
+              <p role="alert">{error}</p>
+              {candidates.map((candidate) => (
                 <button
+                  key={candidate}
                   type="button"
-                  className="justify-self-start rounded border px-3 py-1 text-sm"
-                  onClick={() => setAttempt((value) => value + 1)}
-                >
-                  {zh ? "重新读取" : "Retry"}
-                </button>
-                {sameNameArtifacts.map((match) => (
-                  <button
-                    key={match}
-                    type="button"
-                    className="inline-flex items-center gap-2 justify-self-start rounded-md border px-3 py-2 text-sm"
-                    onClick={() => {
-                      if (dispatchOpenArtifact(match)) setOpen(false);
-                    }}
-                  >
-                    <PackageIcon className="size-4" aria-hidden="true" />
-                    {linkedFileReferenceCopy(locale).openInArtifacts}
-                    {sameNameArtifacts.length > 1 && (
-                      <span className="text-muted-foreground">
-                        {artifactDisplayPath(match)}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </>
-            ) : media ? (
-              <>
-                {media.type.startsWith("image/") ||
-                media.type === "application/pdf" ? (
-                  <MediaReference
-                    url={media.url}
-                    type={media.type}
-                    path={loadedPath ?? resolvedPath}
-                    zh={zh}
-                    onQuote={
-                      scope.threadId
-                        ? (reference) => {
-                            quoteIntoTask(scope.threadId, reference);
-                            setOpen(false);
-                          }
-                        : undefined
-                    }
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {zh
-                      ? "此文件可下载后打开。"
-                      : "Download this file to open it."}
-                  </p>
-                )}
-                <a
-                  className="text-primary underline"
-                  href={media.url}
-                  download={path.split(/[\\/]/).pop()}
-                >
-                  {zh ? "下载文件" : "Download file"}
-                </a>
-              </>
-            ) : content === undefined ? (
-              <Loader2Icon
-                aria-label={zh ? "正在读取" : "Loading"}
-                className="size-5 animate-spin"
-              />
-            ) : (
-              <pre
-                ref={textRef}
-                onMouseUp={() => {
-                  const selected = window.getSelection();
-                  if (
-                    !selected ||
-                    selected.isCollapsed ||
-                    !textRef.current?.contains(selected.anchorNode) ||
-                    !textRef.current.contains(selected.focusNode)
-                  ) {
-                    setSelection(undefined);
-                    return;
+                  className="break-all rounded border p-2 text-left text-sm"
+                  onClick={() =>
+                    setChosenFile({
+                      reference: path,
+                      threadId: scope.threadId,
+                      path: candidate,
+                    })
                   }
-                  const numberOf = (node: Node | null) =>
-                    Number(
-                      (node?.nodeType === Node.ELEMENT_NODE
-                        ? (node as Element)
-                        : node?.parentElement
-                      )
-                        ?.closest("[data-source-line]")
-                        ?.getAttribute("data-source-line"),
-                    );
-                  const first = numberOf(selected.anchorNode),
-                    last = numberOf(selected.focusNode);
-                  if (first && last)
-                    setSelection({
-                      text: selected.toString().slice(0, 6000),
-                      lines: `${Math.min(first, last)}-${Math.max(first, last)}`,
-                    });
-                }}
-                className="max-h-[65vh] overflow-auto rounded-lg bg-muted/40 p-3 text-xs leading-6"
-              >
-                {content.split("\n").map((text, index) => (
-                  <span
-                    key={index}
-                    data-source-line={index + 1}
-                    ref={index + 1 === line ? lineRef : undefined}
-                    className={`block ${index + 1 >= line && index + 1 <= Number(lines?.split("-")[1] || line) ? "bg-primary/10" : ""}`}
-                  >
-                    <span className="mr-4 inline-block w-9 select-none text-right text-muted-foreground">
-                      {index + 1}
-                    </span>
-                    {text || " "}
-                  </span>
-                ))}
-              </pre>
-            )}
-            {truncated && (
-              <p className="text-xs text-muted-foreground">
-                {zh ? "显示前 5000 行" : "Showing the first 5000 lines"}
-              </p>
-            )}
-            {content !== undefined && scope.threadId && (
+                >
+                  {candidate}
+                </button>
+              ))}
               <button
-                className="justify-self-start rounded-md border px-3 py-2 text-sm"
-                onClick={() => {
-                  quoteIntoTask(
-                    scope.threadId,
-                    `文件：${loadedPath ?? resolvedPath}${selection ? `:${selection.lines}` : lines ? `:${lines}` : ""}\n${fingerprint ? `预览内容 SHA-256：${fingerprint}\n` : ""}${truncated ? "（预览已截断）\n" : ""}${selection?.text ?? "请针对这个文件提出修改意见。"}`,
-                  );
-                  setOpen(false);
-                }}
+                type="button"
+                className="justify-self-start rounded border px-3 py-1 text-sm"
+                onClick={() => setAttempt((value) => value + 1)}
               >
-                {selection
-                  ? zh
-                    ? "引用选中内容提修改意见"
-                    : "Comment on selection"
-                  : zh
-                    ? "引用此文件"
-                    : "Reference this file"}
+                {zh ? "重新读取" : "Retry"}
               </button>
-            )}
-          </DialogContent>
-        </Dialog>
+              {sameNameArtifacts.map((match) => (
+                <button
+                  key={match}
+                  type="button"
+                  className="inline-flex items-center gap-2 justify-self-start rounded-md border px-3 py-2 text-sm"
+                  onClick={() => {
+                    if (dispatchOpenArtifact(match)) setOpen(false);
+                  }}
+                >
+                  <PackageIcon className="size-4" aria-hidden="true" />
+                  {linkedFileReferenceCopy(locale).openInArtifacts}
+                  {sameNameArtifacts.length > 1 && (
+                    <span className="text-muted-foreground">
+                      {artifactDisplayPath(match)}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </>
+          ) : media ? (
+            <>
+              {media.type.startsWith("image/") ||
+              media.type === "application/pdf" ? (
+                <MediaReference
+                  url={media.url}
+                  type={media.type}
+                  path={loadedPath ?? resolvedPath}
+                  zh={zh}
+                  onQuote={
+                    scope.threadId
+                      ? (reference) => {
+                          quoteIntoTask(scope.threadId, reference);
+                            if (!embedded) setOpen(false);
+                        }
+                      : undefined
+                  }
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {zh
+                    ? "此文件可下载后打开。"
+                    : "Download this file to open it."}
+                </p>
+              )}
+              <a
+                className="text-primary underline"
+                href={media.url}
+                download={path.split(/[\\/]/).pop()}
+              >
+                {zh ? "下载文件" : "Download file"}
+              </a>
+            </>
+          ) : content === undefined ? (
+            <Loader2Icon
+              aria-label={zh ? "正在读取" : "Loading"}
+              className="size-5 animate-spin"
+            />
+          ) : (
+            <pre
+              ref={textRef}
+              onMouseUp={() => {
+                const selected = window.getSelection();
+                if (
+                  !selected ||
+                  selected.isCollapsed ||
+                  !textRef.current?.contains(selected.anchorNode) ||
+                  !textRef.current.contains(selected.focusNode)
+                ) {
+                  setSelection(undefined);
+                  return;
+                }
+                const numberOf = (node: Node | null) =>
+                  Number(
+                    (node?.nodeType === Node.ELEMENT_NODE
+                      ? (node as Element)
+                      : node?.parentElement
+                    )
+                      ?.closest("[data-source-line]")
+                      ?.getAttribute("data-source-line"),
+                  );
+                const first = numberOf(selected.anchorNode),
+                  last = numberOf(selected.focusNode);
+                if (first && last)
+                  setSelection({
+                    text: selected.toString().slice(0, 6000),
+                    lines: `${Math.min(first, last)}-${Math.max(first, last)}`,
+                  });
+              }}
+              className="max-h-[65vh] overflow-auto rounded-lg bg-muted/40 p-3 text-xs leading-6"
+            >
+              {content.split("\n").map((text, index) => (
+                <span
+                  key={index}
+                  data-source-line={index + 1}
+                  ref={index + 1 === line ? lineRef : undefined}
+                  className={`block ${index + 1 >= line && index + 1 <= Number(lines?.split("-")[1] || line) ? "bg-primary/10" : ""}`}
+                >
+                  <span className="mr-4 inline-block w-9 select-none text-right text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  {text || " "}
+                </span>
+              ))}
+            </pre>
+          )}
+          {truncated && (
+            <p className="text-xs text-muted-foreground">
+              {zh ? "显示前 5000 行" : "Showing the first 5000 lines"}
+            </p>
+          )}
+          {content !== undefined && scope.threadId && (
+            <button
+              className="justify-self-start rounded-md border px-3 py-2 text-sm"
+              onClick={() => {
+                quoteIntoTask(
+                  scope.threadId,
+                  `文件：${loadedPath ?? resolvedPath}${selection ? `:${selection.lines}` : lines ? `:${lines}` : ""}\n${fingerprint ? `预览内容 SHA-256：${fingerprint}\n` : ""}${truncated ? "（预览已截断）\n" : ""}${selection?.text ?? "请针对这个文件提出修改意见。"}`,
+                );
+                  if (!embedded) setOpen(false);
+              }}
+            >
+              {selection
+                ? zh
+                  ? "引用选中内容提修改意见"
+                  : "Comment on selection"
+                : zh
+                  ? "引用此文件"
+                  : "Reference this file"}
+            </button>
+          )}
+        </FilePreviewSurface>
       )}
     </>
   );

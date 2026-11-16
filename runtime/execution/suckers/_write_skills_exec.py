@@ -14,6 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 from runtime.safety.env_scrub import scrub_credential_env as _scrub_unconfined_env
+from runtime.safety.sandboxing.execution_mode import command_boundary
 
 from ._write_skills_background import (
     _BACKGROUND_JOB_LIMITS,
@@ -227,6 +228,7 @@ def _exec_shell(
     egress_allow_common: bool | None = None,
     **_kw: Any,
 ) -> dict[str, Any]:
+    cwd, sandbox_dir = command_boundary(cwd, sandbox_dir)
     if run_in_background or background:
         return _background_exec(
             command=command,
@@ -441,6 +443,7 @@ def _background_exec(
     egress_allow_common: bool | None = None,
     **_kw: Any,
 ) -> dict[str, Any]:
+    cwd, sandbox_dir = command_boundary(cwd, sandbox_dir)
     argv, parse_error = _parse_command(command)
     from runtime.platform.connectors.cli_profile import direct_cli_profile_env
 

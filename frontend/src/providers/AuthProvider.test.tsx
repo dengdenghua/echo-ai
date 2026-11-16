@@ -1,4 +1,4 @@
-import { act, screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -32,11 +32,19 @@ vi.mock("@/core/auth/api", () => ({
   _writeToken: vi.fn(),
   _clearTokens: mocks.clearTokens,
   desktopOwnerLogin: mocks.desktopOwnerLogin,
+  currentActorScope: () => "oct:user@example.com",
 }));
 
 vi.mock("@/core/oct/api", () => ({
   octAuthApi: { emailLogin: vi.fn() },
 }));
+
+import {
+  readRoomOutbox,
+  roomOutboxKey,
+  writeRoomOutbox,
+} from "@/components/workspace/collab/room-message-state";
+import { workspaceWebShortcutKey } from "@/core/workbench/apps";
 
 import { AuthProvider, useAuth } from "./AuthProvider";
 
@@ -131,11 +139,14 @@ it("still asks when a tab-scoped token exists without a cookie", async () => {
   expect(mocks.getMe).toHaveBeenCalledTimes(1);
 });
 
-it("drops the in-memory actor when a protected request reports expiry", async () => {
+it("drops the in-memory actor and query cache when a protected request reports expiry", async () => {
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(["threads", "search"], [{ thread_id: "previous" }]);
   renderWithProviders(
     <AuthProvider>
       <AuthState />
     </AuthProvider>,
+    { queryClient },
   );
   expect(await screen.findByText("authenticated")).toBeInTheDocument();
 
@@ -145,10 +156,56 @@ it("drops the in-memory actor when a protected request reports expiry", async ()
 
   expect(await screen.findByText("anonymous")).toBeInTheDocument();
   expect(mocks.clearTokens).toHaveBeenCalled();
+  expect(queryClient.getQueryData(["threads", "search"])).toBeUndefined();
   expect(window.fetch).toHaveBeenCalledWith("/api/auth/logout", {
     method: "POST",
     credentials: "include",
   });
+});
+
+it("clears the signing-out account's durable queues before leaving", async () => {
+  const scope = "oct:user@example.com";
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(["threads", "search"], [{ thread_id: "previous" }]);
+  writeRoomOutbox(
+    "room-1",
+    "browser-1",
+    [
+      {
+        client_message_id: "pending",
+        text: "unsent",
+        created_at: "2026-10-25T00:00:00Z",
+      },
+    ],
+    scope,
+  );
+  window.localStorage.setItem(
+    workspaceWebShortcutKey(scope),
+    JSON.stringify([{ id: "web:x", name: "X", url: "https://x.test/" }]),
+  );
+  let signOut!: ReturnType<typeof useAuth>["logout"];
+  function Capture() {
+    signOut = useAuth().logout;
+    return <AuthState />;
+  }
+  renderWithProviders(
+    <AuthProvider>
+      <Capture />
+    </AuthProvider>,
+    { queryClient },
+  );
+  expect(await screen.findByText("authenticated")).toBeVisible();
+
+  await act(async () => signOut());
+
+  expect(queryClient.getQueryData(["threads", "search"])).toBeUndefined();
+  await waitFor(() => {
+    expect(readRoomOutbox("room-1", "browser-1", scope)).toEqual([]);
+    expect(window.localStorage.getItem(workspaceWebShortcutKey(scope))).toBeNull();
+  });
+  expect(
+    window.localStorage.getItem(roomOutboxKey("room-1", "browser-1", scope)),
+  ).toBeNull();
 });
 
 it("exposes a retryable error when the auth status endpoint is unavailable", async () => {

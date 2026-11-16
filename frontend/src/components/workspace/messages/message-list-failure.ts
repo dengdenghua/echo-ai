@@ -1,3 +1,4 @@
+import { isQuotaExhausted } from "./model-limit";
 /**
  * Why a turn failed: the structured failure a turn carries and the kind of failure it is, for the message list's failure card.
  */
@@ -78,6 +79,7 @@ export function failureKind(
 ): FailurePresentation["kind"] {
   const signal = `${code ?? ""}\n${detail}`;
   const normalized = signal.toLowerCase();
+  if (isQuotaExhausted(signal) || failureKindHint === "quota-exhausted") return "quota-exhausted";
   // A genuine "needs your input" hand-off is never a failure — amber/waiting.
   if (disposition === "blocked_on_user") {
     return "blocked";

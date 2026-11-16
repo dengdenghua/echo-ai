@@ -42,6 +42,7 @@ export function InspectOverlay({
   onPrepareInspect,
   busy = false,
   className,
+  toolbar,
   children,
 }: {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
@@ -56,6 +57,7 @@ export function InspectOverlay({
   onPrepareInspect?: () => void;
   busy?: boolean;
   className?: string;
+  toolbar?: ReactNode;
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -144,12 +146,6 @@ export function InspectOverlay({
     }
   }, [busy, dismissSelection, instruction, onRequestAiEdit, selected]);
 
-  if (!enabled) {
-    return (
-      <div className={cn("relative size-full", className)}>{children}</div>
-    );
-  }
-
   function toggle() {
     // A URL-backed preview deliberately stays on its real origin until the
     // user asks to inspect. Always enter the prepared srcDoc mode first when
@@ -175,48 +171,66 @@ export function InspectOverlay({
   }
 
   return (
-    <div className={cn("relative size-full", className)}>
-      {children}
-      <div className="pointer-events-none absolute top-2 right-2 z-10 flex items-center gap-1.5">
-        {active && (
-          <span className="pointer-events-none rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground">
-            {t.livePreview.inspectHint}
-          </span>
-        )}
-        <Button
-          aria-label={
-            active ? t.livePreview.cancelInspect : t.livePreview.inspectElement
-          }
-          className={cn(
-            "pointer-events-auto h-7 gap-1.5 px-2 text-xs",
-            active && "bg-primary text-primary-foreground hover:bg-primary/90",
-          )}
-          disabled={!iframeReady && !onPrepareInspect}
-          onClick={toggle}
-          size="sm"
-          title={
-            iframeReady || onPrepareInspect
-              ? active
-                ? t.livePreview.cancelInspect
-                : t.livePreview.inspectElement
-              : t.livePreview.loading
-          }
-          type="button"
-          variant={active ? "default" : "secondary"}
+    <div className={cn("relative flex size-full min-h-0 flex-col", className)}>
+      {(enabled || toolbar) && (
+        <div
+          data-testid="artifact-preview-toolbar"
+          className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-subtle bg-background px-3 py-2"
         >
-          {active ? (
-            <XIcon className="size-3" />
-          ) : (
-            <CrosshairIcon className="size-3" />
+          {toolbar}
+          {enabled && (
+            <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+              {active && (
+                <span className="pointer-events-none rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground">
+                  {t.livePreview.inspectHint}
+                </span>
+              )}
+              <Button
+                aria-label={
+                  active
+                    ? t.livePreview.cancelInspect
+                    : t.livePreview.inspectElement
+                }
+                className={cn(
+                  "pointer-events-auto h-7 gap-1.5 px-2 text-xs",
+                  active &&
+                    "bg-primary text-primary-foreground hover:bg-primary/90",
+                )}
+                disabled={!iframeReady && !onPrepareInspect}
+                onClick={toggle}
+                size="sm"
+                title={
+                  iframeReady || onPrepareInspect
+                    ? active
+                      ? t.livePreview.cancelInspect
+                      : t.livePreview.inspectElement
+                    : t.livePreview.loading
+                }
+                type="button"
+                variant={active ? "default" : "secondary"}
+              >
+                {active ? (
+                  <XIcon className="size-3" />
+                ) : (
+                  <CrosshairIcon className="size-3" />
+                )}
+                {pendingActivation
+                  ? t.livePreview.loading
+                  : active
+                    ? t.livePreview.cancelInspect
+                    : t.livePreview.inspectElement}
+              </Button>
+            </div>
           )}
-          {pendingActivation
-            ? t.livePreview.loading
-            : active
-              ? t.livePreview.cancelInspect
-              : t.livePreview.inspectElement}
-        </Button>
+        </div>
+      )}
+      <div
+        data-testid="artifact-preview-viewport"
+        className="relative min-h-0 flex-1 overflow-hidden"
+      >
+        {children}
       </div>
-      {selected && (
+      {enabled && selected && (
         <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
           <div className="pointer-events-auto w-full max-w-xl rounded-xl border border-primary/25 bg-background/95 p-3 shadow-[var(--shadow-lg)] backdrop-blur">
             <div className="mb-2 flex items-start gap-2">

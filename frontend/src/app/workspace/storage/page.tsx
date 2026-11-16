@@ -1,5 +1,5 @@
 import { serviceErrorMessage } from "@/core/utils/service-error";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AppWindowIcon,
   DatabaseIcon,
@@ -50,6 +50,7 @@ import { pickLocalDirectory } from "@/core/workspace/pick-local-directory";
 import { cn } from "@/lib/utils";
 
 import { AppsView } from "./apps-view";
+import { KnowledgePluginCard } from "./knowledge-plugin-card";
 import { TopicCenterView } from "./library-views";
 import { LocalDiskView } from "./local-disk-view";
 import { SearchResultsView } from "./search-results-view";
@@ -140,6 +141,7 @@ export default function StoragePage() {
   const [policy, setPolicy] = useState<NASPolicy>(DEFAULT_POLICY);
   const [sources, setSources] = useState<NASSource[]>([]);
   const [apps, setApps] = useState<NASApp[]>([]);
+  const [appsError, setAppsError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<NASFileAsset[]>([]);
   const [images, setImages] = useState<NASFileAsset[]>([]);
   const [videos, setVideos] = useState<NASFileAsset[]>([]);
@@ -153,10 +155,14 @@ export default function StoragePage() {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isIndexing, setIsIndexing] = useState(false);
-  const didAutoStartRef = useRef(false);
 
   const libraryParam = searchParams.get("library");
   const activeLibrary = isLibraryKey(libraryParam) ? libraryParam : "computer";
+  useEffect(() => {
+    setHasSearchResult(false);
+    setHits([]);
+    setSearchMessage(null);
+  }, [activeLibrary]);
   const libraries = useMemo(() => buildLibraries(copy), [copy]);
   const activeMeta = libraries.find((item) => item.key === activeLibrary)!;
 
@@ -188,6 +194,7 @@ export default function StoragePage() {
       setPolicy(nextPolicy);
       setSources(nextSources);
       setApps(nextApps.status === "fulfilled" ? nextApps.value : []);
+      setAppsError(nextApps.status === "rejected" ? "本机应用列表加载失败，请更新知识库组件后刷新。" : null);
       setDocuments(
         nextDocuments.status === "fulfilled" ? nextDocuments.value : [],
       );
@@ -200,6 +207,7 @@ export default function StoragePage() {
       setManifest(null);
       setSources([]);
       setApps([]);
+      setAppsError("本机应用服务未连接，请重新连接后刷新。");
       setDocuments([]);
       setImages([]);
       setVideos([]);
@@ -239,25 +247,8 @@ export default function StoragePage() {
   }, [copy, refreshNAS]);
 
   useEffect(() => {
-    const init = async () => {
-      if (await refreshNAS()) {
-        return;
-      }
-      if (didAutoStartRef.current) return;
-      didAutoStartRef.current = true;
-      try {
-        await ensureNASService();
-      } catch (error) {
-        const isNetworkError =
-          error instanceof TypeError &&
-          /Failed to fetch|NetworkError|network error/i.test(error.message);
-        if (isNetworkError) {
-          setServiceError(copy.service.networkError);
-        }
-      }
-    };
-    void init();
-  }, [copy.service.networkError, ensureNASService, refreshNAS]);
+    void refreshNAS();
+  }, [refreshNAS]);
 
   useEffect(() => {
     const reconnect = () => {
@@ -384,8 +375,10 @@ export default function StoragePage() {
     <WorkspaceContainer className="px-0 pb-0 md:px-0">
       <WorkspaceBody className="overflow-hidden pt-0">
         <div className="flex size-full overflow-hidden">
+          <h1 className="sr-only">存储</h1>
           <section className="workspace-panel flex min-h-0 flex-1 overflow-hidden rounded-none border-0 bg-card">
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-card">
+              <KnowledgePluginCard onChange={refreshNAS} />
               {/* An optional service being offline is state, not risk: no
                   warning amber (BRAND.md reserves it for approval/risk). */}
               {serviceError && (
@@ -513,6 +506,7 @@ export default function StoragePage() {
                 />
               ) : activeLibrary === "apps" ? (
                 <AppsView
+                  error={appsError}
                   apps={apps}
                   query={query}
                   setQuery={setQuery}

@@ -49,7 +49,9 @@ def _fingerprint(path: Path, *, required: bool) -> dict[str, Any]:
     return fingerprint
 
 
-def _paths(values: Any, task: ExecutionTask, *, write: bool) -> tuple[Path, ...]:
+def _paths(
+    values: Any, task: ExecutionTask, *, write: bool, artifact_root: Path | None = None
+) -> tuple[Path, ...]:
     if values is None:
         return ()
     if not isinstance(values, (list, tuple)) or len(values) > _MAX_FILES:
@@ -63,7 +65,11 @@ def _paths(values: Any, task: ExecutionTask, *, write: bool) -> tuple[Path, ...]
         if not path.is_absolute():
             if root is None:
                 raise ArtifactHandoffError("artifact path requires an approved workspace")
-            path = root / path
+            relative = raw.replace("\\", "/").removeprefix("./")
+            if artifact_root is not None and relative.startswith("output/final/"):
+                path = artifact_root / relative[len("output/final/") :]
+            else:
+                path = root / path
         path = path.resolve(strict=False)
         allowed = task.permissions.allows_read(path) and (
             not write or task.permissions.allows_write(path)
@@ -96,11 +102,13 @@ class ArtifactHandoff:
         recorder = parent.metadata.get("_execution_handoff_recorder")
         if not isinstance(recorder, HandoffRecorder):
             raise ArtifactHandoffError("artifact handoff requires a durable host journal")
+        output_root = parent.metadata.get("_artifact_output_root")
+        artifact_root = Path(output_root) if output_root else None
         inputs = []
-        for path in _paths(input_files, task, write=False):
+        for path in _paths(input_files, task, write=False, artifact_root=artifact_root):
             snapshot = _fingerprint(path, required=True)
             inputs.append(ArtifactReference(path, snapshot["sha256"], snapshot["size"]))
-        outputs = _paths(output_files, task, write=True)
+        outputs = _paths(output_files, task, write=True, artifact_root=artifact_root)
         baselines = {path: _fingerprint(path, required=False) for path in outputs}
         return cls(parent, task, ArtifactContract(tuple(inputs), outputs), baselines, recorder)
 

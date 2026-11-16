@@ -385,6 +385,19 @@ def _goal_requests_code_mutation(goal: str, *, include_colloquial: bool = True) 
         r"write|rewrite|overwrite|patch|fix|build|migrate|refactor)\b",
         lowered,
     )
+    # Artifact requests can explicitly preserve project source while writing
+    # deliverables. Match a concrete file target rather than bare “生成” (which
+    # also appears in read-only questions about how generation works).
+    artifact_mutation = any(
+        re.search(
+            r"(?:生成|保存|写)\s*[^。；;\n]{0,120}"
+            r"(?:文件|报告|文档|[\w./\\-]+\.(?:md|html?|json|csv|txt|docx|pdf|xlsx|pptx)\b)",
+            clause,
+        )
+        for clause in re.split(r"[。；;，,\n]", (goal or "").lower())
+        if not re.search(r"(?:不要|无需|不需要|禁止|不得|不可|别|不允许)", clause)
+        and not re.match(r"\s*(?:只读|查看|解释|分析|检查|了解)", clause)
+    )
     chinese_markers = (
         "实现",
         "修改",
@@ -409,7 +422,11 @@ def _goal_requests_code_mutation(goal: str, *, include_colloquial: bool = True) 
         # "优化" alone is excluded because it routinely appears in read-only
         # review prose ("这段代码可以优化"), whereas "开始优化" cannot.
     )
-    if english_mutation is not None or any(marker in lowered for marker in chinese_markers):
+    if (
+        artifact_mutation
+        or english_mutation is not None
+        or any(marker in lowered for marker in chinese_markers)
+    ):
         return True
     if not include_colloquial:
         return False

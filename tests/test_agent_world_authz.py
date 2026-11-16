@@ -23,8 +23,9 @@ def test_targeted_installed_status_skips_skill_inventory(tmp_path, monkeypatch):
         def installed_plugins(self):
             return ["design", "unrelated"]
 
-        def plugin_statuses(self, *, package_id):
+        def plugin_statuses(self, *, package_id, local_only=False):
             assert package_id == "design"
+            assert local_only is True, "navigation must not fetch the cloud catalog"
             return {"design": {"installed": True, "enabled": False}}
 
     from runtime.platform.plugins import cloud_catalog

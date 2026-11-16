@@ -229,6 +229,10 @@ async def test_authenticated_mcp_native_io_plugin_context_and_revocation(tmp_pat
                 client, 2, "tools/call", {"name": "read_file", "arguments": {"path": "note.txt"}}
             )
             assert not read["isError"] and "before" in str(read["content"])
+            receipt = bridge.broker.completed_result("read_file", {"path": "note.txt"})
+            assert receipt["success"] is True
+            assert "before" in str(receipt["contentItems"])
+            assert bridge.broker.completed_result("read_file", {"path": "other.txt"}) is None
             args = {
                 "name": "write_text_file",
                 "arguments": {"path": "note.txt", "content": "after", "overwrite": True},
@@ -236,6 +240,13 @@ async def test_authenticated_mcp_native_io_plugin_context_and_revocation(tmp_pat
             written = await rpc(client, 3, "tools/call", args)
             assert not written["isError"], written
             assert (workspace / "note.txt").read_text(encoding="utf-8") == "after"
+            await rpc(
+                client,
+                "reread",
+                "tools/call",
+                {"name": "read_file", "arguments": {"path": "note.txt"}},
+            )
+            assert bridge.broker.completed_result("read_file", {"path": "note.txt"}) is None
             denied = await rpc(
                 client,
                 4,

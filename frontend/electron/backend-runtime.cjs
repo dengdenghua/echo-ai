@@ -521,6 +521,8 @@ function developmentUvCmd() {
 // the `desktop-core` extra in pyproject.toml; released installers use the
 // PyInstaller dependency graph instead.
 const CORE_DEPS = [
+  "tzdata>=2025.2",
+  "certifi>=2026.10.18",
   "bcrypt>=4.0",
   "cryptography>=50.0.0",
   "fastapi>=0.115,<1.0",
@@ -541,12 +543,13 @@ const CORE_DEPS = [
   "python-docx>=1.2.0",
   "openpyxl>=3.1.5",
   "python-pptx>=1.0.2",
-  "pypdf>=6.19.0",
+  "pypdf>=6.21.4",
   "reportlab>=4.4.4",
   "aiortc>=1.14,<2",
   "mss>=10,<11",
+  "pyaudiowpatch>=0.2.12.8,<0.3; sys_platform == 'win32'",
   "pyautogui>=0.9.54",
-  "pillow>=11.2",
+  "pillow>=13.0.0",
 ];
 
 // Heavy optional capability → pyproject extra. Installed lazily on first use.
@@ -554,7 +557,7 @@ const OPTIONAL_GROUPS = {
   browser: ["playwright>=1.48"],
   desktop: [
     "pyautogui>=0.9.54",
-    "pillow>=11.2",
+    "pillow>=13.0.0",
     "uiautomation>=2.0; platform_system == 'Windows'",
     "pywin32>=308; platform_system == 'Windows'",
     "windows-capture>=2.0.1,<3; platform_system == 'Windows'",
@@ -570,12 +573,12 @@ const OPTIONAL_GROUPS = {
     "opencv-python-headless>=5.0.0.93",
     "rapidocr-onnxruntime>=1.3.0",
   ],
-  extract: ["trafilatura>=2.0", "pypdf>=6.19.0"],
+  extract: ["trafilatura>=2.0", "pypdf>=6.21.4"],
   office: [
     "python-docx>=1.2.0",
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
-    "pypdf>=6.19.0",
+    "pypdf>=6.21.4",
     "reportlab>=4.4.4",
   ],
   mcp: [
@@ -713,6 +716,9 @@ async function spawnBackend(configPath, onProgress) {
   const env = {
     ...process.env,
     ECHO_DESKTOP: "1",
+    // Agent-facing computer/browser skills must call this owned backend,
+    // rather than silently falling back to the developer gateway on 8310.
+    ECHO_INTERNAL_GATEWAY_BASE_URL: `http://127.0.0.1:${backendPort()}`,
     ECHO_DATA_DIR: path.join(app.getPath("userData"), "data"),
     ECHO_RESOURCES_DIR: path.join(app.getPath("userData"), "resources"),
     ECHO_PACKAGED_CODEX_VERSION: PACKAGED_CODEX_VERSION,
@@ -762,6 +768,8 @@ async function spawnBackend(configPath, onProgress) {
   let child;
   try {
     child = spawn(executable, args, {
+      // OS launchers can inherit a read-only working directory such as System32.
+      cwd: packaged ? app.getPath("userData") : undefined,
       stdio: packaged ? ["ignore", logFd, logFd] : "inherit",
       env,
       windowsHide: true,

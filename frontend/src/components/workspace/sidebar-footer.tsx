@@ -12,7 +12,7 @@ import {
   UserCircleIcon,
   UsersIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { swallow } from "@/core/utils/log";
 import { ACTIVE_AGENT_KEY, ROUTE_LOCKS } from "@/core/agents/active";
@@ -23,6 +23,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAgents, type Agent } from "@/core/agents";
@@ -82,7 +85,13 @@ function getAccountDisplayName(user: {
 
 // ─── AgentFooter ─────────────────────────────────────────────────
 
-export function AgentFooter() {
+export function AgentFooter({
+  variant = "sidebar",
+}: {
+  variant?: "sidebar" | "rail";
+}) {
+  const compact = variant === "rail";
+  const accountTriggerRef = useRef<HTMLButtonElement>(null);
   const {
     agents,
     isLoading: agentsLoading,
@@ -232,6 +241,7 @@ export function AgentFooter() {
     return (
       <DropdownMenuItem
         key={a.name}
+        disabled={compact && Boolean(lock)}
         aria-current={isActive ? "true" : undefined}
         onSelect={() => selectAgent(a.name)}
         onKeyDown={(event) => {
@@ -282,64 +292,69 @@ export function AgentFooter() {
         ? t.sidebar.agentsLoadFailed
         : t.sidebar.noAgents);
   const accountName = user ? getAccountDisplayName(user) : "";
-  // The bottom-left slot is the person, by convention; the active role rides
-  // along as a badge and a second line so switching agents stays one click.
+  // The trigger represents the active persona; account identity lives in the menu.
   const accountLabel = accountName || t.sidebar.accountFallback;
-  const accountInitial = accountName.trim().charAt(0).toUpperCase();
 
   // Calculate evolution level and stars
   const level = evolutionData
     ? calculateLevel(evolutionData.learning_events)
     : null;
   const stars = level !== null ? calculateStars(level) : null;
+  const roleLine = displayAgent
+    ? t.sidebar.activeRoleLine(agentTriggerLabel)
+    : agentTriggerLabel;
+  // The button's accessible name comes from its contents, so the visible
+  // level and stars are included automatically. This prefix keeps a stable
+  // name when the text column is hidden in icon-collapsed mode.
+  const accountMenuLabel = [accountLabel, roleLine].filter(Boolean).join("，");
 
   return (
-    <div className="flex items-center gap-1">
+    <div
+      className={cn("flex items-center gap-1", compact && "desktop-account")}
+    >
       <DropdownMenu open={agentMenuOpen} onOpenChange={setAgentMenuOpen}>
-        <DropdownMenuTrigger asChild disabled={Boolean(lock)}>
+        <DropdownMenuTrigger asChild disabled={!compact && Boolean(lock)}>
           <button
+            ref={accountTriggerRef}
             type="button"
-            disabled={Boolean(lock)}
+            disabled={!compact && Boolean(lock)}
+            data-testid={compact ? "desktop-account-menu" : undefined}
             title={
-              lock
-                ? t.sidebar.lockedAgentTooltip(
-                    displayAgent?.display_name || displayAgent?.name || "",
-                  )
-                : displayAgent?.description || agentTriggerLabel
+              compact
+                ? roleLine
+                : lock
+                  ? t.sidebar.lockedAgentTooltip(
+                      displayAgent?.display_name || displayAgent?.name || "",
+                    )
+                  : displayAgent?.description || agentTriggerLabel
             }
-            aria-label={t.sidebar.accountMenuLabel(accountLabel, agentTriggerLabel)}
             className={cn(
               "group/agent flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left",
-              "opacity-90 transition-[opacity,background-color] duration-fast",
-              "hover:opacity-100 hover:bg-muted/50 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45",
+              "transition-[background-color] duration-fast",
+              "hover:bg-muted/50 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45",
               "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+              compact && "size-9 flex-none justify-center rounded-full p-0",
             )}
           >
+            <span className="sr-only">{accountMenuLabel}</span>
             <span className="relative shrink-0" aria-hidden="true">
-              <span className="flex size-7 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
-                {accountInitial || <UserCircleIcon className="size-4" />}
-              </span>
               {displayAgent ? (
-                <AgentAvatar
-                  agent={displayAgent}
-                  className="absolute -right-1 -bottom-1 size-4 rounded-full border-0 text-micro ring-2 ring-sidebar"
-                />
-              ) : showAgentLoading || showAgentError ? (
-                <span
-                  className={cn(
-                    "absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-muted text-muted-foreground ring-2 ring-sidebar",
-                    showAgentError && "text-destructive",
-                  )}
-                >
-                  {showAgentLoading ? (
-                    <LoaderCircleIcon className="size-2.5 animate-spin" />
-                  ) : (
-                    <AlertCircleIcon className="size-2.5" />
-                  )}
+                <AgentAvatar key={displayAgent.name} agent={displayAgent}
+                  className="size-8 rounded-full border-0 text-sm ring-1 ring-foreground/10" />
+              ) : (
+                <span className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  {showAgentLoading ? <LoaderCircleIcon className="size-4 animate-spin" />
+                    : showAgentError ? <AlertCircleIcon className="size-4 text-destructive" />
+                    : <UserCircleIcon className="size-5" />}
                 </span>
-              ) : null}
+              )}
             </span>
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
+            <span
+              className={cn(
+                "flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden",
+                compact && "hidden",
+              )}
+            >
               <span className="truncate text-xs font-medium leading-tight">
                 {accountLabel}
               </span>
@@ -349,9 +364,7 @@ export function AgentFooter() {
                   showAgentError && "text-destructive",
                 )}
               >
-                {displayAgent
-                  ? t.sidebar.activeRoleLine(agentTriggerLabel)
-                  : agentTriggerLabel}
+                {roleLine}
                 {level !== null && (
                   <span className="ml-1.5">
                     Lv.{level}
@@ -373,34 +386,49 @@ export function AgentFooter() {
                 )}
               </span>
             </span>
-            {lock ? (
-              <span
-                className="shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden"
-                aria-hidden
-              >
-                <LockIcon className="size-3" />
-              </span>
-            ) : (
-              <span className="shrink-0 text-muted-foreground group-hover/agent:text-muted-foreground group-data-[collapsible=icon]:hidden">
-                <svg
-                  viewBox="0 0 24 24"
-                  className="size-3"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            <span className="sr-only">
+              {t.sidebar.accountMenuLabel(accountLabel, agentTriggerLabel)}
+            </span>
+            {!compact &&
+              (lock ? (
+                <span
+                  className="shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden"
                   aria-hidden
                 >
-                  <polyline points="6 15 12 9 18 15" />
-                </svg>
-              </span>
-            )}
+                  <LockIcon className="size-3" />
+                </span>
+              ) : (
+                <span className="shrink-0 text-muted-foreground group-hover/agent:text-muted-foreground group-data-[collapsible=icon]:hidden">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="size-3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <polyline points="6 15 12 9 18 15" />
+                  </svg>
+                </span>
+              ))}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
-          side="top"
-          align="start"
+          onPointerDownOutside={(event) => {
+            // A closing menu can still receive the next trigger press while
+            // a lazy surface is changing. Let the trigger toggle once.
+            if (
+              compact &&
+              event.target instanceof Node &&
+              accountTriggerRef.current?.contains(event.target)
+            ) {
+              event.preventDefault();
+            }
+          }}
+          side={compact ? "right" : "top"}
+          align={compact ? "end" : "start"}
           sideOffset={6}
           className="max-h-[calc(100vh-1rem)] w-[288px] max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg border-border-default p-1.5 shadow-[var(--shadow-floating)]"
         >
@@ -422,6 +450,15 @@ export function AgentFooter() {
             )}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          {compact && (
+            <DropdownMenuItem
+              onSelect={() => void _navigate("/workspace/settings")}
+              className="flex min-h-9 items-center gap-2 rounded-lg px-2 py-1.5 text-xs"
+            >
+              <SettingsIcon className="size-4 shrink-0 opacity-70" />
+              <span>{t.sidebar.settingsTooltip}</span>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onSelect={() => void _navigate("/workspace/organizations")}
             className="flex min-h-9 items-center gap-2 rounded-lg px-2 py-1.5 text-xs focus:bg-foreground/[0.035]"
@@ -429,34 +466,48 @@ export function AgentFooter() {
             <UsersIcon className="size-4 shrink-0 opacity-70" />
             <span>{ORG_COPY[locale].title}</span>
           </DropdownMenuItem>
-          <DropdownMenuLabel className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-            {t.sidebar.switchAgentMenuTitle}
-          </DropdownMenuLabel>
-          {hasPersonaAgents ? (
-            personaAgents.map(renderAgentItem)
-          ) : showAgentLoading ? (
-            <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-muted-foreground">
-              <LoaderCircleIcon className="size-3.5 animate-spin" />
-              <span>{t.sidebar.loadingAgents}</span>
-            </div>
-          ) : showAgentError ? (
-            <>
-              <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-destructive">
-                <AlertCircleIcon className="size-3.5 shrink-0" />
-                <span>{t.sidebar.agentsLoadFailed}</span>
-              </div>
-              <DropdownMenuItem
-                onSelect={() => void refetchAgents()}
-                className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs focus:bg-muted/60 focus:text-foreground"
-              >
-                <RefreshCwIcon className="size-3.5 shrink-0" />
-                <span>{t.sidebar.retryAgents}</span>
-              </DropdownMenuItem>
-            </>
+          {compact && hasPersonaAgents ? (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="min-h-9 gap-2 rounded-lg px-2 text-xs">
+                <UsersIcon className="size-4 opacity-70" />
+                {t.sidebar.switchAgentMenuTitle}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="max-h-[70svh] w-[288px] overflow-y-auto">
+                {personaAgents.map(renderAgentItem)}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           ) : (
-            <div className="px-2 py-2 text-xs text-muted-foreground">
-              {t.sidebar.noAgents}
-            </div>
+            <>
+              <DropdownMenuLabel className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                {t.sidebar.switchAgentMenuTitle}
+              </DropdownMenuLabel>
+              {hasPersonaAgents ? (
+                personaAgents.map(renderAgentItem)
+              ) : showAgentLoading ? (
+                <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-muted-foreground">
+                  <LoaderCircleIcon className="size-3.5 animate-spin" />
+                  <span>{t.sidebar.loadingAgents}</span>
+                </div>
+              ) : showAgentError ? (
+                <>
+                  <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-destructive">
+                    <AlertCircleIcon className="size-3.5 shrink-0" />
+                    <span>{t.sidebar.agentsLoadFailed}</span>
+                  </div>
+                  <DropdownMenuItem
+                    onSelect={() => void refetchAgents()}
+                    className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs focus:bg-muted/60 focus:text-foreground"
+                  >
+                    <RefreshCwIcon className="size-3.5 shrink-0" />
+                    <span>{t.sidebar.retryAgents}</span>
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <div className="px-2 py-2 text-xs text-muted-foreground">
+                  {t.sidebar.noAgents}
+                </div>
+              )}
+            </>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -468,20 +519,22 @@ export function AgentFooter() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <button
-        type="button"
-        title={t.sidebar.settingsTooltip}
-        aria-label={t.sidebar.settingsTooltip}
-        onClick={() => emitOpenSettings()}
-        className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground",
-          "opacity-70 transition-[opacity,background-color,color] duration-fast",
-          "hover:bg-muted hover:text-foreground hover:opacity-100",
-          "group-data-[collapsible=icon]:hidden",
-        )}
-      >
-        <SettingsIcon className="size-4" />
-      </button>
+      {!compact && (
+        <button
+          type="button"
+          title={t.sidebar.settingsTooltip}
+          aria-label={t.sidebar.settingsTooltip}
+          onClick={() => emitOpenSettings()}
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground",
+            "opacity-70 transition-[opacity,background-color,color] duration-fast",
+            "hover:bg-muted hover:text-foreground hover:opacity-100",
+            "group-data-[collapsible=icon]:hidden",
+          )}
+        >
+          <SettingsIcon className="size-4" />
+        </button>
+      )}
       <CreditsCenterDialog open={creditsOpen} onOpenChange={setCreditsOpen} />
     </div>
   );

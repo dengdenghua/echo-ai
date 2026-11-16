@@ -167,6 +167,11 @@ def _canonical_effect_class(skill: Any, *, handler_executed: bool) -> EffectClas
         _tree,
     )
     from runtime.execution.suckers.write_skills import _edit_file
+    from runtime.execution.suckers.computer_uia_skills import (
+        _computer_uia_find,
+        _computer_uia_status,
+        _computer_uia_tree,
+    )
 
     read_only_handlers = {
         "list_cwd": _list_cwd,
@@ -179,6 +184,9 @@ def _canonical_effect_class(skill: Any, *, handler_executed: bool) -> EffectClas
         "grep_text": _grep_text,
         "tree": _tree,
         "todo_read": _todo_read,
+        "computer_uia_status": _computer_uia_status,
+        "computer_uia_tree": _computer_uia_tree,
+        "computer_uia_find": _computer_uia_find,
     }
     workspace_write_handlers = {"edit_file": _edit_file}
     local_state_handlers = {"todo_write": _todo_write}

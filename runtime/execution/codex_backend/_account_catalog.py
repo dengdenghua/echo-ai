@@ -103,10 +103,10 @@ class CodexAccountCatalogMixin:
             await self._drain_notifications(runtime)
             cursor: str | None = None
             apps: list[dict[str, object]] = []
-            for _page in range(20):
+            for _page in range(200):
                 response = await runtime.client.list_apps(
                     cursor=cursor,
-                    limit=100,
+                    limit=10,
                     force_refetch=force_refetch and cursor is None,
                 )
                 raw_apps = response.get("data")

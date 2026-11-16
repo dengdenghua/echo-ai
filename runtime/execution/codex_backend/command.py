@@ -50,6 +50,8 @@ def resolve_codex_app_server_command(executable: str | None = None) -> tuple[str
     different Codex versions.
     """
 
+    if executable is None and (managed := installed_executable("codex")):
+        return (managed, "app-server", "--strict-config", "--listen", "stdio://")
     configured = os.environ.get("ECHO_CODEX_EXECUTABLE")
     if not configured:
         # A Codex installed from the store is the pinned build; the desktop

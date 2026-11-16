@@ -44,6 +44,8 @@ export function RemoteDesktopHost({
 }) {
   const [status, setStatus] = useState<HostStatus | null>(null);
   const [error, setError] = useState("");
+  const errorMessage = (failure: unknown): string =>
+    failure instanceof Error ? failure.message : String(failure);
   const [busy, setBusy] = useState(false);
   const revision = useRef(0);
   const changing = useRef(false);
@@ -56,7 +58,7 @@ export function RemoteDesktopHost({
       setStatus(next);
       setError("");
     } catch (failure) {
-      if (version === revision.current) setError((failure as Error).message);
+      if (version === revision.current) setError(errorMessage(failure));
     }
   }, []);
   useEffect(() => {
@@ -72,7 +74,7 @@ export function RemoteDesktopHost({
       setStatus(await request(path, method, body));
       setError("");
     } catch (failure) {
-      setError((failure as Error).message);
+      setError(errorMessage(failure));
     } finally {
       changing.current = false;
       setBusy(false);

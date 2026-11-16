@@ -120,12 +120,13 @@ export const MemoizedGroup = memo(
             continue;
           }
           const agents = callAgents.map((agent) => {
-            anchoredAgentIds.add(agent.id);
             const identity = subagentAgents?.find(
-              (entry) => entry.id === agent.id,
+              (entry) => entry.id === call.id || entry.id === agent.id,
             );
+            anchoredAgentIds.add(identity?.id ?? agent.id);
             return {
               ...agent,
+              id: identity?.id ?? agent.id,
               name: identity?.name ?? agent.name,
               avatar: identity?.avatar ?? agent.avatar,
               avatarUrl: identity?.avatarUrl ?? agent.avatarUrl,
@@ -177,6 +178,7 @@ export const MemoizedGroup = memo(
     );
     return (
       <div
+        data-message-group={groupKey}
         data-turn-key={group.type === "human" ? groupKey : undefined}
         className={cn(
           index === 0 ? "pt-1" : undefined,

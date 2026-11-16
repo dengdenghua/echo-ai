@@ -56,13 +56,13 @@ describe("department templates", () => {
       screen.getAllByRole("button", { name: /^启动部门场景/ }),
     ).toHaveLength(6);
     expect(
-      screen.queryByRole("button", { name: "启动部门场景：通用协作" }),
+      screen.queryByRole("button", { name: /^启动部门场景：通用协作/ }),
     ).toBeNull();
     await userEvent.click(
       screen.getByRole("button", { name: "展开全部 8 个场景" }),
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "启动部门场景：通用协作" }),
+      screen.getByRole("button", { name: /^启动部门场景：通用协作/ }),
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "团队名称" })).toHaveValue(
@@ -103,7 +103,7 @@ describe("department templates", () => {
     mocks.create.mockResolvedValue({ id: "team-1", thread_id: "team-thread" });
     renderWithProviders(<DepartmentScenarios />);
     const button = screen.getByRole("button", {
-      name: `启动部门场景：${scenario.title}`,
+      name: new RegExp(`^启动部门场景：${scenario.title}`),
     });
     await waitFor(() => expect(button).toBeEnabled());
     await userEvent.click(button);

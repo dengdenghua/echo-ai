@@ -20,6 +20,9 @@ export interface ModelSettingsPageCopy {
   addApiModel: string;
   scanLocalModels: string;
   addConnection: string;
+  groupApiModels: string;
+  groupLocalModels: string;
+  groupAccounts: string;
   formAdvancedTitle: string;
   formAdvancedSubtitle: string;
   codexTitle: string;
@@ -80,6 +83,9 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     addApiModel: "接入 API 模型",
     scanLocalModels: "扫描本地模型",
     addConnection: "添加连接",
+    groupApiModels: "API",
+    groupLocalModels: "本地",
+    groupAccounts: "账号登录",
     formAdvancedTitle: "高级选项",
     formAdvancedSubtitle: "显示名称、协议与模型能力",
     codexTitle: "Codex 授权",
@@ -87,7 +93,7 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     visionTitle: "本地图片理解",
     visionSubtitle: "管理图片与视频检索模型",
     advancedTitle: "高级设置",
-    advancedSubtitle: "本地图片理解、自动路由与连接诊断",
+    advancedSubtitle: "账号登录、分享、诊断与多模型协同",
     advancedBadge: "高级",
     sameOriginProxy: "同源代理",
     compatDetails: "查看兼容处理规则",
@@ -142,6 +148,9 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     addApiModel: "Add API model",
     scanLocalModels: "Scan local models",
     addConnection: "Add connection",
+    groupApiModels: "API",
+    groupLocalModels: "Local",
+    groupAccounts: "Sign in with an account",
     formAdvancedTitle: "Advanced options",
     formAdvancedSubtitle: "Display name, protocol, and model capabilities",
     codexTitle: "Codex authorization",
@@ -150,7 +159,7 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     visionSubtitle: "Manage the image and video search model",
     advancedTitle: "Advanced settings",
     advancedSubtitle:
-      "Local image understanding, routing, and connection diagnostics",
+      "Account sign-in, sharing, diagnostics, and multi-model routing",
     advancedBadge: "Advanced",
     sameOriginProxy: "Same-origin proxy",
     compatDetails: "View compatibility rules",
@@ -210,6 +219,9 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     addApiModel: "API モデルを追加",
     scanLocalModels: "ローカルモデルをスキャン",
     addConnection: "接続を追加",
+    groupApiModels: "API",
+    groupLocalModels: "ローカル",
+    groupAccounts: "アカウントでログイン",
     formAdvancedTitle: "詳細オプション",
     formAdvancedSubtitle: "表示名、プロトコル、モデルの機能",
     codexTitle: "Codex 認証",
@@ -217,7 +229,7 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     visionTitle: "ローカル画像理解",
     visionSubtitle: "画像・動画検索モデルの管理",
     advancedTitle: "詳細設定",
-    advancedSubtitle: "ローカル画像理解、自動ルーティング、接続診断",
+    advancedSubtitle: "アカウントログイン、共有、診断、マルチモデル連携",
     advancedBadge: "上級",
     sameOriginProxy: "同一オリジンプロキシ",
     compatDetails: "互換処理ルールを表示",
@@ -275,6 +287,9 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     addApiModel: "API 모델 추가",
     scanLocalModels: "로컬 모델 스캔",
     addConnection: "연결 추가",
+    groupApiModels: "API",
+    groupLocalModels: "로컬",
+    groupAccounts: "계정으로 로그인",
     formAdvancedTitle: "고급 옵션",
     formAdvancedSubtitle: "표시 이름, 프로토콜 및 모델 기능",
     codexTitle: "Codex 인증",
@@ -282,7 +297,7 @@ const MODEL_SETTINGS_PAGE_COPY: Record<
     visionTitle: "로컬 이미지 이해",
     visionSubtitle: "이미지 및 동영상 검색 모델 관리",
     advancedTitle: "고급 설정",
-    advancedSubtitle: "로컬 이미지 이해, 자동 라우팅 및 연결 진단",
+    advancedSubtitle: "계정 로그인, 공유, 진단, 다중 모델 협업",
     advancedBadge: "고급",
     sameOriginProxy: "동일 출처 프록시",
     compatDetails: "호환 처리 규칙 보기",

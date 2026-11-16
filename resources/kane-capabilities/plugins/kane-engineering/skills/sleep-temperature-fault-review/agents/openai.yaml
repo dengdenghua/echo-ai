@@ -1,0 +1,4 @@
+interface:
+  display_name: "温控性能与故障保护"
+  short_description: "检查温控性能与故障保护，区分标准适用性、工程经验与台架试验及实装证据"
+  default_prompt: "使用 $sleep-temperature-fault-review 审查我们的水循环睡眠温控产品，列出设计问题、标准候选与试验确认项。"

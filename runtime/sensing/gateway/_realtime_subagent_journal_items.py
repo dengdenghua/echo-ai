@@ -64,6 +64,9 @@ def _subagent_lifecycle_item_from_journal(event: Any) -> McpToolCallItem | None:
         getattr(event, "args_preview", None) if spawned else getattr(event, "output_preview", None)
     )
     payload = _parse_lifecycle_preview(preview)
+    session_id = getattr(event, "session_id", None)
+    if session_id:
+        payload["session_id"] = str(session_id)
     parent_id = getattr(event, "parent_tool_use_id", None)
     if parent_id:
         payload["parent_tool_use_id"] = str(parent_id)

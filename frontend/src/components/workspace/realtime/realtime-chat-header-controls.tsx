@@ -71,8 +71,10 @@ export function RealtimeChatHeaderActions({
         )}
       >
         {share ? <div className="shrink-0">{share}</div> : null}
-        {environment}
-        {workbench}
+        <div className="ml-1.5 inline-flex items-stretch gap-1 sm:ml-2">
+          {environment}
+          {workbench}
+        </div>
       </div>
     </div>
   );

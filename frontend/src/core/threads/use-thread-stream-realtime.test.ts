@@ -1066,6 +1066,8 @@ describe("useThreadStreamRealtime permissions", () => {
     expect(result.current[0].isLoading).toBe(true);
     await waitFor(() => expect(startTurn).toHaveBeenCalledTimes(1));
     const clientItemId = startTurn.mock.calls[0]?.[0].clientItemId;
+    const receipt = vi.fn();
+    window.addEventListener("echo:message-confirmed", receipt);
     expect(clientItemId).toBe(result.current[0].messages[0]?.id);
     expect(startTurn.mock.calls[0]?.[0].metadata).not.toHaveProperty(
       "client_message_id",
@@ -1090,6 +1092,15 @@ describe("useThreadStreamRealtime permissions", () => {
       },
     ]);
     rerender();
+
+    await waitFor(() =>
+      expect(receipt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: { threadId: "th-test", clientMessageId: clientItemId },
+        }),
+      ),
+    );
+    window.removeEventListener("echo:message-confirmed", receipt);
 
     await waitFor(() => {
       const humanMessages = result.current[0].messages.filter(
@@ -1692,13 +1703,40 @@ describe("useThreadStreamRealtime permissions", () => {
 
   it("reports a rejected turn as its real error after a spreadsheet was uploaded", async () => {
     vi.mocked(toast.error).mockClear();
-    const startTurn = vi.fn().mockRejectedValue(new Error("Model credentials expired"));
+    const startTurn = vi
+      .fn()
+      .mockRejectedValue(new Error("Model credentials expired"));
     mockRealtime(startTurn);
     const name = "2LAW\u00a0设计规格书_20240709(2)(1).xlsx";
     const file = new File(["test"], name);
-    const { result } = renderHook(() => useThreadStreamRealtime({ threadId: "th-test" }));
-    act(() => result.current[1]("th-test", { text: "规格书以及仿真结果", files: [{ type: "file", filename: name, mediaType: "application/octet-stream", url: "blob:spec", file, uploaded: { filename: name, size: 4, path: `/managed/upload/${name}`, virtual_path: `upload/${name}`, artifact_url: `/api/threads/th-test/artifacts/${encodeURIComponent(name)}`, content_type: "application/octet-stream" } }] }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Model credentials expired"));
+    const { result } = renderHook(() =>
+      useThreadStreamRealtime({ threadId: "th-test" }),
+    );
+    act(() =>
+      result.current[1]("th-test", {
+        text: "规格书以及仿真结果",
+        files: [
+          {
+            type: "file",
+            filename: name,
+            mediaType: "application/octet-stream",
+            url: "blob:spec",
+            file,
+            uploaded: {
+              filename: name,
+              size: 4,
+              path: `/managed/upload/${name}`,
+              virtual_path: `upload/${name}`,
+              artifact_url: `/api/threads/th-test/artifacts/${encodeURIComponent(name)}`,
+              content_type: "application/octet-stream",
+            },
+          },
+        ],
+      }),
+    );
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Model credentials expired"),
+    );
     expect(toast.error).not.toHaveBeenCalledWith("Upload failed");
     expect(startTurn.mock.calls[0]?.[0].attachments[0].filename).toBe(name);
   });
@@ -1975,6 +2013,16 @@ describe("useThreadStreamRealtime permissions", () => {
       mode_preset: "goal.mode",
       workflow_preset: "goal.mode",
     });
+  });
+
+  it("reads saved compact budget at send time", async () => {
+    const startTurn = mockRealtime();
+    const { result } = renderHook(() => useThreadStreamRealtime({threadId:"th-test",model:"gpt-test", context:{model_scope:"task"}}));
+    localStorage.setItem("echo:codex-context-budget:local:gpt-test", "64000");
+    act(() => { result.current[1]("th-test", {text:"budget check",files:[]}); });
+    await waitFor(() => expect(startTurn).toHaveBeenCalled());
+    expect(startTurn.mock.calls[0]?.[0]?.metadata?.context?.codex_autocompact).toBe(64000);
+    localStorage.removeItem("echo:codex-context-budget:local:gpt-test");
   });
 
   it("sends selected reasoning effort as top-level turn effort", async () => {
@@ -2684,4 +2732,66 @@ describe("useThreadStreamRealtime permissions", () => {
       }),
     );
   });
+});
+
+it("keeps steering permissions unchanged and applies the selected mode only to the next turn", async () => {
+  let state: Conversation = makeConversation([
+    { ...makeTurn([], "turn-active"), status: "inProgress", completedAt: null },
+  ]);
+  const steer = vi.fn().mockResolvedValue(undefined);
+  const startTurn = vi.fn().mockResolvedValue(undefined);
+  vi.mocked(useRealtimeThread).mockImplementation(() => ({
+    state,
+    connected: true,
+    startTurn,
+    steer,
+    resolveApproval: vi.fn(),
+    resume: vi.fn().mockResolvedValue(undefined),
+    interrupt: vi.fn().mockResolvedValue(undefined),
+    compact: vi.fn().mockResolvedValue({ compacted: false }),
+    decideHunk: vi.fn().mockResolvedValue(undefined),
+  }));
+  const { result, rerender } = renderHook(
+    ({ permission }: { permission: string }) =>
+      useThreadStreamRealtime({
+        threadId: "th-test",
+        context: { permission_mode: permission },
+      }),
+    { initialProps: { permission: "default" } },
+  );
+  rerender({ permission: "bypassPermissions" });
+  act(() => {
+    result.current[1]("th-test", { text: "核对目前结果", files: [] });
+  });
+  await waitFor(() => expect(steer).toHaveBeenCalledTimes(1));
+  const itemId = steer.mock.calls[0]![0].itemId as string;
+  expect(steer).toHaveBeenCalledWith({ input: "核对目前结果", itemId });
+  expect(startTurn).not.toHaveBeenCalled();
+  state = makeConversation([
+    makeTurn(
+      [
+        {
+          id: itemId,
+          type: "steeringUserMessage",
+          status: "completed",
+          createdAt: DONE_TS,
+          text: "核对目前结果",
+          targetTurnId: "turn-active",
+          source: "user",
+        },
+      ],
+      "turn-active",
+    ),
+  ]);
+  rerender({ permission: "bypassPermissions" });
+  act(() => {
+    result.current[1]("th-test", { text: "开始下一轮", files: [] });
+  });
+  await waitFor(() => expect(startTurn).toHaveBeenCalledTimes(1));
+  expect(startTurn).toHaveBeenCalledWith(
+    expect.objectContaining({
+      approvalPolicy: "never",
+      sandboxPolicy: expect.objectContaining({ type: "dangerFullAccess" }),
+    }),
+  );
 });

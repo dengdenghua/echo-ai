@@ -22,7 +22,7 @@ describe("shared persona theme scope", () => {
       'className="persona-shell workspace-shell',
     );
     expect(workspaceSource).toContain("data-persona-theme={personaThemeId}");
-    expect(browserSource).toContain('className="persona-shell browser-shell');
+    expect(browserSource).toMatch(/className=\{cn\(\s*"persona-shell browser-shell/);
     expect(browserSource).toContain("data-persona-theme={personaThemeId}");
     expect(browserSource).toContain(
       "workspacePresetForAgent(activeAgentId).themeId",

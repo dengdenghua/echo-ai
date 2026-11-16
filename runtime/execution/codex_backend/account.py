@@ -11,12 +11,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import math
 import os
 import stat
 import threading
 import time
 import weakref
-from collections.abc import Callable, Mapping
+import uuid
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
@@ -41,6 +43,8 @@ from ._security_support import (
     _atomic_write_private,
     _ensure_private_directory,
     _prepare_state_root,
+    _read_owned_private_file,
+    CodexSecurityError,
 )
 from .client import CodexAppServerClient
 from .command import resolve_codex_app_server_command
@@ -138,6 +142,7 @@ class _ControlRuntime:
     plugin_catalog_cache: tuple[float, list[dict[str, object]]] | None = None
     last_used: float = field(default_factory=time.monotonic)
     closed: bool = False
+    engine_revision: int = 0
 
 
 ClientFactory = Callable[[CodexAppServerConfig], CodexAppServerClient]
@@ -158,6 +163,7 @@ class CodexAccountService(CodexAccountCatalogMixin):
         max_sessions: int = 16,
         idle_timeout_s: float = 15 * 60,
         login_timeout_s: float = 20 * 60,
+        cooperative_lease_timeout_s: float = 0,
     ) -> None:
         root = Path(state_root).expanduser().resolve(strict=False)
         if not root.is_absolute():
@@ -172,6 +178,8 @@ class CodexAccountService(CodexAccountCatalogMixin):
             raise ConfigurationError("Codex account idle timeout must be positive")
         if login_timeout_s <= 0:
             raise ConfigurationError("Codex account login timeout must be positive")
+        if not math.isfinite(cooperative_lease_timeout_s) or not 0 <= cooperative_lease_timeout_s <= 30:
+            raise ConfigurationError("Codex cooperative lease wait must be from 0 to 30 seconds")
         if root.parent == root:
             raise ConfigurationError("filesystem root cannot be Codex account state_root")
         # Create the tree lazily on the first account operation. Merely
@@ -194,6 +202,8 @@ class CodexAccountService(CodexAccountCatalogMixin):
         self._max_sessions = max_sessions
         self._idle_timeout_s = idle_timeout_s
         self._login_timeout_s = login_timeout_s
+        self._cooperative_lease_timeout_s = cooperative_lease_timeout_s
+        self._yielded_until: dict[str, float] = {}
         self._runtimes: dict[str, _ControlRuntime] = {}
         self._pool_lock = asyncio.Lock()
         self._reaper_task: asyncio.Task[None] | None = None
@@ -241,6 +251,8 @@ class CodexAccountService(CodexAccountCatalogMixin):
         runtime = self._runtimes.get(self._scope_key(scope))
         if runtime is None:
             return None
+        if runtime.engine_revision != self._engine_revision():
+            return None
         cached = runtime.model_catalog_cache.get(include_hidden)
         if cached is None:
             return None
@@ -261,11 +273,14 @@ class CodexAccountService(CodexAccountCatalogMixin):
 
         runtime = self._runtimes.get(self._scope_key(scope))
         current_loop = asyncio.get_running_loop()
-        if runtime is None or runtime.loop is current_loop:
+        owner_loop = runtime.loop if runtime is not None else (
+            self._reaper_task.get_loop() if self._reaper_task is not None and not self._reaper_task.done() else current_loop
+        )
+        if owner_loop is current_loop:
             return await operation()
-        if not runtime.loop.is_running():
+        if not owner_loop.is_running():
             raise TransportClosedError("Codex account control loop is unavailable")
-        future = asyncio.run_coroutine_threadsafe(operation(), runtime.loop)
+        future = asyncio.run_coroutine_threadsafe(operation(), owner_loop)
         return await asyncio.wrap_future(future)
 
     async def read_account(
@@ -354,17 +369,7 @@ class CodexAccountService(CodexAccountCatalogMixin):
     ) -> Path | None:
         """Route refresh to the event loop that owns the persistent client."""
 
-        runtime = self._runtimes.get(self._scope_key(scope))
-        current_loop = asyncio.get_running_loop()
-        if runtime is None or runtime.loop is current_loop:
-            return await self.refresh_for_execution(scope)
-        if not runtime.loop.is_running():
-            raise TransportClosedError("Codex account control loop is unavailable")
-        future = asyncio.run_coroutine_threadsafe(
-            self.refresh_for_execution(scope),
-            runtime.loop,
-        )
-        return await asyncio.wrap_future(future)
+        return await self.run_on_runtime_loop(scope, lambda: self.refresh_for_execution(scope))
 
     async def login(
         self,
@@ -441,6 +446,11 @@ class CodexAccountService(CodexAccountCatalogMixin):
         """Reap every control child; safe and idempotent at app shutdown."""
 
         reaper = self._reaper_task
+        if reaper is not None and not reaper.done():
+            owner_loop = reaper.get_loop()
+            if owner_loop is not asyncio.get_running_loop() and owner_loop.is_running():
+                await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(self.close_all(), owner_loop))
+                return
         self._reaper_task = None
         if reaper is not None and reaper is not asyncio.current_task():
             reaper.cancel()
@@ -448,6 +458,7 @@ class CodexAccountService(CodexAccountCatalogMixin):
                 await reaper
         async with self._pool_lock:
             self._closed = True
+            self._yielded_until.clear()
             runtimes = list(self._runtimes.values())
             self._runtimes.clear()
         await asyncio.gather(
@@ -470,6 +481,7 @@ class CodexAccountService(CodexAccountCatalogMixin):
 
         now = time.monotonic()
         async with self._pool_lock:
+            self._yielded_until = {key: until for key, until in self._yielded_until.items() if until > now}
             stale_keys = []
             for key, runtime in self._runtimes.items():
                 idle_expired = (
@@ -481,8 +493,17 @@ class CodexAccountService(CodexAccountCatalogMixin):
                     and runtime.login_started_at is not None
                     and now - runtime.login_started_at >= self._login_timeout_s
                 )
-                if not runtime.lock.locked() and (idle_expired or login_expired):
+                handoff = (
+                    self._cooperative_lease_timeout_s > 0
+                    and runtime.active_login_id is None
+                    and _has_control_waiter(runtime.home.parent)
+                )
+                if not runtime.lock.locked() and (idle_expired or login_expired or handoff):
                     stale_keys.append(key)
+                    if handoff:
+                        # Let a waiting peer acquire the OS lock before a busy
+                        # local UI immediately asks for another catalog read.
+                        self._yielded_until[key] = now + 0.25
             stale = [self._runtimes.pop(key) for key in stale_keys]
         await asyncio.gather(
             *(self._close_runtime(runtime) for runtime in stale),
@@ -490,13 +511,31 @@ class CodexAccountService(CodexAccountCatalogMixin):
         )
         return len(stale)
 
+    def _engine_revision(self):
+        if self._command is not None:
+            return 0
+        from runtime.execution.engine_packages.store import engines_root
+        from runtime.execution.engine_packages.versions import snapshot
+        return snapshot(engines_root(), "codex").get("revision", 0)
+
     async def _runtime(self, scope: TenantScope | None) -> _ControlRuntime:
         if self._closed:
             raise TransportClosedError("Codex account service is closed")
+        if self._cooperative_lease_timeout_s:
+            self.start_idle_reaper()
         await self.reap_idle()
         key = self._scope_key(scope)
         async with self._pool_lock:
             existing = self._runtimes.get(key)
+            if existing is not None and not existing.closed and (
+                not getattr(existing.client, "ready", True)
+                or (existing.engine_revision != self._engine_revision() and existing.active_login_id is None)
+            ):
+                # Serialize catalog/control operations before retiring the old process.
+                async with existing.lock:
+                    await self._close_runtime(existing)
+                self._runtimes.pop(key, None)
+                existing = None
             if existing is not None and not existing.closed:
                 existing.last_used = time.monotonic()
                 return existing
@@ -516,7 +555,13 @@ class CodexAccountService(CodexAccountCatalogMixin):
         temporary = home.parent / "tmp"
         for directory in (home, app_home, temporary):
             _ensure_private_directory(directory, root=self._state_root)
-        lease = _acquire_control_lease(home.parent / ".control-runtime.lock")
+        delay = self._yielded_until.pop(self._scope_key(scope), 0) - time.monotonic()
+        if delay > 0:
+            await asyncio.sleep(delay)
+        lease = await _wait_for_control_lease(
+            home.parent / ".control-runtime.lock", self._cooperative_lease_timeout_s,
+            on_wait=self._yield_idle_for_waiters,
+        )
         try:
             if self._may_inherit_local_auth(scope):
                 _seed_legacy_auth(home, self._legacy_source_home)
@@ -558,10 +603,25 @@ class CodexAccountService(CodexAccountCatalogMixin):
                 home=home,
                 lease=lease,
                 loop=asyncio.get_running_loop(),
+                engine_revision=self._engine_revision(),
             )
         except BaseException:
             lease.release()
             raise
+
+    async def _yield_idle_for_waiters(self) -> None:
+        # _start_runtime runs under _pool_lock. The periodic reaper cannot
+        # acquire it while this service waits for a peer's different principal.
+        # Yield requested idle owners here to avoid an A/B lock-wait cycle.
+        if not self._cooperative_lease_timeout_s:
+            return
+        stale = []
+        for key, runtime in list(self._runtimes.items()):
+            if runtime.active_login_id is None and not runtime.lock.locked() and _has_control_waiter(runtime.home.parent):
+                self._runtimes.pop(key)
+                self._yielded_until[key] = time.monotonic() + 0.25
+                stale.append(runtime)
+        await asyncio.gather(*(self._close_runtime(runtime) for runtime in stale))
 
     async def _drain_notifications(self, runtime: _ControlRuntime) -> None:
         for _ in range(64):
@@ -589,6 +649,10 @@ class CodexAccountService(CodexAccountCatalogMixin):
     async def _close_runtime(self, runtime: _ControlRuntime) -> None:
         if runtime.closed:
             return
+        if runtime.loop is not asyncio.get_running_loop() and runtime.loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(self._close_runtime(runtime), runtime.loop)
+            await asyncio.wrap_future(future)
+            return
         runtime.closed = True
         if runtime.active_login_id is not None:
             with contextlib.suppress(Exception):
@@ -600,6 +664,8 @@ class CodexAccountService(CodexAccountCatalogMixin):
 
     async def _idle_reaper_loop(self) -> None:
         interval = min(60.0, max(1.0, min(self._idle_timeout_s, self._login_timeout_s) / 2))
+        if self._cooperative_lease_timeout_s:
+            interval = min(interval, 0.2)
         try:
             while not self._closed:
                 await asyncio.sleep(interval)
@@ -670,6 +736,45 @@ def codex_account_scope_key(scope: TenantScope | None) -> str:
         return "local"
     material = f"{scope.tenant_id}\x00{scope.actor_id}".encode()
     return sha256(material).hexdigest()[:40]
+
+
+def _has_control_waiter(directory: Path) -> bool:
+    """A content-free advisory request; it never grants access or steals a lock."""
+    for marker in directory.glob(".control-wait-*.json"):
+        try:
+            payload = _read_owned_private_file(marker, max_bytes=64)
+            remaining = float(payload) - time.time() if payload else 0
+            if 0 < remaining <= 32:
+                return True
+        except (OSError, ValueError, CodexSecurityError):
+            continue
+    return False
+
+
+async def _wait_for_control_lease(
+    path: Path, timeout_s: float, *, on_wait: Callable[[], Awaitable[None]] | None = None
+) -> _ControlLease:
+    deadline = time.monotonic() + timeout_s
+    marker = path.with_name(".control-wait-" + uuid.uuid4().hex + ".json")
+    advertised = False
+    try:
+        while True:
+            try:
+                return _acquire_control_lease(path)
+            except CodexAccountLeaseError:
+                if timeout_s <= 0 or time.monotonic() >= deadline:
+                    raise
+                if not advertised:
+                    expires = time.time() + max(0, deadline - time.monotonic())
+                    _atomic_write_private(marker, str(expires).encode("ascii"))
+                    advertised = True
+                if on_wait is not None:
+                    await on_wait()
+                await asyncio.sleep(min(0.1, max(0, deadline - time.monotonic())))
+    finally:
+        if advertised:
+            with contextlib.suppress(OSError):
+                marker.unlink(missing_ok=True)
 
 
 def _acquire_control_lease(path: Path) -> _ControlLease:

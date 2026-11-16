@@ -15,6 +15,8 @@
 //    decision (stream reset, drift) still defers to the server snapshot
 //    path. A corrupt or stale cache costs one fallback, never wrong UI.
 
+import { currentActorScope } from "@/core/auth/api";
+
 import type { SequencedLoggedEvent } from "./replay";
 
 /** Smallest sequence still present (1 when the cache holds the full
@@ -56,15 +58,18 @@ export const REPLAY_CACHE_MAX_EVENTS = 5_000;
 
 export function createMemoryReplayCache(
   maxEvents = REPLAY_CACHE_MAX_EVENTS,
+  scope = currentActorScope(),
 ): ReplayCacheStore {
   const threads = new Map<string, ReplayCacheEntry>();
+  const scopedThreadKey = (threadId: string) =>
+    JSON.stringify([scope, threadId]);
   return {
     load(threadId) {
-      const entry = threads.get(threadId);
+      const entry = threads.get(scopedThreadKey(threadId));
       return Promise.resolve(entry ?? null);
     },
     append(threadId, events, meta) {
-      const existing = threads.get(threadId);
+      const existing = threads.get(scopedThreadKey(threadId));
       const bySequence = new Map<number, SequencedLoggedEvent>();
       for (const event of existing?.events ?? []) {
         bySequence.set(event.sequence, event);
@@ -79,7 +84,7 @@ export function createMemoryReplayCache(
         merged.length > maxEvents
           ? merged.slice(merged.length - maxEvents)
           : merged;
-      threads.set(threadId, {
+      threads.set(scopedThreadKey(threadId), {
         events: trimmed,
         streamId: meta.streamId,
         cursor: Math.max(
@@ -91,7 +96,7 @@ export function createMemoryReplayCache(
       return Promise.resolve();
     },
     clear(threadId) {
-      threads.delete(threadId);
+      threads.delete(scopedThreadKey(threadId));
       return Promise.resolve();
     },
   };
@@ -100,21 +105,25 @@ export function createMemoryReplayCache(
 // ── IndexedDB implementation ──────────────────────────────────
 
 const DB_NAME = "echo-replay-cache";
-// v2 clears the old 20k-event cache once. It is a read-through optimization,
-// so dropping legacy rows is safer than loading a potentially renderer-sized
-// payload merely to trim it after hydration.
-const DB_VERSION = 2;
+// v3 adds the account scope to event/meta keys. It clears the unscoped
+// read-through cache once rather than risk hydrating another account's rows.
+const DB_VERSION = 3;
 const EVENTS_STORE = "events";
 const META_STORE = "meta";
 
 // Zero-padded compound key keeps lexical order == sequence order, so the
 // capacity trim can delete the oldest prefix with a simple cursor walk.
-function eventKey(threadId: string, sequence: number): string {
-  return `${threadId}:${String(sequence).padStart(12, "0")}`;
+function scopedThreadKey(scope: string, threadId: string): string {
+  return JSON.stringify([scope, threadId]);
 }
 
-function threadRange(threadId: string): IDBKeyRange {
-  return IDBKeyRange.bound(`${threadId}:`, `${threadId}:\\uffff`, false, false);
+function eventKey(scope: string, threadId: string, sequence: number): string {
+  return `${scopedThreadKey(scope, threadId)}:${String(sequence).padStart(12, "0")}`;
+}
+
+function threadRange(scope: string, threadId: string): IDBKeyRange {
+  const prefix = `${scopedThreadKey(scope, threadId)}:`;
+  return IDBKeyRange.bound(prefix, `${prefix}\uffff`, false, false);
 }
 
 interface StoredEventRow {
@@ -170,6 +179,7 @@ function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
 
 export function createIndexedDbReplayCache(
   maxEvents = REPLAY_CACHE_MAX_EVENTS,
+  scope = currentActorScope(),
 ): ReplayCacheStore {
   let dbPromise: Promise<IDBDatabase> | null = null;
   const db = (): Promise<IDBDatabase> => {
@@ -181,11 +191,12 @@ export function createIndexedDbReplayCache(
     async load(threadId) {
       const database = await db();
       const tx = database.transaction([EVENTS_STORE, META_STORE], "readonly");
+      const scopedKey = scopedThreadKey(scope, threadId);
       const rows = await requestToPromise(
-        tx.objectStore(EVENTS_STORE).getAll(threadRange(threadId)),
+        tx.objectStore(EVENTS_STORE).getAll(threadRange(scope, threadId)),
       );
       const meta = (await requestToPromise(
-        tx.objectStore(META_STORE).get(threadId),
+        tx.objectStore(META_STORE).get(scopedKey),
       )) as StoredMetaRow | undefined;
       await txDone(tx);
       if (!meta || rows.length === 0) return null;
@@ -205,14 +216,15 @@ export function createIndexedDbReplayCache(
       const tx = database.transaction([EVENTS_STORE, META_STORE], "readwrite");
       const eventsStore = tx.objectStore(EVENTS_STORE);
       const metaStore = tx.objectStore(META_STORE);
+      const scopedKey = scopedThreadKey(scope, threadId);
       for (const event of events) {
         eventsStore.put({
-          key: eventKey(threadId, event.sequence),
+          key: eventKey(scope, threadId, event.sequence),
           threadId,
           event,
         } satisfies StoredEventRow);
       }
-      const range = threadRange(threadId);
+      const range = threadRange(scope, threadId);
       const count = await requestToPromise(eventsStore.count(range));
       if (count > maxEvents) {
         // Trim the oldest prefix. Cursor keys sort by padded sequence,
@@ -245,12 +257,12 @@ export function createIndexedDbReplayCache(
         typeof firstRemaining === "string"
           ? Number(firstRemaining.split(":").pop()) || 1
           : 1;
-      const existingMeta = (await requestToPromise(metaStore.get(threadId))) as
+      const existingMeta = (await requestToPromise(metaStore.get(scopedKey))) as
         | StoredMetaRow
         | undefined;
       const lastSequence = events[events.length - 1]?.sequence ?? 0;
       metaStore.put({
-        threadId,
+        threadId: scopedKey,
         streamId: meta.streamId,
         cursor: Math.max(meta.cursor, existingMeta?.cursor ?? 0, lastSequence),
         partialFrom,
@@ -262,11 +274,49 @@ export function createIndexedDbReplayCache(
     async clear(threadId) {
       const database = await db();
       const tx = database.transaction([EVENTS_STORE, META_STORE], "readwrite");
-      tx.objectStore(EVENTS_STORE).delete(threadRange(threadId));
-      tx.objectStore(META_STORE).delete(threadId);
+      tx.objectStore(EVENTS_STORE).delete(threadRange(scope, threadId));
+      tx.objectStore(META_STORE).delete(scopedThreadKey(scope, threadId));
       await txDone(tx);
     },
   };
+}
+
+/** Erase every persisted thread row owned by one account at sign-out. */
+export async function clearReplayCacheForActor(
+  scope = currentActorScope(),
+): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const database = await openDb();
+  const tx = database.transaction([EVENTS_STORE, META_STORE], "readwrite");
+  const eventsStore = tx.objectStore(EVENTS_STORE);
+  const metaStore = tx.objectStore(META_STORE);
+  await new Promise<void>((resolve, reject) => {
+    const request = metaStore.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      try {
+        const parsed: unknown = JSON.parse(String(cursor.primaryKey));
+        if (
+          Array.isArray(parsed) &&
+          parsed[0] === scope &&
+          typeof parsed[1] === "string"
+        ) {
+          eventsStore.delete(threadRange(scope, parsed[1]));
+          cursor.delete();
+        }
+      } catch {
+        // Malformed legacy key: leave it for the version-upgrade sweep.
+      }
+      cursor.continue();
+    };
+    request.onerror = () =>
+      reject(request.error ?? new Error("indexedDB cursor failed"));
+  });
+  await txDone(tx);
 }
 
 /** Default store: IndexedDB where available, in-memory otherwise (tests,

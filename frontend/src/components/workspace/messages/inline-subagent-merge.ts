@@ -64,6 +64,7 @@ export function mergeInlineSubagentLists(
     else progress = src.progress ?? dst.progress;
     return {
       ...dst,
+      sessionId: src.sessionId ?? dst.sessionId,
       avatarUrl: dst.avatarUrl ?? src.avatarUrl,
       status,
       progress,
@@ -126,13 +127,17 @@ export function mergeInlineSubagentLists(
 
   for (let i = 0; i < orderedEventAgents.length; i++) {
     const ea = orderedEventAgents[i]!;
-    let pre = preById.get(ea.id);
-    if (!pre && ea.name) pre = preByName.get(ea.name.toLowerCase());
-    if (!pre && ea.role) pre = preByName.get(ea.role.toLowerCase());
+    const compatible = (candidate: InlineSubagentInfo | undefined) => candidate &&
+      !(candidate.sessionId && ea.sessionId && candidate.sessionId !== ea.sessionId) &&
+      !seenPreIds.has(candidate.id) ? candidate : undefined;
+    let pre = ea.sessionId ? compatible(cleanedPres.find((candidate) => candidate.sessionId === ea.sessionId)) : undefined;
+    pre ??= compatible(preById.get(ea.id));
+    if (!pre && ea.name) pre = compatible(preByName.get(ea.name.toLowerCase()));
+    if (!pre && ea.role) pre = compatible(preByName.get(ea.role.toLowerCase()));
     // Positional fallback is only for anonymous runtime markers. Named
     // records must never steal another named agent's slot.
     if (!pre && isAnonymousRuntime(ea)) {
-      pre = cleanedPres.find((candidate) => !seenPreIds.has(candidate.id));
+      pre = cleanedPres.find((candidate) => compatible(candidate));
     }
 
     if (pre) {

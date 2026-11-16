@@ -1,0 +1,4 @@
+interface:
+  display_name: "内部堆叠安规审查"
+  short_description: "检查PCB、支架、散热器和线束的间距绝缘固定，记录标准条款与证据"
+  default_prompt: "使用 $internal-stack-safety 审查内部堆叠，列出PCB、金属支架、散热器与线束的间距、绝缘、固定问题和对应标准条款。"

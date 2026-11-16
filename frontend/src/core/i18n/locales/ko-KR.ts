@@ -44,6 +44,7 @@ export const koKR: Translations = {
     error: "오류",
     copy: "복사",
     copied: "복사됨",
+    tableContents: "표 내용",
     version: "버전",
     lastUpdated: "마지막 업데이트",
     code: "코드",
@@ -1923,6 +1924,9 @@ export const koKR: Translations = {
     humanSave: "페이지 저장",
     humanCancel: "변경 취소",
     humanSaved: "페이지 변경 사항을 저장했습니다",
+    humanSaving: "저장 중…",
+    humanSaveUnconfirmed:
+      "저장이 확인되지 않았습니다. 편집 내용은 유지됩니다. 파일을 확인한 후 다시 시도하세요.",
     humanUndo: "마지막 저장 실행 취소",
     humanRestored: "저장 전 버전으로 복원했습니다",
     humanConflict:
@@ -6873,6 +6877,9 @@ export const koKR: Translations = {
     privacyUnavailable:
       "개인정보 설정을 읽지 못했습니다. 다시 시도한 후 변경하세요.",
     creditsBalance: "크레딧 잔액",
+    autoLoginTitle: "시작 시 로컬 계정으로 자동 로그인",
+    autoLoginDescription:
+      "매번 클릭하지 않고 시작 후 바로 로컬 계정으로 들어갑니다.",
     octAccount: "공식 계정",
     available: "사용 가능",
     refreshing: "새로고침 중",

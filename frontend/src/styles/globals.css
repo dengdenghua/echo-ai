@@ -4,6 +4,7 @@
    from the ECHO brand kit; the shadcn variables below map onto them. */
 @import "./echo-tokens.css";
 @import "./liquid-glass.css";
+@import "./desktop-workspace.css";
 
 /* Chat font-size uses the official `prose-sm|base|lg` class names
    (set in markdown-content.tsx), but the @tailwindcss/typography
@@ -1569,7 +1570,7 @@
     [data-streamdown="table-wrapper"]
     > div:first-child:has(button) {
     min-height: 1.25rem;
-    opacity: 0.45;
+    opacity: 1;
     transition: opacity 120ms ease;
   }
 
@@ -1834,8 +1835,12 @@
     justify-content: center;
     padding: 0;
   }
-  [data-composer-placement="floating"] [data-testid="permission-mode-trigger"] > span,
-  [data-composer-placement="floating"] [data-testid="permission-mode-trigger"] > svg:last-child {
+  [data-composer-placement="floating"]
+    [data-testid="permission-mode-trigger"]
+    > span,
+  [data-composer-placement="floating"]
+    [data-testid="permission-mode-trigger"]
+    > svg:last-child {
     display: none;
   }
   [data-composer-placement="floating"] [data-testid="chat-tools-trigger"] {
@@ -1919,6 +1924,55 @@
    own container query. Wrapper-level collapse rules live beside the JSX as
    named-container variants. */
 @layer utilities {
+  /* Chat typography must win over Streamdown's per-element utilities.
+     Keep the selected prose font size; use a restrained heading scale and
+     one spacing rhythm instead of stacking space-y and paragraph margins. */
+  .chat-markdown {
+    line-height: 1.65;
+  }
+  .chat-markdown > * {
+    margin-block: 0.75em 0;
+  }
+  .chat-markdown > :first-child {
+    margin-top: 0;
+  }
+  .chat-markdown > :last-child {
+    margin-bottom: 0;
+  }
+  .chat-markdown :where(p, ul, ol, blockquote) {
+    line-height: inherit;
+  }
+  .chat-markdown :where(li) > p {
+    margin-block: 0.35em;
+  }
+  .chat-markdown h1,
+  .chat-markdown h2,
+  .chat-markdown h3,
+  .chat-markdown h4,
+  .chat-markdown h5,
+  .chat-markdown h6 {
+    margin-block: 1.2em 0.4em;
+    padding: 0;
+    border: 0;
+    color: var(--foreground);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .chat-markdown h1 {
+    font-size: 1.35em;
+  }
+  .chat-markdown h2 {
+    font-size: 1.2em;
+  }
+  .chat-markdown h3 {
+    font-size: 1.1em;
+  }
+  .chat-markdown h4,
+  .chat-markdown h5,
+  .chat-markdown h6 {
+    font-size: 1em;
+  }
+
   /* Icon-only header buttons are 32px tall on desktop (sm:h-8) so the row
      stays dense. A 32px target is below the 44px touch guideline, so the
      clickable area is extended vertically only: the header is 44px tall, and
@@ -1937,7 +1991,7 @@
     transform: translateY(-50%);
   }
 
-  @container realtime-header (width <= 720px) {
+  @container realtime-header (width <= 600px) {
     .realtime-group-header__members [data-slot="task-collaborator-label"] {
       display: none;
     }
@@ -1969,44 +2023,44 @@
   }
 }
 
-  /* Shared starting position in the content area below either 44px header. */
-  .workspace-start-position,
-  [data-workspace-start="true"] {
-    position: absolute;
-    inset-inline: 0;
-    top: clamp(48px, 40%, 360px);
-    bottom: auto;
-    padding-top: 0;
-    background: none;
-  }
-  .workspace-start-composer {
-    width: 100%;
-    /* Same measure as the started-thread composer (--conversation-column):
+/* Shared starting position in the content area below either 44px header. */
+.workspace-start-position,
+[data-workspace-start="true"] {
+  position: absolute;
+  inset-inline: 0;
+  top: clamp(48px, 40%, 360px);
+  bottom: auto;
+  padding-top: 0;
+  background: none;
+}
+.workspace-start-composer {
+  width: 100%;
+  /* Same measure as the started-thread composer (--conversation-column):
        the first message flips the thread state without a width jump. */
-    max-width: var(--conversation-column);
-    translate: none;
-    transform: none;
-  }
-  .workspace-start-heading {
-    /* Grows with the starter chips instead of spilling under the composer. */
-    min-height: 80px;
-    max-width: var(--conversation-column);
-    padding: 0;
-    justify-content: flex-start;
-  }
-  /* Holds the location/address chip: sized by its label (a folder, or an
+  max-width: var(--conversation-column);
+  translate: none;
+  transform: none;
+}
+.workspace-start-heading {
+  /* Grows with the starter chips instead of spilling under the composer. */
+  min-height: 80px;
+  max-width: var(--conversation-column);
+  padding: 0;
+  justify-content: flex-start;
+}
+/* Holds the location/address chip: sized by its label (a folder, or an
      SSH / WSL / node name), truncating long ones. */
-  .composer-workspace-control {
-    display: flex;
-    width: auto;
-    max-width: 160px;
-    min-width: 0;
-    flex-shrink: 1;
-  }
-  .composer-workspace-control > * {
-    width: 100%;
-    min-width: 0;
-  }
+.composer-workspace-control {
+  display: flex;
+  width: auto;
+  max-width: 160px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+.composer-workspace-control > * {
+  width: 100%;
+  min-width: 0;
+}
 
 /* Touch screens: composer controls are rem-sized and shrink with the density
    scale (32px became 30px), well under the 44px touch target. */
@@ -2090,16 +2144,16 @@
    marking itself `lang="en"` (font-mono is no proxy: several mono
    eyebrows carry locale text). */
 :is(:lang(zh), :lang(ja), :lang(ko)):is(
-    .tracking-eyebrow,
-    .tracking-caps,
-    .tracking-tighter,
-    .tracking-tight,
-    .tracking-wide,
-    .tracking-wider,
-    .tracking-widest,
-    [class*="tracking-["],
-    [cmdk-group-heading]
-  ) {
+  .tracking-eyebrow,
+  .tracking-caps,
+  .tracking-tighter,
+  .tracking-tight,
+  .tracking-wide,
+  .tracking-wider,
+  .tracking-widest,
+  [class*="tracking-["],
+  [cmdk-group-heading]
+) {
   letter-spacing: normal;
 }
 

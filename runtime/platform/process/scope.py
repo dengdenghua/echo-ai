@@ -185,20 +185,7 @@ class WriteScope:
         so a symlink inside the workspace pointing outside cannot bypass
         the scope boundary.
         """
-        if not self.roots:
-            return False
-        try:
-            p = Path(path).expanduser().resolve(strict=False)
-        except OSError:
-            return False
-        for root in self.roots:
-            try:
-                rr = root.resolve(strict=False)
-                p.relative_to(rr)
-                return True
-            except ValueError:
-                continue
-        return False
+        return _path_allowed_by_roots(path, self.roots)
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,16 +225,31 @@ class ExecutionScope:
         return _path_allowed_by_roots(path, self.readable_roots)
 
 
+def _resolved_scope_path(path: str | Path) -> Path:
+    resolved = Path(path).expanduser().resolve(strict=False)
+    # During concurrent mkdir, Windows realpath can retain the extended
+    # prefix for the target but remove it for its existing permission root.
+    # Normalize only drive/UNC aliases after resolving links; device namespaces
+    # and the actual filesystem path used by callers remain untouched.
+    if os.name == "nt":
+        text = str(resolved)
+        if text[:8].upper() == "\\\\?\\UNC\\":
+            return Path("\\\\" + text[8:])
+        if text.startswith("\\\\?\\") and len(text) >= 7 and text[5:7] == ":\\":
+            return Path(text[4:])
+    return resolved
+
+
 def _path_allowed_by_roots(path: str | Path, roots: tuple[Path, ...]) -> bool:
     if not roots:
         return False
     try:
-        p = Path(path).expanduser().resolve(strict=False)
+        p = _resolved_scope_path(path)
     except OSError:
         return False
     for root in roots:
         try:
-            p.relative_to(root.resolve(strict=False))
+            p.relative_to(_resolved_scope_path(root))
             return True
         except ValueError:
             continue
@@ -256,7 +258,7 @@ def _path_allowed_by_roots(path: str | Path, roots: tuple[Path, ...]) -> bool:
 
 def _path_is_same_or_under(path: Path, root: Path) -> bool:
     try:
-        path.resolve(strict=False).relative_to(root.resolve(strict=False))
+        _resolved_scope_path(path).relative_to(_resolved_scope_path(root))
         return True
     except (OSError, ValueError):
         return False

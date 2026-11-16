@@ -36,7 +36,7 @@ async function writeOutput(
   fallback: string,
 ): Promise<ArtifactSaveResult> {
   try {
-    return await untypedApi[method]<ArtifactSaveResult>(url, {
+    const result = await untypedApi[method]<ArtifactSaveResult>(url, {
       reason:
         "the caller resolves the full URL; artifact_path keeps its '/' separators unencoded",
       baseUrl: "",
@@ -54,6 +54,17 @@ async function writeOutput(
             : `${fallback} (HTTP ${failure.status}).`;
       },
     });
+    if (
+      result.success !== true ||
+      typeof result.sha256 !== "string" ||
+      !result.sha256
+    ) {
+      throw new ArtifactSaveError(
+        "保存结果尚未确认，请保留修改并重新读取文件核对。",
+        0,
+      );
+    }
+    return result;
   } catch (error) {
     if (error instanceof EchoAPIError) {
       throw new ArtifactSaveError(error.message, error.status);

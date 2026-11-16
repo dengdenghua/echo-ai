@@ -16,6 +16,7 @@ export function supportedReasoningEfforts(
     "high",
     "xhigh",
     "max",
+    "ultra",
   ]);
   return [...new Set(model?.reasoning_efforts ?? [])].filter(
     (effort): effort is ReasoningEffort => known.has(effort),

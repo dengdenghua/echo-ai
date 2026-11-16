@@ -71,9 +71,7 @@ def test_commercial_lsp_requires_hard_process_sandbox(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ECHO_DEPLOYMENT_MODE", "commercial")
-    monkeypatch.setattr(sandbox_mod.BubblewrapBackend, "available", staticmethod(lambda: False))
-    monkeypatch.setattr(sandbox_mod.LandlockBackend, "available", staticmethod(lambda: False))
-    monkeypatch.setattr(sandbox_mod.SeatbeltBackend, "available", staticmethod(lambda: False))
+    monkeypatch.setattr(sandbox_mod, "_hard_backend_candidates", lambda _mode: [])
 
     client = lsp_skills._LSPClient("python")
     with pytest.raises(lsp_skills._LSPTransportError, match="sandbox_violation"):

@@ -12,12 +12,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
 
-// Test the exact patched dependency used by Electron's installer.
+// Test the exact maintained extractor used by Electron's installer.
 const require = createRequire(import.meta.url);
 const electronRequire = createRequire(require.resolve("electron/package.json"));
-const extract = electronRequire("extract-zip") as (
+const extract = electronRequire("@electron-internal/extract-zip").extract as (
   file: string,
-  options: { dir: string; onEntry?: (entry: { fileName: string }) => void },
+  options: { dir: string },
 ) => Promise<void>;
 const roots: string[] = [];
 afterEach(async () => {
@@ -86,7 +86,6 @@ it.each(["../outside.txt", "/tmp/outside.txt", "C:\\outside.txt"])(
   async (target) => {
     const { root, archive, dir } = await fixture([
       { name: "link", data: target, link: true },
-      { name: "link", data: "overwrite" },
     ]);
     await writeFile(path.join(root, "outside.txt"), "untouched");
     await expect(extract(archive, { dir })).rejects.toThrow();
@@ -119,9 +118,7 @@ it("rejects a final-component link instead of following it", async () => {
   const outside = path.join(root, "outside");
   await mkdir(outside);
   await symlink(outside, path.join(dir, "entry"), "junction");
-  await expect(extract(archive, { dir })).rejects.toThrow(
-    /Refusing to overwrite/,
-  );
+  await expect(extract(archive, { dir })).rejects.toThrow();
   expect((await lstat(path.join(dir, "entry"))).isSymbolicLink()).toBe(true);
 });
 
@@ -136,26 +133,39 @@ it.each(["parent", "target"])(
       },
     ]);
     await symlink(dir, path.join(dir, "alias"), "junction");
-    await expect(extract(archive, { dir })).rejects.toThrow(/Out of bound/);
+    await expect(extract(archive, { dir })).rejects.toThrow();
     await expect(lstat(path.join(dir, "escape"))).rejects.toMatchObject({
       code: "ENOENT",
     });
   },
 );
 
-it("revalidates filenames changed by an onEntry callback", async () => {
-  const { root, archive, dir } = await fixture([{ name: "safe", data: "bad" }]);
-  await expect(
-    extract(archive, {
-      dir,
-      onEntry: (entry) => {
-        entry.fileName = "../escape/new/file";
-      },
-    }),
-  ).rejects.toThrow();
-  await expect(lstat(path.join(root, "escape"))).rejects.toMatchObject({
-    code: "ENOENT",
-  });
+// The native replacement has no onEntry callback. Test archive paths directly.
+it.each(["../escape/new/file", "/tmp/escape/new/file", "C:\\escape\\new\\file"])(
+  "confines archive filename %s to the destination",
+  async (name) => {
+    const { root, archive, dir } = await fixture([{ name, data: "bad" }]);
+    if (!name.startsWith("..")) {
+      await extract(archive, { dir });
+      // Absolute names are normalized by the native extractor, never written at the root.
+      const normalized = name.startsWith("C:") ? "escape/new/file" : "tmp/escape/new/file";
+      expect(await readFile(path.join(dir, normalized), "utf8")).toBe("bad");
+    } else await expect(extract(archive, { dir })).rejects.toThrow();
+    await expect(lstat(path.join(root, "escape"))).rejects.toMatchObject({ code: "ENOENT" });
+  },
+);
+
+it("duplicate entries cannot use an earlier symlink to overwrite outside", async () => {
+  const { root, archive, dir } = await fixture([
+    { name: "link", data: "../outside.txt", link: true },
+    { name: "link", data: "overwrite" },
+  ]);
+  await writeFile(path.join(root, "outside.txt"), "untouched");
+  // Native extraction resolves duplicate names before materializing entries.
+  await extract(archive, { dir });
+  expect(await readFile(path.join(root, "outside.txt"), "utf8")).toBe("untouched");
+  expect((await lstat(path.join(dir, "link"))).isFile()).toBe(true);
+  expect(await readFile(path.join(dir, "link"), "utf8")).toBe("overwrite");
 });
 
 it("extracts normal files and can replace a previous regular file", async () => {
@@ -168,7 +178,7 @@ it("extracts normal files and can replace a previous regular file", async () => 
 });
 
 it.skipIf(process.platform === "win32")(
-  "preserves confined framework links and rejects a duplicate file over a link",
+  "preserves confined framework links and replaces links without following them",
   async () => {
     const { archive, dir } = await fixture([
       { name: "Versions/A/binary", data: "executable" },
@@ -178,9 +188,9 @@ it.skipIf(process.platform === "win32")(
     await extract(archive, { dir });
     expect(await readFile(path.join(dir, "binary"), "utf8")).toBe("executable");
     await writeFile(archive, zip([{ name: "binary", data: "overwrite" }]));
-    await expect(extract(archive, { dir })).rejects.toThrow(
-      /Refusing to overwrite/,
-    );
+    await extract(archive, { dir });
+    expect((await lstat(path.join(dir, "binary"))).isFile()).toBe(true);
+    expect(await readFile(path.join(dir, "binary"), "utf8")).toBe("overwrite");
     expect(await readFile(path.join(dir, "Versions/A/binary"), "utf8")).toBe(
       "executable",
     );

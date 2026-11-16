@@ -54,6 +54,12 @@ export function ArtifactRevisionHistory({
   const [conflict, setConflict] = useState(false);
   const [reload, setReload] = useState(0);
   const savingRef = useRef(false);
+  const identityRef = useRef({ filepath, threadId });
+  useEffect(() => {
+    const identity = { filepath, threadId };
+    identityRef.current = identity;
+    return () => { if (identityRef.current === identity) identityRef.current = { filepath: "", threadId: "" }; };
+  }, [filepath, threadId]);
   const pageRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -141,6 +147,7 @@ export function ArtifactRevisionHistory({
   async function restore() {
     if (!revision || savingRef.current || conflict || disabled) return;
     savingRef.current = true;
+    const identity = identityRef.current;
     setSaving(true);
     onBusyChange(true);
     setError(null);
@@ -151,9 +158,11 @@ export function ArtifactRevisionHistory({
         revisionId: revision.revision_id,
         expectedContent: currentContent,
       });
+      if (identityRef.current !== identity) return;
       onRestored(revision.content);
       setOpen(false);
     } catch (failure) {
+      if (identityRef.current !== identity) return;
       const changed =
         failure instanceof ArtifactSaveError && failure.status === 409;
       setConflict(changed);
@@ -163,9 +172,11 @@ export function ArtifactRevisionHistory({
           : "恢复失败，当前内容未覆盖，请重试。",
       );
     } finally {
-      savingRef.current = false;
-      setSaving(false);
-      onBusyChange(false);
+      if (identityRef.current === identity) {
+        savingRef.current = false;
+        setSaving(false);
+        onBusyChange(false);
+      }
     }
   }
 

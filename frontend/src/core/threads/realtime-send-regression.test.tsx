@@ -291,7 +291,7 @@ describe("useThreadStreamRealtime outbound regression", () => {
 });
 
 it("preserves a native form ID through transport, failure and durable receipt", async () => {
-  const clientMessageId = "ui-94b9c161-47af-4b81-b572-cd9f2325a050";
+  const clientMessageId = "itm_ui_94b9c161-47af-4b81-b572-cd9f2325a050";
   const startTurn = vi
     .fn()
     .mockRejectedValueOnce(new Error("connection lost"))

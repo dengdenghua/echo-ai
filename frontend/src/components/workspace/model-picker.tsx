@@ -76,7 +76,14 @@ export function ModelContextSetting({
 
   // This is a quick *choice*, not a model-spec readout. Keep the existing
   // picker unchanged for models that only expose one context window.
-  if (!selected || options.length < 2) return null;
+  if (!selected || selected.unavailable) return null;
+  if (options.length < 2) {
+    const tokens = Number(selected.context_window);
+    return <section data-testid="model-context-setting" className={cn("flex items-center justify-between gap-2 text-ui", className)}>
+      <span className="text-muted-foreground">{t.modelPicker.contextLength}</span>
+      <span>{Number.isFinite(tokens) && tokens > 0 ? `${formatContextWindow(tokens)}${selected.context_source === "official_api" ? "（官方 API 上限）" : selected.context_source === "engine_input" ? "（输入上限）" : ""}` : "由引擎管理（未上报上限）"}</span>
+    </section>;
+  }
 
   const current =
     options.find((model) => modelMatchesValue(model, value)) ??
@@ -177,6 +184,7 @@ const EFFORT_STRENGTH: Record<ReasoningEffort, number> = {
   high: 4,
   xhigh: 5,
   max: 6,
+  ultra: 7,
 };
 
 function resolveEffectiveEffort(
@@ -216,12 +224,14 @@ function reasoningEffortLabel(
       return t.inputBox.reasoningEffortHigh;
     case "xhigh":
       return t.inputBox.reasoningEffortXHigh;
+    case "ultra": return "Ultra";
     case "max":
       return t.inputBox.reasoningEffortMax;
   }
 }
 
 function ReasoningEffortSetting({
+  automatic = false,
   value,
   disabled,
   efforts,
@@ -229,6 +239,7 @@ function ReasoningEffortSetting({
 }: {
   value?: ReasoningEffort;
   disabled?: boolean;
+  automatic?: boolean;
   efforts?: ReasoningEffort[] | null;
   onChange: (effort: ReasoningEffort) => void;
 }) {
@@ -248,11 +259,11 @@ function ReasoningEffortSetting({
         </span>
         <span className="text-ui text-muted-foreground">
           {t.inputBox.reasoningEffortCurrent(
-            reasoningEffortLabel(effective, t),
+            automatic ? "跟随引擎" : reasoningEffortLabel(effective, t),
           )}
         </span>
       </div>
-      {mapped && (
+      {!automatic && mapped && (
         <div className="mb-1 px-1 text-xs text-muted-foreground">
           {t.inputBox.reasoningEffortMapped(
             reasoningEffortLabel(rawCurrent, t),
@@ -269,7 +280,7 @@ function ReasoningEffortSetting({
         }}
       >
         {offered.map((effort) => {
-          const selected = effort === effective;
+          const selected = !automatic && effort === effective;
           return (
             <button
               key={effort}
@@ -367,6 +378,7 @@ export interface ModelPickerProps {
   value?: string | null;
   onChange: (name: string) => void;
   reasoningEffort?: ReasoningEffort;
+  reasoningEffortAutomatic?: boolean;
   reasoningEffortDisabled?: boolean;
   onReasoningEffortChange?: (effort: ReasoningEffort) => void;
   /** Render prop for a custom trigger. */
@@ -388,6 +400,7 @@ export function ModelPicker({
   value,
   onChange,
   reasoningEffort,
+  reasoningEffortAutomatic,
   reasoningEffortDisabled,
   onReasoningEffortChange,
   renderTrigger,
@@ -819,6 +832,7 @@ export function ModelPicker({
 
         {onReasoningEffortChange && (
           <ReasoningEffortSetting
+            automatic={reasoningEffortAutomatic}
             value={reasoningEffort}
             disabled={reasoningEffortDisabled}
             efforts={engineSource === "opencode"

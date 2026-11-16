@@ -12,8 +12,9 @@ import pytest
 async def test_host_tools_disable_native_environments_without_revoking_catalog(tmp_path, resumed):
     from tests.test_codex_execution_backend import _binding, _make_session
 
-    session, _, _, _, client = _make_session(
-        tmp_path, binding=_binding() if resumed else None, approval_policy="never"
+    binding = _binding() if resumed else None
+    session, _, context, _, client = _make_session(
+        tmp_path, binding=binding, approval_policy="never"
     )
     spec = {
         "type": "function",
@@ -27,14 +28,22 @@ async def test_host_tools_disable_native_environments_without_revoking_catalog(t
         dynamic_tools=(spec,),
         dynamic_tool_handler=lambda request: {"success": True, "contentItems": []},
     )
+    if binding is not None:
+        from runtime.execution.codex_backend import catalog_state
+
+        catalog_state.remember(context, binding.inner_thread_id, session.request)
     await session.start()
     try:
         if resumed:
             thread = next(value for name, value in client.calls if name == "thread/resume")[1]
+            assert not {"dynamicTools", "selectedCapabilityRoots", "environments"} & set(
+                thread["extra_params"]
+            )
+            assert catalog_state.matches(context, binding, session.request)
         else:
             thread = next(value for name, value in client.calls if name == "thread/start")
-        assert thread["extra_params"]["environments"] == []
-        assert thread["extra_params"]["dynamicTools"] == [spec]
+            assert thread["extra_params"]["environments"] == []
+            assert thread["extra_params"]["dynamicTools"] == [spec]
         assert thread["approval_policy"] == "never"
         turn = next(value for name, value in client.calls if name == "turn/start")
         assert turn[2]["extra_params"]["environments"] == []

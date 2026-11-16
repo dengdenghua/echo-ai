@@ -15,16 +15,16 @@ frontend/src/components/browser/webview-tab.tsx	2485
 frontend/src/components/store/capability-market-panel.test.tsx	1274
 frontend/src/components/store/cloud-skills-panel.tsx	1095
 frontend/src/components/workspace/agent-operator-panel.test.tsx	2045
-frontend/src/components/workspace/agent-workbench-panel.test.tsx	3387
+frontend/src/components/workspace/agent-workbench-panel.test.tsx	3388
 frontend/src/components/workspace/agents/agent-world-unified.tsx	1006
 frontend/src/components/workspace/chat-input-box.test.tsx	2319
-frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2210
+frontend/src/components/workspace/chat-input-box/ChatComposer.tsx	2218
 frontend/src/components/workspace/coder-engine-control.test.tsx	1262
 frontend/src/components/workspace/intelligence-panel.tsx	1565
 frontend/src/components/workspace/knowledge-graph-view.tsx	1547
 frontend/src/components/workspace/messages/message-group.test.tsx	3304
 frontend/src/components/workspace/messages/message-group.tsx	3303
-frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3251
+frontend/src/components/workspace/messages/message-list.process-trace.test.tsx	3298
 frontend/src/components/workspace/messages/message-output-summary.test.tsx	1218
 frontend/src/components/workspace/settings/model-settings-page.test.tsx	1297
 frontend/src/components/workspace/workspace-sidebar.tsx	2792
@@ -35,4 +35,4 @@ frontend/src/core/realtime/use-realtime-thread.test.tsx	3127
 frontend/src/core/realtime/use-realtime-thread.ts	2142
 frontend/src/core/threads/realtime-adapter.test.ts	1948
 frontend/src/core/threads/use-thread-stream-realtime.test.ts	2729
-frontend/src/core/threads/use-thread-stream-realtime.ts	2004
+frontend/src/core/threads/use-thread-stream-realtime.ts	2009

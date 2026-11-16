@@ -20,6 +20,7 @@ import { useImageGalleryRegistration } from "./image-gallery";
 import { ImageRegionSelector } from "./image-region-selector";
 import { LinkedFileReference } from "./linked-file-reference";
 import { decodeMarkdownFileURL } from "@/core/navigation/markdown-file-url";
+import { GeneratedFileReference } from "./generated-file-reference";
 
 /**
  * Custom image component that handles artifact URLs
@@ -127,6 +128,15 @@ export function RoutedMessageLink({
 }: ComponentProps<"a">) {
   if (href) href = decodeMarkdownFileURL(href);
   const artifactRef = href ? artifactRefFromMarkdownHref(href) : null;
+  if (artifactRef?.startsWith("workspace-output:")) {
+    return (
+      <GeneratedFileReference
+        artifactRef={artifactRef}
+        href={href}
+        label={typeof children === "string" ? children : undefined}
+      />
+    );
+  }
   const file =
     href &&
     !artifactRef?.startsWith("workspace-output:") &&

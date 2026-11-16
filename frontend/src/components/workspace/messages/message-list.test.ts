@@ -329,7 +329,7 @@ describe("message-list: failureKind classification", () => {
       ),
     ).toBe("rate-limit");
     expect(failureKind("usage limit quota reached", "router")).toBe(
-      "rate-limit",
+      "quota-exhausted",
     );
   });
 

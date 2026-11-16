@@ -9,6 +9,16 @@ export function engineStatusLine(
   copy: EngineStoreCopy,
 ): { text: string; tone: EngineStatusTone } {
   const job = engine.job;
+  if (engine.state === "pending_activation")
+    return {
+      text: copy.pendingActivation(
+        engine.pending_version ?? "",
+        engine.active_tasks ?? 0,
+      ),
+      tone: "primary",
+    };
+  if (job?.state === "checking")
+    return { text: copy.checking, tone: "primary" };
   if (engine.state === "installing") {
     if (job?.state === "installing") {
       return { text: copy.unpacking, tone: "primary" };

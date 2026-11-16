@@ -17,6 +17,8 @@ const {
   Notification,
   protocol,
   safeStorage,
+  screen,
+  powerMonitor,
   shell,
   session,
   systemPreferences,
@@ -35,10 +37,18 @@ const {
   ensureOptionalDeps,
   loginDesktopOwner,
 } = require("./backend-runtime.cjs");
+const managedBackend = require("./backend-process-state.cjs").manageBackend({
+  spawnBackend,
+  killBackend,
+});
 const petSidecar = require("./pet-sidecar.cjs");
+const { createDesktopCompanion } = require("./desktop-companion.cjs");
+let desktopCompanion = null;
 const desktopCore = require("./desktop-shell-core.cjs");
 const { selectPreviewSource } = require("./automation-preview.cjs");
-const { registerClipboardWrite, isTrustedClipboardFrame } = require("./clipboard-write.cjs");
+const { createAutomationFeedback } = require("./automation-feedback.cjs");
+let automationFeedback = null;
+const { registerClipboardWrite, isTrustedClipboardFrame, writeClipboardText } = require("./clipboard-write.cjs");
 const { createVisibleAutomationBrowser } = require("./visible-automation-browser.cjs");
 const desktopProtocol = require("./desktop-protocol.cjs");
 const backendAddress = require("./backend-address.cjs");
@@ -1206,7 +1216,7 @@ function showBrowserContextMenu(contents, params) {
         label: "在新标签页打开",
         click: () => openUrlInBrowserTab(params.linkURL),
       },
-      { label: "复制链接", click: () => clipboard.writeText(params.linkURL) },
+      { label: "复制链接", click: () => writeClipboardText(clipboard, params.linkURL) },
     );
     separate();
   }
@@ -1218,7 +1228,7 @@ function showBrowserContextMenu(contents, params) {
       },
       {
         label: "复制图片地址",
-        click: () => clipboard.writeText(params.srcURL),
+        click: () => writeClipboardText(clipboard, params.srcURL),
       },
     );
     separate();
@@ -1325,6 +1335,7 @@ function registerIpc() {
 
   // backend
   handle("backend:getBaseURL", () => resolveBackendBaseURL());
+  handle("backend:getStatus", () => managedBackend.getStatus());
   ipcMain.on("backend:getBaseURLSync", (event) => {
     event.returnValue = resolveBackendBaseURL();
   });
@@ -1338,8 +1349,7 @@ function registerIpc() {
       };
     }
     try {
-      killBackend();
-      await spawnBackend(backendConfigPath(), backendProgress);
+      await managedBackend.restart(backendConfigPath(), backendProgress);
       return { ok: true };
     } catch (err) {
       return { ok: false, reason: err.message };
@@ -1416,16 +1426,17 @@ function registerIpc() {
   const petEnabled = () => process.env.ECHO_PET_DISABLED !== "1";
   handle("pet:start", () =>
     petEnabled()
-      ? petSidecar.startPet()
+      ? (desktopCompanion?.start() || petSidecar.startPet())
       : { ok: false, reason: "pet disabled" },
   );
   handle("pet:stop", () => {
+    desktopCompanion?.stop();
     petSidecar.stopPet();
     return { ok: true };
   });
   handle("pet:isRunning", () => ({
     ok: true,
-    running: petSidecar.isPetRunning(),
+    running: desktopCompanion?.isRunning() || petSidecar.isPetRunning(),
   }));
   handle("pet:sendEvent", (state) => {
     if (!petEnabled()) return { ok: false, reason: "pet disabled" };
@@ -2161,6 +2172,7 @@ function openDesktopAuxiliaryWindow(rawURL, windowName = "echo-app") {
 }
 
 function createMainWindow() {
+  automationFeedback?.start();
   const useBuiltRenderer = app.isPackaged || BUILT_RENDERER_SMOKE;
   const win = new BrowserWindow({
     icon: path.join(__dirname, "..", "dist", "favicon.ico"),
@@ -2249,6 +2261,7 @@ function createMainWindow() {
       setTimeout(() => win.loadURL(DEV_URL), 1000);
     });
   }
+  win.once("closed", () => automationFeedback?.stop());
   return win;
 }
 
@@ -2312,6 +2325,19 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    try {
+      automationFeedback = createAutomationFeedback({ app, BrowserWindow, screen });
+      powerMonitor.on("lock-screen", () => automationFeedback?.stop());
+      powerMonitor.on("unlock-screen", () => automationFeedback?.start());
+    } catch (error) { console.warn("[echo] input feedback unavailable:", error.message); }
+    // Windows/Linux: Electron installs a default application menu, and Windows
+    // paints it as a bar *inside* the custom title bar (titleBarStyle "hidden"
+    // + titleBarOverlay 36px).  The native 文件/编辑/视图/帮助 row therefore
+    // collided with the app's own back / sidebar controls, and Alt surfaced a
+    // second, differently-labelled menu.  The app draws every control itself
+    // and exposes devtools through window:openDevTools, so drop the native
+    // menu outright.  macOS keeps its menu: Cmd+Q, Cmd+C and Cmd+W depend on it.
+    if (process.platform !== "darwin") Menu.setApplicationMenu(null);
     if (!app.isPackaged) app.setAsDefaultProtocolClient("echo");
     try {
       if (app.isPackaged || BUILT_RENDERER_SMOKE) {
@@ -2354,6 +2380,14 @@ if (!app.requestSingleInstanceLock()) {
     trackDownloads(privateSession);
     mainWindow = createMainWindow();
     restoreQueuedNavigation(mainWindow.webContents);
+    if (process.env.ECHO_PET_DISABLED !== "1" && !BUILT_RENDERER_SMOKE) {
+      desktopCompanion = createDesktopCompanion({
+        app, BrowserWindow, ipcMain, screen, Menu,
+        getMainWindow: () => mainWindow, devURL: DEV_URL, brand: "Echo AI",
+      });
+      desktopCompanion.start();
+      mainWindow.once("closed", () => desktopCompanion?.shutdown());
+    }
     try {
       const bridgeDataDir =
         process.env.ECHO_DATA_DIR ||
@@ -2378,7 +2412,7 @@ if (!app.requestSingleInstanceLock()) {
     // can show a bounded startup state while /readyz becomes available.
     if (app.isPackaged || SMOKE_TEST_BACKEND) {
       try {
-        await spawnBackend(backendConfigPath(), backendProgress);
+        await managedBackend.start(backendConfigPath(), backendProgress);
       } catch (err) {
         const message = `无法启动随应用安装的后端：${err.message}`;
         console.error("[echo] bundled backend start failed:", err);
@@ -2395,7 +2429,7 @@ if (!app.requestSingleInstanceLock()) {
     // wait for the first load, then read the flag and skip startup when the
     // user has it turned off — otherwise the desktop window would pop up
     // against their choice on every launch.
-    if (process.env.ECHO_PET_DISABLED !== "1") {
+    if (process.env.ECHO_LEGACY_PET === "1" && process.env.ECHO_PET_DISABLED !== "1") {
       const maybeStartPet = () => {
         const res = petSidecar.startPet();
         if (!res.ok && res.reason) {
@@ -2451,6 +2485,8 @@ if (!app.requestSingleInstanceLock()) {
   // Clean up the packaged backend child process on quit (also covers
   // window-all-closed → app.quit() on non-macOS).
   app.on("before-quit", () => {
+    desktopCompanion?.shutdown();
+    automationFeedback?.stop();
     extensionHost?.dispose();
     browserControlBridge?.close();
     killBackend();

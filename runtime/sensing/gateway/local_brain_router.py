@@ -79,6 +79,17 @@ def create_local_brain_router(
         """Start/probe Storage and return its same-origin gateway path."""
         _require_operator(request)
 
+        hub = getattr(request.app.state, "plugin_hub", None)
+        if hub is not None:
+            detail = hub.get_plugin_detail("knowledge_storage")
+            if not detail or not detail.get("installed") or not detail.get("enabled"):
+                raise HTTPException(409, "请先安装并启用知识库插件")
+            # Stop/start also recovers an exited service; Hub's started flag alone
+            # is not a liveness probe.
+            hub.stop("knowledge_storage")
+            hub.activate_plugin("knowledge_storage")
+            return {"ok": True, "status": "started", "base_url": "/api/storage", "auth_token": None}
+
         from runtime.execution.suckers.storage_skills import storage_alive
         from runtime.sensing.gateway.storage_supervisor import maybe_start_storage
 

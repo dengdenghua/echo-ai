@@ -171,7 +171,7 @@ describe("<MarkdownContent /> web links", () => {
     window.addEventListener(OPEN_ARTIFACT_EVENT, openArtifact);
     renderMarkdown("[下载 PPT](out/deck.pptx)");
 
-    fireEvent.click(screen.getByRole("link", { name: "下载 PPT" }));
+    fireEvent.click(screen.getByRole("button", { name: "下载 PPT" }));
 
     expect(opened).toEqual({ path: "workspace-output:final:out/deck.pptx" });
     expect(window.location.hash).toBe("#/workspace");

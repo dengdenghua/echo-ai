@@ -9,6 +9,7 @@ import {
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { PermissionMode } from "@/core/permissions";
 import { useI18n } from "@/core/i18n/hooks";
+import { permissionScopeCopy } from "@/core/i18n/locales/permission-scope";
 import { isolatedExecutionCopy } from "@/core/i18n/locales/isolated-execution";
 import {
   DropdownMenu,
@@ -41,6 +42,7 @@ interface PermissionIndicatorProps {
   disabled?: boolean;
   className?: string;
   compact?: boolean;
+  activeTask?: boolean;
 }
 
 const PERMISSION_TRIGGER_TONE =
@@ -52,9 +54,11 @@ export function PermissionIndicator({
   disabled = false,
   className,
   compact = false,
+  activeTask = false,
 }: PermissionIndicatorProps) {
   const { t, locale } = useI18n();
   const { confirm, confirmDialog } = useConfirmDialog();
+  const scope = permissionScopeCopy(locale);
   const labels: Record<PermissionMode, { label: string; description: string }> =
     {
       autoSandbox: isolatedExecutionCopy(locale),
@@ -78,7 +82,9 @@ export function PermissionIndicator({
   const current = labels[mode] ?? labels.default;
   const CurrentIcon = MODE_ICONS[mode];
   const isBypassMode = mode === "bypassPermissions";
-  const controlLabel = t.chatInputBox.permissionModeLabel;
+  const controlLabel = activeTask
+    ? scope.label
+    : t.chatInputBox.permissionModeLabel;
   const options = PERMISSION_OPTIONS;
 
   const handleModeChange = async (value: string) => {
@@ -86,7 +92,7 @@ export function PermissionIndicator({
     if (nextMode === "bypassPermissions") {
       const accepted = await confirm({
         title: t.chatInputBox.permissionModeBypassConfirmTitle,
-        description: t.chatInputBox.permissionModeBypassConfirmDesc,
+        description: `${t.chatInputBox.permissionModeBypassConfirmDesc}${activeTask ? ` ${scope.hint}` : ""}`,
         confirmLabel: t.chatInputBox.permissionModeBypassConfirmAction,
         destructive: false,
       });
@@ -115,7 +121,7 @@ export function PermissionIndicator({
                     ),
               className,
             )}
-            title={`${controlLabel}: ${current.description}`}
+            title={`${controlLabel}: ${current.description}${activeTask ? ` ${scope.hint}` : ""}`}
             aria-label={`${controlLabel}: ${current.label}`}
           >
             <CurrentIcon
@@ -128,6 +134,7 @@ export function PermissionIndicator({
             {/* Phones keep the composer toolbar on one row: the icon carries the
                 mode (named for screen readers), except the full-access warning. */}
             <span className={cn(!isBypassMode && "max-sm:hidden")}>
+              {activeTask ? scope.prefix : ""}
               {current.label}
             </span>
             <ChevronDownIcon
@@ -142,11 +149,19 @@ export function PermissionIndicator({
           data-testid="permission-mode-menu"
           side="top"
           align="start"
-          className="w-64"
+          className="w-80 max-w-[calc(100vw-2rem)]"
         >
           <DropdownMenuLabel className="text-ui text-muted-foreground">
             {controlLabel}
           </DropdownMenuLabel>
+          {activeTask && (
+            <p
+              data-testid="permission-scope-hint"
+              className="px-2 pb-2 text-xs leading-5 text-muted-foreground"
+            >
+              {scope.hint}
+            </p>
+          )}
           <DropdownMenuRadioGroup value={mode} onValueChange={handleModeChange}>
             {options.map((option) => {
               const OptionIcon = MODE_ICONS[option];
@@ -171,7 +186,7 @@ export function PermissionIndicator({
                     <span className="flex items-center gap-1.5 text-ui font-medium leading-5">
                       {item.label}
                     </span>
-                    <span className="block text-ui leading-4 text-muted-foreground">
+                    <span className="block text-ui leading-5 text-muted-foreground">
                       {item.description}
                     </span>
                   </span>

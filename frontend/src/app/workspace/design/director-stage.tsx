@@ -23,6 +23,10 @@ import {
   XIcon,
 } from "lucide-react";
 import * as THREE from "three";
+
+import { bindRenderActivity, createDemandRenderLoop, type DemandRenderLoop } from "@/core/rendering/demand-render-loop";
+import { captureDirectorFrame, disposeDirectorStageRenderer, renderDirectorFrame } from "@/core/rendering/director-stage-renderer";
+import { disposeObject3D } from "@/core/rendering/dispose-object3d";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -377,6 +381,8 @@ export function DirectorStage({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const renderLoopRef = useRef<DemandRenderLoop | null>(null);
   const threeSceneRef = useRef<THREE.Scene | null>(null);
   const sceneRootRef = useRef<THREE.Group | null>(null);
   const backgroundMeshRef = useRef<THREE.Mesh | null>(null);
@@ -566,6 +572,7 @@ export function DirectorStage({
 
   useEffect(() => {
     playingRef.current = playing;
+    renderLoopRef.current?.setPlaying(playing);
   }, [playing]);
 
   useEffect(() => {
@@ -662,9 +669,10 @@ export function DirectorStage({
     sceneRootRef.current = sceneRoot;
     scene.add(sceneRoot);
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+    cameraRef.current = camera;
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: false,
     });
     renderer.setClearColor(new THREE.Color("#fafafa"), 1);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -724,6 +732,7 @@ export function DirectorStage({
       );
       drag = { x: event.clientX, y: event.clientY };
       updateCamera();
+      renderLoopRef.current?.invalidate();
     };
     const up = () => {
       drag = null;
@@ -738,6 +747,7 @@ export function DirectorStage({
       camera.aspect = Math.max(1, width) / Math.max(1, height);
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
+      renderLoopRef.current?.invalidate();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(host);
@@ -827,10 +837,9 @@ export function DirectorStage({
       }
       return cameraDriven;
     };
-    let frame = 0;
     let previous = performance.now();
     let lastUiSync = previous;
-    const render = (now = performance.now()) => {
+    const render = (now: number) => {
       const elapsed = Math.min(0.1, Math.max(0, (now - previous) / 1000));
       previous = now;
       if (playingRef.current && durationRef.current > 0) {
@@ -844,32 +853,36 @@ export function DirectorStage({
       }
       const cameraDriven = evaluateTimeline(playheadRef.current);
       if (!cameraDriven) updateCamera();
-      renderer.render(scene, camera);
-      const label = roleLabelRef.current;
-      if (label) {
-        const point = character.getWorldPosition(new THREE.Vector3());
-        point.y += 1.9;
-        point.project(camera);
-        const visible =
-          showRoleLabelsRef.current && point.z > -1 && point.z < 1;
-        label.style.display = visible ? "block" : "none";
-        if (visible) {
-          label.style.left = `${((point.x + 1) / 2) * host.clientWidth}px`;
-          label.style.top = `${((-point.y + 1) / 2) * host.clientHeight}px`;
-        }
-      }
-      frame = requestAnimationFrame(render);
+      renderDirectorFrame({
+        renderer,
+        scene,
+        camera,
+        host,
+        character,
+        label: roleLabelRef.current,
+        showLabel: showRoleLabelsRef.current,
+      });
     };
-    render();
+    const loop = createDemandRenderLoop(render);
+    renderLoopRef.current = loop;
+    loop.setPlaying(playingRef.current);
+    const stopActivity = bindRenderActivity(host, (active) => {
+      previous = performance.now();
+      loop.setActive(active);
+    });
     return () => {
-      cancelAnimationFrame(frame);
+      loop.dispose();
+      renderLoopRef.current = null;
+      stopActivity();
       observer.disconnect();
       renderer.domElement.removeEventListener("pointerdown", down);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      renderer.dispose();
+      disposeDirectorStageRenderer(scene, renderer);
       threeSceneRef.current = null;
+      cameraRef.current = null;
       sceneRootRef.current = null;
+      characterRef.current = null;
       backgroundMeshRef.current = null;
       modelLayerRef.current = null;
       propLayerRef.current = null;
@@ -878,17 +891,14 @@ export function DirectorStage({
   }, []);
 
   useEffect(() => {
+    renderLoopRef.current?.invalidate();
+  }, [backgroundImage, backgroundMode, bodyType, durationSec, horizontalRotation, hydrated, models, motions, playheadSec, pose, position, props, scenePosition, sceneRotation, sceneScale, showRoleLabels, sky, sphereRadius, tracks]);
+
+  useEffect(() => {
     const layer = modelLayerRef.current;
     if (!layer) return;
     for (const child of [...layer.children]) {
-      child.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material)
-          ? object.material
-          : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
+      disposeObject3D(child);
       layer.remove(child);
     }
     models.forEach((model) => layer.add(makeDeclarativeModel(model)));
@@ -898,14 +908,7 @@ export function DirectorStage({
     const layer = propLayerRef.current;
     if (!layer) return;
     for (const child of [...layer.children]) {
-      child.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material)
-          ? object.material
-          : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
+      disposeObject3D(child);
       layer.remove(child);
     }
     props.forEach((prop) => layer.add(makeProp(prop)));
@@ -964,6 +967,7 @@ export function DirectorStage({
       texture.colorSpace = THREE.SRGBColorSpace;
       if (backgroundMode === "flat") {
         scene.background = texture;
+        renderLoopRef.current?.invalidate();
         return;
       }
       texture.mapping = THREE.EquirectangularReflectionMapping;
@@ -975,6 +979,7 @@ export function DirectorStage({
       mesh.name = "全景背景";
       backgroundMeshRef.current = mesh;
       scene.add(mesh);
+      renderLoopRef.current?.invalidate();
     });
     return () => {
       cancelled = true;
@@ -994,12 +999,15 @@ export function DirectorStage({
       window.clearTimeout(snapshotTimerRef.current);
     setSnapshotState("syncing");
     const timer = window.setTimeout(() => {
-      const canvas = rendererRef.current?.domElement;
-      if (!canvas || canvas.width < 64 || canvas.height < 64) {
+      const renderer = rendererRef.current;
+      const scene = threeSceneRef.current;
+      const camera = cameraRef.current;
+      const canvas = renderer?.domElement;
+      if (!renderer || !scene || !camera || !canvas || canvas.width < 64 || canvas.height < 64) {
         setSnapshotState("error");
         return;
       }
-      const dataUrl = canvas.toDataURL("image/png");
+      const dataUrl = captureDirectorFrame({ renderer, scene, camera });
       fetch(
         `${getBackendBaseURL()}/api/plugins/director-stage/scenes/${encodeURIComponent(sceneId)}/visual-snapshot`,
         {
@@ -1043,8 +1051,11 @@ export function DirectorStage({
   ]);
 
   const exportFrame = () => {
-    const data = rendererRef.current?.domElement.toDataURL("image/png");
-    if (!data) return;
+    const renderer = rendererRef.current;
+    const scene = threeSceneRef.current;
+    const camera = cameraRef.current;
+    if (!renderer || !scene || !camera) return;
+    const data = captureDirectorFrame({ renderer, scene, camera });
     const anchor = document.createElement("a");
     anchor.href = data;
     anchor.download = "echo-director-stage.png";

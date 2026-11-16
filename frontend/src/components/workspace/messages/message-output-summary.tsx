@@ -128,7 +128,7 @@ export function MessageOutputSummary({
     failure?.kind === "capability" ||
     failure?.kind === "network" ||
     failure?.kind === "backpressure" ||
-    failure?.kind === "rate-limit" ||
+    failure?.kind === "quota-exhausted" || failure?.kind === "rate-limit" ||
     failure?.kind === "verification" ||
     failure?.kind === "environment" ||
     failure?.kind === "blocked";
@@ -319,8 +319,8 @@ export function MessageOutputSummary({
           )}
           {isFailure &&
             !isResolvedFailure &&
-            (failure?.kind === "auth" || failure?.kind === "rate-limit" || modelPreparationIssue || noModel) && (
-              <ModelSetupActions noModel={noModel} indent />
+            (failure?.kind === "auth" || failure?.kind === "quota-exhausted" || failure?.kind === "rate-limit" || modelPreparationIssue || noModel) && (
+              <ModelSetupActions noModel={noModel} quota={failure?.kind === "quota-exhausted"} indent />
             )}
           {isFailure &&
             !isResolvedFailure &&
@@ -361,7 +361,7 @@ export function MessageOutputSummary({
             )}
           {isFailure &&
             !isResolvedFailure &&
-            failure?.kind !== "auth" && !noModel &&
+            failure?.kind !== "auth" && failure?.kind !== "quota-exhausted" && !noModel &&
             !connectionIssue &&
             (failure?.kind !== "environment" || !onAuthorizeNetwork) &&
             originalPrompt && (

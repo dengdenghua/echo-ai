@@ -260,3 +260,12 @@ async def test_model_switch_never_terminates_an_active_writer(tmp_path):
         )
     assert not closed
     assert warm_pool._pool["busy"] is entry
+
+
+def test_changed_model_or_budget_cannot_reuse_stale_process(tmp_path):
+    request = SimpleNamespace(command=("codex", "app-server"), provider_profile=None, tool_free=False, host_tools_only=False, dynamic_tool_handler=None)
+    context = SimpleNamespace(codex_home=tmp_path, workspace=tmp_path, sandbox_mode="read-only", approval_reviewer="user", selected_app_ids=(), locked_off_features=(), host_skills_isolated=True)
+    original = warm_pool.key_for(request, context, wrapped=False)
+    for field, value in (("model", "new-model"), ("model_context_window", 1000000), ("auto_compact_token_limit", 64000)):
+        changed = SimpleNamespace(**{**vars(request), field: value})
+        assert warm_pool.key_for(changed, context, wrapped=False) != original

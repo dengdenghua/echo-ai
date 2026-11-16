@@ -317,4 +317,4 @@ class TestConfigWireWindow:
         from runtime.sensing.gateway._config_helpers import _entry_context_window
 
         snapshot({"something-else": {"context": 1_000_000}})
-        assert _entry_context_window({"id": "mystery"}, ["mystery"]) == 256_000
+        assert _entry_context_window({"id": "mystery"}, ["mystery"]) is None

@@ -184,10 +184,10 @@ describe("ModelSettingsPage · everyday model selection", () => {
     });
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "对话默认模型" }),
+        screen.getByRole("button", { name: /^对话默认模型/ }),
       ).toHaveTextContent("Shared A"),
     );
-    await user.click(screen.getByRole("button", { name: "对话默认模型" }));
+    await user.click(screen.getByRole("button", { name: /^对话默认模型/ }));
     expect(
       screen.queryByRole("button", { name: "添加模型", exact: true }),
     ).not.toBeInTheDocument();
@@ -205,14 +205,14 @@ describe("ModelSettingsPage · everyday model selection", () => {
     renderWithProviders(<ModelSettingsPage />, { locale: "zh-CN" });
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "对话默认模型" }),
+        screen.getByRole("button", { name: /^对话默认模型/ }),
       ).toHaveTextContent("Shared B"),
     );
-    await user.click(screen.getByRole("button", { name: "对话默认模型" }));
+    await user.click(screen.getByRole("button", { name: /^对话默认模型/ }));
     await user.click(screen.getByRole("button", { name: /^自动/ }));
     expect(getLocalSettings().context.model_name).toBe("auto");
     expect(
-      screen.getByRole("button", { name: "对话默认模型" }),
+      screen.getByRole("button", { name: /^对话默认模型/ }),
     ).toHaveTextContent("自动");
   });
 

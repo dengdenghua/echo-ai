@@ -454,6 +454,7 @@ function turnToMessages(turn: Turn): Message[] {
             ...commandExecutionInput(ce),
             output: itemStreamText(ce),
             exit_code: ce.exitCode,
+            status: ce.status,
           },
           type: "tool_call",
           effectReceipt: ce.effectReceipt ?? undefined,
@@ -600,8 +601,8 @@ function turnToMessages(turn: Turn): Message[] {
             kwargs.interrupt_reason = turn.interruptReason;
           }
           if (split.finalAnswer?.trim()) {
-            // Keep the draft available to the workbench/replay layer without
-            // presenting it as the assistant's settled answer in chat.
+            // Preserve the draft for replay; answer prose remains readable
+            // in chat alongside an explicit incomplete/cancelled receipt.
             kwargs.interrupted_draft = split.finalAnswer;
           }
         }
@@ -650,11 +651,15 @@ function turnToMessages(turn: Turn): Message[] {
           kwargs.created_at = am.createdAt;
         }
         const visibleContent = split.finalAnswer || split.publicUpdate || "";
+        const preserveStoppedAnswer =
+          isInterruptedMessage &&
+          messageKind === "answer" &&
+          (turn.status === "interrupted" || turn.status === "cancelled");
         const ai: AIMessage = {
           type: "ai",
           id: am.id,
           content:
-            isInterruptedMessage || isFailedMessage
+            (isInterruptedMessage && !preserveStoppedAnswer) || isFailedMessage
               ? ""
               : hasLegacyMemberFailure &&
                   LEGACY_GROUP_SUMMARY_RE.test(visibleContent)

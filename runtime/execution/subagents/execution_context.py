@@ -101,6 +101,12 @@ def child_execution_scope(
             ),
         )
         child.metadata["_execution_task"] = child_task
+        # The child is not yet bound to a driver, but an unconfigured role
+        # should retain the parent's provider default. Explicit role backends
+        # still take precedence when the runner selects its engine.
+        child.metadata["_parent_execution_engine"] = task.execution_engine or parent.metadata.get(
+            "_parent_execution_engine"
+        )
         request = ExecutionRequest(child_task, instruction)
         with execution_request_scope(request):
             yield request

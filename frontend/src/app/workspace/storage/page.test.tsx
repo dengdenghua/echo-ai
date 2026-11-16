@@ -19,6 +19,19 @@ vi.mock("@/core/storage/api", async (importOriginal) => ({
   startNASService: vi.fn(),
 }));
 
+vi.mock("@/core/api/request", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/api/request")>();
+  return {
+    ...actual,
+    untypedApi: {
+      ...actual.untypedApi,
+      get: vi
+        .fn()
+        .mockResolvedValue({ up: false, installed: false, enabled: false }),
+    },
+  };
+});
+
 beforeEach(() => {
   vi.mocked(getNASManifest)
     .mockReset()
@@ -37,10 +50,10 @@ it("explains a missing storage service without polling an uninstalled process", 
     initialRoute: "/workspace/storage?library=computer",
   });
   expect(
-    await screen.findByText(/还没有安装本地知识库服务（echo-storage）/),
+    await screen.findByRole("button", { name: "安装并启用" }),
   ).toBeInTheDocument();
   expect(screen.queryByText(/ECHO_STORAGE_CMD/)).toBeNull();
-  expect(startNASService).toHaveBeenCalledOnce();
+  expect(startNASService).not.toHaveBeenCalled();
   expect(getNASManifest).toHaveBeenCalledOnce();
   expect(
     screen.getByRole("button", { name: "扫描", exact: true }),

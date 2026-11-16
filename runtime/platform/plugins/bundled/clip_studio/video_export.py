@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from fractions import Fraction
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import av
+# PyAV (plus its numpy codec surface) costs ~1.1 s at import. This module is
+# imported by the startup clip_studio plugin, so the import moves to the
+# functions that actually encode/decode.
 import numpy as np
+
+if TYPE_CHECKING:
+    import av
 
 from .snapshot_renderer import render_composite_frame
 
@@ -19,6 +24,8 @@ def encode_project_video(
     max_dim: int = 1280,
     include_audio: bool = True,
 ) -> dict[str, Any]:
+    import av
+
     settings = project.get("settings", {})
     fps = max(1, min(60, int(settings.get("frameRate") or 30)))
     duration = _duration(project)
@@ -100,6 +107,8 @@ def encode_project_video(
 
 
 def _video_stream(container: av.container.OutputContainer, fps: int, width: int, height: int):
+    import av
+
     try:
         stream = container.add_stream("libx264", rate=fps)
     except av.error.FFmpegError:
@@ -117,6 +126,8 @@ def _encode_audio_chunk(
     mixed: np.ndarray,
     start: int,
 ) -> int:
+    import av
+
     end = min(mixed.shape[1], start + 1024)
     chunk = np.ascontiguousarray(mixed[:, start:end])
     audio_frame = av.AudioFrame.from_ndarray(chunk, format="fltp", layout="stereo")
@@ -207,6 +218,8 @@ def _mix_audio(project: dict[str, Any], duration: float) -> np.ndarray | None:
 
 
 def _decode_audio(path: Path, sample_rate: int) -> np.ndarray | None:
+    import av
+
     chunks: list[np.ndarray] = []
     with av.open(str(path)) as container:
         stream = next((item for item in container.streams if item.type == "audio"), None)

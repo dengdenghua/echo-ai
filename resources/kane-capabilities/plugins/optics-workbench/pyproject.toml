@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "optics-workbench"
+version = "0.4.0"
+description = "AI-driven optical prototypes, interactive ray layouts, local evidence and MCP tools"
+requires-python = ">=3.10"
+dependencies = []
+license = {text = "MIT"}
+
+[project.scripts]
+optics-workbench = "optics_workbench.server:main"
+optics-workbench-mcp = "optics_workbench.mcp_server:main"
+
+[tool.setuptools]
+packages = ["optics_workbench"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+optics_workbench = ["schema.sql"]
+
+[tool.setuptools.data-files]
+"share/optics-workbench/web" = ["web/index.html", "web/app.js", "web/styles.css", "web/optical-view.js", "web/optical-view.css", "web/color-view.js", "web/color-view.css", "web/graph-view.js", "web/graph-view.css"]

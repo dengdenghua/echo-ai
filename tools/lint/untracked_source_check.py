@@ -37,6 +37,8 @@ SOURCE_ROOTS: tuple[str, ...] = (
     "tools/",
     "scripts/",
     "frontend/src/",
+    "frontend/electron/",
+    "frontend/e2e/",
     "deploy/",
     "packaging/",
 )

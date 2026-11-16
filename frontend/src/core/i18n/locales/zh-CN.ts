@@ -44,6 +44,7 @@ export const zhCN: Translations = {
     error: "错误",
     copy: "复制",
     copied: "已复制",
+    tableContents: "表格内容",
     version: "版本",
     lastUpdated: "最后更新",
     code: "代码",
@@ -1866,6 +1867,8 @@ export const zhCN: Translations = {
     humanSave: "保存页面",
     humanCancel: "放弃修改",
     humanSaved: "页面修改已保存",
+    humanSaving: "正在保存…",
+    humanSaveUnconfirmed: "保存尚未确认，修改仍保留。请核对文件后再试。",
     humanUndo: "撤销上次保存",
     humanRestored: "已恢复到保存前版本",
     humanConflict: "智能体已更新页面，你的修改尚未保存",
@@ -6611,6 +6614,9 @@ export const zhCN: Translations = {
     localPrivacyDescription:
       "当前部署不提供云端隐私偏好设置。模型和插件的数据使用方式取决于你连接的服务，可在对应设置中查看。",
     privacyUnavailable: "隐私设置尚未读取成功，请重试后再修改。",
+    autoLoginTitle: "启动时自动登录本机账户",
+    autoLoginDescription:
+      "桌面端启动后直接用本机账户进入，不必每次点击。",
     creditsBalance: "积分余额",
     octAccount: "官方账号",
     available: "可用",

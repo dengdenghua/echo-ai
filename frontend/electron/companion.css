@@ -1,0 +1,16 @@
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent!important;font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#273942;user-select:none}main{height:100%;display:flex;align-items:center;flex-direction:column;justify-content:flex-end;padding:5px 8px 7px}
+.bubble{max-width:194px;min-height:28px;padding:6px 10px;border:1px solid rgba(255,255,255,.88);border-radius:14px;background:rgba(247,253,253,.94);box-shadow:0 3px 12px #183e4a12;display:flex;align-items:center;gap:6px;font-size:11px;white-space:nowrap;opacity:0;transform:translateY(3px);transition:opacity .18s,transform .18s;pointer-events:none}
+main:hover .bubble,main:focus-within .bubble,main[data-attention="true"] .bubble{opacity:1;transform:none;pointer-events:auto}
+.indicator{width:5px;height:5px;flex:none;border-radius:50%;background:#83bcb4}
+#droplet{appearance:none;width:164px;height:164px;flex:none;border:0;padding:0;margin:0;background:transparent;cursor:grab;outline:none;touch-action:none;position:relative}
+#droplet img,#droplet canvas{width:100%;height:100%;object-fit:contain;pointer-events:none}
+[hidden]{display:none!important}
+#droplet:focus-visible{filter:drop-shadow(0 0 3px #448a9f)}
+main[data-dragging="true"] #droplet{cursor:grabbing}
+.detail{height:14px;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#315363;background:rgba(255,255,255,.88);border-radius:8px;padding:0 5px;opacity:0}
+main:hover .detail:not(:empty){opacity:1}
+main[data-mood="error"] .indicator{background:#c77766}
+main[data-mood="waiting"] .indicator{background:#c39a50}
+main[data-mood="offline"] .indicator{background:#a4aab1}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+@media(forced-colors:active){.bubble,.detail{background:Canvas;color:CanvasText;border:1px solid CanvasText}}

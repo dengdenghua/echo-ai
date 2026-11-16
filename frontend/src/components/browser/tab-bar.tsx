@@ -284,23 +284,12 @@ export function TabBar() {
           setDragId(null);
           setDragOverId(null);
         }}
-        onClick={() => activateTab(tab.id)}
-        onAuxClick={(event) => handleAuxClick(event, tab)}
         onContextMenu={(event) => {
           if (fixed) return;
           event.preventDefault();
           setGroupMenu(null);
           setTabMenu({ id: tab.id, x: event.clientX, y: event.clientY });
         }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            activateTab(tab.id);
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label={tab.private ? `无痕 · ${tabLabel}` : tabLabel}
         className={cn(
           "group relative flex h-7 cursor-pointer items-center gap-1 overflow-hidden rounded-md px-2 text-mini transition-[background-color,border-color,box-shadow,color,transform] after:absolute after:inset-x-2 after:bottom-0 after:h-[2px] after:scale-x-0 after:rounded-full after:bg-primary after:transition-transform",
           fixed
@@ -338,24 +327,38 @@ export function TabBar() {
         title={tab.title || tab.url}
         data-group={group?.id}
       >
-        <TabIcon tab={tab} />
-        {inSplit ? (
-          <Columns2Icon
-            className="size-3 shrink-0 text-primary"
-            aria-label="分屏中"
-          />
-        ) : null}
-        {iconOnly ? null : (
-          <span className="min-w-0 flex-1 truncate">{tabLabel}</span>
-        )}
-        {iconOnly ? null : (
+        {/* The activation target is a sibling of the close button: a button
+            nested inside role="button" is invalid and exposes duplicate
+            focus stops. Content sits above the overlay but ignores pointers. */}
+        <button
+          type="button"
+          onClick={() => activateTab(tab.id)}
+          onAuxClick={(event) => handleAuxClick(event, tab)}
+          draggable={!fixed}
+          data-active={active}
+          aria-label={tab.private ? `无痕 · ${tabLabel}` : tabLabel}
+          className="absolute inset-0 z-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <span className="pointer-events-none relative z-[1] flex min-w-0 flex-1 items-center gap-1">
+          <TabIcon tab={tab} />
+          {inSplit ? (
+            <Columns2Icon
+              className="size-3 shrink-0 text-primary"
+              aria-label="分屏中"
+            />
+          ) : null}
+          {iconOnly ? null : (
+            <span className="min-w-0 flex-1 truncate">{tabLabel}</span>
+          )}
+        </span>
+        {iconOnly || fixed ? null : (
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               closeTab(tab.id);
             }}
-            className="grid size-3.5 shrink-0 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100 data-[active=true]:opacity-100"
+            className="relative z-[2] grid size-3.5 shrink-0 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground group-hover:opacity-100 data-[active=true]:opacity-100"
             data-active={active}
             title={tb.close}
             aria-label={`${tb.close} ${tabLabel}`}

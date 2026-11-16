@@ -31,7 +31,9 @@ interface BootstrapProgress {
 }
 
 export function BackendBootstrapOverlay() {
-  const startup = useStartupGate(isPackagedShell());
+  const { pathname } = useLocation();
+  const loginRoute = pathname === "/" || pathname.replace(/\/+$/, "") === "/login";
+  const startup = useStartupGate(isPackagedShell() && !loginRoute);
   // The development bootstrap path may name its current step instead.
   const [message, setMessage] = useState<string | null>(null);
   const [percent, setPercent] = useState<number | undefined>(undefined);

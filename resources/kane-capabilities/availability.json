@@ -1,0 +1,63 @@
+{
+  "blender-control": {
+    "native_platforms": [
+      "Windows",
+      "Linux"
+    ],
+    "status": "requires_host_probe"
+  },
+  "solidworks-control": {
+    "native_platforms": [
+      "Windows"
+    ],
+    "status": "requires_host_probe"
+  },
+  "kicad-control": {
+    "native_platforms": [
+      "Windows",
+      "Linux"
+    ],
+    "status": "requires_host_probe"
+  },
+  "zemax-control": {
+    "native_platforms": [
+      "Windows"
+    ],
+    "status": "requires_host_probe"
+  },
+  "lighttools-control": {
+    "native_platforms": [
+      "Windows"
+    ],
+    "status": "requires_host_probe"
+  },
+  "projection-optics": {
+    "native_platforms": [
+      "Windows",
+      "Linux"
+    ],
+    "status": "requires_host_probe"
+  },
+  "lens-toolkit": {
+    "native_platforms": [
+      "Windows",
+      "Linux"
+    ],
+    "status": "requires_host_probe"
+  },
+  "optics-workbench": {
+    "native_platforms": [
+      "Windows",
+      "Linux"
+    ],
+    "status": "requires_host_probe"
+  },
+  "rea-control": {
+    "native_platforms": [
+      "Windows",
+      "Linux"
+    ],
+    "status": "requires_host_configuration",
+    "server": "rea"
+  }
+}

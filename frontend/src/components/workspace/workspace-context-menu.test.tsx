@@ -255,13 +255,13 @@ describe("WorkspaceContextMenu status sections", () => {
     expect(screen.queryByText("No sources")).toBeNull();
   });
 
-  it("shows context usage on the trigger itself", () => {
+  it("keeps the status trigger icon-only with usage in its tooltip", async () => {
     setupStatus({ contextTokens: 60_000 });
     const trigger = screen.getByRole("button", { name: "Session status" });
-    expect(trigger).toHaveAttribute(
-      "title",
-      "Session status · 60K / 100K (60%)",
-    );
+    expect(trigger.textContent).toBe("");
+    expect(trigger).not.toHaveAttribute("title");
+    await userEvent.setup().hover(trigger);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Context · 60K / 100K (60%)");
     expect(trigger.querySelector("svg")).not.toBeNull();
   });
   it("reaches 压缩上下文 with the arrow keys and keeps the menu open", async () => {

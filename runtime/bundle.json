@@ -167,7 +167,7 @@
     {
       "path": "runtime/execution/all_skills/plugin-creator",
       "kind": "skill-catalog",
-      "sha256": "sha256:4488f9c69ecf8e12ef2fcccc0e41c412030cba76cd895d2a88cb4af21ba879c7"
+      "sha256": "sha256:a0866c78aeab406b19ec560fb14597dc785a54f8b3eaf2005ef13ab0170cb239"
     },
     {
       "path": "runtime/execution/all_skills/presentations",
@@ -212,7 +212,7 @@
     {
       "path": "runtime/execution/all_skills/skill-creator",
       "kind": "skill-catalog",
-      "sha256": "sha256:573dead029b0ff743b6f0642d2f88a2d1622704f96d5b57f4af7defc7840da34"
+      "sha256": "sha256:cb2d3aa48333acb246653f39238c85a6323bac932ca4594c0f9c490235a4649d"
     },
     {
       "path": "runtime/execution/all_skills/spreadsheets",

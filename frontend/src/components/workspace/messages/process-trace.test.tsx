@@ -30,6 +30,92 @@ function agentEvent(
 }
 
 describe("ProcessTrace agent cluster", () => {
+  test("keeps a manual collapse while live tools finish and a new tool starts", () => {
+    const event: LiveToolEvent = {
+      id: "read",
+      name: "read_file",
+      status: "running",
+      startedAt: 1,
+    };
+    const { rerender } = renderWithProviders(
+      <ProcessTrace mode="react" events={[event]} />,
+      { locale: "zh-CN" },
+    );
+    const trigger = screen.getByRole("button", { name: /过程线索/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(trigger);
+    rerender(
+      <ProcessTrace
+        mode="react"
+        hasAnswer
+        events={[{ ...event, status: "done" }]}
+      />,
+    );
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    rerender(
+      <ProcessTrace mode="react" live events={[{ ...event, id: "next" }]} />,
+    );
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("automatically folds finished details unless the user chose to keep them open", () => {
+    const event: LiveToolEvent = {
+      id: "read",
+      name: "read_file",
+      status: "running",
+      startedAt: 1,
+    };
+    const { rerender } = renderWithProviders(
+      <ProcessTrace mode="react" events={[event]} />,
+      { locale: "zh-CN" },
+    );
+    const trigger = screen.getByRole("button", { name: /过程线索/ });
+    rerender(
+      <ProcessTrace
+        mode="react"
+        hasAnswer
+        events={[{ ...event, status: "done" }]}
+      />,
+    );
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(trigger);
+    rerender(
+      <ProcessTrace
+        mode="react"
+        hasAnswer
+        events={[{ ...event, id: "more", status: "done" }]}
+      />,
+    );
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(
+      document.getElementById(trigger.getAttribute("aria-controls")!),
+    ).toBeVisible();
+  });
+
+  test("shows an explicit waiting state for approvals", () => {
+    renderWithProviders(
+      <ProcessTrace
+        mode="react"
+        events={[
+          {
+            id: "approve",
+            name: "write_file",
+            status: "waiting_approval",
+            startedAt: 1,
+          },
+        ]}
+      />,
+      { locale: "zh-CN" },
+    );
+    expect(screen.getByTestId("conversation-process")).toHaveAttribute(
+      "data-status",
+      "waiting",
+    );
+    expect(
+      screen.getByRole("button", { name: /过程线索.*等待中/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
   test("shows agent progress instead of raw parallel task wording", () => {
     renderWithProviders(
       <ProcessTrace
@@ -49,7 +135,9 @@ describe("ProcessTrace agent cluster", () => {
       { locale: "zh-CN" },
     );
 
-    expect(screen.getByText("2 个子智能体 · 1 已完成 · 1 异常")).toBeInTheDocument();
+    expect(
+      screen.getByText("2 个子智能体 · 1 已完成 · 1 异常"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/并行任务/)).not.toBeInTheDocument();
     expect(screen.getAllByText("profile")).toHaveLength(1);
     expect(screen.getAllByText("market")).toHaveLength(1);
@@ -61,7 +149,9 @@ describe("ProcessTrace agent cluster", () => {
         .getByRole("button", { name: /profile/ })
         .querySelector('[aria-label="progress 100%"]'),
     ).not.toBeNull();
-    expect(screen.queryByText("Company profile complete")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Company profile complete"),
+    ).not.toBeInTheDocument();
 
     const focused: AgentWorkbenchFocusDetail[] = [];
     const handleFocus = (event: Event) =>

@@ -714,7 +714,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           role="separator"
           aria-orientation="vertical"
           aria-label={t.settings.dialog.dragToResize}
-          aria-valuenow={size ? Math.round(size.w) : undefined}
+          aria-valuenow={Math.round(size?.w ?? MIN_W)}
           aria-valuemin={MIN_W}
           aria-valuemax={
             typeof window !== "undefined" ? window.innerWidth - 32 : undefined

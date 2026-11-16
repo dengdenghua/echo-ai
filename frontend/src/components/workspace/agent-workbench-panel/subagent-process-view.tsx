@@ -65,15 +65,19 @@ function MemberProcessContent({
   const { t, locale } = useI18n();
   const copy = subagentViewCopy(locale);
   const navigate = useNavigate();
-  const { agents: profiles, isLoading: profilesLoading } = useAgents();
+  const { agents: profiles } = useAgents();
   // Runtime ids and codenames identify a task instance, never its persona.
   // A role can also be temporary; only registered profiles can be chatted with.
   const profileReference = agent.profileId?.trim();
   const privateProfileId = profileReference
-    ? profiles.find((profile) => profile.name === canonicalAgentId(profileReference))?.name
+    ? profiles.find(
+        (profile) => profile.name === canonicalAgentId(profileReference),
+      )?.name
     : undefined;
   const [followupText, setFollowupText] = useState("");
-  const [taskOpen, setTaskOpen] = useState(positions.get(scope)?.taskOpen ?? false);
+  const [taskOpen, setTaskOpen] = useState(
+    positions.get(scope)?.taskOpen ?? false,
+  );
   const memberName = agent.codename ?? agent.name;
   const isRunning = agent.status === "running";
   const messages = useMemo(
@@ -102,7 +106,10 @@ function MemberProcessContent({
   const handlePrivateChat = (event: React.FormEvent) => {
     event.preventDefault();
     if (!privateProfileId) return;
-    const params = new URLSearchParams({ agent: privateProfileId, private: "1" });
+    const params = new URLSearchParams({
+      agent: privateProfileId,
+      private: "1",
+    });
     if (followupText.trim()) params.set("prompt", followupText.trim());
     void navigate("/workspace/realtime/new?" + params.toString());
     setFollowupText("");
@@ -118,6 +125,7 @@ function MemberProcessContent({
     >
       <MemberProcessHeader
         agent={agent}
+        showTaskPreview={summaryOnly}
         onOpenMain={onOpenMain}
         actions={
           <button
@@ -143,16 +151,24 @@ function MemberProcessContent({
         className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
       >
         <div
-          className="mx-auto w-full min-w-0 max-w-2xl space-y-5 px-4 py-4"
+          className="mx-auto w-full min-w-0 max-w-2xl space-y-4 px-4 py-4"
           data-testid="subagent-main-conversation"
         >
           {!summaryOnly && messages.task && (
-            <details open={taskOpen} onToggle={(event) => {
-              const open = event.currentTarget.open;
-              setTaskOpen(open);
-              const position = positions.get(scope);
-              saveMemberReadingPosition(positions, scope, { top: position?.top ?? 0, following: position?.following ?? isRunning, taskOpen: open });
-            }} className="group/brief rounded-lg border border-border-subtle bg-muted/15">
+            <details
+              open={taskOpen}
+              onToggle={(event) => {
+                const open = event.currentTarget.open;
+                setTaskOpen(open);
+                const position = positions.get(scope);
+                saveMemberReadingPosition(positions, scope, {
+                  top: position?.top ?? 0,
+                  following: position?.following ?? isRunning,
+                  taskOpen: open,
+                });
+              }}
+              className="group/brief rounded-lg border border-border-subtle bg-muted/15"
+            >
               <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
                 <ChevronRightIcon
                   className="size-3.5 transition-transform group-open/brief:rotate-90"
@@ -160,12 +176,14 @@ function MemberProcessContent({
                 />
                 {copy.task}
               </summary>
-              {taskOpen && <div className="min-w-0 border-t border-border-subtle px-3 py-3">
-                <MessageListItem
-                  message={messages.task}
-                  isLastMessage={false}
-                />
-              </div>}
+              {taskOpen && (
+                <div className="min-w-0 border-t border-border-subtle px-3 py-3">
+                  <MessageListItem
+                    message={messages.task}
+                    isLastMessage={false}
+                  />
+                </div>
+              )}
             </details>
           )}
           {!summaryOnly && messages.process.length > 0 && (
@@ -188,10 +206,7 @@ function MemberProcessContent({
             </p>
           )}
           {messages.answer && (
-            <section
-              aria-label={copy.result}
-              className="min-w-0 border-t border-border-subtle pt-4"
-            >
+            <section aria-label={copy.result} className="min-w-0">
               <h3 className="mb-3 text-xs font-medium text-muted-foreground">
                 {copy.result}
               </h3>
@@ -222,37 +237,39 @@ function MemberProcessContent({
           </button>
         </div>
       )}
-      <div
-        data-testid="subagent-followup-bar"
-        className="min-w-0 shrink-0 border-t border-border-subtle bg-background px-3 py-2.5"
-      >
-        <form
-          onSubmit={handlePrivateChat}
-          className="mx-auto flex max-w-2xl flex-wrap items-center gap-2"
+      {privateProfileId && (
+        <div
+          data-testid="subagent-followup-bar"
+          className="min-w-0 shrink-0 border-t border-border-subtle bg-background px-3 py-2.5"
         >
-          <input
-            type="text"
-            disabled={!privateProfileId}
-            aria-label={copy.privateChatLabel(memberName)}
-            value={followupText}
-            onChange={(event) => setFollowupText(event.target.value)}
-            placeholder={copy.privateChatPlaceholder(memberName)}
-            className="min-w-0 flex-[1_1_180px] rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <button
-            type="submit"
-            disabled={!privateProfileId}
-            title={copy.privateChatTitle(memberName)}
-            className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md bg-muted px-3 py-2 text-xs font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+          <form
+            onSubmit={handlePrivateChat}
+            className="mx-auto flex max-w-2xl flex-wrap items-center gap-2"
           >
-            <MessageCircleIcon className="size-3.5" aria-hidden="true" />
-            {copy.privateChat}
-          </button>
-          <p className="w-full text-xs text-muted-foreground">
-            {privateProfileId ? copy.privateChatHint : profilesLoading ? copy.privateChatLoading : copy.privateChatUnavailable}
-          </p>
-        </form>
-      </div>
+            <input
+              type="text"
+              disabled={!privateProfileId}
+              aria-label={copy.privateChatLabel(memberName)}
+              value={followupText}
+              onChange={(event) => setFollowupText(event.target.value)}
+              placeholder={copy.privateChatPlaceholder(memberName)}
+              className="min-w-0 flex-[1_1_180px] rounded-md border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <button
+              type="submit"
+              disabled={!privateProfileId}
+              title={copy.privateChatTitle(memberName)}
+              className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md bg-muted px-3 py-2 text-xs font-medium hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+            >
+              <MessageCircleIcon className="size-3.5" aria-hidden="true" />
+              {copy.privateChat}
+            </button>
+            <p className="w-full text-xs text-muted-foreground">
+              {copy.privateChatHint}
+            </p>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

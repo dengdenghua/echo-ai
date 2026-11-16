@@ -19,7 +19,7 @@ export function ProfessionPicker({ onSelect }: { onSelect: (profession: { name: 
     <label className="text-sm font-medium">职业模板</label>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full justify-start gap-2" aria-label="选择职业模板">
+        <Button variant="outline" className="w-full justify-start gap-2" aria-label={`选择职业模板：${selected || "选择职业，或自定义岗位"}`}>
           <BriefcaseBusiness className="size-4 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-left">{selected || "选择职业，或自定义岗位"}</span><ChevronDown className="size-4" />
         </Button>
@@ -29,7 +29,7 @@ export function ProfessionPicker({ onSelect }: { onSelect: (profession: { name: 
         <div className="mt-2 max-h-60 overflow-y-auto">
           {loading && <p className="p-2 text-xs text-muted-foreground">正在同步本地职业…</p>}
           {error && <Button variant="ghost" onClick={retry}>本地职业加载失败，重试</Button>}
-          {matches.map(a => <button type="button" key={a.id} aria-label={a.name} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted" onClick={() => choose(a.name, a.id, a.boundary)}><BriefcaseBusiness className="size-4 shrink-0 text-muted-foreground" />{a.name}<span className="ml-auto text-xs text-muted-foreground">{a.category}</span></button>)}
+          {matches.map(a => <button type="button" key={a.id} aria-label={`${a.name}，${a.category}`} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted" onClick={() => choose(a.name, a.id, a.boundary)}><BriefcaseBusiness className="size-4 shrink-0 text-muted-foreground" />{a.name}<span className="ml-auto text-xs text-muted-foreground">{a.category}</span></button>)}
           {!loading && matches.length === 0 && <p className="p-2 text-xs text-muted-foreground">没有匹配职业，可以自定义添加。</p>}
 
         </div>

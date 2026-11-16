@@ -17,7 +17,7 @@ import { apiDelete, apiGet, apiPost, type ApiData } from "@/core/api/request";
 
 export type EngineList = ApiData<"/api/engines", "get">;
 export type EngineStatus = EngineList["engines"][number];
-export type EngineAction = "install" | "uninstall";
+export type EngineAction = "install" | "update" | "rollback" | "uninstall";
 
 export const ENGINES_QUERY_KEY = ["engines"] as const;
 
@@ -34,6 +34,8 @@ export function engineProgress(engine: EngineStatus): number {
 function refreshEngineReadiness(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["coder", "codex"] });
   void queryClient.invalidateQueries({ queryKey: ["opencode-status"] });
+  void queryClient.invalidateQueries({ queryKey: ["codebuddy-models"] });
+  void queryClient.invalidateQueries({ queryKey: ["codebuddy-status"] });
 }
 
 export function useEngines(enabled = true) {
@@ -45,14 +47,31 @@ export function useEngines(enabled = true) {
     staleTime: 30_000,
     refetchInterval: (current) =>
       current.state.data?.engines.some(
-        (engine) => engine.state === "installing",
+        (engine) =>
+          engine.state === "installing" ||
+          engine.state === "pending_activation",
       )
         ? 1000
-        : false,
+        : 30_000,
   });
   const installing = query.data?.engines.some(
-    (engine) => engine.state === "installing",
+    (engine) =>
+      engine.state === "installing" || engine.state === "pending_activation",
   );
+  const revision = query.data?.engines
+    .map(
+      (engine) => `${engine.id}:${engine.revision}:${engine.installed_version}`,
+    )
+    .join("|");
+  const previousRevision = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (
+      previousRevision.current !== undefined &&
+      previousRevision.current !== revision
+    )
+      refreshEngineReadiness(queryClient);
+    previousRevision.current = revision;
+  }, [revision, queryClient]);
   const wasInstalling = useRef(false);
   useEffect(() => {
     if (wasInstalling.current && !installing) {
@@ -67,11 +86,21 @@ export function useEngineAction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: EngineAction }) =>
-      action === "install"
-        ? apiPost("/api/engines/{engine_id}/install", {
+      action === "update"
+        ? apiPost("/api/engines/{engine_id}/update", {
             path: { engine_id: id },
           })
-        : apiDelete("/api/engines/{engine_id}", { path: { engine_id: id } }),
+        : action === "rollback"
+          ? apiPost("/api/engines/{engine_id}/rollback", {
+              path: { engine_id: id },
+            })
+          : action === "install"
+            ? apiPost("/api/engines/{engine_id}/install", {
+                path: { engine_id: id },
+              })
+            : apiDelete("/api/engines/{engine_id}", {
+                path: { engine_id: id },
+              }),
     onSuccess: (updated) => {
       queryClient.setQueryData<EngineList>(ENGINES_QUERY_KEY, (current) =>
         current

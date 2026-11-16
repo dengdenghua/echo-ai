@@ -216,6 +216,58 @@ function rewriteBackendRedirect(response, backendOrigin) {
   });
 }
 
+function cancellableProxyResponse(response, controller, cleanup) {
+  if (!response.body) {
+    cleanup();
+    return response;
+  }
+  const reader = response.body.getReader();
+  let finished = false;
+  const body = new ReadableStream({
+    async pull(output) {
+      try {
+        const chunk = await reader.read();
+        if (finished) return;
+        if (chunk.done) {
+          finished = true;
+          cleanup();
+          reader.releaseLock();
+          output.close();
+        } else {
+          output.enqueue(chunk.value);
+        }
+      } catch (error) {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        reader.releaseLock();
+        output.error(error);
+      }
+    },
+    async cancel(reason) {
+      finished = true;
+      // Electron 39 does not propagate renderer cancellation through the
+      // protocol Request signal, and cancelling net.fetch's body alone does
+      // not close its HTTP socket (electron/electron#47097). Abort explicitly
+      // when the protocol consumer destroys the response stream.
+      controller.abort(reason);
+      cleanup();
+      try {
+        await reader.cancel(reason);
+      } catch {
+        // Aborting net.fetch may already have errored the reader.
+      } finally {
+        reader.releaseLock();
+      }
+    },
+  });
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
 function createDesktopProtocolHandler({
   distRoot,
   backendBaseURL,
@@ -235,11 +287,20 @@ function createDesktopProtocolHandler({
 
     if (isBackendRoute(appURL.pathname)) {
       const method = String(request.method || "GET").toUpperCase();
+      const controller = new AbortController();
+      const abort = () => controller.abort(request.signal.reason);
+      const cleanup = () => request.signal.removeEventListener("abort", abort);
+      if (request.signal.aborted) abort();
+      else request.signal.addEventListener("abort", abort, { once: true });
       const init = {
         method,
         headers: proxyHeaders(request.headers),
         redirect: "manual",
         bypassCustomProtocolHandlers: true,
+        // Route switches and reloads cancel renderer streams. Forward that
+        // cancellation so abandoned SSE requests cannot occupy every socket
+        // in Electron's loopback connection pool and stall sign-in requests.
+        signal: controller.signal,
       };
       if (method !== "GET" && method !== "HEAD" && request.body) {
         init.body = request.body;
@@ -250,9 +311,14 @@ function createDesktopProtocolHandler({
           buildBackendTargetURL(appURL, trustedBackendOrigin),
           init,
         );
-        return rewriteBackendRedirect(response, trustedBackendOrigin);
+        return cancellableProxyResponse(
+          rewriteBackendRedirect(response, trustedBackendOrigin),
+          controller,
+          cleanup,
+        );
       } catch (error) {
-        onProxyError?.(error);
+        cleanup();
+        if (!controller.signal.aborted) onProxyError?.(error);
         return errorResponse(502, "desktop_backend_unavailable");
       }
     }

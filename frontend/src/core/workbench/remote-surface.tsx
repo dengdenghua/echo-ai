@@ -601,6 +601,7 @@ export function RemoteWorkbenchSurface({
 
   return (
     <div className="flex size-full min-h-0 flex-col">
+      <h1 className="sr-only">{manifest.name || app.name}</h1>
       <nav
         aria-label="应用导航"
         className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-background px-3 md:hidden"

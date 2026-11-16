@@ -229,6 +229,7 @@ export function fileAssetToItem(asset: NASFileAsset): FileItem {
 export function useNASAsset(path: string | undefined): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
+    setUrl(null);
     if (!path) return;
     let disposed = false;
     let objectUrl: string | null = null;
@@ -236,8 +237,9 @@ export function useNASAsset(path: string | undefined): string | null {
       .then((next) => {
         objectUrl = next;
         if (!disposed) setUrl(next);
+        else URL.revokeObjectURL(next);
       })
-      .catch(() => setUrl(null));
+      .catch(() => { if (!disposed) setUrl(null); });
     return () => {
       disposed = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);

@@ -13,7 +13,11 @@ export function isBackgroundResumePrompt(text: string): boolean {
 
 /** Keep receipts/history for delivery and model context; hide only generated UI sends. */
 export function backgroundResumeMessageId(): string {
-  return `ui-resume-${crypto.randomUUID()}`;
+  return `itm_ui_resume_${crypto.randomUUID()}`;
+}
+
+export function isBackgroundResumeMessageId(id: string | null | undefined): boolean {
+  return Boolean(id?.startsWith("itm_ui_resume_") || id?.startsWith("ui-resume-"));
 }
 
 export function visibleConversationMessages(
@@ -26,7 +30,7 @@ export function visibleConversationMessages(
     // turn an internal continuation into a chat bubble. Recognize the exact
     // generated prompts from older releases that did not mark their item ids.
     return (
-      !message.id?.startsWith("ui-resume-") &&
+      !isBackgroundResumeMessageId(message.id) &&
       !(
         typeof message.content === "string" &&
         isBackgroundResumePrompt(message.content)

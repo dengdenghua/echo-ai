@@ -335,10 +335,11 @@ def run_ui(
             start_storage_heartbeat,
         )
 
-        maybe_start_storage()
+        if getattr(app.state, "plugin_hub", None) is None:
+            maybe_start_storage()
         # Keep storage up for the whole session: detect late boot / crashes and
         # relaunch, instead of the old one-shot 10s readiness probe.
-        start_storage_heartbeat()
+            start_storage_heartbeat()
 
     if uds:
         import os

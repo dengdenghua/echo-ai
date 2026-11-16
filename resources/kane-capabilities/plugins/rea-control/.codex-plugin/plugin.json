@@ -1,0 +1,6 @@
+{
+  "name": "rea-control",
+  "version": "0.2.0+echo.20261113",
+  "skills": "./skills/",
+  "description": "REA 逆向方法；实际分析需要本机配置并验证 REA MCP 服务"
+}

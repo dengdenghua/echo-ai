@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "sourceSha256": "20800a82486b0b91e944635dc3a5bdbad19f73e1aa222536b87296c95aad136f",
+  "glbSha256": "5750f1a080dd47934f7c25e7974eca0d881c19f0b85fd2fdda0e8f20e7c14870",
+  "bytes": 17487308,
+  "animations": [
+    "Echo_drag",
+    "Echo_greet",
+    "Echo_idle",
+    "Echo_land",
+    "Echo_success",
+    "Echo_wait",
+    "Echo_work"
+  ],
+  "skinCount": 1,
+  "meshCount": 4,
+  "materialSource": "UV baking of procedural 3D PBR only; no reference projection",
+  "note": "Realtime PBR approximates the Cycles sheen/subsurface lighting. Blender source is authoritative."
+}

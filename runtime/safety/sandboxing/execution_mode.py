@@ -1,6 +1,7 @@
-"""Turn-scoped requirements that can only strengthen command isolation."""
+"""Turn-scoped command boundaries and required deployment isolation."""
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -32,7 +33,23 @@ def local_command_execution() -> bool:
     if command_sandbox_required():
         return False
     session = current_session()
-    return session is not None and resolve_execution_scope(session).execution_environment == "local"
+    if session is None:
+        return False
+    scope = resolve_execution_scope(session)
+    return scope.permission_mode == "bypassPermissions" and scope.execution_environment == "local"
+
+
+def command_boundary(cwd: str | None, sandbox_dir: str | None) -> tuple[str | None, str | None]:
+    """A scoped tool's directory is not a request to isolate full-access commands."""
+    if sandbox_dir is not None and local_command_execution():
+        from runtime.safety.auth.path_guard import normalize_scoped_relative_path
+
+        root = Path(sandbox_dir).expanduser().resolve()
+        directory = Path(cwd).expanduser() if cwd else root
+        if not directory.is_absolute():
+            directory = root / normalize_scoped_relative_path(directory, root)
+        return str(directory.resolve()), None
+    return cwd, sandbox_dir
 
 
 def command_process_backend() -> "BackendChoice":
@@ -42,6 +59,10 @@ def command_process_backend() -> "BackendChoice":
     # plugin control planes that must communicate with their local applications.
     if isolated_auto_execution():
         return resolved_process_backend("strict")
+    if local_command_execution():
+        # Honor the effective full-access scope for backend selection too.
+        # Explicit hard requirements and parent ceilings are checked above.
+        return resolved_process_backend("direct")
     if os.environ.get("ECHO_PROCESS_SANDBOX") or os.environ.get("ECHO_DEPLOYMENT_MODE"):
         return resolved_process_backend(effective_process_sandbox_mode())
     return resolved_process_backend()

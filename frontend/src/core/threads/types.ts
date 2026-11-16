@@ -68,7 +68,8 @@ export type ReasoningEffort =
   | "medium"
   | "high"
   | "xhigh"
-  | "max";
+  | "max"
+  | "ultra";
 
 export interface AgentThreadContext extends Record<string, unknown> {
   thread_id: string;

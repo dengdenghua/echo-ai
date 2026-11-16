@@ -2,6 +2,8 @@ import {
   AlertTriangleIcon,
   ChevronRightIcon,
   RefreshCwIcon,
+  SquareTerminalIcon,
+  UserRoundIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,6 +60,7 @@ import { LocalModelsSection } from "./model-settings/local-models-section";
 import { LocalVisionSection } from "./model-settings/local-vision-section";
 import { ModelSettingsOverview } from "./model-settings/overview";
 import { useCustomModelAgentCapabilities } from "./model-settings/use-custom-model-agent-capabilities";
+import { CodeBuddyIcon } from "@/components/workspace/execution-engine-picker";
 
 export {
   customModelMatchesSelection,
@@ -398,6 +401,9 @@ export default function ModelSettingsPage() {
   }, [scrollToSection]);
 
   const openOpenCodeSection = useCallback(() => {
+    // CodeBuddy / OpenCode / Codex live inside the advanced disclosure now, so
+    // the entry point has to open it before scrolling to the section.
+    setAdvancedOpen(true);
     setOpenCodeOpen(true);
     scrollToSection("model-settings-opencode");
   }, [scrollToSection]);
@@ -461,10 +467,12 @@ export default function ModelSettingsPage() {
         onScanLocal={handleOverviewScanLocal}
         onOpenZen={openOpenCodeSection}
         onOpenCodeBuddy={() => {
+          setAdvancedOpen(true);
           setCodebuddyOpen(true);
           scrollToSection("model-settings-codebuddy");
         }}
         onOpenCodex={() => {
+          setAdvancedOpen(true);
           setCodexAccountSetupRequest((request) => request + 1);
           setCodexOpen(true);
           scrollToSection("model-settings-codex");
@@ -694,46 +702,12 @@ export default function ModelSettingsPage() {
         <LocalModelsSection onImported={fetchModels} />
       </div>
 
-      <ModelSharingSettings onConnected={fetchModels} />
-
-      <AdvancedDisclosure id="model-settings-codebuddy" title="CodeBuddy"
-        description={modelSourceCopy(locale).codebuddySettingsDescription}
-        open={codebuddyOpen} onOpenChange={setCodebuddyOpen}>
-        <CodeBuddyConnection />
-      </AdvancedDisclosure>
-
-      <AdvancedDisclosure
-        id="model-settings-opencode"
-        title="OpenCode"
-        description="Zen / Go 连接与 API Key"
-        open={openCodeOpen}
-        onOpenChange={setOpenCodeOpen}
-      >
-        <OpenCodeConnections onConnected={fetchModels} />
-      </AdvancedDisclosure>
-
-      <AdvancedDisclosure
-        id="model-settings-codex"
-        title={pageCopy.codexTitle}
-        description={pageCopy.codexSubtitle}
-        open={codexOpen}
-        onOpenChange={setCodexOpen}
-      >
-        <CoderEngineSettings
-          authorizationOnly
-          accountSetupRequest={codexAccountSetupRequest}
-        />
-      </AdvancedDisclosure>
-
       <details
         className="group rounded-lg border border-border bg-card/40 px-4 py-3"
         open={advancedOpen}
         onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
       >
-        <summary
-          aria-label={pageCopy.advancedTitle}
-          className="cursor-pointer list-none rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
+        <summary className="cursor-pointer list-none rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold">
@@ -747,6 +721,62 @@ export default function ModelSettingsPage() {
           </div>
         </summary>
         <div className="mt-5 space-y-3">
+          {/* Account sign-ins and sharing used to sit at the top level: the page
+              read as seven stacked cards before the list of connections even
+              started.  They are setup-once surfaces, so they live here now.
+              The three account providers share one card with dividers — as
+              three separate bordered boxes they looked like three unrelated
+              features. */}
+          <div className="rounded-lg border border-border bg-background/55">
+            <div className="border-b border-border px-4 py-3">
+              <div className="text-sm font-semibold text-foreground">
+                {pageCopy.groupAccounts}
+              </div>
+            </div>
+            <div className="divide-y divide-border">
+              <AdvancedDisclosure
+                variant="row"
+                icon={<CodeBuddyIcon className="size-4" />}
+                id="model-settings-codebuddy"
+                title="CodeBuddy"
+                description={modelSourceCopy(locale).codebuddySettingsDescription}
+                open={codebuddyOpen}
+                onOpenChange={setCodebuddyOpen}
+              >
+                <CodeBuddyConnection />
+              </AdvancedDisclosure>
+
+              <AdvancedDisclosure
+                variant="row"
+                icon={<SquareTerminalIcon className="size-4" />}
+                id="model-settings-opencode"
+                title="OpenCode"
+                description="Zen / Go 连接与 API Key"
+                open={openCodeOpen}
+                onOpenChange={setOpenCodeOpen}
+              >
+                <OpenCodeConnections onConnected={fetchModels} />
+              </AdvancedDisclosure>
+
+              <AdvancedDisclosure
+                variant="row"
+                icon={<UserRoundIcon className="size-4" />}
+                id="model-settings-codex"
+                title={pageCopy.codexTitle}
+                description={pageCopy.codexSubtitle}
+                open={codexOpen}
+                onOpenChange={setCodexOpen}
+              >
+                <CoderEngineSettings
+                  authorizationOnly
+                  accountSetupRequest={codexAccountSetupRequest}
+                />
+              </AdvancedDisclosure>
+            </div>
+          </div>
+
+          <ModelSharingSettings onConnected={fetchModels} />
+
           <AdvancedDisclosure
             title={pageCopy.visionTitle}
             description={pageCopy.visionSubtitle}

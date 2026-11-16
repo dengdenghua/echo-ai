@@ -80,6 +80,7 @@ export function ArtifactInlinePreviewEmbedded({
     artifacts,
     selectedArtifact: externalSelected,
     select,
+    clearSelection,
   } = useArtifacts();
   const { t } = useI18n();
   const streamdownPlugins = useStreamdownPlugins();
@@ -120,10 +121,8 @@ export function ArtifactInlinePreviewEmbedded({
   useEffect(() => {
     if (externalSelected && allFiles.includes(externalSelected)) {
       setPreviewing(externalSelected);
-      // Also sync the shared context so the drawer stays in sync.
-      select(externalSelected);
     }
-  }, [externalSelected, allFiles, select]);
+  }, [externalSelected, allFiles]);
 
   const handleSelect = useCallback(
     (path: string) => {
@@ -134,8 +133,9 @@ export function ArtifactInlinePreviewEmbedded({
   );
 
   const handleBack = useCallback(() => {
+    clearSelection();
     setPreviewing(null);
-  }, []);
+  }, [clearSelection]);
 
   if (allFiles.length === 0) {
     const detail = runBlocked
@@ -177,7 +177,7 @@ export function ArtifactInlinePreviewEmbedded({
   // ── List view ──
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 space-y-1 overflow-y-auto p-3">
         {allFiles.map((f) => (
           <FileListRow
             key={f}
@@ -205,17 +205,29 @@ function FileListRow({
   const { locale } = useI18n();
   const displayPath = artifactDisplayPath(filepath);
   const name = getFileName(displayPath);
+  const directory = displayPath
+    .slice(0, Math.max(0, displayPath.length - name.length))
+    .replace(/[\\/]+$/, "");
   return (
     <button
       type="button"
       onClick={() => onSelect(filepath)}
-      className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/50"
+      title={displayPath}
+      aria-label={displayPath}
+      className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border-subtle px-3 py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-        {getFileIcon(displayPath, "size-3.5")}
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground">
+        {getFileIcon(displayPath, "size-4")}
       </span>
-      <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-        {name}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-foreground">
+          {name}
+        </span>
+        {directory && (
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            {directory}
+          </span>
+        )}
       </span>
       {isCurrentTurn && (
         <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
@@ -262,11 +274,11 @@ export function PreviewPane({
   return (
     <div className="flex min-h-0 size-full flex-col">
       {/* Header with back button */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-muted/30 px-2 py-1.5">
+      <div className="flex min-h-12 shrink-0 items-center gap-2 border-b border-border-subtle px-3 py-2">
         <button
           type="button"
           onClick={onBack}
-          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t.common.back}
         >
           <ArrowLeftIcon className="size-3.5" />
@@ -274,7 +286,10 @@ export function PreviewPane({
         <span className="flex size-5 shrink-0 items-center justify-center">
           {getFileIcon(displayPath, "size-3")}
         </span>
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">
+        <span
+          title={displayPath}
+          className="min-w-0 flex-1 truncate text-sm font-medium"
+        >
           {getFileName(displayPath)}
         </span>
         {lang && (
@@ -286,7 +301,7 @@ export function PreviewPane({
           href={urlOfArtifact({ filepath, threadId, download: true })}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t.common.download}
           title={t.common.download}
         >

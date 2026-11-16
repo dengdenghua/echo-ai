@@ -215,7 +215,10 @@ describe("LoginPage", () => {
     expect(password).toHaveAttribute("type", "password");
 
     const toggleBtn = screen.getByRole("button", { name: "显示密码" });
-    await user.click(toggleBtn);
+    password.focus();
+    await user.tab();
+    expect(toggleBtn).toHaveFocus();
+    await user.keyboard("{Enter}");
     expect(password).toHaveAttribute("type", "text");
 
     const hideBtn = screen.getByRole("button", { name: "隐藏密码" });

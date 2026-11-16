@@ -490,9 +490,7 @@ def _emit_subagent_lifecycle_event(
         return
 
     if publish_bus:
-        # Mirror onto the typed event bus for direct callers of this helper.
-        # The higher-level bridge opts out because it publishes with its
-        # explicit caller session (and therefore the correct root thread).
+        # Mirror onto the event bus; the bridge publishes its own session.
         _bus_role = str(payload.get("role") or payload.get("agent_id") or "")
         if kind == "subagent_spawned":
             _publish_to_bus(
@@ -576,15 +574,16 @@ def _emit_subagent_lifecycle_event(
         text_field="prompt_preview",
         limit=1000,
     )
-
     try:
         from runtime.memory.journal import (
             SubToolEndEvent,
             SubToolStartEvent,
         )
 
+        session_id = str(payload.get("session_id") or "")
         if kind == "subagent_spawned":
             ev = SubToolStartEvent(
+                session_id=session_id,
                 task_id=task_id_obj,
                 agent_id=str(payload.get("requested_agent_id") or payload.get("agent_id") or ""),
                 codename=str(payload.get("codename") or ""),
@@ -622,6 +621,7 @@ def _emit_subagent_lifecycle_event(
             except (TypeError, ValueError):
                 duration_ms = 0
             ev = SubToolEndEvent(
+                session_id=session_id,
                 task_id=task_id_obj,
                 agent_id=str(payload.get("requested_agent_id") or payload.get("agent_id") or ""),
                 codename=str(payload.get("codename") or ""),
@@ -639,5 +639,4 @@ def _emit_subagent_lifecycle_event(
             return
         journal.write(ev)
     except (OSError, TypeError, ValueError):  # noqa: BLE001
-        # Lifecycle mirroring is best-effort; never break the run.
         pass

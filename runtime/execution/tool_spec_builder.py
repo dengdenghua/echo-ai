@@ -199,6 +199,7 @@ TASK_CHAIN_MODES: frozenset[str] = frozenset(
 _INTERNAL_PARAMS = frozenset(
     {
         "sandbox_dir",
+        "session",
         "allow_sensitive",
         "allow_network",
         "egress_allow_common",

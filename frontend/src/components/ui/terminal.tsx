@@ -46,15 +46,16 @@ export const AnimatedSpan = ({
 
   const sequence = useSequence();
   const itemIndex = useItemIndex();
+  const sequenceStarted = sequence?.sequenceStarted;
+  const activeIndex = sequence?.activeIndex;
   const [hasStarted, setHasStarted] = useState(false);
   useEffect(() => {
-    if (!sequence || itemIndex === null) return;
-    if (!sequence.sequenceStarted) return;
+    if (sequenceStarted !== true || itemIndex === null) return;
     if (hasStarted) return;
-    if (sequence.activeIndex === itemIndex) {
+    if (activeIndex === itemIndex) {
       setHasStarted(true);
     }
-  }, [sequence?.activeIndex, sequence?.sequenceStarted, hasStarted, itemIndex]);
+  }, [activeIndex, sequenceStarted, hasStarted, itemIndex]);
 
   const shouldAnimate = sequence ? hasStarted : startOnView ? isInView : true;
 
@@ -117,12 +118,16 @@ export const TypingAnimation = ({
 
   const sequence = useSequence();
   const itemIndex = useItemIndex();
+  const sequenceRef = useRef(sequence);
+  sequenceRef.current = sequence;
+  const sequenceStarted = sequence?.sequenceStarted;
+  const activeIndex = sequence?.activeIndex;
 
   useEffect(() => {
-    if (sequence && itemIndex !== null) {
-      if (!sequence.sequenceStarted) return;
+    if (sequenceStarted !== undefined && itemIndex !== null) {
+      if (!sequenceStarted) return;
       if (started) return;
-      if (sequence.activeIndex === itemIndex) {
+      if (activeIndex === itemIndex) {
         setStarted(true);
       }
       return;
@@ -138,12 +143,12 @@ export const TypingAnimation = ({
     const startTimeout = setTimeout(() => setStarted(true), delay);
     return () => clearTimeout(startTimeout);
   }, [
+    activeIndex,
     delay,
     startOnView,
     isInView,
     started,
-    sequence?.activeIndex,
-    sequence?.sequenceStarted,
+    sequenceStarted,
     itemIndex,
   ]);
 
@@ -157,8 +162,8 @@ export const TypingAnimation = ({
         i++;
       } else {
         clearInterval(typingEffect);
-        if (sequence && itemIndex !== null) {
-          sequence.completeItem(itemIndex);
+        if (sequenceRef.current && itemIndex !== null) {
+          sequenceRef.current.completeItem(itemIndex);
         }
       }
     }, duration);
@@ -166,7 +171,7 @@ export const TypingAnimation = ({
     return () => {
       clearInterval(typingEffect);
     };
-  }, [children, duration, started]);
+  }, [children, duration, itemIndex, started]);
 
   return (
     <MotionComponent

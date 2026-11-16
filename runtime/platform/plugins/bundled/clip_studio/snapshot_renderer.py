@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import av
+# PyAV pulls in numpy + a large codec surface (~1.1 s). clip_studio loads at
+# startup via PluginHub, so a module-level import delayed every backend boot
+# even when nobody touches a video. Decoding imports it on first use instead.
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 
@@ -160,6 +162,8 @@ def _base_frame(project: dict[str, Any], at_sec: float) -> tuple[Image.Image, di
 
 
 def _decode_video_frame(path: Path, at_sec: float) -> Image.Image:
+    import av
+
     try:
         with av.open(str(path)) as container:
             stream = next((item for item in container.streams if item.type == "video"), None)

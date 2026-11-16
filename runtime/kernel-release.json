@@ -1,6 +1,6 @@
 {
   "schema": "echo.kernel-release.v1",
-  "manifestVersion": "1.0.7",
+  "manifestVersion": "1.0.9",
   "authority": "echo-ai",
   "scope": "selected shared cross-device and safety sources; not the entire runtime or a signed bundle",
   "deviceProtocolVersion": "1.0",
@@ -71,7 +71,7 @@
         },
         {
           "path": "runtime/platform/process/streaming.py",
-          "sha256": "00d4ebcc63141f61fc430b23f3c97e213161d0ca9151b5cc8db76221c9c07723"
+          "sha256": "bb6b6d35e42fc3a102a7392fd248144192ed6749aefc54e6e3ba8edb21c2d080"
         },
         {
           "path": "runtime/safety/sandboxing/windows_mxc.py",
@@ -79,7 +79,7 @@
         },
         {
           "path": "runtime/safety/sandboxing/execution_mode.py",
-          "sha256": "6c07b89e8d443f14f499c5aa6e6e39f9f7a62ac07d22770c09d19463ef2eedc3"
+          "sha256": "3782cf03614563fdda77d1aae258ee7fd341fc8f580bac553a949b700b63b1b2"
         }
       ]
     },
@@ -114,5 +114,5 @@
       ]
     }
   },
-  "revision": "sha256:cfd405f9f409e63b79da9e27e62fbab2ddab45300cd6dfd3dc410b38f1749f19"
+  "revision": "sha256:8fd7d7a067796a5ef5f341ec0273888d4af023c204c2b92c2753b537085a6d86"
 }

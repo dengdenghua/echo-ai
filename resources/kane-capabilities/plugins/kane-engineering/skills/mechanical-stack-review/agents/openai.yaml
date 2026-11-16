@@ -1,0 +1,4 @@
+interface:
+  display_name: "堆叠与干涉检查"
+  short_description: "审查堆叠与干涉，区分标准依据、工程经验与需实物验证项目"
+  default_prompt: "使用 $mechanical-stack-review 检查当前结构设计，标明标准要求、工程经验、试装或试验待办及证据。"

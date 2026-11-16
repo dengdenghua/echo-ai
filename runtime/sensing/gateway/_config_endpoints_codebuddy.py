@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import HTTPException, Request
 
 from runtime.execution.codebuddy_account import launch_login, login_launch_supported
-from runtime.execution.codebuddy_backend import inspect_readiness, model_catalog
+from runtime.execution.codebuddy_backend import inspect_readiness, model_catalog, control_capabilities
 from runtime.execution.codebuddy_events import CodeBuddyError
 from runtime.execution.engine_observations import engine_observations
 from runtime.safety.auth.scope import scope_from_request
@@ -31,7 +31,10 @@ def _register_codebuddy(router: Any, ctx: _ConfigCtx) -> None:
     @router.get("/api/config/codebuddy/models", tags=["config"])
     async def codebuddy_models(request: Request) -> dict[str, Any]:
         scope_from_request(request)
-        return {"models": await asyncio.to_thread(model_catalog)}
+        from runtime.execution.codebuddy_model_capabilities import model_capabilities
+        models = await asyncio.to_thread(model_catalog)
+        return {"models": models, "controls": await asyncio.to_thread(control_capabilities),
+                "model_capabilities": await asyncio.to_thread(model_capabilities, models)}
 
     @router.post("/api/config/codebuddy/login", tags=["config"])
     async def codebuddy_login(request: Request) -> dict[str, object]:

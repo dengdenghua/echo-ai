@@ -14,7 +14,8 @@ from typing import Any
 
 from .installer import EngineInstaller, engine_installer
 from .lock import ENGINES, platform_key
-from .store import EXECUTABLE_ENV, read_installed
+from .store import EXECUTABLE_ENV, read_release
+from .versions import _base, _folder, snapshot
 
 BUNDLED_ENV = "ECHO_ENGINES_BUNDLED"
 """Comma-separated engines the desktop app supplied from its own resources."""
@@ -26,6 +27,9 @@ def _resolved(engine_id: str) -> str | None:
             from runtime.execution.codex_backend.command import resolve_codex_app_server_command
 
             return resolve_codex_app_server_command()[0]
+        if engine_id == "codebuddy":
+            from runtime.execution.codebuddy_backend import executable
+            return executable()
         from runtime.execution.opencode_backend import executable
 
         return executable()
@@ -45,24 +49,30 @@ def engine_status(engine_id: str, installer: EngineInstaller | None = None) -> d
     artifact = spec.artifact()
     job = (installer or engine_installer()).job(engine_id)
     running = job is not None and job.running
-    installed = read_installed(engine_id)
+    root = (installer or engine_installer())._root()
+    version_state = snapshot(root, engine_id)
+    installed = read_release(_folder(_base(root, engine_id), version_state["active"]) if version_state.get("active") else root / engine_id, engine_id)
+    previous = read_release(_folder(_base(root, engine_id), version_state["previous"]), engine_id) if version_state.get("previous") else None
+    pending = read_release(_folder(_base(root, engine_id), version_state["pending"]), engine_id) if version_state.get("pending") else None
     current = (
         installed is not None
-        and installed.version == spec.version
         and installed.platform == platform_key()
     )
-    resolved = _resolved(engine_id)
+    resolved = str(installed.executable) if current else _resolved(engine_id)
     bundled = {item.strip() for item in os.environ.get(BUNDLED_ENV, "").split(",")}
     source: str | None
     if resolved is None:
         source = None
-    elif os.environ.get(EXECUTABLE_ENV[engine_id]):
-        source = "bundled" if engine_id in bundled else "configured"
     elif current and installed is not None and _same_file(resolved, installed.executable):
         source = "installed"
+    elif os.environ.get(EXECUTABLE_ENV[engine_id]):
+        source = "bundled" if engine_id in bundled else "configured"
+
     else:
         source = "system"
-    if running:
+    if pending:
+        state = "pending_activation"
+    elif running:
         state = "installing"
     elif source is not None:
         state = "ready"
@@ -76,14 +86,19 @@ def engine_status(engine_id: str, installer: EngineInstaller | None = None) -> d
         "version": spec.version,
         "license": spec.license,
         "homepage": spec.homepage,
-        "supported": artifact is not None,
+        "supported": artifact is not None or engine_id == "codebuddy",
         "download_size": artifact.size if artifact else None,
         "state": state,
         "source": source,
         "installed_version": installed.version if installed else None,
         "installed_size": installed.size if installed else None,
         "update_available": installed is not None and not current,
-        "can_uninstall": installed is not None and not running,
+        "can_uninstall": installed is not None and not running and not pending and not version_state["active_tasks"],
+        "can_rollback": previous is not None and not running and not pending,
+        "previous_version": previous.version if previous else None,
+        "pending_version": pending.version if pending else None,
+        "active_tasks": version_state["active_tasks"],
+        "revision": version_state.get("revision", 0),
         "job": job.snapshot() if job else None,
     }
 

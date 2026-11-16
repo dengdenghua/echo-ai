@@ -65,6 +65,8 @@ if FASTAPI_AVAILABLE:
         enable_1m_context: bool = False
         supports_thinking: bool | None = None
         default_reasoning_effort: str | None = None
+        context_window: int | None = None
+        context_source: str = "unknown"
         supports_vision: bool | None = None
         supports_tool_use: bool | None = None
         is_free: bool = False
@@ -199,6 +201,8 @@ if FASTAPI_AVAILABLE:
         description: str = ""
         reasoning_efforts: list[str] = Field(default_factory=list)
         default_reasoning_effort: str | None = None
+        context_window: int | None = None
+        context_source: str = "unknown"
         hidden: bool = False
         is_default: bool = False
         input_modalities: list[str] = Field(default_factory=list)

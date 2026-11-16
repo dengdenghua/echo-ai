@@ -1,0 +1,49 @@
+{
+  "ok": true,
+  "source": "E:\\AGENT\\analysis\\huibud-companion-20261107\\full3d\\Echo-Huibud-3D.blend",
+  "sourceSha256": "20800a82486b0b91e944635dc3a5bdbad19f73e1aa222536b87296c95aad136f",
+  "normalizedWeights": true,
+  "bones": 12,
+  "checks": [
+    {
+      "clip": "idle",
+      "maxEdgeStretch": 1.607203473597738,
+      "sampledFrames": 5
+    },
+    {
+      "clip": "greet",
+      "maxEdgeStretch": 3.0205363076445715,
+      "sampledFrames": 5
+    },
+    {
+      "clip": "drag",
+      "maxEdgeStretch": 1.7086200061228545,
+      "sampledFrames": 5
+    },
+    {
+      "clip": "land",
+      "maxEdgeStretch": 1.5778115403381563,
+      "sampledFrames": 5
+    },
+    {
+      "clip": "work",
+      "maxEdgeStretch": 1.5960686691387085,
+      "sampledFrames": 5
+    },
+    {
+      "clip": "wait",
+      "maxEdgeStretch": 1.790882194833607,
+      "sampledFrames": 5
+    },
+    {
+      "clip": "success",
+      "maxEdgeStretch": 2.9105061409654143,
+      "sampledFrames": 5
+    }
+  ],
+  "neutralViews": [
+    "neutral-front.png",
+    "neutral-side.png",
+    "neutral-back.png"
+  ]
+}

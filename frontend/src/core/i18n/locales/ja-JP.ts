@@ -44,6 +44,7 @@ export const jaJP: Translations = {
     error: "エラー",
     copy: "コピー",
     copied: "コピーしました",
+    tableContents: "表の内容",
     version: "バージョン",
     lastUpdated: "最終更新",
     code: "コード",
@@ -1939,6 +1940,9 @@ export const jaJP: Translations = {
     humanSave: "ページを保存",
     humanCancel: "変更を破棄",
     humanSaved: "ページの変更を保存しました",
+    humanSaving: "保存中…",
+    humanSaveUnconfirmed:
+      "保存を確認できませんでした。編集内容は保持されています。ファイルを確認して再試行してください。",
     humanUndo: "前回の保存を元に戻す",
     humanRestored: "保存前のバージョンに復元しました",
     humanConflict: "Agent がページを更新しました。変更は未保存です",
@@ -6965,6 +6969,9 @@ export const jaJP: Translations = {
     privacyUnavailable:
       "プライバシー設定を読み取れませんでした。再試行してから変更してください。",
     creditsBalance: "クレジット残高",
+    autoLoginTitle: "起動時にローカルアカウントで自動ログイン",
+    autoLoginDescription:
+      "毎回クリックせず、起動後すぐにローカルアカウントで入ります。",
     octAccount: "公式アカウント",
     available: "利用可能",
     refreshing: "更新中",

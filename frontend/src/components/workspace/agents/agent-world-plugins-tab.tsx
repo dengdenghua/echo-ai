@@ -36,9 +36,9 @@ export function AgentWorldPluginsTab({
       <div>
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-sm font-semibold">
+            <h2 className="text-sm font-semibold">
               {view === "featured" ? copy.featuredHeading : copy.allHeading}
-            </h3>
+            </h2>
             <p className="mt-1 text-ui text-muted-foreground">
               {view === "featured" ? copy.featuredHint : copy.allHint}
             </p>

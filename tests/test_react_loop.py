@@ -2617,6 +2617,17 @@ def test_explicit_read_only_turn_injects_non_mutation_contract() -> None:
     assert not _explicit_read_only_goal("Implement and test the coding agent UI")
     assert not _explicit_read_only_goal("Create acceptance.docx and do not write any other file.")
     assert not _explicit_read_only_goal("创建验收报告.docx，不要修改其他文件")
+    for goal in (
+        "子智能体 A 写 output/final/agent-a.md，合并生成 output/final/report.md；不修改项目源码",
+        "生成验收报告和 HTML 文件，只在本会话工作区写文件，不修改项目源码",
+        "保存 report.md，不修改项目源码",
+    ):
+        assert not _explicit_read_only_goal(goal)
+    for goal in (
+        "只读检查，不要生成文件或保存报告",
+        "查看生成文件的逻辑，不修改项目源码",
+    ):
+        assert _explicit_read_only_goal(goal)
 
     router = _CapturingRouter(["Final Answer: read-only report complete"])
     intent = _intent("只读调研 coding agent，严禁修改任何文件")

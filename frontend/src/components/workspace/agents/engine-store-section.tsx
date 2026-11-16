@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 import {
   CodexIcon,
+  CodeBuddyIcon,
   OpenCodeIcon,
 } from "@/components/workspace/execution-engine-picker";
 import {
@@ -49,7 +50,9 @@ import {
 const STATUS_LINE = "mt-0.5 block text-micro";
 
 function engineIcon(id: string) {
-  return id === "opencode" ? (
+  return id === "codebuddy" ? (
+    <CodeBuddyIcon className="size-[18px]" />
+  ) : id === "opencode" ? (
     <OpenCodeIcon className="size-[18px] overflow-hidden rounded" />
   ) : (
     <CodexIcon className="block size-[18px]" />
@@ -70,9 +73,16 @@ function EngineRow({
   onAction: (action: EngineAction) => void;
 }) {
   const status = engineStatusLine(engine, copy);
-  const installing = engine.state === "installing";
+  const installing =
+    engine.state === "installing" || engine.state === "pending_activation";
   const description =
-    copy.descriptions[engine.id === "opencode" ? "opencode" : "codex"];
+    copy.descriptions[
+      engine.id === "codebuddy"
+        ? "codebuddy"
+        : engine.id === "opencode"
+          ? "opencode"
+          : "codex"
+    ];
   // A store install of the pinned version is the only thing to manage; a
   // bundled or configured engine is the app's, not the store's.
   const needsInstall =
@@ -151,7 +161,7 @@ function EngineRow({
           )}
           {engine.state === "update_available" ? copy.update : copy.install}
         </button>
-      ) : engine.can_uninstall && canManage ? (
+      ) : engine.supported && canManage ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -163,8 +173,22 @@ function EngineRow({
               <MoreHorizontalIcon className="size-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem
+              disabled={pending}
+              onSelect={() => onAction("update")}
+            >
+              <RefreshCwIcon className="size-4" />
+              {copy.checkUpdate}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={pending || !engine.can_rollback}
+              onSelect={() => onAction("rollback")}
+            >
+              {copy.rollbackVersion(engine.previous_version ?? null)}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={pending || !engine.can_uninstall}
               className="text-destructive focus:text-destructive"
               onSelect={() => onAction("uninstall")}
             >

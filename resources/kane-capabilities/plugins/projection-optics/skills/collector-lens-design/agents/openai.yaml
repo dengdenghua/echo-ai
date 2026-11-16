@@ -1,0 +1,4 @@
+interface:
+  display_name: "收集与准直透镜设计"
+  short_description: "核对像高、焦距与发光面，比较片数、非球面和材料以改善面角接受"
+  default_prompt: "使用 $collector-lens-design，核对整组焦距和发光面，比较片数、非球面位置及玻璃材料，并给出面角接受与制造约束的依据。"

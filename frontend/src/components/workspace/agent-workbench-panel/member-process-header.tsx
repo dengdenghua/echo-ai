@@ -7,13 +7,16 @@ import { subagentAvatarSrc, type AgentTile } from "../agent-workbench-utils";
 import { dockAgentStatusLabel } from "./helpers";
 
 function elapsedLabel(agent: AgentTile, now: number) {
-  const live = agent.status === "running" || agent.status === "waiting_approval";
+  const live =
+    agent.status === "running" || agent.status === "waiting_approval";
   const ms = live
-    ? (agent.startedAt > 0 ? now - agent.startedAt : null)
-    : agent.durationMs ??
+    ? agent.startedAt > 0
+      ? now - agent.startedAt
+      : null
+    : (agent.durationMs ??
       (agent.startedAt > 0 && agent.finishedAt !== undefined
         ? agent.finishedAt - agent.startedAt
-        : null);
+        : null));
   if (ms === null || !Number.isFinite(ms)) return null;
   const seconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(seconds / 60);
@@ -24,16 +27,19 @@ export function MemberProcessHeader({
   agent,
   onOpenMain,
   actions,
+  showTaskPreview = true,
 }: {
   agent: AgentTile;
   onOpenMain: () => void;
   actions?: ReactNode;
+  showTaskPreview?: boolean;
 }) {
   const { t, locale } = useI18n();
   const copy = subagentViewCopy(locale);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if (agent.status !== "running" && agent.status !== "waiting_approval") return;
+    if (agent.status !== "running" && agent.status !== "waiting_approval")
+      return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [agent.status]);
@@ -99,7 +105,7 @@ export function MemberProcessHeader({
         </div>
         {actions}
       </div>
-      {(agent.taskLabel || agent.task || agent.prompt) && (
+      {showTaskPreview && (agent.taskLabel || agent.task || agent.prompt) && (
         <p className="mt-2 line-clamp-2 break-words pl-[4.75rem] text-xs leading-relaxed text-muted-foreground">
           {agent.task || agent.prompt || agent.taskLabel}
         </p>

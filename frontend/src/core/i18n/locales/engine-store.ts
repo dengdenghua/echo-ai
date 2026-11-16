@@ -14,7 +14,11 @@ export type EngineInstallErrorCode =
 export interface EngineStoreCopy {
   sectionTitle: string;
   sectionHint: string;
-  descriptions: Record<"codex" | "opencode", string>;
+  descriptions: Record<"codex" | "opencode" | "codebuddy", string>;
+  checking: string;
+  pendingActivation: (version: string, tasks: number) => string;
+  checkUpdate: string;
+  rollbackVersion: (version: string | null) => string;
   install: string;
   update: string;
   uninstall: string;
@@ -42,10 +46,17 @@ export interface EngineStoreCopy {
 }
 
 const zhCN: EngineStoreCopy = {
+  checking: "正在检查官方稳定版…",
+  checkUpdate: "检查并升级稳定版",
+  pendingActivation: (version, tasks) =>
+    `v${version} 已就绪 · 等待 ${tasks} 个任务结束后切换`,
+  rollbackVersion: (version) =>
+    version ? `回退到 v${version}` : "回退（暂无上一版本）",
   sectionTitle: "执行引擎",
   sectionHint:
-    "Codex 和 OpenCode 不随安装包附带，用到时在这里下载。先从 ai.echo-age.com 下载，失败时改用官方源；两边都要与官方发布的校验值一致才会安装。",
+    "Codex、OpenCode 和 CodeBuddy 可独立升级与回退。新版本校验通过后，等待当前任务结束再切换，并自动刷新模型列表。",
   descriptions: {
+    codebuddy: "腾讯官方 CLI · HY4 与官方模型目录",
     codex: "OpenAI 的编程智能体，擅长改代码、跑命令",
     opencode:
       "开源编程智能体，可用免费模型（需连接 OpenCode Zen 并填入 API Key）",
@@ -82,10 +93,17 @@ const zhCN: EngineStoreCopy = {
 };
 
 const enUS: EngineStoreCopy = {
+  checking: "Checking the official stable release…",
+  checkUpdate: "Check and update",
+  pendingActivation: (version, tasks) =>
+    `v${version} ready · Waiting for ${tasks} tasks to finish`,
+  rollbackVersion: (version) =>
+    version ? `Roll back to v${version}` : "Rollback unavailable",
   sectionTitle: "Execution engines",
   sectionHint:
-    "Codex and OpenCode are not part of the installer; download them here when you need them. Downloads come from ai.echo-age.com, or the official source if that fails, and must match the officially published checksum before they are installed.",
+    "Update or roll back Codex, OpenCode and CodeBuddy independently. Verified releases activate after current tasks finish, then refresh the model catalog.",
   descriptions: {
+    codebuddy: "Official Tencent CLI · HY4 and official model catalog",
     codex: "OpenAI's coding agent for editing code and running commands",
     opencode:
       "Open-source coding agent with free models (connect OpenCode Zen and enter an API key)",
@@ -125,10 +143,17 @@ const enUS: EngineStoreCopy = {
 };
 
 const jaJP: EngineStoreCopy = {
+  checking: "公式安定版を確認中…",
+  checkUpdate: "確認して更新",
+  pendingActivation: (version, tasks) =>
+    `v${version} 準備完了 · ${tasks} 件のタスク完了待ち`,
+  rollbackVersion: (version) =>
+    version ? `v${version} に戻す` : "戻せるバージョンなし",
   sectionTitle: "実行エンジン",
   sectionHint:
     "Codex と OpenCode はインストーラーに含まれていません。必要なときにここからダウンロードします。ai.echo-age.com から取得し、失敗した場合は公式ソースを使います。公式に公開されたチェックサムと一致した場合のみインストールします。",
   descriptions: {
+    codebuddy: "Tencent 公式 CLI · HY4 と公式モデル一覧",
     codex:
       "コードの編集やコマンド実行が得意な OpenAI のコーディングエージェント",
     opencode:
@@ -170,10 +195,17 @@ const jaJP: EngineStoreCopy = {
 };
 
 const koKR: EngineStoreCopy = {
+  checking: "공식 안정 버전 확인 중…",
+  checkUpdate: "확인 및 업데이트",
+  pendingActivation: (version, tasks) =>
+    `v${version} 준비 완료 · 작업 ${tasks}개 완료 대기`,
+  rollbackVersion: (version) =>
+    version ? `v${version}로 되돌리기` : "이전 버전 없음",
   sectionTitle: "실행 엔진",
   sectionHint:
     "Codex와 OpenCode는 설치 파일에 포함되어 있지 않으며 필요할 때 여기서 내려받습니다. ai.echo-age.com에서 먼저 받고, 실패하면 공식 소스를 사용합니다. 공식 체크섬과 일치해야만 설치합니다.",
   descriptions: {
+    codebuddy: "Tencent 공식 CLI · HY4 및 공식 모델 목록",
     codex: "코드 수정과 명령 실행에 강한 OpenAI의 코딩 에이전트",
     opencode:
       "무료 모델을 쓸 수 있는 오픈 소스 코딩 에이전트(OpenCode Zen 연결과 API 키 필요)",

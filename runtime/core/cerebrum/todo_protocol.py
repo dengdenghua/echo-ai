@@ -95,6 +95,19 @@ def _is_read_only_analysis_goal(text: str) -> bool:
     # from todo_protocol at module level.
     from runtime.core.cerebrum.react_goal_analysis import _goal_requests_code_mutation
 
+    # A short execution confirmation can include verification language
+    # ("立即执行，逐步检查结果"). It is not an inquiry. Match an imperative
+    # clause, not a quoted action, negation, or question such as "为什么执行失败".
+    if not _READ_ONLY_RE.search(text) and re.search(
+        r"(?:^|[，,。；;]\s*)(?:请\s*)?(?:严格)?"
+        r"(?:按(?:以上|上述)?顺序)?(?:立即|现在|马上|继续)?"
+        r"(?:执行|运行|点击|单击|双击|输入|按下)(?!是否|吗|了什么|的原因|失败|中断|错误)|"
+        r"(?:^|[,.;]\s*)(?:please\s+)?(?:now\s+)?"
+        r"(?:execute|run|click|type|press)\b",
+        text,
+        re.IGNORECASE,
+    ):
+        return False
     # If the goal requests workspace mutation, it is not read-only analysis.
     if _goal_requests_code_mutation(text):
         return False

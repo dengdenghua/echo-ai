@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import platform
+from contextlib import nullcontext
 from typing import Any
 
 from .registry import Skill, SkillRegistry
@@ -162,13 +163,44 @@ def _control_node(control: Any, path: str) -> dict[str, Any]:
     return node
 
 
+def _read_control_text(control: Any, limit: int) -> dict[str, Any]:
+    """Read bounded UIA document text, never password or unknown privacy fields."""
+    if _safe_attr(control, "IsPassword", default=None) is not False:
+        return {"text_available": False, "text_reason": "protected_or_unknown"}
+    if limit <= 0:
+        return {"text_available": False, "text_reason": "text_budget_exhausted"}
+    try:
+        pattern = control.GetTextPattern()
+        if pattern is None:
+            return {"text_available": False, "text_reason": "text_pattern_unavailable"}
+        text = pattern.DocumentRange.GetText(limit + 1)
+        if not isinstance(text, str):
+            return {"text_available": False, "text_reason": "text_pattern_unavailable"}
+        return {"text_available": True, "text": text[:limit],
+                "text_truncated": len(text) > limit}
+    except Exception:  # noqa: BLE001 - COM providers can disappear; do not expose exception text
+        return {"text_available": False, "text_reason": "text_provider_unavailable"}
+
+
 def _resolve_root(root: str) -> tuple[Any | None, str | None]:
     err = _check_uia()
     if err:
         return None, err
     assert uiautomation is not None
     root_key = str(root or "foreground").strip().lower()
+    if root_key not in {"foreground", "desktop", "root"} and not root_key.startswith("window:"):
+        return None, "invalid root; use foreground, desktop, or window:<exact title>"
     try:
+        if root_key.startswith("window:"):
+            title = root_key.removeprefix("window:").strip()
+            if not title:
+                return None, "window root requires a title"
+            windows = _get_children(uiautomation.GetRootControl(), 200)
+            matches = [window for window in windows
+                       if _clean_text(_safe_attr(window, "Name", "name")).lower() == title]
+            if len(matches) != 1:
+                return None, f"window root requires one exact title match; found {len(matches)}"
+            return matches[0], None
         if root_key in {"desktop", "root"}:
             return uiautomation.GetRootControl(), None
         getter = getattr(uiautomation, "GetForegroundControl", None)
@@ -176,7 +208,7 @@ def _resolve_root(root: str) -> tuple[Any | None, str | None]:
             control = getter()
             if control is not None:
                 return control, None
-        return uiautomation.GetRootControl(), None
+        return None, "foreground window unavailable; select an explicit window:<exact title>"
     except Exception as exc:  # noqa: BLE001
         return None, f"uia root failed: {type(exc).__name__}: {exc}"
 
@@ -188,18 +220,25 @@ def _collect_nodes(
     max_nodes: int,
     max_children: int,
     include_offscreen: bool,
+    include_text: bool = False,
+    max_text_chars: int = 4096,
 ) -> tuple[dict[str, Any], int, bool]:
     count = 0
     truncated = False
+    text_remaining = max(1, min(int(max_text_chars), 16384))
 
     def walk(current: Any, depth: int, path: str) -> dict[str, Any] | None:
-        nonlocal count, truncated
+        nonlocal count, truncated, text_remaining
         if count >= max_nodes:
             truncated = True
             return None
         node = _control_node(current, path)
         if node["offscreen"] and not include_offscreen and depth > 0:
             return None
+        kind = str(node["control_type"]).replace("Control", "").lower()
+        if include_text and kind in {"document", "edit"}:
+            node.update(_read_control_text(current, text_remaining))
+            text_remaining -= len(node.get("text", ""))
         count += 1
         if depth >= max_depth:
             return node
@@ -246,9 +285,40 @@ def _computer_uia_tree(
     max_nodes: int = 80,
     max_children: int = 30,
     include_offscreen: bool = False,
+    include_text: bool = False,
+    max_text_chars: int = 4096,
     **_kw: Any,
 ) -> dict[str, Any]:
-    max_depth = max(0, min(int(max_depth), 8))
+    err = _check_uia()
+    if err:
+        return {"ok": False, "error": err, "root": root, "nodes": [], "count": 0}
+    # Tools and HTTP routes run on pooled threads. COM initialization is
+    # thread-local; importing uiautomation on another thread is insufficient.
+    initializer = getattr(uiautomation, "UIAutomationInitializerInThread", nullcontext)
+    try:
+        with initializer():
+            return _computer_uia_tree_initialized(
+                root=root, max_depth=max_depth, max_nodes=max_nodes,
+                max_children=max_children, include_offscreen=include_offscreen,
+                include_text=include_text, max_text_chars=max_text_chars,
+            )
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"uia tree failed: {type(exc).__name__}: {exc}",
+                "root": root, "nodes": [], "count": 0}
+
+
+def _computer_uia_tree_initialized(
+    root: str = "foreground",
+    *,
+    max_depth: int = 2,
+    max_nodes: int = 80,
+    max_children: int = 30,
+    include_offscreen: bool = False,
+    include_text: bool = False,
+    max_text_chars: int = 4096,
+    **_kw: Any,
+) -> dict[str, Any]:
+    max_depth = max(0, min(int(max_depth), 16))
     max_nodes = max(1, min(int(max_nodes), 1000))
     max_children = max(1, min(int(max_children), 200))
     control, err = _resolve_root(root)
@@ -266,8 +336,9 @@ def _computer_uia_tree(
         max_nodes=max_nodes,
         max_children=max_children,
         include_offscreen=include_offscreen,
+        include_text=include_text, max_text_chars=max_text_chars,
     )
-    return {
+    result = {
         "ok": True,
         "root": root,
         "backend": "uiautomation",
@@ -276,6 +347,16 @@ def _computer_uia_tree(
         "tree": tree,
         "nodes": _flatten(tree),
     }
+    if str(root).strip().lower().startswith("window:"):
+        try:
+            from runtime.execution.suckers.computer_windows import window_target
+
+            hwnd = int(_safe_attr(control, "NativeWindowHandle", default=0))
+            if hwnd:
+                result["automation_target"] = window_target(hwnd)
+        except (ImportError, OSError, TypeError, ValueError):
+            pass
+    return result
 
 
 def _matches(node: dict[str, Any], query: str, exact: bool) -> bool:
@@ -297,9 +378,11 @@ def _computer_uia_find(
     exact: bool = False,
     root: str = "foreground",
     max_results: int = 20,
-    max_depth: int = 5,
+    max_depth: int = 12,
     max_nodes: int = 300,
     include_offscreen: bool = False,
+    include_text: bool = False,
+    max_text_chars: int = 4096,
     **_kw: Any,
 ) -> dict[str, Any]:
     needle = str(query or "").strip().lower()
@@ -310,6 +393,7 @@ def _computer_uia_find(
         max_depth=max_depth,
         max_nodes=max_nodes,
         include_offscreen=include_offscreen,
+        include_text=include_text, max_text_chars=max_text_chars,
     )
     if not tree.get("ok"):
         return {"ok": False, "error": tree.get("error"), "matches": []}
@@ -327,6 +411,7 @@ def _computer_uia_find(
         "count": len(matches),
         "truncated": len(matches) >= limit,
         "matches": matches,
+        "automation_target": tree.get("automation_target"),
     }
 
 
@@ -430,8 +515,11 @@ def register_computer_uia_skills(registry: SkillRegistry) -> int:
             description=(
                 "Return a bounded Windows UI Automation control tree for "
                 "the foreground window or desktop root. Read-only. Args: "
-                "{root?: 'foreground'|'desktop', max_depth?, max_nodes?, "
-                "include_offscreen?}."
+                "{root?: 'foreground'|'desktop'|'window:<exact title>', max_depth?, max_nodes?, "
+                "include_offscreen?, include_text?, max_text_chars?}. "
+                "To verify entered document text, set include_text=true. Text is "
+                "bounded across the tree; password controls are skipped. Check "
+                "text_available and text_truncated before claiming a full readback."
             ),
             affinity=["desktop", "automation", "uia", "observe"],
             cost_profile="low",
@@ -444,7 +532,12 @@ def register_computer_uia_skills(registry: SkillRegistry) -> int:
                 "Find desktop controls by visible name, control type, class "
                 "name, or automation id using Windows UI Automation. "
                 "Read-only; returned centers can be used with previewed "
-                "mouse actions."
+                "mouse actions. Prefer root='window:<exact title>' for a named "
+                "target so unrelated windows do not exhaust the node budget. "
+                "Pass the returned automation_target in every previewed click, "
+                "type, or key action so Windows can activate and validate it. "
+                "For document readback use include_text=true (max_text_chars defaults "
+                "to 4096 across the tree); inspect text_available/text_truncated."
             ),
             affinity=["desktop", "automation", "uia", "find"],
             cost_profile="low",

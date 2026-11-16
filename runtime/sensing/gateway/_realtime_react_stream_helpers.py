@@ -211,6 +211,46 @@ def _apply_react_session_metadata(
     _apply_orchestration_grant(session_metadata)
     session_metadata["_execution_stack"] = stack
     session_metadata["_approval_provider"] = approval_provider
+    _apply_codex_task_model_override(session_metadata)
+
+
+def _apply_codex_task_model_override(session_metadata: dict[str, Any]) -> None:
+    # A task-scoped Codex selection is promoted to the opaque Python marker
+    # consumed by role_runner.  The marker itself is never accepted from the
+    # client; this boundary derives it from the already-normalized turn
+    # context and removes any forged private value first.
+    session_metadata.pop("_server_codex_execution_override", None)
+    if (
+        str(session_metadata.get("execution_engine") or "").strip().lower()
+        != "codex"
+        or str(session_metadata.get("model_scope") or "").strip().lower()
+        != "task"
+    ):
+        return
+    raw_model = session_metadata.get("model_name")
+    model = str(raw_model or "").strip() if isinstance(raw_model, str) else ""
+    if model.casefold().startswith("chatgpt/") or model.casefold().startswith("chatgpt:"):
+        model = model.split("/", 1)[1] if "/" in model else model.split(":", 1)[1]
+    if model.casefold() in {"", "auto", "default", "follow_system", "inherit"}:
+        model = None
+    raw_effort = session_metadata.get("reasoning_effort")
+    effort = str(raw_effort or "").strip() if isinstance(raw_effort, str) else ""
+    try:
+        from runtime.execution.codex_backend.role_runner import (
+            ServerCodexExecutionOverride,
+        )
+
+        session_metadata["_server_codex_execution_override"] = (
+            ServerCodexExecutionOverride(
+                model=model,
+                reasoning_effort=effort or None,
+            )
+        )
+    except (ImportError, TypeError, ValueError):
+        # Invalid task metadata falls back to the principal-scoped profile;
+        # it must never make a turn fail merely because an old client sent an
+        # unsupported optional override.
+        return
 
 
 def _should_use_native_tool_loop(

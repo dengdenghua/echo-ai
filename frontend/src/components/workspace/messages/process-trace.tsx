@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   BotIcon,
   CheckCircle2Icon,
@@ -112,15 +112,22 @@ export function ProcessTrace({
       ),
     [events, visibleEvents, phaseState.currentPhase?.title, t],
   );
-  const [open, setOpen] = useState(
-    live || shouldOpenProcessTraceByDefault(visibleEvents, hasAnswer, mode),
-  );
+  // Stream updates may choose the default, but must never override an
+  // explicit decision to read or hide this turn's execution details.
+  const [userOpen, setUserOpen] = useState<boolean | null>(null);
+  const detailsId = useId();
   const [rawDetailsOpen, setRawDetailsOpen] = useState(false);
   const shouldOpen = shouldOpenProcessTraceByDefault(
     visibleEvents,
     hasAnswer,
     mode,
   );
+  const open = userOpen ?? (live || shouldOpen);
+  const waiting = visibleEvents.some(
+    (event) => event.status === "waiting_approval",
+  );
+  const running = visibleEvents.some((event) => event.status === "running");
+  const failed = visibleEvents.some((event) => event.status === "error");
   const doneCount = useMemo(
     () => visibleEvents.filter((e) => e.status === "done").length,
     [visibleEvents],
@@ -143,15 +150,21 @@ export function ProcessTrace({
   const hasSectionCards = sections.length > 0;
 
   useEffect(() => {
-    setOpen(shouldOpen);
-  }, [shouldOpen]);
-
-  useEffect(() => {
     if (!open) setRawDetailsOpen(false);
   }, [open]);
 
   return (
     <div
+      data-testid="conversation-process"
+      data-status={
+        waiting
+          ? "waiting"
+          : running || live
+            ? "running"
+            : failed
+              ? "error"
+              : "done"
+      }
       className={cn(
         "px-1 py-1.5",
         live
@@ -161,17 +174,30 @@ export function ProcessTrace({
     >
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 py-1 text-left transition-colors hover:text-foreground"
+        aria-expanded={open}
+        aria-controls={open ? detailsId : undefined}
+        onClick={() => setUserOpen(!open)}
+        className="flex w-full items-center gap-2 rounded-md py-1 text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {showAgents ? (
+        {waiting ? (
+          <CircleIcon className="size-4 shrink-0 text-warning" />
+        ) : running || live ? (
+          <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        ) : failed ? (
+          <XCircleIcon className="size-4 shrink-0 text-destructive" />
+        ) : showAgents ? (
           <NetworkIcon className="size-4 shrink-0 text-muted-foreground" />
         ) : (
-          <CircleIcon className="size-4 shrink-0 text-muted-foreground" />
+          <CheckCircle2Icon className="size-4 shrink-0 text-muted-foreground" />
         )}
         <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
           {showAgents ? t.message.agentCluster : t.message.thinkingProcess}
         </span>
+        {!showAgents && (waiting || failed) && (
+          <span className="text-xs text-muted-foreground">
+            {waiting ? t.message.statusWaiting : t.message.statusError}
+          </span>
+        )}
         <span className="shrink-0 text-xs text-muted-foreground">
           {showAgents
             ? isCoworkResponseGroup
@@ -197,7 +223,7 @@ export function ProcessTrace({
         />
       </button>
       {showProcessBody && (
-        <div className="mt-2 space-y-3">
+        <div id={detailsId} className="mt-2 space-y-3">
           {showAgents ? (
             <AgentClusterCard
               agents={parallelAgents.slice(0, open ? 12 : 4)}

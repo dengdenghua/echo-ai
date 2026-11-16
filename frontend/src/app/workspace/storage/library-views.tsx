@@ -125,7 +125,7 @@ export function TopicCenterView({
         />
       </div>
 
-      <main className="min-h-0 flex-1 overflow-y-auto bg-card p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-card p-4">
         {recentItems.length > 0 ? (
           <>
             <div className="mb-3 flex items-center justify-between">
@@ -157,7 +157,7 @@ export function TopicCenterView({
             授权文件夹并完成扫描后，最近文件会显示在这里
           </div>
         )}
-      </main>
+      </div>
       <FilePreviewDialog
         item={overviewPreview}
         onClose={() => setOverviewPreview(null)}
@@ -246,7 +246,7 @@ function DocumentLibraryView({
           />
         </div>
       </div>
-      <main className="min-h-0 flex-1 overflow-hidden bg-card">
+      <div className="min-h-0 flex-1 overflow-hidden bg-card">
         <div className="grid grid-cols-[minmax(180px,1fr)_76px_104px] items-center gap-3 border-b border-border bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground lg:grid-cols-[minmax(220px,1fr)_minmax(140px,220px)_76px_104px] xl:grid-cols-[minmax(240px,1fr)_minmax(180px,280px)_92px_120px_104px]">
           <span>{copy.docs.colName}</span>
           <span className="hidden lg:block">{copy.docs.colLocation}</span>
@@ -293,7 +293,7 @@ function DocumentLibraryView({
         <div className="border-t border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           {copy.docs.footerNote}
         </div>
-      </main>
+      </div>
       <FilePreviewDialog
         item={previewItem}
         onClose={() => setPreviewItem(null)}
@@ -369,7 +369,7 @@ function ImageLibraryView({
           </Badge>
         </div>
       </div>
-      <main className="min-h-0 flex-1 overflow-y-auto bg-card px-4 py-4 lg:px-6">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-card px-4 py-4 lg:px-6">
         <div className="mb-4 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           {IMAGE_SMART_FILTERS.map(([value, label]) => (
             <button
@@ -434,7 +434,7 @@ function ImageLibraryView({
             </Button>
           </div>
         )}
-      </main>
+      </div>
       <FilePreviewDialog
         item={previewItem}
         onClose={() => setPreviewItem(null)}

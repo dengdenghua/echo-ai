@@ -71,6 +71,11 @@ win:
   extraResources:
   - from: ../extras/desktop/build/backend/echo-backend.exe
     to: backend/echo-backend.exe
+  # onedir build (2026-10-22): the payload lives beside the exe, not inside it.
+  - from: ../extras/desktop/build/backend/_internal
+    to: backend/_internal
+    filter:
+    - '**/*'
   - from: ../extras/desktop/build/codex
     to: codex
     filter:

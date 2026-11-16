@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 import { UnifiedModelControl } from "./unified-model-control";
+import { useState } from "react";
 import { routeNativeModels, routedModel } from "./unified-model-catalog";
 import type * as RequestModule from "@/core/api/request";
 import type * as CoderApiModule from "@/core/coder/api";
@@ -147,3 +148,80 @@ it("describes an empty official catalog without calling it a custom-model list",
     screen.queryByText(/No custom models|没有自定义模型/),
   ).not.toBeInTheDocument();
 });
+
+it("keeps the Codex empty state in loading until its catalog arrives", async () => {
+  api.models.mockReturnValue(new Promise(() => {}));
+  const user = userEvent.setup();
+  renderWithProviders(<UnifiedModelControl engine="codex" models={[]} onEngineChange={vi.fn()} />);
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  expect(await screen.findByText(/Loading models|正在读取模型/)).toBeInTheDocument();
+  expect(screen.queryByText(/No models available|暂无可选模型/)).toBeNull();
+});
+
+it("does not leak another source's loading indicator into the current tab", async () => {
+  api.get.mockReturnValue(new Promise(() => {}));
+  const user = userEvent.setup();
+  renderWithProviders(<UnifiedModelControl engine="codex" models={[]} onEngineChange={vi.fn()} />);
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  expect(await screen.findByRole("button", {name:/^GPT test/})).toBeInTheDocument();
+  expect(screen.queryByText(/Loading models|正在读取模型/)).toBeNull();
+  await user.click(screen.getByRole("button", {name:"CodeBuddy", exact:true}));
+  expect(screen.getAllByText(/Loading models|正在读取模型/)).toHaveLength(1);
+});
+
+it("keeps an unrelated source failure out of a usable Codex tab", async () => {
+  api.get.mockRejectedValue(new Error("CodeBuddy unavailable"));
+  const user = userEvent.setup();
+  renderWithProviders(<UnifiedModelControl engine="codex" models={[]} onEngineChange={vi.fn()} />);
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  expect(await screen.findByRole("button", {name:/^GPT test/})).toBeInTheDocument();
+  expect(screen.queryByText(/Some model sources are unavailable|部分模型来源暂不可用/)).toBeNull();
+  await user.click(screen.getByRole("button", {name:"CodeBuddy", exact:true}));
+  expect(await screen.findByText(/Some model sources are unavailable|部分模型来源暂不可用/)).toBeInTheDocument();
+});
+
+
+it("saves CodeBuddy effort and compaction budget without writing the Codex profile", async () => {
+  localStorage.clear();
+  api.get.mockResolvedValue({ models: ["hy4std"], model_capabilities: {hy4std: {context_window: 960000, reasoning_efforts: ["high"]}}, controls: { effort: true, autocompact: true } });
+  const user = userEvent.setup();
+  renderWithProviders(<UnifiedModelControl engine="codebuddy" value="codebuddy/hy4std" models={[]} onEngineChange={vi.fn()} />, { locale: "zh-CN" });
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  await user.click(await screen.findByRole("radio", { name: "高", exact: true }));
+  await user.selectOptions(screen.getByLabelText("自动压缩预算"), "300000");
+  const saved = JSON.parse(localStorage.getItem("echo:codebuddy-controls:local:codebuddy/hy4std")!);
+  expect(saved).toEqual({ effort: "high", autocompact: 300000 });
+  expect(api.save).not.toHaveBeenCalled();
+});
+
+it("matches model-specific context and efforts, clearing unsupported saved values across switches", async () => {
+  localStorage.clear();
+  localStorage.setItem("echo:codebuddy-controls:local:codebuddy/hy4std", JSON.stringify({effort:"max",autocompact:1000000}));
+  api.get.mockResolvedValue({models:["hy4std","step-5-preview"], controls:{effort:true,autocompact:true}, model_capabilities:{
+    hy4std:{context_window:960000,reasoning_efforts:["high"],default_reasoning_effort:"high"},
+    "step-5-preview":{context_window:1000000,reasoning_efforts:["low","medium","high"]},
+  }});
+  function Harness() {
+    const [model,setModel]=useState("codebuddy/hy4std");
+    return <UnifiedModelControl engine="codebuddy" value={model} onChange={setModel} models={[]} onEngineChange={()=>{}} />;
+  }
+  const user=userEvent.setup();
+  const view=renderWithProviders(<Harness/>,{locale:"zh-CN"});
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  expect(await screen.findByText("960K（输入上限）")).toBeInTheDocument();
+  expect(screen.queryByRole("radio",{name:"低",exact:true})).toBeNull();
+  await waitFor(()=>expect(JSON.parse(localStorage.getItem("echo:codebuddy-controls:local:codebuddy/hy4std")!)).toEqual({effort:"high"}));
+  await user.click(screen.getByText("step-5-preview"));
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  expect(await screen.findByText("1M（输入上限）")).toBeInTheDocument();
+  await user.click(screen.getByRole("radio",{name:"低",exact:true}));
+  await user.click(screen.getByText("hy4std"));
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  expect(await screen.findByText("960K（输入上限）")).toBeInTheDocument();
+  expect(screen.queryByRole("radio",{name:"低",exact:true})).toBeNull();
+  view.unmount();
+  renderWithProviders(<Harness/>,{locale:"zh-CN"});
+  await user.click(screen.getByTestId("unified-model-trigger"));
+  expect(await screen.findByRole("radio",{name:"高",exact:true})).toHaveAttribute("aria-checked","true");
+});
+

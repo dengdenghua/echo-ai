@@ -220,6 +220,71 @@ describe("desktop protocol handler", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it("cancels the upstream request when the renderer leaves a streaming page", async () => {
+    const controller = new AbortController();
+    let upstreamSignal;
+    const fetchImpl = vi.fn((_target, init) => {
+      upstreamSignal = init.signal;
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener(
+          "abort",
+          () => reject(init.signal.reason),
+          {
+            once: true,
+          },
+        );
+      });
+    });
+    const pending = makeHandler(fetchImpl)(
+      new Request("echo-app://app/api/preview/stream", {
+        signal: controller.signal,
+      }),
+    );
+    expect(upstreamSignal).toBeInstanceOf(AbortSignal);
+    controller.abort();
+    expect(upstreamSignal.aborted).toBe(true);
+    await expect(pending).resolves.toHaveProperty("status", 502);
+  });
+
+  it("closes the upstream socket when only the response body is cancelled", async () => {
+    let upstreamSignal;
+    const cancel = vi.fn();
+    const fetchImpl = async (_target, init) => {
+      upstreamSignal = init.signal;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("data: ready\n\n"));
+          },
+          cancel,
+        }),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+    };
+    const response = await makeHandler(fetchImpl)(
+      new Request("echo-app://app/api/preview/stream"),
+    );
+    const reader = response.body.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+      "data: ready\n\n",
+    );
+    const pendingRead = reader.read();
+    await reader.cancel();
+    await expect(pendingRead).resolves.toHaveProperty("done", true);
+    expect(upstreamSignal.aborted).toBe(true);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("finishes ordinary responses without aborting a successful request", async () => {
+    let upstreamSignal;
+    const response = await makeHandler(async (_target, init) => {
+      upstreamSignal = init.signal;
+      return Response.json({ signedIn: true });
+    })(new Request("echo-app://app/api/auth/status"));
+    await expect(response.json()).resolves.toEqual({ signedIn: true });
+    expect(upstreamSignal.aborted).toBe(false);
+  });
+
   it("streams non-GET request bodies through the loopback proxy", async () => {
     let forwardedBody = "";
     const fetchImpl = vi.fn(async (_target, init) => {

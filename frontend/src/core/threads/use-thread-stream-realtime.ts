@@ -1,3 +1,8 @@
+import { QueryClientContext } from "@tanstack/react-query";
+import { coderQueryKeys, type CoderModelProfile } from "@/core/coder/api";
+import { readCodexContextBudget } from "@/core/models/codex-context-budget";
+import { useOptionalAuth } from "@/providers/AuthProvider";
+import { codeBuddyTurnPreferences } from "@/core/models/codebuddy-preferences";
 /**
  * Realtime-backed implementation of `useThreadStream`.
  *
@@ -7,7 +12,7 @@
  */
 
 import { executionEnginePreference } from "@/core/realtime/execution-policy";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   conversationIsLoading,
@@ -1165,6 +1170,9 @@ export function useThreadStreamRealtime(
     onToolEnd,
     context,
   } = opts;
+  const modelControlCache = useContext(QueryClientContext);
+  const modelControlUser = useOptionalAuth()?.user;
+  const modelControlPrincipal = modelControlUser?.actor_id || modelControlUser?.user_id || "local";
   const queuesGroup = queuesGroupInput(context);
   const realtime = useRealtimeThread({ threadId });
   const {
@@ -1363,11 +1371,16 @@ export function useThreadStreamRealtime(
     [mapped.messages],
   );
   useEffect(() => {
+    for (const clientMessageId of acknowledgedOutboundIds) {
+      window.dispatchEvent(new CustomEvent("echo:message-confirmed", {
+        detail: { threadId, clientMessageId },
+      }));
+    }
     updateOptimisticMessages(threadEpoch, {
       type: "acknowledge",
       clientMessageIds: acknowledgedOutboundIds,
     });
-  }, [acknowledgedOutboundIds, threadEpoch, updateOptimisticMessages]);
+  }, [acknowledgedOutboundIds, threadEpoch, threadId, updateOptimisticMessages]);
   const visibleMessages = useMemo(
     () =>
       mergeOptimisticHumanMessages(mapped.messages, pendingOutboundMessages),
@@ -1696,6 +1709,8 @@ export function useThreadStreamRealtime(
             context && typeof context === "object"
               ? (context as Record<string, unknown>)
               : {};
+          const currentModelProfile = modelControlCache?.getQueryData<CoderModelProfile>(coderQueryKeys(modelControlPrincipal).profile);
+          const budgetModel = rawContext.model_scope === "task" ? model : (currentModelProfile?.effective_model || model);
           const explicitMode = stringValue(rawContext.mode);
           const selectedMode = explicitMode ?? "code";
           const explicitCapabilityMode = stringValue(
@@ -1707,6 +1722,8 @@ export function useThreadStreamRealtime(
           const runtimeContext = applyCodexComposerModeContext(
             stripUndefinedValues({
               ...rawContext,
+              codex_autocompact: readCodexContextBudget(modelControlPrincipal, budgetModel || "auto"),
+              ...codeBuddyTurnPreferences(modelControlPrincipal, model || "auto", rawContext.execution_engine_preference),
               mode: selectedMode,
               capability_mode:
                 explicitCapabilityMode ??
@@ -1808,6 +1825,8 @@ export function useThreadStreamRealtime(
       effectiveApprovalPolicy,
       effectiveSandboxPolicy,
       model,
+      modelControlPrincipal,
+      modelControlCache,
       context,
       queuesGroup,
       threadEpoch,

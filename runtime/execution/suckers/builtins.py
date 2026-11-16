@@ -784,7 +784,11 @@ def register_all(registry: SkillRegistry, *, refresh_prompt_catalog: bool = True
     # echo-ai owning a document index. Self-gating when Storage is down.
     from .storage_skills import register_storage_skills
 
-    storage_count = register_storage_skills(registry)
+    storage_count = (
+        0
+        if getattr(registry, "automation_runtime", None) is not None
+        else register_storage_skills(registry)
+    )
     # 本地图片语义检索 + 人脸分组 · CLIP 双塔 + insightface · 2026-08-04
     # 对标 NAS AI 相册:文→图 / 图→图 / 人脸以图搜人 / 人脸分组。self-gating,
     # 模型不可用时自动降级为文件列表,不阻断启动。

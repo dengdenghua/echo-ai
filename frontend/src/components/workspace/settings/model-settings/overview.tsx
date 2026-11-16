@@ -12,6 +12,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -83,6 +85,9 @@ export function ModelSettingsOverview({
               });
             }}
           >
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              {copy.groupApiModels}
+            </DropdownMenuLabel>
             <DropdownMenuItem
               onSelect={() => {
                 nextFocusSelector.current = "#add-model-provider";
@@ -92,6 +97,23 @@ export function ModelSettingsOverview({
               <PlusIcon className="size-4" />
               {copy.addApiModel}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              {copy.groupLocalModels}
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              onSelect={() => {
+                nextFocusSelector.current = "#model-settings-local button";
+                onScanLocal();
+              }}
+            >
+              <WifiIcon className="size-4" />
+              {copy.scanLocalModels}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              {copy.groupAccounts}
+            </DropdownMenuLabel>
             <DropdownMenuItem
               onSelect={() => {
                 nextFocusSelector.current = "#model-settings-codex > summary";
@@ -110,15 +132,6 @@ export function ModelSettingsOverview({
             >
               <ChevronRightIcon className="size-4" />
               OpenCode · Zen / Go
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                nextFocusSelector.current = "#model-settings-local button";
-                onScanLocal();
-              }}
-            >
-              <WifiIcon className="size-4" />
-              {copy.scanLocalModels}
             </DropdownMenuItem>
             {onOpenCodeBuddy && (
               <DropdownMenuItem

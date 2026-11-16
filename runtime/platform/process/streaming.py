@@ -271,6 +271,34 @@ def execution_policy_snapshot(
     return snapshot
 
 
+def _write_child_input(proc: subprocess.Popen[str], input_data: str | None) -> None:
+    if input_data is not None and proc.stdin is not None:
+        try:
+            with contextlib.suppress(BrokenPipeError, OSError):
+                proc.stdin.write(input_data)
+        finally:
+            with contextlib.suppress(Exception):
+                proc.stdin.close()
+
+
+def _start_child_input(
+    proc: subprocess.Popen[str], input_data: str | None
+) -> threading.Thread | None:
+    if input_data is None:
+        return None
+    writer = threading.Thread(
+        target=_write_child_input, args=(proc, input_data), name="process-stdin", daemon=True
+    )
+    writer.start()
+    return writer
+
+
+def _join_process_io(*threads: threading.Thread | None) -> None:
+    for thread in threads:
+        if thread is not None:
+            thread.join(timeout=2.0)
+
+
 def stream_run(
     argv: list[str],
     *,
@@ -304,6 +332,13 @@ def stream_run(
     after a timed-out process is killed, letting the caller run any
     backend-specific cleanup (e.g. ``docker kill``).
     """
+    from runtime.safety.sandboxing.execution_mode import (
+        command_boundary,
+        command_process_backend,
+        command_sandbox_required,
+    )
+
+    cwd, sandbox_dir = command_boundary(cwd, sandbox_dir)
     output_cap_bytes = _coerce_nonnegative_int(output_cap_bytes, 200_000)
     timeout_value = None if timeout is None or float(timeout) <= 0 else float(timeout)
     output_argv = list(argv)
@@ -332,12 +367,6 @@ def stream_run(
             result=result,
         )
 
-    from runtime.safety.sandboxing.execution_mode import (
-        command_process_backend,
-    )
-    from runtime.safety.sandboxing.execution_mode import (
-        command_sandbox_required as process_sandbox_required,
-    )
     from runtime.safety.sandboxing.sandbox import (
         SandboxViolation,
     )
@@ -347,7 +376,7 @@ def stream_run(
     # request reaching stream_run without the executor having injected a
     # workspace sandbox.  Remote backend wrappers intentionally do not opt
     # in because their argv is already a docker/kubectl/ssh control command.
-    if sandbox_required and sandbox_dir is None and process_sandbox_required():
+    if sandbox_required and sandbox_dir is None and command_sandbox_required():
         return {
             "error": (
                 "sandbox_violation: shared/commercial execution requires a "
@@ -532,16 +561,12 @@ def stream_run(
     t_out.start()
     t_err.start()
 
-    if input_data is not None and proc.stdin is not None:
-        with contextlib.suppress(BrokenPipeError, OSError):
-            proc.stdin.write(input_data)
-        with contextlib.suppress(Exception):
-            proc.stdin.close()
+    t_in = _start_child_input(proc, input_data)
 
     timed_out = False
     cancelled = False
     killed = False
-    deadline = None if timeout_value is None else time.monotonic() + timeout_value
+    deadline = None if timeout_value is None else started_at + timeout_value
     try:
         while True:
             if cancel_token.is_cancelled:
@@ -565,8 +590,7 @@ def stream_run(
             except subprocess.TimeoutExpired:
                 continue
     finally:
-        t_out.join(timeout=2.0)
-        t_err.join(timeout=2.0)
+        _join_process_io(t_in, t_out, t_err)
         # Preserve daemons after normal completion; timeout/cancel already
         # terminated the whole job, including descendants of an exited parent.
         tree.detach_process_job(proc)

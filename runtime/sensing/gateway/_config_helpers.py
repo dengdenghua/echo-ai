@@ -36,7 +36,7 @@ def _entry_upstreams(entry: dict[str, Any], model_id: str) -> list[str]:
     return custom_model_upstreams(entry, model_id)
 
 
-def _entry_context_window(entry: dict[str, Any], upstreams: list[str]) -> int:
+def _entry_context_window(entry: dict[str, Any], upstreams: list[str]) -> int | None:
     """Return the provider input window, distinct from output max_tokens."""
     raw = entry.get("context_window")
     try:
@@ -58,7 +58,7 @@ def _entry_context_window(entry: dict[str, Any], upstreams: list[str]) -> int:
         known = known_model_context_window(candidate)
         if known is not None and 8_192 <= known <= 2_000_000:
             return known
-    return 256_000
+    return None
 
 
 def _entry_1m_enabled(entry: dict[str, Any], upstreams: list[str]) -> bool:
@@ -108,7 +108,10 @@ def _entry_supported_efforts(entry: dict[str, Any], model: str) -> list[str] | N
     base_profile = resolve_openai_compat_profile(base_url, model)
     profile = apply_custom_openai_compat_profile(entry, base_profile=base_profile)
     efforts = effective_supported_efforts(profile)
-    return list(efforts) if efforts is not None else None
+    if efforts is not None:
+        return list(efforts)
+    from runtime.platform.models.official_capabilities import official_model_capabilities
+    return official_model_capabilities(model).get("reasoning_efforts", [])
 
 
 def _compat_diagnostic_for_entry(entry: dict[str, Any]) -> dict[str, Any]:

@@ -14,7 +14,7 @@ import {
   Loader2Icon,
   MessageCircleMoreIcon,
   QrCodeIcon,
-  SquareArrowOutUpRightIcon,
+  Share2Icon,
   UnlinkIcon,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -47,6 +47,8 @@ import {
   revokePublicThreadShare,
 } from "@/core/sharing/public-thread-share";
 import { cn } from "@/lib/utils";
+
+import { HeaderActionTooltip, headerActionClass } from "./header-action";
 
 type CreatedShare = Awaited<ReturnType<typeof createPublicThreadShare>>;
 type QrMode = "wechat" | "moments" | "qr";
@@ -214,32 +216,27 @@ export function ShareMenu({
   return (
     <>
       <DropdownMenu>
+        <HeaderActionTooltip label={t.share.share}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            title={t.share.share}
             aria-label={t.share.share}
             data-slot="share-menu-trigger"
             className={cn(
-              "flex h-[42px] items-center gap-1.5 border text-xs font-medium shadow-none transition-colors duration-base sm:h-7",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-              iconOnly
-                ? "header-icon-hit-area w-[42px] justify-center rounded-lg border-transparent bg-transparent px-0 text-muted-foreground hover:border-border-default hover:bg-muted/55 hover:text-foreground sm:w-8"
-                : "rounded-lg border-transparent bg-transparent px-2.5 text-muted-foreground hover:bg-muted/55 hover:text-foreground",
+              headerActionClass,
+              iconOnly ? "px-0" : "px-2.5",
               className,
             )}
           >
             {busy ? (
               <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
             ) : (
-              // "Send it out of this conversation", not three dots wired
-              // together: the arrow leaving a box reads as sharing at a glance,
-              // where Share2's node graph reads as a network or a link.
-              <SquareArrowOutUpRightIcon className="size-4 text-muted-foreground" />
+              <Share2Icon className="size-4" />
             )}
             {!iconOnly && <span>{t.share.share}</span>}
           </button>
         </DropdownMenuTrigger>
+        </HeaderActionTooltip>
         <DropdownMenuContent align="end" className="w-[340px] p-2">
           <div className="px-2 pb-2 pt-1">
             <p className="text-sm font-semibold text-foreground">
@@ -328,7 +325,7 @@ export function ShareMenu({
                 aria-label={qrTitle}
               />
             ) : qrError ? (
-              <div className="max-w-64 text-center text-sm text-destructive">
+              <div className="max-w-64 text-center text-sm text-red-600">
                 {qrError}
               </div>
             ) : (

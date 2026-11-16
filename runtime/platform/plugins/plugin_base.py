@@ -79,6 +79,8 @@ class ModuleContext:
 
     # Plugin's own persisted config (from plugin.yaml ``config`` field)
     config: dict[str, Any] = field(default_factory=dict)
+    # Host-selected persistent data, separate from immutable plugin resources.
+    data_dir: str | None = None
 
     # Tracking for cleanup on unload
     _registered_skill_names: list[str] = field(default_factory=list)

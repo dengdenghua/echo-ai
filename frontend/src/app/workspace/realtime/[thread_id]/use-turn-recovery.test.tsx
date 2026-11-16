@@ -45,6 +45,19 @@ function setup(
 }
 
 describe("shared task recovery", () => {
+  it.each(["interrupted", "cancelled"] as const)("regenerates a %s answer from the original request", (status) => {
+    const sendMessage = vi.fn();
+    renderHook(() => useConversationTurnSenders({
+      thread: {
+        messages, lastTurnStatus: status, error: new Error("stale stopped turn"), isLoading: false,
+      } as RealtimeThread,
+      threadId: "thread-1", sendMessage, markSidebarThreadRunning: vi.fn(),
+      isLoading: false, readyForMutations: true,
+    }));
+    act(() => window.dispatchEvent(new CustomEvent("echo:regenerate", { detail: { threadId: "thread-1" } })));
+    expect(sendMessage).toHaveBeenCalledWith("thread-1", { text: "生成自行车动画", files: [] });
+  });
+
   it("shares the same click guard with failed-response regeneration", () => {
     const sendMessage = vi.fn();
     const thread: RealtimeThread = {
@@ -86,7 +99,7 @@ describe("shared task recovery", () => {
       "thread-1",
       expect.objectContaining({
         text: composerActionsCopy("zh-CN").resumePrompt,
-        clientMessageId: expect.stringMatching(/^ui-resume-/),
+        clientMessageId: expect.stringMatching(/^itm_ui_resume_/),
       }),
     );
   });
@@ -107,7 +120,7 @@ describe("shared task recovery", () => {
       expect(props.sendMessage).toHaveBeenCalledWith("thread-1", {
         text: composerActionsCopy("zh-CN").resumePrompt,
         files: [],
-        clientMessageId: expect.stringMatching(/^ui-resume-/),
+        clientMessageId: expect.stringMatching(/^itm_ui_resume_/),
       });
       const sent = props.sendMessage.mock.calls[0]![1];
       expect(

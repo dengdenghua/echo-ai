@@ -26,14 +26,14 @@ def _thread_extra_params(
         "permissions",
         "ephemeral",
     }
-    # Resume must reassert every mutable capability selector.  Otherwise the
-    # App Server may retain the previous turn's dynamic tool allowlist.
+    # The tool/capability catalog is immutable on resume. A changed catalog
+    # creates a new thread; only thread/start accepts those selectors.
     supported_extras = {
         "runtimeWorkspaceRoots",
-        "dynamicTools",
-        "selectedCapabilityRoots",
         "developerInstructions",
     }
+    if not resume:
+        supported_extras.update({"dynamicTools", "selectedCapabilityRoots"})
     return {
         key: value
         for key, value in overrides.items()

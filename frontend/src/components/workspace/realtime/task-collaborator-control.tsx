@@ -26,6 +26,8 @@ import { useI18n } from "@/core/i18n/hooks";
 import { PersonaGlyph } from "@/components/brand/persona-glyph";
 import { cn } from "@/lib/utils";
 
+import { HeaderActionTooltip, headerActionClass } from "../header-action";
+
 export type ChatCollaborationRosterEntry = {
   agent_id: string;
   name: string;
@@ -34,10 +36,6 @@ export type ChatCollaborationRosterEntry = {
   icon?: string | null;
   role: "tl" | "member";
 };
-
-function formatCollaboratorCount(count: number, unit: string): string {
-  return unit.length <= 1 ? `${count}${unit}` : `${count} ${unit}`;
-}
 
 export function TaskCollaboratorControl({
   agents,
@@ -103,18 +101,12 @@ export function TaskCollaboratorControl({
     ? selectedAgents.length + (currentAgentName ? 1 : 0)
     : 1;
   const totalCount = Math.max(teamSize, roster.length || 1);
-  const countLabel = formatCollaboratorCount(
-    totalCount,
-    t.chatInputBox.collaboratorsCountUnit,
-  );
   const hasOnlineMembers = onlineCount > 0;
   const controlLabel = labelPrefix
-    ? `${labelPrefix} 成员`
+    ? t.collab.roster.aiMemberDefault
     : t.chatInputBox.collaborators;
-  const controlTitle = labelPrefix
-    ? `${labelPrefix} 成员`
-    : t.chatInputBox.collaborators;
-  const controlAccessibleLabel = `${controlTitle}，${countLabel}`;
+  const controlTitle = controlLabel;
+  const controlAccessibleLabel = `${controlLabel} ${totalCount}`;
   const q = query.trim().toLowerCase();
   const availableAgents = useMemo(
     () =>
@@ -151,18 +143,15 @@ export function TaskCollaboratorControl({
   return (
     <>
     <DropdownMenu open={open ?? localOpen} onOpenChange={changeOpen}>
+      <HeaderActionTooltip label={controlAccessibleLabel}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           data-slot="task-collaborator-trigger"
           className={cn(
-            "group inline-flex h-[42px] items-center gap-1.5 rounded-md px-2 text-xs font-medium shadow-none transition-all duration-base sm:h-8",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35",
-            isTeamDraft
-              ? "bg-transparent text-foreground hover:bg-muted/55"
-              : "bg-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+            headerActionClass,
+            "group",
           )}
-          title={controlAccessibleLabel}
           aria-label={controlAccessibleLabel}
           aria-busy={disabled}
           disabled={disabled}
@@ -192,6 +181,7 @@ export function TaskCollaboratorControl({
           </span>
         </button>
       </DropdownMenuTrigger>
+      </HeaderActionTooltip>
       <DropdownMenuContent
         align="end"
         side="bottom"

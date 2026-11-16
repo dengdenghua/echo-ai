@@ -190,6 +190,10 @@ _AGENT_VERIFY_ROUND_LIMIT = 1
 _UNPAIRED_ITEM_MARKERS = frozenset({"__subagent_spawned__"})
 
 
+from runtime.execution.engine_packages.versions import task_scope
+
+
+@task_scope
 async def _start_turn(
     runtime: CerebrumRuntime,
     params: dict[str, Any],

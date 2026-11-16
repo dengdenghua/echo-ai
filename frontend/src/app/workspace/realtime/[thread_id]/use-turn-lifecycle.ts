@@ -384,10 +384,12 @@ export function useConversationTurnSenders(
     messages: input.thread.messages,
   });
   const { thread, sendMessage, threadId } = input;
+  const stopped =
+    thread.lastTurnStatus === "interrupted" || thread.lastTurnStatus === "cancelled";
+  // Regeneration after an explicit stop starts the original request again.
+  // The hidden continuation prompt is reserved for recovering a failed task.
   const recoverable =
-    Boolean(thread.error) ||
-    thread.lastTurnStatus === "failed" ||
-    thread.lastTurnStatus === "interrupted";
+    !stopped && (Boolean(thread.error) || thread.lastTurnStatus === "failed");
   useRegenerateHandler(
     thread,
     sendMessage,

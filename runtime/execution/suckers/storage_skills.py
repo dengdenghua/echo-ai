@@ -127,6 +127,7 @@ def _search_documents(
     *,
     top_k: int | str = 8,
     source_ids: Any = None,
+    _requester: Any = None,
     **kw: Any,
 ) -> dict[str, Any]:
     """Search the user's local documents through echo-storage and return
@@ -146,7 +147,9 @@ def _search_documents(
         k = 8
     sids = [str(s) for s in source_ids] if isinstance(source_ids, (list, tuple)) else []
 
-    resp = _request("POST", "/v1/search", {"query": query, "top_k": k, "source_ids": sids})
+    resp = (_requester or _request)(
+        "POST", "/v1/search", {"query": query, "top_k": k, "source_ids": sids}
+    )
     if resp is None:
         return _unavailable()
 
@@ -195,9 +198,14 @@ _SEARCH_DOCUMENTS_DESCRIPTION = (
 )
 
 
-def register_storage_skills(registry: SkillRegistry) -> int:
+def register_storage_skills(registry: SkillRegistry, *, requester: Any = None) -> int:
     """Register the File Agent document-search skill. Always registered; it
     self-reports at call time when Storage isn't available."""
+
+    def search(query: str = "", **kwargs: Any) -> dict[str, Any]:
+        kwargs.pop("_requester", None)
+        return _search_documents(query, _requester=requester, **kwargs)
+
     registry.register(
         Skill(
             name="search_documents",
@@ -205,7 +213,7 @@ def register_storage_skills(registry: SkillRegistry) -> int:
             affinity=["knowledge", "documents", "files", "file_agent", "rag", "retrieval"],
             cost_profile="low",  # one local HTTP call to a sibling service
             trusted_source="skill://public/search_documents",
-            handler=_search_documents,
+            handler=search if requester else _search_documents,
             tests=[
                 SkillTestCase(
                     name="missing_query_returns_error",

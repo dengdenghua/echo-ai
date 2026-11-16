@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "blender_official": {
+      "command": "D:\\AI\\BlenderMCP\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "blmcp"
+      ],
+      "cwd": "D:\\AI\\BlenderMCP\\official\\mcp",
+      "startup_timeout_sec": 30.0,
+      "tool_timeout_sec": 300.0,
+      "env": {
+        "BLENDER_MCP_HOST": "127.0.0.1",
+        "BLENDER_MCP_PORT": "9876",
+        "BLENDER_PATH": "D:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe",
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}

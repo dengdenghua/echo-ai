@@ -250,6 +250,7 @@ class PluginHub:
                         "source": activation["source"],
                         "activation_path": activation.get("activation_path"),
                         "data_path": activation.get("data_path"),
+                        "installed_version": activation.get("installed_version"),
                         "recoveries": activation.get("recoveries", []),
                         "activation_error": activation.get("error"),
                     }
@@ -425,6 +426,9 @@ class PluginHub:
                 jobs_registry=self._jobs_registry,
                 contribution_registry=self._contribution_registry,
                 config=effective_config,
+                data_dir=str(self._activation_store.data_path(name))
+                if self._activation_store.is_factory(name)
+                else None,
             )
 
             # 5. Call on_load (which triggers register_skills/channels/routes).
@@ -813,6 +817,22 @@ class PluginHub:
                 self._activation_store.restore_state(name, previous)
                 raise
             return self._lifecycle_result(name, result)
+
+    def upgrade_plugin(self, name: str) -> dict[str, Any]:
+        """Refresh a factory implementation without changing enablement or data."""
+        with self._lock_internal:
+            self._require_factory_plugin(name)
+            previous = self._activation_store.state(name)
+            if not previous["installed"]:
+                raise ValueError(f"plugin is not installed: {name}")
+            self.unload(name)
+            try:
+                return self.install_plugin(name, enabled=previous["enabled"])
+            except Exception:
+                self._activation_store.restore_state(name, previous)
+                if previous["enabled"]:
+                    self._activate_runtime(name)
+                raise
 
     def disable_plugin(self, name: str) -> dict[str, Any]:
         """Stop/unload a plugin and persist its disabled state."""

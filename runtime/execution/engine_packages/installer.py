@@ -31,6 +31,7 @@ from pathlib import Path, PurePosixPath
 from typing import IO, Any
 from urllib.parse import urljoin, urlsplit
 
+from . import versions
 from .lock import ENGINES, EngineArtifact, EngineSpec, platform_key
 from .store import MANIFEST_NAME, MANIFEST_SCHEMA, engines_root, read_installed
 
@@ -41,6 +42,7 @@ ALLOWED_HOSTS = frozenset(
     {
         "ai.echo-age.com",
         "registry.npmjs.org",
+        "nodejs.org",
         "github.com",
         "objects.githubusercontent.com",
         "release-assets.githubusercontent.com",
@@ -87,7 +89,7 @@ class InstallJob:
 
     @property
     def running(self) -> bool:
-        return self.state in {"downloading", "installing"}
+        return self.state in {"checking", "downloading", "installing"}
 
     def snapshot(self) -> dict[str, Any]:
         return asdict(self)
@@ -157,7 +159,7 @@ def download(
                 with destination.open("wb") as handle:
                     for chunk in response.iter_bytes(_CHUNK):
                         received += len(chunk)
-                        if received > artifact.size:
+                        if received > (artifact.size or _MAX_UNPACKED):
                             raise _SourceFailed("larger than the pinned archive")
                         elapsed = clock() - started
                         if (
@@ -169,7 +171,7 @@ def download(
                         hasher.update(chunk)
                         handle.write(chunk)
                         progress(received)
-            if received != artifact.size:
+            if artifact.size and received != artifact.size:
                 raise _SourceFailed(f"incomplete download ({received} of {artifact.size} bytes)")
             if hasher.hexdigest() != expected:
                 raise _SourceFailed("archive digest does not match the pinned release")
@@ -301,26 +303,84 @@ class EngineInstaller:
         with self._lock:
             return self._jobs.get(engine_id)
 
-    def start(self, engine_id: str) -> InstallJob:
+    def start(self, engine_id: str, *, update: bool = False) -> InstallJob:
         spec = ENGINES.get(engine_id)
         if spec is None:
             raise EngineInstallError("unknown_engine", engine_id)
-        artifact = spec.artifact()
-        if artifact is None:
-            raise EngineInstallError("unsupported_platform", platform_key())
+        if versions.snapshot(self._root(), engine_id).get("pending"):
+            raise EngineInstallError("busy", "activation pending")
         with self._lock:
             current = self._jobs.get(engine_id)
             if current is not None and current.running:
                 return current
-            job = InstallJob(engine=engine_id, version=spec.version, total=artifact.size)
+            job = InstallJob(engine=engine_id, version=spec.version, state="checking")
             self._jobs[engine_id] = job
-        threading.Thread(
-            target=self._run,
-            args=(job, spec, artifact),
-            name=f"engine-install-{engine_id}",
-            daemon=True,
-        ).start()
+        threading.Thread(target=self._prepare, args=(job, update), name=f"engine-install-{engine_id}", daemon=True).start()
         return job
+
+    def _prepare(self, job: InstallJob, update: bool):
+        from dataclasses import replace
+
+        from .releases import latest, native_spec
+        root = self._root()
+        root.mkdir(parents=True, exist_ok=True)
+        try:
+            with (root / (job.engine + ".install.lock")).open("a+b") as handle:
+                handle.write(b"0")
+                handle.flush()
+                versions._lock(handle, False)
+                from .baseline import capture
+                capture(root, job.engine)
+                spec = ENGINES[job.engine]
+                data = None
+                if update or job.engine == "codebuddy":
+                    data = latest(job.engine)
+                    spec = replace(spec, version=data["version"]) if job.engine == "codebuddy" else native_spec(job.engine, data)
+                job.version = spec.version
+                current = read_installed(job.engine, root)
+                if current and current.version == spec.version:
+                    job.state = "done"
+                    return
+                if job.engine == "codebuddy":
+                    self._run_codebuddy(job, data)
+                else:
+                    artifact = spec.artifact()
+                    if artifact is None:
+                        raise EngineInstallError("unsupported_platform")
+                    job.total = artifact.size
+                    self._run(job, spec, artifact, verify=True)
+        except Exception:
+            _logger.exception("engine release preparation failed: %s", job.engine)
+            job.state, job.error = "failed", "update_failed"
+        finally:
+            job.finished_at = time.time()
+
+    def _run_codebuddy(self, job, data):
+        from .releases import install_codebuddy
+        root = self._root()
+        staging = root / ".staging" / ("codebuddy-" + uuid.uuid4().hex)
+        staging.mkdir(parents=True)
+        try:
+            if shutil.disk_usage(staging).free < 700 * 1024**2:
+                raise EngineInstallError("disk_full")
+            job.state, job.source = "installing", "upstream"
+            entry, files = install_codebuddy(staging, data)
+            (staging / MANIFEST_NAME).write_text(json.dumps({"schema": MANIFEST_SCHEMA, "engine": "codebuddy", "version": data["version"], "platform": platform_key(), "source": "upstream", "integrity": data["dist"]["integrity"], "entrypoint": entry, "files": files, "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}), "utf-8")
+            versions.publish(root, "codebuddy", staging)
+            job.state = "done"
+        finally:
+            _remove_quietly(staging)
+
+    def rollback(self, engine_id):
+        job = self.job(engine_id)
+        if job and job.running:
+            raise EngineInstallError("busy")
+        try:
+            return versions.rollback(self._root(), engine_id)
+        except RuntimeError as exc:
+            raise EngineInstallError("busy") from exc
+        except ValueError as exc:
+            raise EngineInstallError("no_rollback") from exc
 
     def install_now(self, engine_id: str) -> InstallJob:
         """Install in the calling thread (tests and the command line)."""
@@ -335,16 +395,12 @@ class EngineInstaller:
         self._run(job, spec, artifact)
         return job
 
-    def _run(self, job: InstallJob, spec: EngineSpec, artifact: EngineArtifact) -> None:
+    def _run(self, job: InstallJob, spec: EngineSpec, artifact: EngineArtifact, *, verify: bool = False) -> None:
         root = self._root()
         staging = root / ".staging" / f"{spec.id}-{uuid.uuid4().hex[:8]}"
         try:
-            for leftover in (root / ".staging", root / ".trash"):
-                for stale in leftover.glob(f"{spec.id}-*") if leftover.is_dir() else ():
-                    if stale != staging:
-                        _remove_quietly(stale)
             staging.mkdir(parents=True)
-            if shutil.disk_usage(staging).free < artifact.size * 4:
+            if shutil.disk_usage(staging).free < max(artifact.size * 4, 512 * 1024**2):
                 raise EngineInstallError("disk_full")
             archive = staging / artifact.asset
             source_url = self._download(job, spec, artifact, archive)
@@ -369,7 +425,10 @@ class EngineInstaller:
                 json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
             archive.unlink()
-            _swap_in(content, root / spec.id)
+            if verify:
+                from .releases import verify as verify_engine
+                verify_engine([str(content / artifact.entrypoint)], spec.version)
+            versions.publish(root, spec.id, content)
             job.state = "done"
         except EngineInstallError as exc:
             _logger.warning("engine %s install failed: %s", spec.id, exc)
@@ -410,6 +469,20 @@ class EngineInstaller:
         raise EngineInstallError("download_failed")
 
     def uninstall(self, engine_id: str) -> bool:
+        if engine_id not in ENGINES:
+            raise EngineInstallError("unknown_engine", engine_id)
+        root = self._root()
+        root.mkdir(parents=True, exist_ok=True)
+        with (root / (engine_id + ".install.lock")).open("a+b") as handle:
+            handle.write(b"0")
+            handle.flush()
+            try:
+                versions._lock(handle, False)
+            except OSError as exc:
+                raise EngineInstallError("busy") from exc
+            return self._uninstall(engine_id)
+
+    def _uninstall(self, engine_id: str) -> bool:
         """Remove a store-installed engine; False when there was none."""
 
         if engine_id not in ENGINES:
@@ -418,16 +491,29 @@ class EngineInstaller:
         if current is not None and current.running:
             raise EngineInstallError("busy", "an install is running")
         root = self._root()
-        target = root / engine_id
-        if read_installed(engine_id, root) is None and not target.exists():
-            return False
-        trash = root / ".trash" / f"{engine_id}-{uuid.uuid4().hex[:8]}"
-        trash.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            os.replace(target, trash)
-        except PermissionError as exc:
-            raise EngineInstallError("busy", str(exc)) from exc
-        _remove_quietly(trash)
+        with versions.locked(root, engine_id) as base:
+            state = versions._read(base)
+            if versions._busy(base) or state.get("pending"):
+                raise EngineInstallError("busy")
+            targets = [root / engine_id] + [p for p in base.iterdir() if p.is_dir() and len(p.name) == 32 and all(c in "0123456789abcdef" for c in p.name)]
+            targets = [p for p in targets if p.exists()]
+            if not targets:
+                return False
+            moved = []
+            trash = root / ".trash"
+            trash.mkdir(exist_ok=True)
+            try:
+                for target in targets:
+                    destination = trash / (engine_id + "-" + uuid.uuid4().hex)
+                    os.replace(target, destination)
+                    moved.append((target, destination))
+                versions._write(base, {"revision": int(state.get("revision", 0)) + 1})
+            except OSError as exc:
+                for target, destination in reversed(moved):
+                    os.replace(destination, target)
+                raise EngineInstallError("busy") from exc
+        for _, destination in moved:
+            _remove_quietly(destination)
         with self._lock:
             self._jobs.pop(engine_id, None)
         return True

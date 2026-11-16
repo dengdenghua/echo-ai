@@ -73,6 +73,17 @@ export interface EventMap {
   // route while the page keeps its live socket mounted.
   "thread:route-sync": { href: string; threadId: string };
   "composer:insert-mention": { text: string; submit?: boolean };
+  "composer:submit-request": {
+    threadId: string;
+    text: string;
+    clientMessageId: string;
+    onResult: (result: "confirmed" | "failed" | "unknown") => void;
+  };
+  "composer:request-settled": {
+    threadId: string;
+    clientMessageId: string;
+    result: "confirmed" | "failed" | "unknown";
+  };
 
   // 团队相关
   "team:select": { id: string; name: string };

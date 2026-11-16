@@ -90,6 +90,9 @@ export async function uploadFilesWithProgress(
     }
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
+    // A stalled server/proxy must not leave the composer disabled forever.
+    // Allow large attachments time to finish, then expose the existing retry.
+    xhr.timeout = 5 * 60_000;
     // Do NOT set Content-Type — the browser must add the multipart boundary.
     for (const [key, value] of Object.entries(authHeaders())) {
       if (typeof value === "string") xhr.setRequestHeader(key, value);

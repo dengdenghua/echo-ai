@@ -126,9 +126,11 @@ def test_paused_turn_keeps_distinct_resumable_status(gateway: Any) -> None:
 
 
 @pytest.mark.asyncio()
+@pytest.mark.parametrize("driver_cancelled", [False, True])
 async def test_cancelled_turn_journals_interruption_and_reraises(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    driver_cancelled: bool,
 ) -> None:
     from runtime.sensing.gateway.realtime_cerebrum import CerebrumRuntime
 
@@ -161,7 +163,14 @@ async def test_cancelled_turn_journals_interruption_and_reraises(
             pass
 
     async def hang_forever(*args: Any, **kwargs: Any) -> None:
-        await asyncio.Event().wait()
+        from runtime.protocol import TurnStatus
+
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            if driver_cancelled:
+                args[0].status = TurnStatus.CANCELLED
+            raise
 
     monkeypatch.setattr(runtime, "_drive_react", hang_forever)
 
@@ -183,12 +192,13 @@ async def test_cancelled_turn_journals_interruption_and_reraises(
     completed = [p for m, p in emitter.notifications if m == "turn/completed"]
     assert completed, "cancellation must still emit a best-effort turn/completed"
     turn = completed[-1]["turn"]
-    assert turn["status"] == "interrupted"
+    expected_status = "cancelled" if driver_cancelled else "interrupted"
+    assert turn["status"] == expected_status
     assert turn["completedAt"]
 
     events = _journal_events(logs_root)
     terminal = [e for e in events if e.get("event") == "turn_completed"]
-    assert terminal and terminal[-1]["payload"]["status"] == "interrupted"
+    assert terminal and terminal[-1]["payload"]["status"] == expected_status
     # The turn id was released — a later resume won't see it as active.
     assert turn["id"] not in runtime._active_turn_ids
 

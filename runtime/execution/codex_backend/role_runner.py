@@ -569,6 +569,10 @@ def build_codex_role_request(
             "blocker. Honor current Echo tool denials; do not route around a denial "
             "or claim successful execution without a tool result.</echo-host-execution>"
         )
+    from runtime.platform.models.custom_model_flags import model_context_window
+    # Only the trusted provider registry may override a proxy model's window.
+    # Account models keep the upstream Codex capability metadata.
+    context_window = model_context_window(profile.effective_model or "") if profile.proxy_required else None
     request = CodexExecutionRequest(
         outer_thread_id=thread_id,
         outer_turn_id=turn_id,
@@ -581,6 +585,8 @@ def build_codex_role_request(
         source_codex_home=auth_home,
         model=profile.effective_model,
         effort=profile.reasoning_effort,
+        auto_compact_token_limit=ctx.get("codex_autocompact"),
+        model_context_window=context_window,
         approval_policy="never" if server_auto_approve is True else "on-request",
         approval_reviewer=approval_reviewer,
         sandbox_mode="read-only" if tool_free else resolved_sandbox_mode,

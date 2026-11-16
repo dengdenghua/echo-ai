@@ -193,3 +193,5 @@ ENGINES: dict[str, EngineSpec] = {
 
 
 __all__ = ["ENGINES", "MIRROR_BASE", "EngineArtifact", "EngineSpec", "platform_key"]
+
+ENGINES["codebuddy"] = EngineSpec(id="codebuddy", name="CodeBuddy", version="2.181.0", license="Proprietary", homepage="https://www.codebuddy.ai/")

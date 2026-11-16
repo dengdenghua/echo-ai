@@ -761,7 +761,7 @@ Suckers = skill pool.
 
 ## Who imports this
 
-**109** file(s) reference this package:
+**110** file(s) reference this package:
 
 - **`runtime/_cli_commands.py/`** · 1 file(s)
   - `runtime/_cli_commands.py`
@@ -797,13 +797,13 @@ Suckers = skill pool.
   - `runtime/memory/cowork/recruitment.py`
   - `runtime/memory/cowork/runtime.py`
   - `runtime/memory/hemolymph/composer.py`
-- **`runtime/platform/`** · 30 file(s)
+- **`runtime/platform/`** · 31 file(s)
   - `runtime/platform/assets/skill_lifecycle.py`
+  - `runtime/platform/config/_mcp_bootstrap.py`
   - `runtime/platform/config/builder.py`
   - `runtime/platform/lifecycle/demo.py`
   - `runtime/platform/plugins/automation.py`
-  - `runtime/platform/plugins/automation_diagnostics.py`
-  - _… and 25 more_
+  - _… and 26 more_
 - **`runtime/research/`** · 2 file(s)
   - `runtime/research/pipeline.py`
   - `runtime/research/prefetch.py`

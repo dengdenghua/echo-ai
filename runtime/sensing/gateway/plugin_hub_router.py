@@ -121,6 +121,13 @@ def create_plugin_hub_router(
         except (KeyError, ValueError, FileExistsError, RuntimeError) as exc:
             raise _lifecycle_error(exc) from exc
 
+    @router.post("/plugins/{name}/upgrade", dependencies=[Depends(_operator_dep)])
+    def upgrade_plugin(name: str):
+        try:
+            return hub.upgrade_plugin(name)
+        except (KeyError, ValueError, RuntimeError) as exc:
+            raise _lifecycle_error(exc) from exc
+
     @router.post("/plugins/{name}/enable", dependencies=[Depends(_operator_dep)])
     def enable_plugin(name: str):
         try:

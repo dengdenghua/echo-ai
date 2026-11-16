@@ -230,6 +230,26 @@ class TestBrowserExtract:
 
 
 class TestRegistration:
+    @pytest.mark.parametrize("has_session", [False, True])
+    def test_registration_never_probes_or_reads_a_live_browser(self, monkeypatch, has_session):
+        from runtime.execution.suckers import browser_skills
+
+        calls = []
+
+        def reject_browser_access(*args, **kwargs):
+            calls.append((args, kwargs))
+            raise AssertionError("registration must not access a live browser")
+
+        monkeypatch.setattr(browser_skills, "PLAYWRIGHT_AVAILABLE", True)
+        monkeypatch.setattr(browser_skills, "_has_agent_browser_session", lambda: has_session)
+        monkeypatch.setattr(browser_skills, "_dispatch_higher_track", reject_browser_access)
+        monkeypatch.setattr(browser_skills, "_with_page", reject_browser_access)
+        registry = SkillRegistry()
+
+        assert register_browser_skills(registry) == len(BROWSER_SKILL_NAMES)
+        assert calls == []
+        assert all(registry.has(name) for name in BROWSER_SKILL_NAMES)
+
     def test_register_returns_zero_without_playwright(self, monkeypatch):
         from runtime.execution.suckers import browser_skills
 

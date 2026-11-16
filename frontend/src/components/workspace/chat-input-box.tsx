@@ -147,7 +147,9 @@ export interface ChatInputBoxProps {
    * server profile. */
   executionEngine?: "echo" | "codex" | "opencode" | "codebuddy";
   /** A unified model pick binds both model and execution engine. */
-  onExecutionEngineChange?: (engine: "echo" | "codex" | "opencode" | "codebuddy") => void;
+  onExecutionEngineChange?: (
+    engine: "echo" | "codex" | "opencode" | "codebuddy",
+  ) => void;
   /** That engine can answer now; null while checking. Hides the first-run line. */
   executionEngineReady?: boolean | null;
   executionEngineControl?: ReactNode;
@@ -180,6 +182,7 @@ export interface ChatInputBoxProps {
   ) => void | boolean | Promise<void | boolean>;
   onSubmit?: (message: {
     text: string;
+    clientMessageId?: string;
     images?: File[];
     files?: File[];
     /** Server-side info for attachments already uploaded on attach. */
@@ -235,7 +238,9 @@ export function GroupMemberAvatarStack({
 
   const shouldCompress = members.length > 10;
   const maxVisible = 10;
-  const visibleMembers = shouldCompress ? members.slice(0, maxVisible) : members;
+  const visibleMembers = shouldCompress
+    ? members.slice(0, maxVisible)
+    : members;
   const overflowMembers = shouldCompress ? members.slice(maxVisible) : [];
   const overflowCount = overflowMembers.length;
 
@@ -279,7 +284,8 @@ export function GroupMemberAvatarStack({
           const initial = name.charAt(0).toUpperCase() || "M";
           const rawAvatar = member.avatar_url;
           const avatarUrl = rawAvatar
-            ? rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://")
+            ? rawAvatar.startsWith("http://") ||
+              rawAvatar.startsWith("https://")
               ? withAgentAvatarVersion(rawAvatar)
               : withAgentAvatarVersion(`${getBackendBaseURL()}${rawAvatar}`)
             : null;
@@ -290,9 +296,19 @@ export function GroupMemberAvatarStack({
               key={`${member.name}-${idx}`}
               type="button"
               className={MEMBER_AVATAR_HIT_AREA}
-              title={member.kind === "human" ? copy.mentionMember(name) : copy.agentTitle(name)}
-              aria-label={member.kind === "human" ? copy.mentionMember(name) : copy.agentAria(name)}
-              aria-keyshortcuts={member.kind === "human" ? undefined : "Shift+Enter"}
+              title={
+                member.kind === "human"
+                  ? copy.mentionMember(name)
+                  : copy.agentTitle(name)
+              }
+              aria-label={
+                member.kind === "human"
+                  ? copy.mentionMember(name)
+                  : copy.agentAria(name)
+              }
+              aria-keyshortcuts={
+                member.kind === "human" ? undefined : "Shift+Enter"
+              }
               onKeyDown={(e) => {
                 if (!isMentionShortcut(e)) return;
                 // Enter would otherwise click (open the process view).
@@ -302,7 +318,9 @@ export function GroupMemberAvatarStack({
               onClick={(e) => {
                 e.preventDefault();
                 if (member.kind === "human") {
-                  eventBus.emit("composer:insert-mention", { text: mentionText });
+                  eventBus.emit("composer:insert-mention", {
+                    text: mentionText,
+                  });
                   return;
                 }
                 emitAgentWorkbenchFocus({
@@ -366,16 +384,21 @@ export function GroupMemberAvatarStack({
                 const name = member.display_name?.trim() || member.name;
                 const rawAvatar = member.avatar_url;
                 const avatarUrl = rawAvatar
-                  ? rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://")
+                  ? rawAvatar.startsWith("http://") ||
+                    rawAvatar.startsWith("https://")
                     ? withAgentAvatarVersion(rawAvatar)
-                    : withAgentAvatarVersion(`${getBackendBaseURL()}${rawAvatar}`)
+                    : withAgentAvatarVersion(
+                        `${getBackendBaseURL()}${rawAvatar}`,
+                      )
                   : null;
                 const mentionText = `@${member.mention_value?.trim() || member.display_name?.trim() || member.name}`;
                 return (
                   <DropdownMenuItem
                     key={`${member.name}-${idx}`}
                     className="flex cursor-pointer items-center justify-between gap-2 px-2 py-1.5"
-                    aria-keyshortcuts={member.kind === "human" ? undefined : "Shift+Enter"}
+                    aria-keyshortcuts={
+                      member.kind === "human" ? undefined : "Shift+Enter"
+                    }
                     onKeyDown={(e) => {
                       if (!isMentionShortcut(e)) return;
                       // Handled here, so the menu item does not also select.
@@ -384,7 +407,9 @@ export function GroupMemberAvatarStack({
                     }}
                     onClick={() => {
                       if (member.kind === "human") {
-                        eventBus.emit("composer:insert-mention", { text: mentionText });
+                        eventBus.emit("composer:insert-mention", {
+                          text: mentionText,
+                        });
                         return;
                       }
                       emitAgentWorkbenchFocus({
@@ -408,7 +433,11 @@ export function GroupMemberAvatarStack({
                     }}
                   >
                     <span className="truncate font-medium">{name}</span>
-                    <span className="text-xs text-muted-foreground">{member.kind === "human" ? copy.overflowMentionAction : copy.overflowViewProcess}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {member.kind === "human"
+                        ? copy.overflowMentionAction
+                        : copy.overflowViewProcess}
+                    </span>
                   </DropdownMenuItem>
                 );
               })}
@@ -462,12 +491,14 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   const resolvedPermissionMode = normalizePermissionMode(permissionMode);
   const hasWorkDir = Boolean(workDir?.trim());
   const isProjectMode = mode === "code" && !!workDir?.trim();
-  const permissionLabel = resolvedPermissionMode === "autoSandbox" ? isolatedExecutionCopy(locale).label :
-    resolvedPermissionMode === "bypassPermissions"
-      ? t.chatInputBox.permissionFullAccess
-      : resolvedPermissionMode === "acceptEdits"
-        ? t.chatInputBox.permissionAcceptEdits
-        : t.chatInputBox.permissionConfirm;
+  const permissionLabel =
+    resolvedPermissionMode === "autoSandbox"
+      ? isolatedExecutionCopy(locale).label
+      : resolvedPermissionMode === "bypassPermissions"
+        ? t.chatInputBox.permissionFullAccess
+        : resolvedPermissionMode === "acceptEdits"
+          ? t.chatInputBox.permissionAcceptEdits
+          : t.chatInputBox.permissionConfirm;
   const displayAgentAvatar = useMemo(() => {
     const url = displayAgent?.avatar_url;
     if (!url) return null;
@@ -488,7 +519,11 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   // one. When the parent opts into the picker (``showWorkDirSelector``), show it
   // so picking a folder is the entry point into a project/code workflow.
   const showWorkDirSegment =
-    Boolean(workspaceControl) || isProjectMode || hasWorkDir || showWorkDirSelector || Boolean(workLocation);
+    Boolean(workspaceControl) ||
+    isProjectMode ||
+    hasWorkDir ||
+    showWorkDirSelector ||
+    Boolean(workLocation);
   // Personal and project workspaces share the same two work modes. A folder
   // changes scope only; it must not replace the mode selector with another
   // vocabulary or another backend contract.
@@ -536,6 +571,126 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
   // can sit on the same row as the workspace control, right-aligned.
   const showStatusStrip = statusSegmentCount > 0 || showContextWindow;
 
+  const contextStrip = showStatusStrip ? (
+    <div
+      data-testid="chat-status-strip"
+      data-composer-context-strip={statusTrailing ? undefined : "true"}
+      className="flex min-h-8 flex-wrap items-center gap-x-2 px-2 pt-1.5 text-ui text-muted-foreground"
+    >
+      <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
+        {showAgentSegment ? (
+          <>
+            <div
+              className="inline-flex min-w-0 max-w-[124px] items-center gap-1.5 rounded-full px-2 py-1"
+              title={displayAgentLabel}
+            >
+              <span className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                {displayAgentAvatar ? (
+                  <img
+                    src={displayAgentAvatar}
+                    alt={displayAgentLabel}
+                    className="size-full object-cover"
+                  />
+                ) : displayAgentIcon ? (
+                  displayAgentIcon
+                ) : (
+                  displayAgentInitial
+                )}
+              </span>
+              <span className="truncate">{displayAgentLabel}</span>
+            </div>
+            {(showWorkDirSegment || showModeSegment || showGroupMembers) && (
+              <span
+                className="h-3 w-px shrink-0 bg-border/35"
+                aria-hidden="true"
+              />
+            )}
+          </>
+        ) : null}
+        {showWorkDirSegment ? (
+          <>
+            <div className="composer-workspace-control">
+              {workspaceControl ?? (
+                <WorkDirSelector
+                  threadId={threadId}
+                  designSpace={visibleProjectMode === "uxui"}
+                  workDir={workDir ?? ""}
+                  onWorkDirChange={onWorkDirChange}
+                  lockToCurrentThread={lockWorkDirToThread}
+                  onOpenWorkDirInNewTask={onOpenWorkDirInNewTask}
+                  variant="muted"
+                  chromeless
+                  location={workLocation}
+                />
+              )}
+            </div>
+          </>
+        ) : null}
+        {showModeSegment ? (
+          <>
+            {showWorkDirSegment ? (
+              <span
+                className="h-3 w-px shrink-0 bg-border/35"
+                aria-hidden="true"
+              />
+            ) : null}
+            <ModeSelector
+              workDir={workDir ?? ""}
+              sessionId={threadId ?? "new"}
+              mode={visibleProjectMode}
+              labelOverrides={groupProjectModeLabels}
+              codeModeUnlocked={codeModeUnlocked}
+              readOnlyHint={projectReadOnlyHint}
+              chromeless
+              permissionLabel={permissionLabel}
+              onModeChange={changeProjectMode}
+              onUserModeChange={onProjectAgentModeUserChange}
+              onDetectionChange={onProjectDetectionChange}
+              onManualOverrideChange={onManualOverrideChange}
+            />
+          </>
+        ) : null}
+        {showGroupMembers ? (
+          <>
+            {(showAgentSegment || showWorkDirSegment || showModeSegment) && (
+              <span
+                className="h-3 w-px shrink-0 bg-border/35"
+                aria-hidden="true"
+              />
+            )}
+            <GroupMemberAvatarStack members={props.mentionMembers!} />
+          </>
+        ) : null}
+        {statusTrailing ? (
+          <>
+            {(showAgentSegment ||
+              showWorkDirSegment ||
+              showModeSegment ||
+              showGroupMembers) && (
+              <span
+                className="h-3 w-px shrink-0 bg-border/35"
+                aria-hidden="true"
+              />
+            )}
+            {statusTrailing}
+          </>
+        ) : null}
+      </div>
+      <div className="ml-auto flex items-center gap-1">
+        {contextActions}
+        {showContextWindow ? (
+          <ContextWindowBar
+            contextTokens={props.contextTokens}
+            maxContextTokens={props.maxContextTokens}
+            isCompressingContext={props.isCompressingContext}
+            onCompressContext={props.onCompressContext}
+            segments={props.contextSegments}
+          />
+        ) : null}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <>
       {isSandbox && (
@@ -559,125 +714,7 @@ function ChatInputBoxImpl(props: ChatInputBoxProps) {
         engineReady={props.executionEngineReady}
       />
       <ChatComposer {...props} />
-      {showStatusStrip && (
-        <div
-          data-testid="chat-status-strip"
-          data-composer-context-strip={statusTrailing ? undefined : "true"}
-          className="flex min-h-8 flex-wrap items-center gap-x-2 px-2 pt-1.5 text-ui text-muted-foreground"
-        >
-          <div className="inline-flex max-w-full items-center gap-1.5 rounded-lg px-0.5 py-0.5">
-            {showAgentSegment ? (
-              <>
-                <div
-                  className="inline-flex min-w-0 max-w-[124px] items-center gap-1.5 rounded-full px-2 py-1"
-                  title={displayAgentLabel}
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                    {displayAgentAvatar ? (
-                      <img
-                        src={displayAgentAvatar}
-                        alt={displayAgentLabel}
-                        className="size-full object-cover"
-                      />
-                    ) : displayAgentIcon ? (
-                      displayAgentIcon
-                    ) : (
-                      displayAgentInitial
-                    )}
-                  </span>
-                  <span className="truncate">{displayAgentLabel}</span>
-                </div>
-                {(showWorkDirSegment || showModeSegment || showGroupMembers) && (
-                  <span
-                    className="h-3 w-px shrink-0 bg-border/35"
-                    aria-hidden="true"
-                  />
-                )}
-              </>
-            ) : null}
-            {showWorkDirSegment ? (
-              <>
-                <div className="composer-workspace-control">
-                {workspaceControl ?? <WorkDirSelector
-                  threadId={threadId}
-                  designSpace={visibleProjectMode === "uxui"}
-                  workDir={workDir ?? ""}
-                  onWorkDirChange={onWorkDirChange}
-                  lockToCurrentThread={lockWorkDirToThread}
-                  onOpenWorkDirInNewTask={onOpenWorkDirInNewTask}
-                  variant="muted"
-                  chromeless
-                  location={workLocation}
-                />}
-                </div>
-              </>
-            ) : null}
-            {showModeSegment ? (
-              <>
-                {showWorkDirSegment ? (
-                  <span
-                    className="h-3 w-px shrink-0 bg-border/35"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                <ModeSelector
-                  workDir={workDir ?? ""}
-                  sessionId={threadId ?? "new"}
-                  mode={visibleProjectMode}
-                  labelOverrides={groupProjectModeLabels}
-                  codeModeUnlocked={codeModeUnlocked}
-                  readOnlyHint={projectReadOnlyHint}
-                  chromeless
-                  permissionLabel={permissionLabel}
-                  onModeChange={changeProjectMode}
-                  onUserModeChange={onProjectAgentModeUserChange}
-                  onDetectionChange={onProjectDetectionChange}
-                  onManualOverrideChange={onManualOverrideChange}
-                />
-              </>
-            ) : null}
-            {showGroupMembers ? (
-              <>
-                {(showAgentSegment ||
-                  showWorkDirSegment ||
-                  showModeSegment) && (
-                  <span
-                    className="h-3 w-px shrink-0 bg-border/35"
-                    aria-hidden="true"
-                  />
-                )}
-                <GroupMemberAvatarStack members={props.mentionMembers!} />
-              </>
-            ) : null}
-            {statusTrailing ? (
-              <>
-                {(showAgentSegment ||
-                  showWorkDirSegment ||
-                  showModeSegment ||
-                  showGroupMembers) && (
-                  <span
-                    className="h-3 w-px shrink-0 bg-border/35"
-                    aria-hidden="true"
-                  />
-                )}
-                {statusTrailing}
-              </>
-            ) : null}
-          </div>
-          <div className="ml-auto flex items-center gap-1">
-            {contextActions}
-            {showContextWindow ? (
-              <ContextWindowBar
-                contextTokens={props.contextTokens}
-                maxContextTokens={props.maxContextTokens}
-                isCompressingContext={props.isCompressingContext}
-                onCompressContext={props.onCompressContext}
-                segments={props.contextSegments}
-              />
-            ) : null}
-          </div>
-        </div>
-      )}
+      {contextStrip}
     </>
   );
 }

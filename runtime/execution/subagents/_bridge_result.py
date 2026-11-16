@@ -253,11 +253,11 @@ class _SubagentResultMixin:
             "files_touched": list(self._files_touched),
             "error": result.get("error"),
             "status": result.get("status"),
-            # Carry the sub-agent's actual answer text so the workbench can
-            # render a readable final message instead of dumping the whole
-            # result envelope as JSON.
+            # Carry the answer text so the workbench can render a readable
+            # message instead of dumping the whole result envelope as JSON.
             "output": result.get("output", ""),
         }
+        _finish_event["session_id"] = self._active_session.get("session_id")
         _attach_trace_fields(_finish_event, self._trace_context)
         _safe_emit(self.event_emitter, _finish_event)
         _safe_journal_emit(_finish_event)

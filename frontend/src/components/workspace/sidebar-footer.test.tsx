@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useLocation } from "react-router-dom";
 
 import type { Agent } from "@/core/agents";
-import { ACTIVE_AGENT_KEY } from "@/core/agents/active";
+import { emitAgentChanged } from "@/core/events";
+import { ACTIVE_AGENT_KEY, ROUTE_LOCKS } from "@/core/agents/active";
 import { renderWithProviders } from "@/test/harness";
 
 const mocks = vi.hoisted(() => ({
@@ -144,6 +145,74 @@ describe("AgentAvatar", () => {
     expect(second?.getAttribute("src")).toContain("/api/agents/noah/avatar");
     expect(screen.getByText("N")).toBeInTheDocument();
     expect(screen.queryByText("E")).not.toBeInTheDocument();
+  });
+});
+
+describe("desktop account menu", () => {
+  it("shows the active portrait, updates on role changes and falls back to its own initial", async () => {
+    mocks.agentState.agents = [
+      { name: "kane", display_name: "Kane", description: "", avatar_url: "/api/agents/kane/avatar", model: null, tool_groups: [] },
+      { name: "eve", display_name: "Eve", description: "", avatar_url: "/api/agents/eve/avatar", model: null, tool_groups: [] },
+    ];
+    window.localStorage.setItem(ACTIVE_AGENT_KEY, "kane");
+    renderWithProviders(<AgentFooter variant="rail" />, { initialRoute: "/workspace/realtime/new", locale: "zh-CN" });
+    const trigger = screen.getByTestId("desktop-account-menu");
+    expect(trigger.querySelector("img")).toHaveAttribute("src", expect.stringContaining("/kane/avatar"));
+    fireEvent.error(trigger.querySelector("img")!);
+    expect(trigger.querySelector('[data-persona-glyph="monogram"]')).toHaveTextContent("K");
+    act(() => { emitAgentChanged("eve"); });
+    expect(trigger.querySelector("img")).toHaveAttribute("src", expect.stringContaining("/eve/avatar"));
+    act(() => { emitAgentChanged("kane"); });
+    expect(trigger.querySelector("img")).toHaveAttribute("src", expect.stringContaining("/kane/avatar"));
+    await userEvent.click(trigger);
+    expect(screen.getByRole("menuitem", { name: /user@example.com/ })).toBeInTheDocument();
+  });
+  it("offers a single settings action from the avatar while browsing", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <AgentFooter variant="rail" />
+        <RouteProbe />
+      </>,
+      {
+        initialRoute: "/browser",
+        locale: "zh-CN",
+      },
+    );
+    expect(
+      screen.queryByRole("button", { name: "设置" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("desktop-account-menu"));
+    const settings = screen.getByRole("menuitem", { name: "设置" });
+    await user.click(settings);
+    expect(screen.getByTestId("route")).toHaveTextContent(
+      "/workspace/settings",
+    );
+  });
+
+  it("keeps account settings reachable on a role-locked route", async () => {
+    const user = userEvent.setup();
+    const testLock = { prefix: "/workspace/locked-test", agent: "general" };
+    ROUTE_LOCKS.push(testLock);
+    try {
+      renderWithProviders(
+        <>
+          <AgentFooter variant="rail" />
+          <RouteProbe />
+        </>,
+        {
+          initialRoute: "/workspace/locked-test",
+          locale: "zh-CN",
+        },
+      );
+      await user.click(screen.getByTestId("desktop-account-menu"));
+      await user.click(screen.getByRole("menuitem", { name: "设置" }));
+      expect(screen.getByTestId("route")).toHaveTextContent(
+        "/workspace/settings",
+      );
+    } finally {
+      ROUTE_LOCKS.splice(ROUTE_LOCKS.indexOf(testLock), 1);
+    }
   });
 });
 

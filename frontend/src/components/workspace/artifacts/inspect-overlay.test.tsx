@@ -23,6 +23,37 @@ vi.mock("@/core/i18n/hooks", () => ({
 import { InspectOverlay } from "./inspect-overlay";
 
 describe("InspectOverlay AI edit handoff", () => {
+  it("keeps preview content separate from controls and preserves the iframe when editing hides inspection", () => {
+    const iframeRef = createRef<HTMLIFrameElement>();
+    const view = (enabled: boolean) => (
+      <InspectOverlay
+        enabled={enabled}
+        filepath="preview.html"
+        iframeRef={iframeRef}
+        toolbar={<button>{enabled ? "编辑" : "保存"}</button>}
+      >
+        <iframe ref={iframeRef} title="preview" />
+      </InspectOverlay>
+    );
+    const { rerender } = render(view(true));
+    const frame = screen.getByTitle("preview");
+    expect(screen.getByTestId("artifact-preview-toolbar")).toContainElement(
+      screen.getByRole("button", { name: "编辑" }),
+    );
+    expect(screen.getByTestId("artifact-preview-toolbar")).not.toContainElement(
+      frame,
+    );
+    expect(screen.getByTestId("artifact-preview-viewport")).toContainElement(
+      frame,
+    );
+    rerender(view(false));
+    expect(screen.getByTitle("preview")).toBe(frame);
+    expect(screen.getByRole("button", { name: "保存" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "选择元素" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("prepares a URL preview before activating element inspection", async () => {
     const onPrepareInspect = vi.fn();
     const iframeRef = createRef<HTMLIFrameElement>();

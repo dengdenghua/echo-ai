@@ -275,6 +275,14 @@ def build_turn_metadata(
         metadata["browser_regression_enabled"] = browser_regression_enabled
     if resolved_model is not None:
         metadata["model_name"] = resolved_model
+    # Engine controls belong to this turn, never to a previously selected model.
+    for key, minimum in (("codex_autocompact", 32000), ("codebuddy_autocompact", 100000)):
+        if key in ctx:
+            value = ctx[key]
+            if value is None or (type(value) is int and minimum <= value <= 1000000):
+                metadata[key] = value
+    if ctx.get("codebuddy_effort") in {"low", "medium", "high", "max"}:
+        metadata["codebuddy_effort"] = ctx["codebuddy_effort"]
     # Guardian independent review is an opt-in per-turn decision; pass the
     # config through from the client context so high-risk actions can be
     # routed to the independent reviewer without a server restart.

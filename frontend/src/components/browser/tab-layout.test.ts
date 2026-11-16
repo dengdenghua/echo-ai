@@ -7,6 +7,7 @@ import {
   nearestOutsideGroup,
   nextGroupColor,
   pruneGroups,
+  selectMountedWebviewTabIds,
   validSplit,
   type BrowserTabGroup,
 } from "./tab-layout";
@@ -106,5 +107,46 @@ describe("split and helpers", () => {
     expect(nearestOutsideGroup([{ id: "x", groupId: "g" }], "x", "g")).toBe(
       null,
     );
+  });
+});
+
+describe("selectMountedWebviewTabIds", () => {
+  const tabs = Array.from({ length: 30 }, (_, index) => ({
+    id: `tab-${index}`,
+  }));
+
+  it("always keeps active and split tabs inside the cap", () => {
+    const selected = selectMountedWebviewTabIds({
+      tabs,
+      activeId: "tab-25",
+      split: { leftId: "tab-26", rightId: "tab-27", ratio: 0.5 },
+      recentIds: ["tab-1", "tab-2"],
+    });
+    expect(selected).toHaveLength(8);
+    expect(selected.slice(0, 3)).toEqual(["tab-25", "tab-26", "tab-27"]);
+  });
+
+  it("uses activation recency for background slots", () => {
+    const selected = selectMountedWebviewTabIds({
+      tabs,
+      activeId: "tab-0",
+      split: null,
+      recentIds: ["tab-9", "tab-8", "tab-7"],
+    });
+    expect(selected.slice(0, 4)).toEqual(["tab-0", "tab-9", "tab-8", "tab-7"]);
+    expect(selected).not.toContain("tab-29");
+  });
+
+  it("never mounts a tab that has no webview surface", () => {
+    const selected = selectMountedWebviewTabIds({
+      tabs: [
+        ...tabs.slice(0, 2),
+        { id: "task-preview", taskPreview: { threadId: "t" } },
+      ],
+      activeId: "task-preview",
+      split: null,
+      recentIds: [],
+    });
+    expect(selected).not.toContain("task-preview");
   });
 });

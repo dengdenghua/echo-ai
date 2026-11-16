@@ -1,4 +1,4 @@
-import { isBackgroundResumePrompt } from "@/core/threads/background-resume";
+import { isBackgroundResumeMessageId, isBackgroundResumePrompt } from "@/core/threads/background-resume";
 import { ComposerModelControl } from "./ComposerModelControl";
 import { getLocalSettings } from "@/core/settings/local";
 import { StreamingSendActions } from "./StreamingSendActions";
@@ -16,7 +16,7 @@ import {
   MonitorIcon,
   PuzzleIcon,
   SearchIcon,
-  SendHorizontalIcon,
+  ArrowUpIcon,
   Settings2Icon,
   WifiOffIcon,
   ZapIcon,
@@ -41,7 +41,7 @@ import { toast } from "sonner";
 import { useMentionAutocomplete } from "../mention-autocomplete";
 
 import { swallow } from "@/core/utils/log";
-import { currentActorId } from "@/core/auth/api";
+import { currentActorId, currentActorScope } from "@/core/auth/api";
 import {
   consumeComposerImageEntries,
   rememberLastComposerTarget,
@@ -166,28 +166,26 @@ export function ChatComposer({
   // Async attachment work must never outlive the conversation that started
   // it. Replace the scope during the route commit so abandoned concurrent
   // renders cannot invalidate the still-visible conversation.
-  const composerThreadScopeRef = useRef({ threadId, generation: 0 });
+  const composerThreadScopeRef = useRef({ threadId, generation: 0, actorScope: currentActorScope() });
   useLayoutEffect(() => {
     if (Object.is(composerThreadScopeRef.current.threadId, threadId)) return;
-    composerThreadScopeRef.current = {
-      threadId,
-      generation: composerThreadScopeRef.current.generation + 1,
-    };
+    const previous = composerThreadScopeRef.current;
+    composerThreadScopeRef.current = { ...previous, threadId, generation: previous.generation + 1 };
   }, [threadId]);
   const [draft, setDraft] = useState(
     () =>
       // A per-thread draft survives thread switches and reloads. defaultValue
       // (external injection, e.g. "retry this message") wins when present.
-      defaultValue || (loadComposerDraft(draftStorageKey) ?? ""),
+      defaultValue || (loadComposerDraft(draftStorageKey, composerThreadScopeRef.current.actorScope) ?? ""),
   );
   const quoteStorageKey = `quote:${draftStorageKey ?? "__new__"}`;
   const [quoteState, setQuoteState] = useState(() => ({
-    key: quoteStorageKey, text: loadComposerDraft(quoteStorageKey) ?? "",
+    key: quoteStorageKey, text: loadComposerDraft(quoteStorageKey, composerThreadScopeRef.current.actorScope) ?? "",
   }));
   const quoteText = quoteState.key === quoteStorageKey
-    ? quoteState.text : (loadComposerDraft(quoteStorageKey) ?? "");
+    ? quoteState.text : (loadComposerDraft(quoteStorageKey, composerThreadScopeRef.current.actorScope) ?? "");
   const setQuoteText = useCallback((text: string) => {
-    saveComposerDraft(quoteStorageKey, text);
+    saveComposerDraft(quoteStorageKey, text, composerThreadScopeRef.current.actorScope);
     setQuoteState({ key: quoteStorageKey, text });
   }, [quoteStorageKey]);
   // Restore the stored draft when the composer moves to a different thread
@@ -198,14 +196,14 @@ export function ChatComposer({
     // The debounced persistence effect is cancelled by navigation. Flush the
     // old value synchronously before restoring the destination thread so a
     // quick switch cannot lose the user's last 300 ms of typing.
-    saveComposerDraft(prevDraftThreadRef.current, draft);
+    saveComposerDraft(prevDraftThreadRef.current, draft, composerThreadScopeRef.current.actorScope);
     prevDraftThreadRef.current = draftStorageKey;
-    setDraft(loadComposerDraft(draftStorageKey) ?? "");
+    setDraft(loadComposerDraft(draftStorageKey, composerThreadScopeRef.current.actorScope) ?? "");
   }, [draft, draftStorageKey]);
   // Persist the draft (debounced) so a reload never loses half-typed text.
   useEffect(() => {
     const timer = setTimeout(
-      () => saveComposerDraft(draftStorageKey, draft),
+      () => saveComposerDraft(draftStorageKey, draft, composerThreadScopeRef.current.actorScope),
       300,
     );
     return () => clearTimeout(timer);
@@ -219,7 +217,7 @@ export function ChatComposer({
     // Flush the latest committed value, including an empty draft after Send.
     const flush = () => {
       const current = committedDraftRef.current;
-      saveComposerDraft(current.threadId, current.draft);
+      saveComposerDraft(current.threadId, current.draft, composerThreadScopeRef.current.actorScope);
     };
     window.addEventListener("pagehide", flush);
     return () => {
@@ -243,6 +241,13 @@ export function ChatComposer({
   const [researchConfigOpen, setResearchConfigOpen] = useState(false);
   const submitLockRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  useLayoutEffect(() => {
+    if (!autoFocus) return;
+    // Lazy conversation loading must not dismiss an application menu that
+    // the user already opened while waiting for the composer.
+    if (document.activeElement?.closest('[role="dialog"], [role="menu"], [role="listbox"]')) return;
+    textareaRef.current?.focus();
+  }, [autoFocus]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
@@ -354,6 +359,35 @@ export function ChatComposer({
     }, 10);
   });
 
+  const cardDrafts = useRef(new Map<string, { threadId: string; original: string; recovery: string }>());
+  useEffect(() => { cardDrafts.current.clear(); }, [threadId]);
+  useEvent("composer:request-settled", ({ threadId: target, clientMessageId, result }) => {
+    const saved = cardDrafts.current.get(clientMessageId);
+    cardDrafts.current.delete(clientMessageId);
+    if (result === "confirmed" && saved && target === threadId && saved.threadId === threadId) {
+      setDraft((current) => current === saved.recovery ? saved.original : current);
+    }
+  });
+  useEvent("composer:submit-request", (request) => {
+    if (request.threadId !== threadId) return;
+    // Retain the existing draft and attachments. A card action submits only
+    // its own text and keeps it recoverable until a server receipt arrives.
+    const original = draft;
+    const parsed = parseComposerDraft(original);
+    const recovery = serializeComposerDraft({ ...parsed, body: parsed.body.trimEnd().endsWith(request.text) ? parsed.body : [parsed.body, request.text].filter(Boolean).join("\n\n") });
+    cardDrafts.current.set(request.clientMessageId, { threadId: request.threadId, original, recovery });
+    setDraft(recovery);
+    if (disabled || !readyForMutations || !onSubmit) {
+      request.onResult("failed");
+      return;
+    }
+    try {
+      if (onSubmit({ text: request.text, clientMessageId: request.clientMessageId }) === false) request.onResult("failed");
+    } catch {
+      request.onResult("failed");
+    }
+  });
+
   useEffect(() => {
     let focusTimer: ReturnType<typeof setTimeout> | undefined;
     const quote = (event: Event) => {
@@ -460,13 +494,12 @@ export function ChatComposer({
   // Attachments have to land before the message can go: sending mid-transfer
   // is what produced a picture the model never received. A failed attachment
   // blocks too — silently dropping it is worse than making the user decide.
-  const isBusy =
-    disabled ||
+  const isPending =
     isStopping ||
     uploadingMaterials ||
     isUploading ||
-    attachmentUploads.isUploading ||
-    attachmentUploads.hasFailed;
+    attachmentUploads.isUploading;
+  const isBusy = disabled || isPending || attachmentUploads.hasFailed;
   const submissionBlocked = !readyForMutations;
   const [connectionWaitVisible, setConnectionWaitVisible] = useState(false);
   useEffect(() => {
@@ -598,7 +631,7 @@ export function ChatComposer({
       const lostText = detail?.text ?? "";
       if (
         !lostText ||
-        detail?.clientMessageId?.startsWith("ui-resume-") ||
+        isBackgroundResumeMessageId(detail?.clientMessageId) ||
         isBackgroundResumePrompt(lostText)
       ) return;
       setDraft((current) => (current.trim() ? current : lostText));
@@ -1552,7 +1585,6 @@ export function ChatComposer({
             .join(",")}`}
           data-testid="chat-composer-input"
           ref={textareaRef}
-          autoFocus={autoFocus}
           disabled={isBusy}
           placeholder={composerRefs.length > 0 ? "" : (placeholder ?? t.inputBox.placeholder)}
           aria-label={placeholder ?? t.inputBox.placeholder}
@@ -2018,6 +2050,7 @@ export function ChatComposer({
             <div className="composer-footer__secondary contents">
               <PermissionIndicator
                 mode={resolvedPermissionMode}
+                activeTask={status === "streaming" || status === "submitted"}
                 onModeChange={(nextMode) => onPermissionModeChange?.(nextMode)}
                 disabled={disabled || status === "streaming"}
                 compact
@@ -2175,11 +2208,12 @@ export function ChatComposer({
                       : sendLabel
               }
               aria-label={sendLabel}
+              aria-busy={isPending}
             >
-              {isBusy ? (
+              {isPending ? (
                 <Loader2Icon className="size-3.5 animate-spin" />
               ) : (
-                <SendHorizontalIcon className="size-3.5" />
+                <ArrowUpIcon className="size-4" aria-hidden="true" />
               )}
             </button>
           )}

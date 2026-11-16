@@ -50,6 +50,50 @@ def assistant(*content, identity="msg1"):
     return {"type": "assistant", "message": {"id": identity, "content": list(content)}}
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"success": False, "status": "artifact_contract_rejected", "error": "host task missing"},
+        {"isError": True, "content": [{"type": "text", "text": "denied"}]},
+    ],
+)
+def test_nested_mcp_failure_is_not_reported_as_completed(payload):
+    reducer = CodeBuddyEvents()
+    reducer.tools["t"] = "call_agent"
+    events = reducer.consume(
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "t",
+                        "content": [{"type": "text", "text": json.dumps(payload)}],
+                    }
+                ]
+            },
+        }
+    )
+    assert events[0]["success"] is False
+    assert events[0]["status"] == "error"
+
+
+def test_delegated_preview_preserves_continuation_receipt():
+    from runtime.execution.codebuddy_events import tool_result_preview
+
+    receipt = {
+        "agent_id": "build-agent",
+        "success": True,
+        "session_id": "session-a",
+        "output": "verified " * 500,
+    }
+    preview = tool_result_preview([{"type": "text", "text": json.dumps(receipt)}])
+    parsed = json.loads(preview)
+    assert parsed["session_id"] == "session-a"
+    assert parsed["success"] is True
+    assert len(parsed["output"]) == 1200
+
+
 def test_deltas_and_snapshot_are_not_duplicated_and_thoughts_stay_private():
     reducer = CodeBuddyEvents(model="hy3")
     delta = {
@@ -365,6 +409,8 @@ def test_real_child_receives_only_host_tools_and_no_secret_arguments(tmp_path, m
         """
 import json,sys,pathlib
 args=sys.argv[1:]
+assert args[args.index('--effort')+1] == 'high'
+assert args[args.index('--autocompact')+1] == '300000'
 assert args[args.index('--tools')+1] == 'NoDefer(mcp__echo__echo_probe)'
 assert args[args.index('--permission-mode')+1] == 'dontAsk'
 assert args[args.index('--setting-sources')+1] == 'local'
@@ -383,6 +429,8 @@ print(json.dumps({'type':'result','subtype':'success','result':'OK'}))
         return [
             event
             async for event in backend.stream_prompt(
+                reasoning_effort="high",
+                autocompact=300000,
                 text="trusted prompt",
                 system="role",
                 model="auto",
@@ -479,3 +527,34 @@ def test_official_environment_does_not_inherit_third_party_settings(tmp_path, mo
     assert env["CODEBUDDY_INTERNET_ENVIRONMENT"] == "internal"
     assert "NODE_OPTIONS" not in env
     assert "ARBITRARY_COMMAND" not in env
+
+
+def test_catalog_refreshes_when_official_login_changes(monkeypatch, tmp_path):
+    settings = tmp_path / ".codebuddy/settings.json"
+    monkeypatch.setattr(backend.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(backend, "executable", lambda: __file__)
+    monkeypatch.setattr(backend, "command", lambda _: [__file__])
+    calls = []
+    def discover(*args, **kwargs):
+        calls.append(1)
+        assert kwargs["env"]["CODEBUDDY_INTERNET_ENVIRONMENT"] == "internal"
+        return SimpleNamespace(stdout="Currently supported: (hy4std)" if settings.exists() else "Currently supported: (hy4-preview)", returncode=0)
+    monkeypatch.setattr(backend.subprocess, "run", discover)
+    backend._models.cache_clear()
+    try:
+        assert backend.model_catalog() == ["hy4-preview"]
+        settings.parent.mkdir()
+        settings.write_text("{}")
+        assert backend.model_catalog() == ["hy4std"]
+        assert backend.model_catalog() == ["hy4std"]
+        assert len(calls) == 2
+    finally:
+        backend._models.cache_clear()
+
+
+def test_real_compacting_status_is_recorded_without_double_counting():
+    reducer = CodeBuddyEvents(model="glm-5.3")
+    for status in ("compacting", "compacting", None, "compacting", None):
+        assert reducer.consume({"type": "system", "subtype": "status", "status": status}) == []
+    events = reducer.consume({"type": "result", "subtype": "success", "result": "DONE", "usage": {}})
+    assert events[-1]["completion_receipt"]["compaction_count"] == 2

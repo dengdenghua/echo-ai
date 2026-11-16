@@ -1,0 +1,26 @@
+{
+  "name": "projection-optics",
+  "version": "0.3.2+echo.20261113",
+  "description": "Independent projection-optics design skills with evidence graph and personal-memory maintenance workflows.",
+  "author": {
+    "name": "Personal"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "投影光学设计工具箱",
+    "shortDescription": "十二个独立技能，含快速原型与知识记忆沉淀",
+    "longDescription": "独立处理LED、激光荧光粉与RGB激光架构、收集透镜、扩展量、复眼、棱镜、配色、LCOS偏振、验证和资料检索，另含跨器件系统设计。通过已有光学软件控制与工作台MCP按需执行，激光DMD计算按插件能力范围衔接。通用技能不包含私人工作文档、模型或数据库。 另含知识图谱和个人记忆维护流程，通过既有工作台 MCP 续接学习及条件证据沉淀。 通过快速原型技能按倍率联动参数和示意光路，预览后另存，保留真实接口验证。",
+    "developerName": "Personal",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "比较LED、激光荧光粉与RGB直接激光架构，核对面角接受、配色与热约束。",
+      "使用收集透镜设计技能，先核焦距与发光面，再比较非球面位置、材料及面角匹配。",
+      "使用扩展量技能，核对当前光源和后级接受域。",
+      "检索我的本地光学资料，核对这项设计依据。"
+    ]
+  }
+}

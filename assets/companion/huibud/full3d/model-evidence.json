@@ -1,0 +1,41 @@
+{
+  "source": "Echo-Huibud-3D.blend",
+  "technique": "complete volumetric 3D with procedural PBR materials",
+  "referenceProjection": false,
+  "imageTextureNodes": 0,
+  "emissionNodes": 0,
+  "skinConnectedComponents": 1,
+  "watertight": true,
+  "skinVertices": 129604,
+  "skinFaces": 129602,
+  "bones": [
+    "root",
+    "body",
+    "head",
+    "tip",
+    "arm.L",
+    "paw.L",
+    "arm.R",
+    "paw.R",
+    "foot.L",
+    "toe.L",
+    "foot.R",
+    "toe.R"
+  ],
+  "actions": {
+    "idle": 96,
+    "greet": 48,
+    "drag": 48,
+    "land": 24,
+    "work": 72,
+    "wait": 72,
+    "success": 48
+  },
+  "eyeGeometry": "solid ellipsoids",
+  "mouthGeometry": "solid tube",
+  "hiddenBack": "interpreted from visible design; no reference provided",
+  "neutralConstruction": "symmetrical volumetric anatomy; reference tilt is pose only",
+  "headRestWidth": 1.58,
+  "headRestDepth": 1.39,
+  "headDepthWidthRatio": 0.8797468354430379
+}

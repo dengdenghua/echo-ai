@@ -1,0 +1,4 @@
+interface:
+  display_name: "扩展量与面角匹配"
+  short_description: "统一参考面与能量口径，分析扩展量、过填充和面角联合接受"
+  default_prompt: "使用 $optical-etendue-budget，处理当前光学任务并给出适用条件、计算或验证依据。"

@@ -160,6 +160,7 @@ export function CodeEditor({
   threadId,
   onSave,
   onOpenLocation,
+  initialLine,
 }: {
   className?: string;
   placeholder?: string;
@@ -176,6 +177,7 @@ export function CodeEditor({
   threadId?: string;
   onSave?: (content: string) => void;
   onOpenLocation?: (path: string, line?: number) => void;
+  initialLine?: number;
 }) {
   const { t } = useI18n();
   const {
@@ -192,8 +194,17 @@ export function CodeEditor({
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const previousFilePathRef = useRef(filePath);
   const editorViewRef = useRef<EditorView | null>(null);
+  const locatedLine = useRef("");
 
   const currentValue = localValue ?? initialValue;
+  useEffect(() => {
+    const view = editorViewRef.current;
+    const location = `${filePath ?? syntaxPath}:${initialLine}`;
+    if (locatedLine.current === location) return;
+    if (!view || !initialLine || initialLine < 1 || initialLine > view.state.doc.lines) return;
+    view.dispatch({ selection: { anchor: view.state.doc.line(initialLine).from }, scrollIntoView: true });
+    locatedLine.current = location;
+  }, [initialLine, currentValue, filePath, syntaxPath]);
   const isDirty = localValue !== null && localValue !== initialValue;
   const fallbackTextareaClassName = cn(
     "h-full overflow-auto font-mono [&_.cm-editor]:h-full [&_.cm-focused]:outline-none!",
@@ -543,6 +554,7 @@ export function CodeEditor({
             onUpdate={handleEditorUpdate}
             onCreateEditor={(view) => {
               editorViewRef.current = view;
+              if (initialLine && initialLine >= 1 && initialLine <= view.state.doc.lines) view.dispatch({ selection: { anchor: view.state.doc.line(initialLine).from }, scrollIntoView: true });
             }}
           />
         </Suspense>

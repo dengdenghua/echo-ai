@@ -3,7 +3,7 @@
  * once per group: the turn's messages, speaker changes, and where each
  * sub-agent's card and events belong.
  */
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import type { AIMessage, Message } from "@/core/api/types";
 import type { MessageGroup as CoreMessageGroup } from "@/core/messages/utils";
@@ -22,11 +22,44 @@ import {
   findRosterEntry,
   hasLaterProcessActivity,
   identityKey,
+  messageContentRevision,
   type AgentIdentity,
   type GroupTurnRenderInfo,
   type MessageListAgentRosterEntry,
   type MessageTurnSlice,
 } from "./message-list-turns";
+
+type TurnSubagentInfo = {
+  agents: InlineSubagentInfo[];
+  events: LiveToolEvent[];
+  mission: string;
+  settled: boolean;
+  firstProcessingIndex: number;
+  hasCluster: boolean;
+  agentsByGroupIndex: Map<number, InlineSubagentInfo[]>;
+  eventsByGroupIndex: Map<number, LiveToolEvent[]>;
+  bindingsByGroupIndex: Map<
+    number,
+    Map<string, { agent: InlineSubagentInfo; events: LiveToolEvent[] }>
+  >;
+};
+
+function historicalTurnSignature(
+  turn: MessageTurnSlice,
+  groupedMessages: CoreMessageGroup[],
+): string {
+  const parts: string[] = [turn.key];
+  for (const groupIndex of turn.groupIndexes) {
+    const group = groupedMessages[groupIndex]!;
+    parts.push(`${group.type}:${group.messages.length}`);
+    for (const message of group.messages) {
+      parts.push(
+        `${message.id ?? ""}:${messageContentRevision(message.content)}`,
+      );
+    }
+  }
+  return parts.join("|");
+}
 
 export function useTurnRenderInfo({
   groupedMessages,
@@ -45,6 +78,19 @@ export function useTurnRenderInfo({
   lastTurnToolEvents?: LiveToolEvent[];
   liveToolEvents?: LiveToolEvent[];
 }) {
+  // Historical turns keep identical subagent derivations while the last turn
+  // streams. Cache them by content signature; roster and event-log changes
+  // invalidate the whole cache. The live turn is never cached.
+  const subagentCacheRef = useRef<{
+    roster: Map<string, MessageListAgentRosterEntry>;
+    eventsVersion: string;
+    entries: Map<string, { signature: string; info: TurnSubagentInfo }>;
+  }>({
+    roster: agentRosterMap,
+    eventsVersion: "",
+    entries: new Map(),
+  });
+
   const assistantFrameIdentity = useCallback(
     (group: CoreMessageGroup): string | null => {
       if (group.type !== "assistant" && group.type !== "assistant:processing") {
@@ -144,27 +190,19 @@ export function useTurnRenderInfo({
   }, [messageTurns, groupedMessages, assistantFrameIdentity]);
 
   const turnSubagentRenderInfo = useMemo(() => {
-    const info = new Map<
-      string,
-      {
-        agents: InlineSubagentInfo[];
-        events: LiveToolEvent[];
-        mission: string;
-        settled: boolean;
-        firstProcessingIndex: number;
-        hasCluster: boolean;
-        agentsByGroupIndex: Map<number, InlineSubagentInfo[]>;
-        eventsByGroupIndex: Map<number, LiveToolEvent[]>;
-        bindingsByGroupIndex: Map<
-          number,
-          Map<string, { agent: InlineSubagentInfo; events: LiveToolEvent[] }>
-        >;
-      }
-    >();
+    const info = new Map<string, TurnSubagentInfo>();
+    const cache = subagentCacheRef.current;
+    const allEvents = allToolEvents ?? [];
+    const eventsVersion = `${allEvents.length}:${allEvents[allEvents.length - 1]?.id ?? ""}`;
+    if (cache.roster !== agentRosterMap || cache.eventsVersion !== eventsVersion) {
+      cache.roster = agentRosterMap;
+      cache.eventsVersion = eventsVersion;
+      cache.entries.clear();
+    }
     // Historical events are immutable for this render. Index them once
     // instead of filtering the complete event history for every turn.
     const historicalEventsByTurn = new Map<number, LiveToolEvent[]>();
-    for (const event of allToolEvents ?? []) {
+    for (const event of allEvents) {
       const eventTurnIndex = event.turnIndex ?? event.iteration;
       if (typeof eventTurnIndex !== "number") continue;
       const bucket = historicalEventsByTurn.get(eventTurnIndex);
@@ -175,6 +213,15 @@ export function useTurnRenderInfo({
       const turn = messageTurns[turnIndex]!;
       const turnMessages =
         groupTurnRenderInfo.get(turn.groupIndexes[0]!)?.turnMessages ?? [];
+      const isLatestTurn = turnIndex === messageTurns.length - 1;
+      const signature = isLatestTurn
+        ? ""
+        : historicalTurnSignature(turn, groupedMessages);
+      const cached = isLatestTurn ? undefined : cache.entries.get(turn.key);
+      if (cached && cached.signature === signature) {
+        info.set(turn.key, cached.info);
+        continue;
+      }
       const agents = deriveSubagentsFromMessages(turnMessages).map((agent) => {
         const rosterEntry = findRosterEntry(
           agentRosterMap,
@@ -195,7 +242,6 @@ export function useTurnRenderInfo({
         };
       });
       const mission = deriveSubagentMissionFromMessages(turnMessages);
-      const isLatestTurn = turnIndex === messageTurns.length - 1;
       const sourceEvents = isLatestTurn
         ? [...(lastTurnToolEvents ?? []), ...(liveToolEvents ?? [])]
         : (historicalEventsByTurn.get(turnIndex) ?? []);
@@ -310,7 +356,7 @@ export function useTurnRenderInfo({
         ]);
         eventsByGroupIndex.set(fallbackIndex, events);
       }
-      info.set(turn.key, {
+      const turnInfo: TurnSubagentInfo = {
         agents,
         events,
         mission,
@@ -320,7 +366,11 @@ export function useTurnRenderInfo({
         agentsByGroupIndex,
         eventsByGroupIndex,
         bindingsByGroupIndex,
-      });
+      };
+      info.set(turn.key, turnInfo);
+      if (!isLatestTurn) {
+        cache.entries.set(turn.key, { signature, info: turnInfo });
+      }
     }
     return info;
   }, [

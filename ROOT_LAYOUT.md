@@ -50,6 +50,7 @@ as a repository-root child.
 |---|---|
 | `config.example.yaml` | Commit-safe example config |
 | `config.e2e.yaml` | Commit-safe config used by the e2e/release-proof scripts |
+| `config.a11y.yaml` | Commit-safe offline config for the frontend axe CI job |
 | `config.yaml` / `config.local.yaml` | Local-only config |
 | `.env.example` | Commit-safe environment template |
 | `.env` | Local-only secret file |

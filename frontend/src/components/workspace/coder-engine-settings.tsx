@@ -421,7 +421,8 @@ export function CoderEngineSettings({
             <span
               className={cn(
                 "rounded-md px-2 py-0.5 text-xs font-medium",
-                (authorizationOnly || profile?.source === "codex_account") &&
+                !accountQuery.isError &&
+                  (authorizationOnly || profile?.source === "codex_account") &&
                   account
                   ? "bg-success/10 text-success"
                   : loginPending
@@ -431,7 +432,9 @@ export function CoderEngineSettings({
             >
               {!authorizationOnly && profile?.source === "follow_system"
                 ? copy.systemConnection
-                : account
+                : accountQuery.isError
+                  ? (locale === "zh-CN" ? "连接异常" : "Connection unavailable")
+                  : account
                   ? copy.accountConnected
                   : loginPending
                     ? copy.pending
@@ -484,11 +487,11 @@ export function CoderEngineSettings({
         </Button>
       </div>
 
-      {profileQuery.isLoading ? (
+      {profileQuery.isLoading && !authorizationOnly ? (
         <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2Icon className="size-4 animate-spin" /> {copy.loading}
         </div>
-      ) : profileQuery.isError || !profile ? (
+      ) : (profileQuery.isError || !profile) && !authorizationOnly ? (
         <div
           role="alert"
           className="mt-4 rounded-lg border border-destructive/20 bg-destructive/[0.04] p-3 text-sm text-destructive"
@@ -497,7 +500,7 @@ export function CoderEngineSettings({
         </div>
       ) : (
         <div className="mt-3 space-y-3">
-          {!authorizationOnly && (
+          {!authorizationOnly && profile && (
             <>
               <div>
                 <div className="mb-1.5 text-xs font-medium text-muted-foreground">
@@ -640,20 +643,21 @@ export function CoderEngineSettings({
 
               {showAccountPanel &&
               !account &&
-              profile.source === "follow_system" ? (
+              profile?.source === "follow_system" ? (
                 <p className="text-xs leading-5 text-muted-foreground">
                   {copy.accountSetupHint}
                 </p>
               ) : null}
             </>
           )}
+          {showAccountPanel && accountQuery.isError && (
+            <p role="alert" className="text-xs text-destructive">
+              {locale === "zh-CN" ? "Codex 连接暂时不可用。账号信息可能已过期，可重试或重新登录。" : "Codex connection is unavailable. Account details may be stale; retry or sign in again."}
+            </p>
+          )}
           {showAccountPanel ? (
             accountQuery.isLoading ? (
               <p className="text-xs text-muted-foreground">{copy.loading}</p>
-            ) : accountQuery.isError ? (
-              <p role="alert" className="text-xs text-destructive">
-                {copy.loadFailed}
-              </p>
             ) : account ? (
               <div className="space-y-3">
                 <div
@@ -676,7 +680,7 @@ export function CoderEngineSettings({
                       )}
                     </div>
                   </div>
-                  {!authorizationOnly && (
+                  {!authorizationOnly && profile && (
                     <label className="space-y-1.5 text-xs text-muted-foreground">
                       <span>{copy.model}</span>
                       <Select
@@ -712,7 +716,7 @@ export function CoderEngineSettings({
                       </Select>
                     </label>
                   )}
-                  {!authorizationOnly && reasoningOptions.length > 0 ? (
+                  {!authorizationOnly && profile && reasoningOptions.length > 0 ? (
                     <label className="space-y-1.5 text-xs text-muted-foreground">
                       <span>{copy.reasoning}</span>
                       <Select

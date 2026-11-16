@@ -444,6 +444,12 @@ export interface EchoElectronAPI {
   };
 
   backend: {
+    /** Owned process evidence; HTTP readiness is probed separately. */
+    getStatus?: () => Promise<{
+      state: "starting" | "running" | "failed";
+      reason?: "spawn-error" | "process-exit";
+      exitCode?: number | null;
+    }>;
     /** Return the actual desktop backend URL selected by the Electron main process. */
     getBaseURL: () => Promise<string>;
     /* Implementation note. */

@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.private/
+*.lts
+*.zmx
+*.zos
+*.xlsx
+*.db
+*.sqlite*

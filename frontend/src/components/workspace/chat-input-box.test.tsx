@@ -16,20 +16,56 @@ import type * as UploadsApiModule from "@/core/uploads/api";
 import type * as ComputerApiModule from "@/core/computer/api";
 
 import { ChatInputBox } from "./chat-input-box";
+import { DesktopShellContext } from "./desktop-shell-context";
 import type { GroupTaskStrategy } from "./group-task-strategy";
 import type { AgentModeName } from "./mode-selector";
 
 const uploadFilesMock = vi.fn();
+it("keeps desktop workspace controls below the editor and preserves their actions", () => {
+  const pick = vi.fn();
+  renderWithProviders(
+    <DesktopShellContext.Provider value={true}>
+      <ChatInputBox
+        threadId="desktop-context"
+        workspaceControl={<button onClick={pick}>Choose workspace</button>}
+      />
+    </DesktopShellContext.Provider>,
+  );
+  const composer = screen.getByTestId("chat-composer");
+  expect(within(composer).queryByTestId("chat-status-strip")).toBeNull();
+  expect(composer.nextElementSibling).toBe(
+    screen.getByTestId("chat-status-strip"),
+  );
+  expect(
+    screen.getAllByRole("button", { name: "Choose workspace" }),
+  ).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Choose workspace" }));
+  expect(pick).toHaveBeenCalledOnce();
+});
 it("resumes an interrupted task directly from the empty composer", () => {
   const resume = vi.fn();
   const submit = vi.fn();
-  renderWithProviders(<ChatInputBox mode="react" threadId="resume-test" onResume={resume} onSubmit={submit} />);
+  renderWithProviders(
+    <ChatInputBox
+      mode="react"
+      threadId="resume-test"
+      onResume={resume}
+      onSubmit={submit}
+    />,
+  );
   fireEvent.click(screen.getByTestId("chat-resume-button"));
   expect(resume).toHaveBeenCalledOnce();
   expect(submit).not.toHaveBeenCalled();
 });
 it("keeps normal draft submission when a resumable task has typed input", () => {
-  renderWithProviders(<ChatInputBox mode="react" threadId="resume-draft" defaultValue="new direction" onResume={vi.fn()} />);
+  renderWithProviders(
+    <ChatInputBox
+      mode="react"
+      threadId="resume-draft"
+      defaultValue="new direction"
+      onResume={vi.fn()}
+    />,
+  );
   expect(screen.queryByTestId("chat-resume-button")).toBeNull();
   expect(screen.getByTestId("chat-send-button")).toBeInTheDocument();
 });
@@ -282,6 +318,30 @@ beforeEach(() => {
   );
 });
 
+describe("composer autofocus around application menus", () => {
+  it("keeps keyboard focus in an open menu when the composer loads late", () => {
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "dialog");
+    const pin = document.createElement("button");
+    pin.textContent = "Pin app";
+    menu.append(pin);
+    document.body.append(menu);
+    pin.focus();
+    try {
+      renderWithProviders(
+        <ChatInputBox mode="react" threadId="new" autoFocus />,
+      );
+      expect(pin).toHaveFocus();
+    } finally {
+      menu.remove();
+    }
+  });
+  it("focuses a new composer when no application menu is active", () => {
+    renderWithProviders(<ChatInputBox mode="react" threadId="new" autoFocus />);
+    expect(screen.getByTestId("chat-composer-input")).toHaveFocus();
+  });
+});
+
 describe("<ChatInputBox /> cowork materials", () => {
   it("places the automation target picker inside the plus menu", async () => {
     renderWithProviders(
@@ -399,7 +459,9 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getAllByRole("option")).toHaveLength(2);
     fireEvent.click(screen.getByRole("option", { name: /Design/ }));
 
-    await waitFor(() => expect(onStrategyChange).toHaveBeenLastCalledWith("uxui"));
+    await waitFor(() =>
+      expect(onStrategyChange).toHaveBeenLastCalledWith("uxui"),
+    );
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.queryByTestId("group-task-strategy-chip")).toBeNull();
     expect(screen.queryByTestId("group-task-strategy-indicator")).toBeNull();
@@ -541,7 +603,9 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getByTitle("Personal space")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^General/ }));
     fireEvent.click(screen.getByRole("option", { name: /Design/ }));
-    await waitFor(() => expect(onGroupTaskStrategyChange).toHaveBeenCalledWith("uxui"));
+    await waitFor(() =>
+      expect(onGroupTaskStrategyChange).toHaveBeenCalledWith("uxui"),
+    );
     expect(screen.queryByTestId("permission-mode-trigger")).toBeNull();
     group.unmount();
 
@@ -677,9 +741,9 @@ describe("<ChatInputBox /> cowork materials", () => {
     await user.hover(screen.getByTestId("chat-commands-submenu"));
     expect(await screen.findByText("Spec")).toBeInTheDocument();
     expect(screen.getByText("Plan")).toBeInTheDocument();
-    expect(
-      screen.getByText("Goal").closest('[role="menuitem"]'),
-    ).toContainHTML("lucide-target");
+    expect(screen.getByText("Goal").closest('[role="menuitem"]')).toContainHTML(
+      "lucide-target",
+    );
     expect(screen.getByText("Milestone")).toBeInTheDocument();
     expect(screen.getByText("Browser")).toBeInTheDocument();
     expect(screen.getByText("Chrome")).toBeInTheDocument();
@@ -751,9 +815,9 @@ describe("<ChatInputBox /> cowork materials", () => {
     expect(screen.getByTestId("composer-long-task-indicator")).toHaveClass(
       "text-muted-foreground",
     );
-    expect(
-      screen.getByTestId("composer-long-task-indicator"),
-    ).toContainHTML("lucide-target");
+    expect(screen.getByTestId("composer-long-task-indicator")).toContainHTML(
+      "lucide-target",
+    );
     const longTaskIndicator = screen.getByTestId(
       "composer-long-task-indicator",
     );
@@ -1077,9 +1141,7 @@ describe("<ChatInputBox /> cowork materials", () => {
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
-        text: expect.stringContaining(
-          "path=src/app.tsx workspace=/repo/echo",
-        ),
+        text: expect.stringContaining("path=src/app.tsx workspace=/repo/echo"),
       }),
     );
   });
@@ -1258,10 +1320,15 @@ describe("<ChatInputBox /> cowork materials", () => {
   it("shows the Claude-style context ring on the workspace status row", async () => {
     renderWithProviders(
       <ChatInputBox
-        mode="react" threadId="thread-context-window" workDir="D:/pod-App"
-        contextTokens={500} maxContextTokens={1_000_000}
+        mode="react"
+        threadId="thread-context-window"
+        workDir="D:/pod-App"
+        contextTokens={500}
+        maxContextTokens={1_000_000}
         contextSegments={[
-          { label: "Messages", tokens: 400, color: "bg-primary" }, { label: "MCP tools", tokens: 60, color: "bg-chart-4" }, { label: "Skills", tokens: 40, color: "bg-chart-2" },
+          { label: "Messages", tokens: 400, color: "bg-primary" },
+          { label: "MCP tools", tokens: 60, color: "bg-chart-4" },
+          { label: "Skills", tokens: 40, color: "bg-chart-2" },
         ]}
       />,
     );
@@ -1269,7 +1336,10 @@ describe("<ChatInputBox /> cowork materials", () => {
     const strip = screen.getByTestId("chat-status-strip");
     const trigger = screen.getByTestId("chat-context-window-trigger");
     expect(strip).toContainElement(trigger);
-    expect(trigger).toHaveAttribute("aria-label", expect.stringMatching(/Context usage: 500 \/ 1M \(0%\)/));
+    expect(trigger).toHaveAttribute(
+      "aria-label",
+      expect.stringMatching(/Context usage: 500 \/ 1M \(0%\)/),
+    );
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     fireEvent.click(trigger);
     expect(await screen.findByText("Messages")).toBeInTheDocument();
@@ -1611,21 +1681,42 @@ describe("<ChatInputBox /> live steering", () => {
 describe("<ChatInputBox /> connection recovery", () => {
   it("quotes only this conversation while keeping the existing draft unsent", () => {
     const onSubmit = vi.fn();
-    renderWithProviders(<ChatInputBox mode="react" threadId="quote-target" onSubmit={onSubmit} />);
+    renderWithProviders(
+      <ChatInputBox mode="react" threadId="quote-target" onSubmit={onSubmit} />,
+    );
     const input = screen.getByTestId("chat-composer-input");
     fireEvent.change(input, { target: { value: "my unfinished reply" } });
-    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "another", text: "private" } }));
+    fireEvent(
+      window,
+      new CustomEvent("echo:quote-message", {
+        detail: { threadId: "another", text: "private" },
+      }),
+    );
     expect(input).toHaveValue("my unfinished reply");
-    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "quote-target", text: "line one\nline two" } }));
+    fireEvent(
+      window,
+      new CustomEvent("echo:quote-message", {
+        detail: { threadId: "quote-target", text: "line one\nline two" },
+      }),
+    );
     expect(input).toHaveValue("my unfinished reply");
     expect(screen.getByTestId("composer-quote")).toHaveTextContent("line one");
     fireEvent.click(screen.getByTestId("composer-remove-quote"));
     expect(screen.queryByTestId("composer-quote")).toBeNull();
     expect(input).toHaveValue("my unfinished reply");
-    fireEvent(window, new CustomEvent("echo:quote-message", { detail: { threadId: "quote-target", text: "line one\nline two" } }));
+    fireEvent(
+      window,
+      new CustomEvent("echo:quote-message", {
+        detail: { threadId: "quote-target", text: "line one\nline two" },
+      }),
+    );
     expect(onSubmit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("chat-send-button"));
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ text: "my unfinished reply\n\n> line one\n> line two" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "my unfinished reply\n\n> line one\n> line two",
+      }),
+    );
     expect(screen.queryByTestId("composer-quote")).toBeNull();
   });
 
@@ -1666,9 +1757,9 @@ describe("<ChatInputBox /> connection recovery", () => {
 
     expect(input).not.toBeDisabled();
     expect(screen.queryByTestId("chat-connection-status")).toBeNull();
-    expect(await screen.findByTestId("chat-connection-status")).toHaveTextContent(
-      "Syncing conversation… You can keep editing.",
-    );
+    expect(
+      await screen.findByTestId("chat-connection-status"),
+    ).toHaveTextContent("Syncing conversation… You can keep editing.");
     expect(screen.getByTestId("chat-send-button")).toBeDisabled();
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
     expect(onSubmit).not.toHaveBeenCalled();
@@ -1791,7 +1882,7 @@ describe("<ChatInputBox /> thread-scoped composer state", () => {
     fireEvent.change(textarea(), { target: { value: "before hiding" } });
     fireEvent(window, new Event("pagehide"));
     expect(
-      localStorage.getItem("echo:composer-draft:draft-fast-exit"),
+      localStorage.getItem("echo:composer-draft:v2:anonymous:draft-fast-exit"),
     ).toContain("before hiding");
     fireEvent.change(textarea(), { target: { value: "before leaving" } });
     unmount();
@@ -2281,6 +2372,13 @@ describe("<ChatInputBox /> upload on attach", () => {
     expect(sendButton()).toBeDisabled();
     expect(screen.getByLabelText("Retry upload")).toBeInTheDocument();
     expect(bar).toHaveAttribute("aria-label", "Upload failed");
+    expect(screen.getByTestId("chat-send-button")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+    expect(
+      screen.getByTestId("chat-send-button").querySelector(".animate-spin"),
+    ).toBeNull();
     expect(image.name).toBe("broken.png");
   });
 
@@ -2316,4 +2414,17 @@ describe("<ChatInputBox /> upload on attach", () => {
     await waitFor(() => expect(sendButton()).toBeDisabled());
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
+});
+
+it("keeps global permission selection distinct from an active task", () => {
+  const { rerender } = renderWithProviders(
+    <ChatInputBox status="streaming" permissionMode="bypassPermissions" />,
+  );
+  expect(screen.getByTestId("permission-mode-trigger")).toHaveAccessibleName(
+    "Next task permissions: Full access",
+  );
+  rerender(<ChatInputBox status="ready" permissionMode="bypassPermissions" />);
+  expect(screen.getByTestId("permission-mode-trigger")).toHaveAccessibleName(
+    "Permissions: Full access",
+  );
 });

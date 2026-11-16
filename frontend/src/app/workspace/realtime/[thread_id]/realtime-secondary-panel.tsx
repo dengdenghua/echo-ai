@@ -31,6 +31,9 @@ import {
   messagesSinceLastHuman,
 } from "./realtime-turn-utils";
 import { turnNeedsModel } from "./use-agent-run-state";
+import { groupMessages } from "@/core/messages/utils";
+import { partitionMessageGroupsIntoTurns } from "@/components/workspace/messages/message-list-turns";
+import { deriveSubagentsFromMessages } from "@/components/workspace/messages/inline-subagent-cards";
 
 /*
  * Surfaces of the single right-hand panel. The page picks one of them in
@@ -39,77 +42,81 @@ import { turnNeedsModel } from "./use-agent-run-state";
  * their inputs change while a turn streams.
  */
 
-export const RealtimeTeachRepeatSurface = memo(function RealtimeTeachRepeatSurface({
-  t,
-  threadId,
-  setShowTeachRepeatPanel,
-}: {
-  t: RealtimeTranslations;
-  threadId: string;
-  setShowTeachRepeatPanel: StateSetter<boolean>;
-}) {
-  return (
-    <div className="flex size-full min-h-0 flex-col overflow-hidden">
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border-default px-3">
-        <span className="text-sm font-semibold">
-          {t.teachRepeat.title}
-        </span>
-        <button
-          type="button"
-          onClick={() => setShowTeachRepeatPanel(false)}
-          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={t.common.close}
-        >
-          <XIcon className="size-3.5" />
-        </button>
+export const RealtimeTeachRepeatSurface = memo(
+  function RealtimeTeachRepeatSurface({
+    t,
+    threadId,
+    setShowTeachRepeatPanel,
+  }: {
+    t: RealtimeTranslations;
+    threadId: string;
+    setShowTeachRepeatPanel: StateSetter<boolean>;
+  }) {
+    return (
+      <div className="flex size-full min-h-0 flex-col overflow-hidden">
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-border-default px-3">
+          <span className="text-sm font-semibold">{t.teachRepeat.title}</span>
+          <button
+            type="button"
+            onClick={() => setShowTeachRepeatPanel(false)}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={t.common.close}
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        </div>
+        <TeachRepeatPanel
+          threadId={threadId}
+          className="min-h-0 flex-1 overflow-auto"
+        />
       </div>
-      <TeachRepeatPanel
-        threadId={threadId}
-        className="min-h-0 flex-1 overflow-auto"
+    );
+  },
+);
+
+export const RealtimeAutomationSurface = memo(
+  function RealtimeAutomationSurface({
+    setShowAutomationPanel,
+  }: {
+    setShowAutomationPanel: StateSetter<boolean>;
+  }) {
+    return (
+      <AutomationSubscriptionPanel
+        className="size-full"
+        onClose={() => setShowAutomationPanel(false)}
       />
-    </div>
-  );
-});
+    );
+  },
+);
 
-export const RealtimeAutomationSurface = memo(function RealtimeAutomationSurface({
-  setShowAutomationPanel,
-}: {
-  setShowAutomationPanel: StateSetter<boolean>;
-}) {
-  return (
-    <AutomationSubscriptionPanel
-      className="size-full"
-      onClose={() => setShowAutomationPanel(false)}
-    />
-  );
-});
-
-export const RealtimeResearchHistorySurface = memo(function RealtimeResearchHistorySurface({
-  activeJobId,
-  setResearchJob,
-  setResearchError,
-  setShowResearch,
-  setShowResearchHistory,
-}: {
-  activeJobId: string | undefined;
-  setResearchJob: (job: ResearchJob | null) => void;
-  setResearchError: (error: string | null) => void;
-  setShowResearch: (visible: boolean) => void;
-  setShowResearchHistory: StateSetter<boolean>;
-}) {
-  return (
-    <DeepResearchHistoryPanel
-      activeJobId={activeJobId}
-      onSelect={(job) => {
-        setResearchJob(job);
-        setResearchError(null);
-        setShowResearch(true);
-        setShowResearchHistory(false);
-      }}
-      onClose={() => setShowResearchHistory(false)}
-    />
-  );
-});
+export const RealtimeResearchHistorySurface = memo(
+  function RealtimeResearchHistorySurface({
+    activeJobId,
+    setResearchJob,
+    setResearchError,
+    setShowResearch,
+    setShowResearchHistory,
+  }: {
+    activeJobId: string | undefined;
+    setResearchJob: (job: ResearchJob | null) => void;
+    setResearchError: (error: string | null) => void;
+    setShowResearch: (visible: boolean) => void;
+    setShowResearchHistory: StateSetter<boolean>;
+  }) {
+    return (
+      <DeepResearchHistoryPanel
+        activeJobId={activeJobId}
+        onSelect={(job) => {
+          setResearchJob(job);
+          setResearchError(null);
+          setShowResearch(true);
+          setShowResearchHistory(false);
+        }}
+        onClose={() => setShowResearchHistory(false)}
+      />
+    );
+  },
+);
 
 export const RealtimeResearchSurface = memo(function RealtimeResearchSurface({
   researchJob,
@@ -132,34 +139,34 @@ export const RealtimeResearchSurface = memo(function RealtimeResearchSurface({
   );
 });
 
-export const RealtimeResearchErrorSurface = memo(function RealtimeResearchErrorSurface({
-  t,
-  researchError,
-  setShowResearch,
-}: {
-  t: RealtimeTranslations;
-  researchError: string;
-  setShowResearch: (visible: boolean) => void;
-}) {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-border-default px-3 py-2">
-        <span className="text-sm font-medium">Agent</span>
-        <button
-          type="button"
-          onClick={() => setShowResearch(false)}
-          className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-          aria-label={t.common.close}
-        >
-          <XIcon className="size-3.5" />
-        </button>
+export const RealtimeResearchErrorSurface = memo(
+  function RealtimeResearchErrorSurface({
+    t,
+    researchError,
+    setShowResearch,
+  }: {
+    t: RealtimeTranslations;
+    researchError: string;
+    setShowResearch: (visible: boolean) => void;
+  }) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border-default px-3 py-2">
+          <span className="text-sm font-medium">Agent</span>
+          <button
+            type="button"
+            onClick={() => setShowResearch(false)}
+            className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            aria-label={t.common.close}
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        </div>
+        <div className="p-3 text-xs text-destructive">{researchError}</div>
       </div>
-      <div className="p-3 text-xs text-destructive">
-        {researchError}
-      </div>
-    </div>
-  );
-});
+    );
+  },
+);
 
 type WorkbenchPanelProps = ComponentProps<typeof AgentWorkbenchPanel>;
 
@@ -265,6 +272,26 @@ export function RealtimeWorkbenchSurface({
       ),
     [thread.error, thread.isLoading, thread.messages],
   );
+  const focusedReceipt = useMemo(() => {
+    if (!focusedWorkbenchAgentSnapshot || focusedWorkbenchTurnIndex === null)
+      return focusedWorkbenchAgentSnapshot;
+    const groups = groupMessages(thread.messages, (group) => group);
+    const turn =
+      partitionMessageGroupsIntoTurns(groups)[focusedWorkbenchTurnIndex];
+    const messages =
+      turn?.groupIndexes.flatMap((index) => groups[index]?.messages ?? []) ??
+      [];
+    const current = deriveSubagentsFromMessages(messages).find(
+      (agent) => agent.id === focusedWorkbenchAgentSnapshot.id,
+    );
+    return current
+      ? { ...focusedWorkbenchAgentSnapshot, ...current }
+      : focusedWorkbenchAgentSnapshot;
+  }, [
+    thread.messages,
+    focusedWorkbenchTurnIndex,
+    focusedWorkbenchAgentSnapshot,
+  ]);
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
@@ -278,18 +305,15 @@ export function RealtimeWorkbenchSurface({
             focusedWorkbenchTurnIndex === null
               ? lastTurnUserInput
               : {
-                  text:
-                    focusedWorkbenchAgentSnapshot?.task ?? "",
+                  text: focusedWorkbenchAgentSnapshot?.task ?? "",
                   uploadedFiles: [],
                   attachments: [],
                 }
           }
-          groundingSources={
-            thread.values.latest_grounding ?? []
-          }
+          groundingSources={thread.values.latest_grounding ?? []}
           focusedAgentId={focusedWorkbenchAgentId}
           focusedAgentView={focusedWorkbenchAgentView}
-          focusedAgentSnapshot={focusedWorkbenchAgentSnapshot}
+          focusedAgentSnapshot={focusedReceipt}
           focusedAgentNonce={focusedWorkbenchAgentNonce}
           focusedEventId={focusedWorkbenchEventId}
           focusedEventKind={focusedWorkbenchEventKind}
@@ -300,23 +324,23 @@ export function RealtimeWorkbenchSurface({
           hasAnswer={
             focusedWorkbenchTurnIndex === null
               ? hasCompletedAgentOutput
-              : true
+              : focusedReceipt?.status === "done"
           }
           isLoading={
             focusedWorkbenchTurnIndex === null
               ? thread.isLoading
-              : false
+              : thread.isLoading && focusedReceipt?.status === "running"
           }
           runSettled={
             focusedWorkbenchTurnIndex === null
               ? agentRunSettled
-              : true
+              : focusedReceipt?.status === "done" ||
+                focusedReceipt?.status === "error"
           }
           runFailed={
             focusedWorkbenchTurnIndex === null
               ? agentRunFailed
-              : focusedWorkbenchAgentSnapshot?.status ===
-                "error"
+              : focusedWorkbenchAgentSnapshot?.status === "error"
           }
           runNeedsSetup={focusedWorkbenchTurnIndex === null && runNeedsSetup}
           runInterrupted={agentRunInterrupted}
@@ -327,8 +351,7 @@ export function RealtimeWorkbenchSurface({
           browserPreviewBlocks={previewBlocks}
           resultPreviewUrl={resultPreviewUrl}
           mainAgentName={
-            perspectiveDisplayAgent?.display_name ||
-            mainPerspectiveAgentId
+            perspectiveDisplayAgent?.display_name || mainPerspectiveAgentId
           }
           contextTokens={contextTokens}
           maxContextTokens={maxContextTokens}
@@ -338,15 +361,11 @@ export function RealtimeWorkbenchSurface({
           showMachineScopeRail={false}
           showMachineRosterRail={false}
           showDeliveryRecovery={isGroupConversation}
-          groupTitle={
-            isGroupConversation ? collaborationTeamName : null
-          }
+          groupTitle={isGroupConversation ? collaborationTeamName : null}
           currentThreadTitle={headerThreadTitle || null}
           onProjectCommand={onProjectCommand}
           onInvitePeople={
-            canManageHumanInvites
-              ? handleOpenHumanInvite
-              : undefined
+            canManageHumanInvites ? handleOpenHumanInvite : undefined
           }
           onClose={closeAgentWorkbenchPanel}
           onSelectTab={selectAgentWorkbenchTab}

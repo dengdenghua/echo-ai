@@ -169,9 +169,9 @@ export function SmartTeamDialog({
                 </div>
               </section>
               <section className="rounded-xl border border-border bg-muted/15 p-3">
-                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
                   <PuzzleIcon className="size-4" /> 推荐插件
-                </h3>
+                </h2>
                 <div className="mt-3 space-y-2">
                   {plan.plugins.length > 0 ? plan.plugins.map((plugin) => (
                     <div key={plugin.id} className="rounded-lg bg-background px-2.5 py-2">

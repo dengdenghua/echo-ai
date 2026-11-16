@@ -1,0 +1,17 @@
+{
+  "required": [
+    {"id": "standard", "check": "One governing standard and language selected", "severity": "P0"},
+    {"id": "template", "check": "Standard drawing template/title block used", "severity": "P1"},
+    {"id": "units", "check": "Units, decimal precision and projection convention fixed", "severity": "P0"},
+    {"id": "global_view", "check": "Global orthographic view present before local details", "severity": "P0"},
+    {"id": "scale", "check": "One main scale per sheet; detail scales explicitly labelled", "severity": "P0"},
+    {"id": "views", "check": "Orthographic/section/detail views sufficient for manufacture", "severity": "P0"},
+    {"id": "dimensions", "check": "Key dimensions are model-associated and fully define the part", "severity": "P0"},
+    {"id": "tolerances", "check": "Functional fits, GD&T, general tolerance and surface requirements defined", "severity": "P1"},
+    {"id": "title_block", "check": "Number, name, material, scale, units, revision, sheet n/m and standard present", "severity": "P0"},
+    {"id": "revision", "check": "Revision table explains the current change", "severity": "P1"},
+    {"id": "bom", "check": "Assembly BOM matches model and drawing", "severity": "P0"},
+    {"id": "export", "check": "PDF/DWG/DXF/STEP/BOM are same revision and openable", "severity": "P1"},
+    {"id": "obsolete", "check": "Obsolete drawings removed from delivery package", "severity": "P1"}
+  ]
+}

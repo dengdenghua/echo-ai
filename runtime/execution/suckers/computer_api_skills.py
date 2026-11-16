@@ -220,6 +220,17 @@ def _computer_observe(
         "screenshot": _compact_screenshot(shot),
         "computer_api": _computer_api_diagnostics(),
     }
+    # The screenshot endpoint already returns the pixels from this authorized
+    # observation. Forward them as media instead of asking the model to open
+    # the gateway's private temporary path with wider file permissions.
+    raw_image = shot.get("data_url")
+    if out["ok"] and isinstance(raw_image, str):
+        from runtime.execution.tool_engine.tool_images import MAX_SOURCE_BYTES
+
+        header, separator, pixels = raw_image.partition(",")
+        if (separator and header in {"data:image/png;base64", "data:image/jpeg;base64", "data:image/webp;base64"}
+                and len(raw_image) <= 4 * ((MAX_SOURCE_BYTES + 2) // 3) + 100):
+            out["_mcp_images"] = [{"mimeType": header[5:].split(";")[0], "data": pixels}]
     if uia_tree is not None:
         out["uia"] = uia_tree
     return out
@@ -243,18 +254,28 @@ def _computer_plan_next(
     return _compact_result(data)
 
 
-def _computer_preview_action(action: dict[str, Any] | None = None, **_kw: Any) -> dict[str, Any]:
+def _computer_preview_action(action: dict[str, Any] | str | None = None, **_kw: Any) -> dict[str, Any]:
     """Validate and queue one action, returning a short-lived confirmation token."""
+    # Some model tool schemas serialize an unconstrained object as JSON text.
+    # Decode only at the preview boundary; the gateway still validates the
+    # action/target and requires a separate confirmed execute-token call.
+    if isinstance(action, str):
+        try:
+            action = json.loads(action)
+        except (ValueError, RecursionError):
+            return {"ok": False, "error": "action must be an object or JSON object string"}
     if not isinstance(action, dict):
-        return {"ok": False, "error": "action must be an object"}
+        return {"ok": False, "error": "action must be an object or JSON object string"}
     return _call("POST", "/actions/preview", action)
 
 
 def _computer_execute_token(token: str = "", **_kw: Any) -> dict[str, Any]:
     """Execute a queued action by token.
 
-    This should only be used after the user explicitly confirmed the specific
-    queued action/token in the current conversation turn.
+    The user must have explicitly authorized this specific action and target.
+    A request to perform that exact action is action confirmation; copying an
+    opaque token into chat is not additionally required. Runtime approvals are
+    still mandatory, and a preview alone never supplies user authorization.
     """
     if not token:
         return {"ok": False, "error": "missing token"}
@@ -269,8 +290,9 @@ def register_computer_api_skills(registry: SkillRegistry) -> int:
                 "Observe the real desktop automation status and optionally capture "
                 "a screenshot or UIA semantic tree. Args: {capture?: bool, "
                 "uia?: bool}. Returns screen size, cursor, screenshot path/size, "
-                "and optionally a bounded control tree; omits base64 image data "
-                "to save context."
+                "and optionally a bounded control tree. Successful captures "
+                "include image media separately from text; a temporary path "
+                "alone is not a visual observation."
             ),
             affinity=["desktop", "automation", "observe", "computer"],
             cost_profile="low",
@@ -295,6 +317,9 @@ def register_computer_api_skills(registry: SkillRegistry) -> int:
             description=(
                 "Validate and queue exactly one desktop action without executing. "
                 "Args: {action:{action:'click'|'move'|'type'|'key'|'wait', ...}}. "
+                "The action may also be a JSON-encoded object string. "
+                "For a named window, include the observed automation_target "
+                "inside every action so input is bound to that window. "
                 "Returns risk and a short-lived token for later confirmation."
             ),
             affinity=["desktop", "automation", "preview", "computer"],
@@ -306,8 +331,12 @@ def register_computer_api_skills(registry: SkillRegistry) -> int:
             name="computer_execute_token",
             description=(
                 "Execute a previously queued desktop action by token. Use only "
-                "after the user explicitly confirms the exact token/action in the "
-                "current conversation. Args: {token:string}."
+                "when the user has explicitly authorized that specific action and "
+                "target in this task. An explicit request to perform the action "
+                "counts as action confirmation; do not additionally ask the user "
+                "to copy an opaque token into chat. Preserve all runtime approval "
+                "requests. A preview alone is not authorization. Never execute "
+                "an expired token. Args: {token:string}."
             ),
             affinity=["desktop", "automation", "execute", "computer"],
             cost_profile="high",

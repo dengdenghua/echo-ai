@@ -170,6 +170,8 @@ async def stream_role(
                     text=fresh_text if fresh_text is not None else text,
                     system=system,
                     model=model,
+                    reasoning_effort=context.get("codebuddy_effort"),
+                    autocompact=context.get("codebuddy_autocompact"),
                     interrupted=interrupted,
                     host_mcp=connection,
                     tool_names={
@@ -180,7 +182,24 @@ async def stream_role(
                     else {},
                 )
             ) as events:
+                call_inputs: dict[str, dict[str, Any]] = {}
                 async for event in events:
+                    call_id = str(event.get("tool_call_id") or "")
+                    if event.get("type") == "tool_start":
+                        call_inputs[call_id] = event.get("input_preview") or {}
+                    elif event.get("type") == "tool_end" and broker is not None:
+                        receipt = broker.completed_result(
+                            str(event.get("tool_name") or ""), call_inputs.pop(call_id, {})
+                        )
+                        if receipt is not None:
+                            from runtime.execution.codebuddy_events import tool_result_preview
+
+                            event = {
+                                **event,
+                                "success": receipt["success"],
+                                "status": "success" if receipt["success"] else "error",
+                                "output_preview": tool_result_preview(receipt["contentItems"]),
+                            }
                     yield observe_engine_event(event, "codebuddy", model)
 
 
@@ -234,6 +253,7 @@ def run_role_sync(
 
     async def run() -> str:
         output: list[str] = []
+        tool_inputs: dict[str, dict[str, Any]] = {}
         completed = False
         async with contextlib.aclosing(
             stream_role(
@@ -270,6 +290,29 @@ def run_role_sync(
                             }
                         )
                 elif event.get("type") in {"tool_start", "tool_end"}:
+                    call_id = str(event.get("tool_call_id") or "")
+                    starting = event["type"] == "tool_start"
+                    if starting:
+                        tool_inputs[call_id] = event.get("input_preview") or {}
+                    emit = context.get("event_emitter")
+                    if callable(emit):
+                        emit(
+                            {
+                                "type": "sub_tool_start" if starting else "sub_tool_end",
+                                "name": event.get("tool_name", "tool"),
+                                "skill": event.get("tool_name", "tool"),
+                                "tool_call_id": call_id,
+                                "status": "started"
+                                if starting
+                                else "success"
+                                if event.get("success")
+                                else "error",
+                                "args": tool_inputs.get(call_id, {}),
+                                "output_preview": event.get("output_preview"),
+                            }
+                        )
+                    if not starting:
+                        tool_inputs.pop(call_id, None)
                     notify = context.get("emit_tool_event")
                     if callable(notify):
                         notify(

@@ -225,6 +225,16 @@ def _request_for_turn(
     context["workspace_path"] = str(workspace)
     trusted_parent = _trusted_realtime_parent(turn, agent, context, workspace)
     if trusted_parent is not None:
+        # Legacy direct Codex execution also needs the gateway's model/effort
+        # promotion after the task guard rebuilt its narrow parent metadata.
+        from runtime.sensing.gateway._realtime_react_stream_helpers import _apply_codex_task_model_override
+        model_metadata = dict(trusted_parent.metadata or {})
+        model_metadata["execution_engine"] = "codex"
+        for key in ("model_scope", "model_name", "reasoning_effort"):
+            if isinstance(context.get(key), str):
+                model_metadata[key] = context[key]
+        _apply_codex_task_model_override(model_metadata)
+        trusted_parent = replace(trusted_parent, metadata=model_metadata)
         context["caller_session"] = trusted_parent
     prompt = text
     brief = blackboard_brief(str(getattr(turn, "id", "") or ""))

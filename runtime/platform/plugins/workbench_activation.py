@@ -122,6 +122,9 @@ class WorkbenchActivationStore:
             "enabled": enabled,
             "source": "factory",
             "version": spec["version"],
+            "installed_version": raw.get("version")
+            if isinstance(raw, dict) and installed
+            else None,
             "factory_path": str(self.factory_path(plugin_id)),
             "activation_path": str(activation),
             "data_path": str(self.data_path(plugin_id)),

@@ -61,26 +61,41 @@ export function ArtifactFileList({
     >
       <div className="min-h-0 flex-1 overflow-y-auto">
         {files.map((file, index) => (
-          <button
+          <div
             key={file}
-            type="button"
             className={cn(
-              "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50",
+              "group/artifact flex w-full items-center gap-2 pr-2 transition-colors hover:bg-muted/50",
               index > 0 && "border-t border-border-subtle",
             )}
-            onClick={() => handleClick(file)}
           >
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
-              {getFileIcon(artifactDisplayPath(file), "size-4")}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">
-                {getFileName(artifactDisplayPath(file))}
+            <button
+              type="button"
+              onClick={() => handleClick(file)}
+              title={artifactDisplayPath(file)}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            >
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
+                {getFileIcon(artifactDisplayPath(file), "size-4")}
               </div>
-              <div className="truncate text-xs text-muted-foreground">
-                {getFileExtensionDisplayName(artifactDisplayPath(file))}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-foreground">
+                  {getFileName(artifactDisplayPath(file))}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {getFileExtensionDisplayName(artifactDisplayPath(file))}
+                  {artifactDisplayPath(file).includes("/") && (
+                    <span>
+                      {" "}
+                      ·{" "}
+                      {artifactDisplayPath(file)
+                        .split("/")
+                        .slice(0, -1)
+                        .join("/")}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            </button>
             <div className="flex shrink-0 items-center gap-1">
               {file.endsWith(".skill") && (
                 <Button
@@ -101,7 +116,7 @@ export function ArtifactFileList({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="size-7"
+                className="size-8"
                 asChild
                 aria-label={t.common.download}
               >
@@ -119,7 +134,7 @@ export function ArtifactFileList({
                 </a>
               </Button>
             </div>
-          </button>
+          </div>
         ))}
       </div>
     </div>

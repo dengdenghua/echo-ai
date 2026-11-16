@@ -13,6 +13,9 @@ import { ArtifactFileDetail } from "./artifact-file-detail";
 import { ArtifactFileList, ArtifactInlinePreview } from "./artifact-file-list";
 import { useArtifacts } from "./context";
 import { officeArtifactKind } from "./office-edit";
+import { parseFilePreviewRef } from "@/core/artifacts/file-preview-ref";
+import { FileReferenceScope } from "@/core/navigation/file-reference";
+import { LinkedFileReference } from "../messages/linked-file-reference";
 
 // 产物面板将产物按「全部 / 变更 / 预览」分类展示：变更指 Agent 通过
 // write-file 写入的改动，预览包含可渲染的 HTML / Markdown
@@ -33,6 +36,8 @@ export function ArtifactPanel({
     open: artifactsOpen,
     setOpen: setArtifactsOpen,
     selectedArtifact,
+    selectedLines,
+    clearSelection,
   } = useArtifacts();
   const artifactCount = artifacts?.length ?? 0;
 
@@ -55,10 +60,25 @@ export function ArtifactPanel({
   }, [artifacts]);
 
   if (selectedArtifact) {
+    const file = parseFilePreviewRef(selectedArtifact);
+    if (file)
+      return file.threadId === threadId ? (
+        <FileReferenceScope.Provider value={file}>
+          <LinkedFileReference
+            key={selectedArtifact}
+            path={file.path}
+            lines={file.lines}
+            embedded
+            onClose={clearSelection}
+          />
+        </FileReferenceScope.Provider>
+      ) : null;
     return (
       <ArtifactFileDetail
+        key={`${threadId}:${selectedArtifact}`}
         className={cn("size-full", className)}
         filepath={selectedArtifact}
+        initialLine={Number(selectedLines?.split("-")[0]) || undefined}
         threadId={threadId}
       />
     );

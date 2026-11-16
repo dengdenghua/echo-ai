@@ -17,6 +17,7 @@ import json
 import os
 import stat
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from runtime.platform.process.paths import app_paths
@@ -28,8 +29,14 @@ STRICT_ENV = "ECHO_ENGINES_STRICT"
 MANIFEST_NAME = "echo-engine.json"
 MANIFEST_SCHEMA = "echo.engine_install.v1"
 # The variable that points each engine at a bundled or hand-picked binary.
-EXECUTABLE_ENV = {"codex": "ECHO_CODEX_EXECUTABLE", "opencode": "ECHO_OPENCODE_BIN"}
-_MANIFEST_LIMIT = 1024 * 1024
+EXECUTABLE_ENV = {"codex": "ECHO_CODEX_EXECUTABLE", "opencode": "ECHO_OPENCODE_BIN", "codebuddy": "ECHO_CODEBUDDY_BIN"}
+_MANIFEST_LIMIT = 8 * 1024 * 1024
+
+
+@lru_cache(maxsize=8)
+def _manifest(path: Path, modified_ns: int, size: int):
+    """Immutable release inventories include npm dependencies; parse once."""
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def engines_root() -> Path:
@@ -72,7 +79,11 @@ def read_installed(engine_id: str, root: Path | None = None) -> InstalledEngine 
     be the regular file of the size that was installed.
     """
 
-    folder = (root or engines_root()) / engine_id
+    from .versions import release_folder
+    return read_release(release_folder(root or engines_root(), engine_id), engine_id)
+
+
+def read_release(folder: Path, engine_id: str) -> InstalledEngine | None:
     try:
         if not stat.S_ISDIR(folder.lstat().st_mode):
             return None
@@ -80,7 +91,7 @@ def read_installed(engine_id: str, root: Path | None = None) -> InstalledEngine 
         info = manifest_path.lstat()
         if not stat.S_ISREG(info.st_mode) or info.st_size > _MANIFEST_LIMIT:
             return None
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = _manifest(manifest_path, info.st_mtime_ns, info.st_size)
         if not isinstance(manifest, dict) or manifest.get("schema") != MANIFEST_SCHEMA:
             return None
         if manifest.get("engine") != engine_id:
@@ -120,7 +131,7 @@ def installed_executable(engine_id: str) -> str | None:
     installed = read_installed(engine_id)
     if spec is None or installed is None:
         return None
-    if installed.version != spec.version or installed.platform != platform_key():
+    if installed.platform != platform_key():
         return None
     return str(installed.executable)
 
@@ -160,3 +171,11 @@ __all__ = [
     "missing_status",
     "read_installed",
 ]
+
+
+def refresh_managed_command(engine_id: str, command: str) -> str:
+    """Refresh a host-owned command after admission, preserving explicit embeddings."""
+    path = Path(command).expanduser().resolve()
+    configured = os.environ.get(EXECUTABLE_ENV[engine_id])
+    owned = path.is_relative_to(engines_root().resolve()) or bool(configured and path == Path(configured).expanduser().resolve())
+    return (installed_executable(engine_id) or command) if owned else command

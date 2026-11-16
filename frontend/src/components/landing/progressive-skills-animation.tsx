@@ -376,6 +376,7 @@ export default function ProgressiveSkillsAnimation() {
           <motion.button
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
+            aria-label={copy.playPause}
             onClick={handleTogglePlayPause}
             className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/10 backdrop-blur-md transition-all hover:scale-110 hover:bg-white/20 active:scale-95"
           >

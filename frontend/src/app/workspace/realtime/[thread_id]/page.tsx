@@ -171,12 +171,8 @@ import {
   useWorkbenchSurfaceState,
 } from "./use-workbench-surface";
 
-/**
- * Plain chat workspace. Mirrors the team / code page architecture
- * (`ThreadProviders → ChatBox → ChatPageLayout`) so headers, message
- * list, composer, and Welcome state all share the same Echo-style
- * design. No file tree, no team-mode picker — just the conversation.
- */
+/** Plain chat workspace: `ThreadProviders → ChatBox → ChatPageLayout`, sharing
+ * the team/code header, list and composer architecture. */
 export default function RealtimePage() {
   const chatState = useThreadChat();
 
@@ -1244,6 +1240,7 @@ function RealtimePageContent({
     selectArtifact,
   });
   const openFinalArtifactPanel = useArtifactOpenRequests({
+    threadId,
     openWorkbenchArtifact,
     finalArtifactEntries,
   });
@@ -1401,6 +1398,10 @@ function RealtimePageContent({
                     }
                     rightPanelMenu={
                       <RightPanelMenu
+                        key={threadId}
+                        threadId={threadId}
+                        workbenchTab={agentWorkbenchTab}
+                        onRestoreWorkbench={selectAgentWorkbenchTab}
                         activePage={activeRightPanel}
                         artifactCount={artifactCount}
                         hasAgentWorkbench={canOpenAgentWorkbench}

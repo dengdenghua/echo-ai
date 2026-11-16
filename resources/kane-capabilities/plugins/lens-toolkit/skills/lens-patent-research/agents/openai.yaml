@@ -1,0 +1,4 @@
+interface:
+  display_name: "镜头专利与案例溯源"
+  short_description: "联查镜头专利资源和本地实施例，核对国家、配置、尺度与原文出处"
+  default_prompt: "使用 $lens-patent-research 找镜头专利与案例，核对原文和具体实施例。"

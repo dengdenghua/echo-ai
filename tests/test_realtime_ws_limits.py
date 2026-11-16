@@ -147,7 +147,12 @@ def test_inbound_oversized_frame_is_dropped_and_connection_survives():
         TestClient(app) as client,
         client.websocket_connect("/api/realtime") as ws,
     ):
-        ws.send_text("x" * (_INBOUND_FRAME_BYTE_LIMIT + 1))
+        # Chinese exceeds the byte limit while remaining below the char limit.
+        ws.send_text("中" * (_INBOUND_FRAME_BYTE_LIMIT // 3 + 1))
+        error = decode_message(ws.receive_text())
+        assert isinstance(error, Notification) and error.method == "error"
+        assert error.params["error"]["data"]["kind"] == "inbound_frame_too_large"
+        assert error.params["willRetry"] is False
         ws.send_text(encode_message(Notification(method="ping", params={})))
         reply = decode_message(ws.receive_text())
     assert isinstance(reply, Notification)

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from runtime.execution.misc.desktop_intent import desktop_capture_requested
+
 _CHITCHAT_RE = re.compile(
     r"^\s*("
     r"你好|您好|早上好|晚上好|嗨|哈喽|hello|hi|hey|"
@@ -75,10 +77,10 @@ _CALENDAR_QA_RE = re.compile(
 
 _NO_TOOL_DIRECTIVE_RE = re.compile(
     r"("
-    r"(?:不要|不需要|无需|不用|别).{0,16}"
-    r"(?:调用|使用|执行|打开|启动).{0,16}"
+    r"(?:不要|不需要|无需|不用|别)[^\n。！？!?；;，,]{0,16}"
+    r"(?:调用|使用|执行|打开|启动)[^\n。！？!?；;，,]{0,16}"
     r"(?:工具|外部工具|浏览器|桌面|搜索|联网|截图)|"
-    r"(?:不要|不需要|无需|不用|别).{0,16}"
+    r"(?:不要|不需要|无需|不用|别)[^\n。！？!?；;，,]{0,16}"
     r"(?:工具|外部工具|浏览器|桌面|搜索|联网|截图)|"
     r"\b(?:do\s+not|don't|dont|without|no)\s+"
     r"(?:(?:call|use|run|open)\s+)?"
@@ -160,7 +162,32 @@ def _is_short_chitchat(text: str) -> bool:
 
 
 def _has_explicit_non_tool_directive(text: str) -> bool:
-    return bool(_NO_TOOL_DIRECTIVE_RE.search(text or ""))
+    text = text or ""
+    # A global tools prohibition remains stronger than an action request.
+    # Restrictions on one surface (e.g. screenshots) must not remove all
+    # tools needed for a separately requested click, keyboard edit or file read.
+    if re.search(
+        r"(?:不要|不需要|无需|不用|别)\s*(?:(?:调用|使用|执行)\s*)?"
+        r"(?:(?:任何|所有|全部|外部)\s*)?工具|"
+        r"\b(?:do\s+not|don't|dont|without|no)\s+(?:(?:call|use|run)\s+)?"
+        r"(?:(?:any|all|external)\s+)?tools?\b",
+        text, re.IGNORECASE,
+    ):
+        return True
+    if not _NO_TOOL_DIRECTIVE_RE.search(text):
+        return False
+    remaining = _NO_TOOL_DIRECTIVE_RE.sub("", text)
+    return not bool(
+        _TOOL_INTENT_RE.search(remaining) or _DESKTOP_ACTION_RE.search(remaining)
+        or desktop_capture_requested(remaining)
+    )
+
+
+_DESKTOP_ACTION_RE = re.compile(
+    r"computer_[a-z_]+|点击|单击|双击|键盘|输入框|按下|"
+    r"\b(?:click|double.click|keypress|press\s+(?:tab|enter|ctrl)|type\s+into)\b",
+    re.IGNORECASE,
+)
 
 
 def _requests_role_tool(text: str) -> bool:
@@ -192,6 +219,8 @@ def looks_like_plain_chat(goal: str) -> bool:
         return False
     if _has_explicit_non_tool_directive(g):
         return True
+    if desktop_capture_requested(g):
+        return False
     if _DIRECT_REPLY_RE.search(g) and not _FILE_SIGNAL_RE.search(g):
         return True
     if (
@@ -217,7 +246,7 @@ def looks_like_tool_intent(goal: str) -> bool:
         return True
     if _TOOL_META_RE.search(g):
         return True
-    return bool(_TOOL_INTENT_RE.search(g))
+    return bool(_TOOL_INTENT_RE.search(g) or _DESKTOP_ACTION_RE.search(g) or desktop_capture_requested(g))
 
 
 def _message_text(message: object) -> str:

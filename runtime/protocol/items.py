@@ -590,7 +590,7 @@ class TurnParams(BaseModel):
     execution_engine: Literal["auto", "echo", "codex", "opencode", "codebuddy"] = Field(
         default="auto", alias="executionEngine"
     )
-    effort: Literal["minimal", "low", "medium", "high", "xhigh", "max"] = "medium"
+    effort: Literal["minimal", "low", "medium", "high", "xhigh", "max", "ultra"] = "medium"
     summary: Literal["none", "auto", "detailed"] = "none"
     output_schema: dict[str, Any] | None = Field(default=None, alias="outputSchema")
     # Plan-first mode (renamed semantics 2026-05-31).

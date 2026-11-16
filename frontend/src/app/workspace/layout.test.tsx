@@ -33,6 +33,13 @@ vi.mock("@/components/workspace/attention-notifier-host", () => ({
   AttentionNotifierHost: () => null,
 }));
 
+test("knowledge routes use their own application navigation instead of the conversation sidebar", () => {
+  renderWithProviders(<WorkspaceLayout />, { locale: "zh-CN", initialRoute: "/workspace/storage?library=sources" });
+  expect(screen.queryByText("sidebar")).not.toBeInTheDocument();
+  expect(screen.getByRole("navigation", { name: "知识库导航" })).toBeVisible();
+  expect(screen.getByTestId("workspace-location")).toHaveTextContent("/workspace/storage?library=sources");
+});
+
 describe("<WorkspaceLayout /> stub response banner", () => {
   afterEach(() => {
     eventBus.clear();

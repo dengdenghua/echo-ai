@@ -44,6 +44,13 @@ def member_execution_backend(stack: Any, agent: Any) -> str:
     bound = current_execution_request()
     if bound is not None and bound.task.execution_engine == "codebuddy":
         return "codebuddy_cli"
+    session = current_session()
+    if (
+        bound is not None
+        and session is not None
+        and session.metadata.get("_parent_execution_engine") == "codebuddy"
+    ):
+        return "codebuddy_cli"
     execution = getattr(getattr(stack, "config", None), "execution", None)
     # Legacy embedded hosts have no AgentConfig. Standard application stacks
     # consume the validated default from ExecutionConfig.

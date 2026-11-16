@@ -48,6 +48,60 @@ describe("useAttachmentUploads thread isolation", () => {
     uploadFilesWithProgressMock.mockReset();
   });
 
+  it.each(["remove", "reset", "switch", "unmount"])(
+    "cancels a pending network upload on %s instead of just hiding its progress",
+    (action) => {
+      uploadFilesWithProgressMock.mockImplementation(
+        () => new Promise(() => {}),
+      );
+      const { result, rerender, unmount } = renderHook(
+        ({ threadId }) => useAttachmentUploads(threadId),
+        { initialProps: { threadId: "thread-a" } },
+      );
+      act(() =>
+        result.current.start([
+          { key: "cancel-me", file: new File(["x"], "draft.txt") },
+        ]),
+      );
+      const signal = uploadFilesWithProgressMock.mock.calls[0]?.[2]
+        ?.signal as AbortSignal;
+      expect(signal?.aborted).toBe(false);
+      if (action === "remove") act(() => result.current.remove("cancel-me"));
+      if (action === "reset") act(() => result.current.reset());
+      if (action === "switch") rerender({ threadId: "thread-b" });
+      if (action === "unmount") unmount();
+      expect(signal.aborted).toBe(true);
+    },
+  );
+
+  it("cancels a superseded attempt without aborting its replacement", async () => {
+    const first = deferredUpload();
+    const second = deferredUpload();
+    uploadFilesWithProgressMock
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const { result } = renderHook(() => useAttachmentUploads("thread-a"));
+    act(() =>
+      result.current.start([
+        { key: "same", file: new File(["x"], "draft.txt") },
+      ]),
+    );
+    const firstSignal = uploadFilesWithProgressMock.mock.calls[0]?.[2]
+      ?.signal as AbortSignal;
+    act(() => result.current.retry("same"));
+    const secondSignal = uploadFilesWithProgressMock.mock.calls[1]?.[2]
+      ?.signal as AbortSignal;
+    expect(firstSignal?.aborted).toBe(true);
+    expect(secondSignal?.aborted).toBe(false);
+    await act(async () => {
+      first.resolve({ files: [uploaded("draft.txt", "old")] });
+      await first.promise;
+    });
+    expect(result.current.uploads.get("same")?.status).toBe("uploading");
+    act(() => result.current.remove("same"));
+    expect(secondSignal.aborted).toBe(true);
+  });
+
   it("clears the ledger and ignores an old response for the same attachment key", async () => {
     const oldUpload = deferredUpload();
     const newUpload = deferredUpload();

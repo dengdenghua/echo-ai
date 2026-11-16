@@ -54,10 +54,11 @@ it("preserves scoped output URLs through sanitization", async () => {
     renderWithProviders(
       <Conversation content="[生成文件](workspace-output:final:report.pdf)" />,
     );
-    fireEvent.click(await screen.findByRole("link", { name: "生成文件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "生成文件" }));
     expect(handle).toHaveBeenCalledOnce();
     expect((handle.mock.calls[0]![0] as CustomEvent).detail).toEqual({
       path: "workspace-output:final:report.pdf",
+      threadId: "t",
     });
   } finally {
     window.removeEventListener(OPEN_ARTIFACT_EVENT, handle);
@@ -78,12 +79,10 @@ it("continues to strip executable URLs and unsafe HTML", async () => {
 });
 
 it("loads Windows images through an authenticated endpoint after expanding", async () => {
-  const fetch = vi
-    .fn()
-    .mockResolvedValue({
-      ok: true,
-      blob: async () => new Blob(["PNG"], { type: "image/png" }),
-    });
+  const fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    blob: async () => new Blob(["PNG"], { type: "image/png" }),
+  });
   vi.stubGlobal("fetch", fetch);
   vi.stubGlobal(
     "URL",

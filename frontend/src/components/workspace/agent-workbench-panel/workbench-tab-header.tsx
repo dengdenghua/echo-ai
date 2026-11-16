@@ -123,10 +123,6 @@ function WorkbenchTabHeaderImpl({
       className="relative shrink-0 border-b border-border-default px-2.5 py-1.5"
       style={
         {
-          paddingRight:
-            controlsSide === "right"
-              ? "calc(var(--window-controls-safe-inset, 138px) + 0.625rem)"
-              : undefined,
           WebkitAppRegion: controlsSide === "right" ? "drag" : undefined,
         } as CSSProperties
       }

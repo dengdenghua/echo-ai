@@ -136,7 +136,7 @@ export function LocalDiskView({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-card">
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-card">
           <div className="grid grid-cols-[minmax(0,1fr)_120px_96px_36px] gap-3 border-b border-border bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
             <span>名称</span>
             <span>类型</span>
@@ -184,7 +184,7 @@ export function LocalDiskView({
                   ? "正在连接目录服务…"
                   : "目录服务尚未连接。")}
           </div>
-        </main>
+        </div>
       </div>
     </>
   );

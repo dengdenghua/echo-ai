@@ -570,11 +570,15 @@ describe("MessageList process trace lifecycle", () => {
 
     const panel = screen.getByTestId("agent-report-0");
     expect(panel).toHaveTextContent(fullReport);
+    expect(screen.queryByTestId("agent-hover-0")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /收起报告/ }),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /收起报告/ }));
+    expect(screen.queryByTestId("agent-report-0")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /查看报告/ }));
+    fireEvent.click(screen.getByRole("button", { name: "查看详情" }));
     expect(screen.queryByTestId("agent-report-0")).not.toBeInTheDocument();
   });
 
@@ -2270,7 +2274,9 @@ describe("MessageList process trace lifecycle", () => {
       screen.getAllByTestId("process-timeline-event-execution").length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText(/old market query/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("process-replay-toggle"));
+    // The current live process now has its own disclosure as well. Open
+    // the collapsed historical trace, leaving the live trace untouched.
+    fireEvent.click(screen.getByRole("button", { name: /Process replay/ }));
     expect(screen.getByText(/old market query/)).toBeInTheDocument();
     expect(screen.getAllByText(/active market query/).length).toBeGreaterThan(
       0,
@@ -2812,6 +2818,19 @@ describe("MessageList stalled-run warning", () => {
     expect(screen.queryByText('str = ""')).not.toBeInTheDocument();
   });
 
+  test("keeps cancelled receipts and an unfinished answer retryable outside the process fold", () => {
+    const stopped: AIMessage = { id: "stopped", type: "ai", content: "Partial maintenance answer",
+      additional_kwargs: { message_kind: "answer", response_state: "cancelled" } };
+    renderMessageList({ thread: mockThread({ messages: [message("q", "human", "Read report"), stopped] }) });
+    expect(screen.getByText("Partial maintenance answer")).toBeInTheDocument();
+    const retry = screen.getByRole("button", { name: "Regenerate response" });
+    const listener = vi.fn();
+    window.addEventListener("echo:regenerate", listener);
+    fireEvent.click(retry);
+    window.removeEventListener("echo:regenerate", listener);
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
   test("shows the agent avatar when a turn is interrupted before first token", () => {
     const thread = mockThread({
       messages: [
@@ -3231,17 +3250,45 @@ describe("MessageList stalled-run warning", () => {
   });
 });
 
-
 test("keeps inline visuals visible when the completed process trace is folded", () => {
   const messages: Message[] = [
     message("user-visual", "human", "解释结构"),
-    { id: "visual-call", type: "ai", content: "", tool_calls: [{ id: "show-one", name: "show_visual", args: { title: "结构图", code: "<svg><text>Example</text></svg>", format: "svg" } }] } as AIMessage,
-    { id: "visual-result", type: "tool", tool_call_id: "show-one", content: JSON.stringify({ ok: true, kind: "echo.visual.v1", visual_id: "one", receipt_token: "test-token", thread_id: "thread-1" }) } as Message,
+    {
+      id: "visual-call",
+      type: "ai",
+      content: "",
+      tool_calls: [
+        {
+          id: "show-one",
+          name: "show_visual",
+          args: {
+            title: "结构图",
+            code: "<svg><text>Example</text></svg>",
+            format: "svg",
+          },
+        },
+      ],
+    } as AIMessage,
+    {
+      id: "visual-result",
+      type: "tool",
+      tool_call_id: "show-one",
+      content: JSON.stringify({
+        ok: true,
+        kind: "echo.visual.v1",
+        visual_id: "one",
+        receipt_token: "test-token",
+        thread_id: "thread-1",
+      }),
+    } as Message,
     message("visual-final", "ai", "结构如图。"),
   ];
   renderMessageList({ thread: mockThread({ messages }), locale: "zh-CN" });
   expect(screen.getByTestId("inline-visual")).toBeVisible();
-  expect(screen.getByTitle("结构图")).toHaveAttribute("sandbox", "allow-scripts");
+  expect(screen.getByTitle("结构图")).toHaveAttribute(
+    "sandbox",
+    "allow-scripts",
+  );
   for (const toggle of screen.queryAllByTestId("process-replay-toggle")) {
     fireEvent.click(toggle);
     expect(screen.getByTestId("inline-visual")).toBeVisible();

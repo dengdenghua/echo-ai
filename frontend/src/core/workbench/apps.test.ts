@@ -6,10 +6,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   WORKBENCH_BUILTIN_APPS,
+  clearWorkspaceWebShortcutsForScope,
   resetWorkspaceWebShortcutCache,
   setWorkspaceWebShortcut,
   useWorkspaceWebShortcuts,
   workspaceWebAppRoute,
+  workspaceWebShortcutKey,
 } from "./apps";
 
 describe("built-in workbench apps", () => {
@@ -99,6 +101,24 @@ describe("workspace web shortcuts", () => {
       );
     });
     expect(result.current).toEqual([]);
+  });
+
+  it("keeps web shortcuts in disjoint account namespaces", () => {
+    expect(workspaceWebShortcutKey("local:owner")).not.toBe(
+      workspaceWebShortcutKey("local:reader"),
+    );
+    window.localStorage.setItem(
+      workspaceWebShortcutKey("local:owner"),
+      JSON.stringify([{ id: "web:x", name: "Owner", url: "https://x.test/" }]),
+    );
+    clearWorkspaceWebShortcutsForScope("local:reader");
+    expect(
+      window.localStorage.getItem(workspaceWebShortcutKey("local:owner")),
+    ).not.toBeNull();
+    clearWorkspaceWebShortcutsForScope("local:owner");
+    expect(
+      window.localStorage.getItem(workspaceWebShortcutKey("local:owner")),
+    ).toBeNull();
   });
 
   it("rejects unsafe non-web targets", () => {

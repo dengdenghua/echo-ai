@@ -1,0 +1,6 @@
+interface:
+  display_name: "REA 软件逆向"
+  short_description: "分析软件、Electron、二进制与固件，追踪功能实现并保留可核对证据"
+  default_prompt: "使用 $rea-reverse-engineering 检查分析环境，追踪这个软件的关键功能并给出证据。"
+policy:
+  allow_implicit_invocation: true

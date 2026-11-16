@@ -55,6 +55,7 @@ import {
   partitionMessageGroupsIntoTurns,
   buildAgentRosterMap,
   hasVisibleAssistantText,
+  useMessageListHistoryCache,
 } from "./message-list-turns";
 import type {
   MessageListAgentRosterEntry,
@@ -279,16 +280,18 @@ export function MessageList({
   );
   const timelineEntrySlots = useMemo(
     () =>
-      placeTimelineEntries(
-        groupedMessages.map((group) => {
-          for (const message of group.messages) {
-            const createdAt = messageCreatedAt(message);
-            if (createdAt) return createdAt;
-          }
-          return null;
-        }),
-        timelineEntries,
-      ),
+      timelineEntries.length === 0
+        ? []
+        : placeTimelineEntries(
+            groupedMessages.map((group) => {
+              for (const message of group.messages) {
+                const createdAt = messageCreatedAt(message);
+                if (createdAt) return createdAt;
+              }
+              return null;
+            }),
+            timelineEntries,
+          ),
     [groupedMessages, timelineEntries],
   );
   const {
@@ -357,6 +360,20 @@ export function MessageList({
     liveToolEvents,
   });
 
+  const { ref: historyCacheRef } = useMessageListHistoryCache({
+    threadId,
+    showSenderName,
+    locale,
+    isLoading: thread.isLoading,
+    agentRosterSize: agentRosterMap.size,
+    toolEvents: allToolEvents,
+    timelineEntries,
+    auditNoticeGroupKey,
+    verificationAuditNotice,
+    messageTurns,
+    groupedMessages,
+  });
+
   if (showResumeSkeleton && thread.isThreadLoading && messages.length === 0) {
     return <MessageListSkeleton />;
   }
@@ -374,6 +391,8 @@ export function MessageList({
 
   return (
     <Conversation
+      storageKey={threadId}
+      restorationReady={!thread.isThreadLoading && (!("readyForMutations" in thread) || thread.readyForMutations === true)}
       className={cn(
         "relative flex size-full flex-col select-text overflow-x-hidden",
         "[&_p]:select-text [&_li]:select-text [&_span]:select-text [&_pre]:select-text [&_code]:select-text",
@@ -435,6 +454,10 @@ export function MessageList({
           })}
         {messageTurns.map((turn, turnIndex) => {
           const isLatestTurn = turnIndex === messageTurns.length - 1;
+          const cachedTurn = isLatestTurn
+            ? undefined
+            : historyCacheRef.current.nodes.get(turn.key);
+          if (cachedTurn) return cachedTurn;
           const subagentRenderInfo = turnSubagentRenderInfo.get(turn.key);
           const markerKey = turn.key.startsWith("human:") ? turn.key : null;
           // A submitted turn can spend several seconds waiting for its first
@@ -500,7 +523,7 @@ export function MessageList({
             messageTurns.length > HISTORY_TURN_KEEP_MOUNTED * 2 &&
             turnIndex < messageTurns.length - HISTORY_TURN_KEEP_MOUNTED;
 
-          return (
+          const turnNode = (
             <HistoricalTurnBoundary
               key={turn.key}
               cacheKey={`${threadId}:${turn.key}`}
@@ -721,6 +744,10 @@ export function MessageList({
                 ))}
             </HistoricalTurnBoundary>
           );
+          if (!isLatestTurn) {
+            historyCacheRef.current.nodes.set(turn.key, turnNode);
+          }
+          return turnNode;
         })}
 
         {timelineEntrySlots[groupedMessages.length]?.map((entry) => (
@@ -816,10 +843,11 @@ export function MessageList({
                     </div>
                   )}
                 {(failureReceipt?.kind === "auth" ||
+                  failureReceipt?.kind === "quota-exhausted" ||
                   failureReceipt?.kind === "rate-limit" ||
                   noModelFailure) && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <ModelSetupActions noModel={noModelFailure} />
+                    <ModelSetupActions noModel={noModelFailure} quota={failureReceipt?.kind === "quota-exhausted"} />
                     {failureReceipt?.kind === "rate-limit" &&
                       fallbackRetryPrompt &&
                       onRetryTask &&

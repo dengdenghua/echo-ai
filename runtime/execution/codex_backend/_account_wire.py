@@ -66,6 +66,8 @@ def _normalize_model_entry(raw: Mapping[str, Any]) -> dict[str, object]:
         for item in raw_efforts:
             if isinstance(item, Mapping) and isinstance(item.get("reasoningEffort"), str):
                 efforts.append(str(item["reasoningEffort"]))
+    from runtime.platform.models.official_capabilities import account_context_metadata
+    context = account_context_metadata(raw, model_id)
     modalities = raw.get("inputModalities")
     if not isinstance(modalities, list):
         modalities = ["text", "image"]
@@ -74,6 +76,7 @@ def _normalize_model_entry(raw: Mapping[str, Any]) -> dict[str, object]:
         "display_name": display_name,
         "description": raw.get("description") if isinstance(raw.get("description"), str) else "",
         "reasoning_efforts": efforts,
+        **context,
         "default_reasoning_effort": (
             raw.get("defaultReasoningEffort")
             if isinstance(raw.get("defaultReasoningEffort"), str)

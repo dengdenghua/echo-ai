@@ -16,7 +16,7 @@ const pageTabs = Array.from({ length: 6 }, (_, index) => ({
 
 function seedCrowdedSession() {
   window.localStorage.setItem(
-    "echo:browser-state",
+    "echo:browser-state:anonymous",
     JSON.stringify({
       tabs: [
         {

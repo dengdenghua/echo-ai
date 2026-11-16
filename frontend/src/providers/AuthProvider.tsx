@@ -11,6 +11,7 @@ import {
 
 import {
   ACCOUNT_FREE_TOKEN,
+  currentActorScope,
   desktopOwnerLogin,
   getAuthStatus,
   getMe,
@@ -27,6 +28,9 @@ import {
 } from "@/core/auth/api";
 import { octAuthApi } from "@/core/oct/api";
 import { AUTH_EXPIRED_EVENT } from "@/core/auth/fetch-interceptor";
+import { suppressDesktopAutoLogin } from "@/core/auth/desktop-auto-login";
+import { clearComposerDrafts } from "@/core/threads/composer-draft";
+import { clearReplayCacheForActor } from "@/core/realtime/replay-cache";
 
 import { swallow } from "@/core/utils/log";
 import type {
@@ -289,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const expire = () => {
       if (getToken() === ACCOUNT_FREE_TOKEN) return;
       _clearTokens();
+      queryClient.clear();
       forgetDesktopSignIn();
       setUser(null);
       // HttpOnly cookies cannot be cleared from JavaScript.  The logout route
@@ -300,7 +305,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, expire);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, expire);
-  }, []);
+  }, [queryClient]);
 
   // Signing in starts a new account session in the same tab: drop data the
   // previous account loaded (thread list, projects, settings) so it never
@@ -411,11 +416,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    const actorScope = currentActorScope(user);
     await logoutApi();
     forgetDesktopSignIn();
+    // An explicit sign-out must not be undone by the desktop auto sign-in on
+    // the login screen it lands on; the suppression lasts for this session.
+    suppressDesktopAutoLogin();
     _clearTokens();
+    queryClient.clear();
+    clearComposerDrafts(actorScope);
+    void import("@/components/workspace/collab/room-message-state")
+      .then(({ clearRoomOutboxForScope }) =>
+        clearRoomOutboxForScope(actorScope),
+      )
+      .catch(() => {});
+    void clearReplayCacheForActor(actorScope).catch(() => {});
+    void import("@/core/cache/workbench-snapshot-cache")
+      .then(({ clearWorkbenchCacheForScope }) =>
+        clearWorkbenchCacheForScope(actorScope),
+      )
+      .catch(() => {});
+    void import("@/core/workbench/apps")
+      .then(({ clearWorkspaceWebShortcutsForScope }) =>
+        clearWorkspaceWebShortcutsForScope(actorScope),
+      )
+      .catch(() => {});
     setUser(null);
-  }, []);
+  }, [queryClient, user]);
 
   const refresh = useCallback(async () => {
     const response = await refreshToken();

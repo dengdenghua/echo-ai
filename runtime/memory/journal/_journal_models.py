@@ -364,6 +364,8 @@ class SubToolStartEvent(JournalEvent):
     """
 
     event_type: Literal["sub_tool_start"] = "sub_tool_start"
+    # Durable child conversation, distinct from its persona or runtime lane.
+    session_id: str = ""
     agent_id: str = ""
     codename: str = ""
     avatar: str = ""
@@ -379,6 +381,7 @@ class SubToolEndEvent(JournalEvent):
     """Emitted when a sub-agent finishes a tool call."""
 
     event_type: Literal["sub_tool_end"] = "sub_tool_end"
+    session_id: str = ""
     agent_id: str = ""
     codename: str = ""
     avatar: str = ""

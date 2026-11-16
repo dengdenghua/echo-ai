@@ -75,7 +75,9 @@ def _record(model: str) -> dict[str, Any]:
 
 def known_model_context_window(model: str) -> int | None:
     """Upstream-declared input window, or None when unknown."""
-    value = _record(model).get("context")
+    from .official_capabilities import official_model_capabilities
+
+    value = official_model_capabilities(model).get("context_window", _record(model).get("context"))
     return value if isinstance(value, int) and value > 0 else None
 
 

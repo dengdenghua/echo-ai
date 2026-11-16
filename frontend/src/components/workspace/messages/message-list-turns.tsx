@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -28,6 +29,118 @@ export const MESSAGE_LIST_FOLLOWUPS_EXTRA_PADDING_BOTTOM = 80;
 export const MESSAGE_LIST_TIMEOUT_WARNING_MS = 300_000;
 export const MESSAGE_LIST_STALL_HINT_MS = 60_000;
 export type SubtaskUpdate = Partial<Subtask> & { id: string };
+
+/** Cheap stable revision for memo caches: length plus a 32-bit text hash. */
+export function messageContentRevision(
+  content: Message["content"] | undefined,
+): string {
+  const text =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content
+            .filter(
+              (part): part is { type: "text"; text: string } =>
+                part.type === "text",
+            )
+            .map((part) => part.text)
+            .join("\n")
+        : "";
+  let hash = 2_166_136_261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return `${text.length}:${hash >>> 0}`;
+}
+
+/**
+ * Content version for the historical-turn element cache. It covers every
+ * global input that can change historical output: locale, sender-name density,
+ * roster, tool/timeline additions, audit notice and the settle transition of
+ * the live turn.
+ */
+export function useMessageListHistoryVersion({
+  threadId,
+  showSenderName,
+  locale,
+  isLoading,
+  agentRosterSize,
+  toolEvents,
+  timelineEntries,
+  auditNoticeGroupKey,
+  verificationAuditNotice,
+  messageTurns,
+  groupedMessages,
+}: {
+  threadId: string;
+  showSenderName: boolean;
+  locale: string;
+  isLoading: boolean;
+  agentRosterSize: number;
+  toolEvents: readonly { id: string }[] | undefined;
+  timelineEntries: readonly { id: string }[];
+  auditNoticeGroupKey: string | null | undefined;
+  verificationAuditNotice: unknown;
+  messageTurns: readonly MessageTurnSlice[];
+  groupedMessages: readonly CoreMessageGroup[];
+}): string {
+  return useMemo(() => {
+    const parts = [
+      threadId,
+      showSenderName ? "1" : "0",
+      locale,
+      isLoading ? "1" : "0",
+      String(agentRosterSize),
+      String(toolEvents?.length ?? 0),
+      toolEvents?.at(-1)?.id ?? "",
+      String(timelineEntries.length),
+      timelineEntries.map((entry) => entry.id).join(","),
+      auditNoticeGroupKey ?? "",
+      verificationAuditNotice ? "1" : "0",
+    ];
+    for (let turnIndex = 0; turnIndex < messageTurns.length - 1; turnIndex += 1) {
+      const turn = messageTurns[turnIndex]!;
+      parts.push(turn.key);
+      for (const groupIndex of turn.groupIndexes) {
+        const group = groupedMessages[groupIndex]!;
+        const lastMessage = group.messages[group.messages.length - 1];
+        parts.push(
+          `${group.type}:${group.id ?? groupIndex}:${group.messages.length}:${
+            lastMessage?.id ?? ""
+          }:${messageContentRevision(lastMessage?.content)}`,
+        );
+      }
+    }
+    return parts.join("|");
+  }, [
+    threadId,
+    showSenderName,
+    locale,
+    isLoading,
+    agentRosterSize,
+    toolEvents,
+    timelineEntries,
+    auditNoticeGroupKey,
+    verificationAuditNotice,
+    messageTurns,
+    groupedMessages,
+  ]);
+}
+
+export function useMessageListHistoryCache(
+  args: Parameters<typeof useMessageListHistoryVersion>[0],
+) {
+  const version = useMessageListHistoryVersion(args);
+  const ref = useRef<{ version: string; nodes: Map<string, ReactNode> }>({
+    version: "",
+    nodes: new Map(),
+  });
+  if (ref.current.version !== version) {
+    ref.current = { version, nodes: new Map() };
+  }
+  return { version, ref };
+}
 
 /**
  * Return task-call ids that have not been rendered in this subagent lane.
@@ -263,15 +376,36 @@ export function placeTimelineEntries(
       return left.at - right.at || left.index - right.index;
     });
   const anchors = groupCreatedAt.map(timestampMs);
+  const datedAnchors: { at: number; index: number }[] = [];
+  let anchorsSorted = true;
+  let previousAt = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < anchors.length; index += 1) {
+    const at = anchors[index];
+    if (at === null || at === undefined) continue;
+    if (at < previousAt) anchorsSorted = false;
+    previousAt = at;
+    datedAnchors.push({ at, index });
+  }
+  const groupIndexAtOrAfter = (at: number): number => {
+    if (!anchorsSorted) {
+      return anchors.findIndex((anchor) => anchor !== null && anchor >= at);
+    }
+    let low = 0;
+    let high = datedAnchors.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (datedAnchors[middle]!.at < at) low = middle + 1;
+      else high = middle;
+    }
+    return datedAnchors[low]?.index ?? -1;
+  };
 
   for (const item of ordered) {
     if (item.at === null) {
       slots[groupCreatedAt.length]!.push(item.entry);
       continue;
     }
-    const groupIndex = anchors.findIndex(
-      (anchor) => anchor !== null && anchor >= item.at!,
-    );
+    const groupIndex = groupIndexAtOrAfter(item.at);
     slots[groupIndex < 0 ? groupCreatedAt.length : groupIndex]!.push(
       item.entry,
     );

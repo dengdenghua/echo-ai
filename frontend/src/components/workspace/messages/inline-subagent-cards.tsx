@@ -220,6 +220,10 @@ export function deriveInlineSubagents(
 
     byId.set(key, {
       id: key,
+      sessionId:
+        firstString(outputObj, ["session_id", "sessionId"]) ||
+        firstString(event.input, ["session_id", "sessionId"]) ||
+        existing?.sessionId,
       name:
         event.subagentRoleDisplayName ||
         inputName ||
@@ -274,6 +278,16 @@ export function deriveSubagentsFromMessages(
   }
 
   let agentIndex = 0;
+  const directCallCounts = new Map<string, number>();
+  for (const message of messages) {
+    if (!isAIMessage(message)) continue;
+    for (const call of message.tool_calls ?? []) {
+      if (!/(?:^|[._])call_agent$/.test(call.name.toLowerCase())) continue;
+      const roleId = firstString(call.args, ["agent_id", "role"]);
+      if (roleId)
+        directCallCounts.set(roleId, (directCallCounts.get(roleId) ?? 0) + 1);
+    }
+  }
   for (const msg of messages) {
     if (!isAIMessage(msg)) continue;
     const aiMsg = msg;
@@ -312,7 +326,11 @@ export function deriveSubagentsFromMessages(
         /^\s*\((?:工具失败|tool failed)\)/i.test(embeddedOutput) ||
         /\berror=structured_error\b/i.test(embeddedOutput);
       const hasToolResult = Boolean(toolResult) || Boolean(embeddedOutput);
-      const toolErrored = Boolean(toolResult?.error) || embeddedToolErrored;
+      const toolErrored =
+        Boolean(toolResult?.error) ||
+        embeddedToolErrored ||
+        args.status === "failed" ||
+        (typeof args.exit_code === "number" && args.exit_code !== 0);
 
       const resultObj =
         result && typeof result === "object" && !Array.isArray(result)
@@ -357,18 +375,14 @@ export function deriveSubagentsFromMessages(
                   : `spec-${i}`;
           const role = typeof spec.role === "string" ? spec.role : undefined;
 
-          const success = successes.find(
-            (s) =>
-              (typeof s.agent_id === "string" && s.agent_id === agentId) ||
-              (typeof s.spec_index === "number" && s.spec_index === i) ||
-              (typeof s.role === "string" && role && s.role === role),
-          );
-          const failure = failures.find(
-            (f) =>
-              (typeof f.agent_id === "string" && f.agent_id === agentId) ||
-              (typeof f.spec_index === "number" && f.spec_index === i) ||
-              (typeof f.role === "string" && role && f.role === role),
-          );
+          const matchResult = (items: Record<string, unknown>[]) =>
+            items.find((item) => item.agent_id === agentId) ??
+            items.find((item) => item.spec_index === i) ??
+            (role && specs.filter((entry) => entry.role === role).length === 1
+              ? items.find((item) => item.role === role)
+              : undefined);
+          const success = matchResult(successes);
+          const failure = matchResult(failures);
 
           const matched = success || failure;
           const displayName = matched
@@ -470,6 +484,10 @@ export function deriveSubagentsFromMessages(
 
           results.push({
             id: agentId,
+            sessionId:
+              firstString(matched, ["session_id", "sessionId"]) ||
+              firstString(spec, ["session_id", "sessionId"]) ||
+              undefined,
             name,
             role: role !== name ? role : undefined,
             avatar: resultAvatar ?? specAvatar ?? roleEmoji(role ?? name),
@@ -491,18 +509,24 @@ export function deriveSubagentsFromMessages(
         // Single agent call (call_agent, spawn_agent, delegate_agent, or "subagent" record).
         // Also handles MCP server-prefixed names (e.g. "team.call_agent").
         const agentId =
-          typeof args.requested_agent_id === "string"
-            ? args.requested_agent_id
-            : typeof args.requestedAgentId === "string"
-              ? args.requestedAgentId
-              : typeof args.agent_id === "string"
-                ? args.agent_id
-                : typeof args.subagent_id === "string"
-                  ? args.subagent_id
-                  : (tc.id ??
-                    `call-${Math.random().toString(36).slice(2, 10)}`);
+          /(?:^|[._])call_agent$/.test(tc.name.toLowerCase()) &&
+          (directCallCounts.get(firstString(args, ["agent_id", "role"])) ?? 0) >
+            1 &&
+          tc.id
+            ? tc.id
+            : typeof args.requested_agent_id === "string"
+              ? args.requested_agent_id
+              : typeof args.requestedAgentId === "string"
+                ? args.requestedAgentId
+                : typeof args.agent_id === "string"
+                  ? args.agent_id
+                  : typeof args.subagent_id === "string"
+                    ? args.subagent_id
+                    : (tc.id ??
+                      `call-${Math.random().toString(36).slice(2, 10)}`);
         const role = typeof args.role === "string" ? args.role : undefined;
         const name =
+          firstString(args, ["name", "display_name"]) ||
           firstString(resultObj ?? undefined, [
             "display_name",
             "role_display_name",
@@ -606,6 +630,10 @@ export function deriveSubagentsFromMessages(
 
         results.push({
           id: agentId,
+          sessionId:
+            firstString(resultObj ?? undefined, ["session_id", "sessionId"]) ||
+            firstString(args, ["session_id", "sessionId"]) ||
+            undefined,
           name,
           role: role !== name ? role : undefined,
           avatar: resultAvatar ?? specAvatar ?? roleEmoji(role ?? name),
@@ -770,13 +798,15 @@ export function InlineSubagentCards({
       <div className="rounded-md bg-muted/30 dark:bg-muted/15 px-1 py-1">
         {/* Header inside the card */}
         {agents.length > 1 && (
-          <div className="flex items-center gap-1.5 px-2 py-0.5">
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-2 py-0.5">
             <UsersIcon className="size-[13px] text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
+            <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
               {t.message.agentCluster}
             </span>
-            <span className="text-xs text-muted-foreground">|</span>
-            <span className="text-xs text-muted-foreground">
+            <span aria-hidden className="text-xs text-muted-foreground">
+              ·
+            </span>
+            <span className="min-w-0 flex-[1_1_14rem] text-xs leading-5 text-muted-foreground">
               {t.message.agentProgressSummary(
                 agents.length,
                 doneCount,

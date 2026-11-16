@@ -42,7 +42,7 @@ function OrganizationWorkspace({
   return (
     <WorkspaceContainer mobileNavigation>
       <WorkspaceBody>
-        <main className="w-full max-w-6xl space-y-5 px-1 pb-8 sm:px-4">
+        <div className="w-full max-w-6xl space-y-5 px-1 pb-8 sm:px-4">
           <header>
             <h1 className="text-2xl font-semibold">{copy.title}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{copy.intro}</p>
@@ -143,7 +143,7 @@ function OrganizationWorkspace({
               )}
             </div>
           )}
-        </main>
+        </div>
       </WorkspaceBody>
     </WorkspaceContainer>
   );

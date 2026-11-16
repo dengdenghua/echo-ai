@@ -1,0 +1,28 @@
+{
+  "bones": [
+    "root",
+    "body",
+    "tip",
+    "hand.L",
+    "hand.R",
+    "foot.L",
+    "foot.R"
+  ],
+  "actions": {
+    "idle": 96,
+    "greet": 48,
+    "drag": 48,
+    "land": 24,
+    "work": 72,
+    "wait": 72,
+    "success": 48
+  },
+  "shapeKeys": [
+    "Blink",
+    "Squash",
+    "Stretch"
+  ],
+  "resolution": 320,
+  "fps": 24,
+  "source": "Echo-Pearl-Droplet.blend"
+}
