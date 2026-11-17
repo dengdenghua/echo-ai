@@ -299,3 +299,6 @@ runtime/platform/plugins/*.json.lock
 # Local config backups ("config.local*.yaml" covers the live file; these are
 # timestamped copies made before risky edits and must stay machine-local)
 /config.local*.yaml.*.bak
+
+# Local delivery outputs; rebuild from source (tracked documents stay tracked).
+/deliverables/
